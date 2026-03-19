@@ -13,13 +13,50 @@ type Swimmer = {
   created_at?: string | null;
 };
 
+type SwimTime = {
+  id: string | number;
+  swimmer_id: string | number;
+  event: string;
+  course: string;
+  time_ms: number;
+  created_at?: string | null;
+};
+
 type GroupKey = "primary" | "following";
+
+type SwimmerSummary = {
+  totalTimes: number;
+  pbCount: number;
+  bestEntry: {
+    event: string;
+    course: string;
+    time_ms: number;
+  } | null;
+};
 
 function formatCreatedAt(value?: string | null) {
   if (!value) return "No date available";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "No date available";
   return date.toLocaleString();
+}
+
+function formatTime(ms: number) {
+  if (!Number.isFinite(ms) || ms <= 0) return "-";
+
+  const totalSeconds = ms / 1000;
+
+  if (totalSeconds >= 60) {
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds - minutes * 60;
+    return `${minutes}:${seconds.toFixed(2).padStart(5, "0")}`;
+  }
+
+  return totalSeconds.toFixed(2);
+}
+
+function keyOf(event: string, course: string) {
+  return `${event.trim().toLowerCase()}|${course.trim().toUpperCase()}`;
 }
 
 function getGroupLabel(group: GroupKey) {
@@ -37,6 +74,7 @@ export default function SwimmersPage() {
   const [loading, setLoading] = useState(false);
 
   const [swimmers, setSwimmers] = useState<Swimmer[]>([]);
+  const [swimTimes, setSwimTimes] = useState<SwimTime[]>([]);
 
   const [name, setName] = useState("");
   const [age, setAge] = useState("");
@@ -57,22 +95,80 @@ export default function SwimmersPage() {
     [swimmers]
   );
 
+  const swimmerSummaries = useMemo(() => {
+    const grouped = new Map<string, SwimTime[]>();
+
+    for (const t of swimTimes) {
+      const swimmerId = String(t.swimmer_id);
+      if (!grouped.has(swimmerId)) grouped.set(swimmerId, []);
+      grouped.get(swimmerId)!.push(t);
+    }
+
+    const summaries = new Map<string, SwimmerSummary>();
+
+    for (const [swimmerId, items] of grouped.entries()) {
+      const pbMap = new Map<string, SwimTime>();
+
+      for (const t of items) {
+        if (!t.event || !t.course || !Number.isFinite(t.time_ms)) continue;
+
+        const k = keyOf(t.event, t.course);
+        const prev = pbMap.get(k);
+
+        if (!prev || t.time_ms < prev.time_ms) {
+          pbMap.set(k, t);
+        }
+      }
+
+      const pbEntries = Array.from(pbMap.values());
+      const bestEntry =
+        pbEntries.length > 0
+          ? pbEntries.slice().sort((a, b) => a.time_ms - b.time_ms)[0]
+          : null;
+
+      summaries.set(swimmerId, {
+        totalTimes: items.length,
+        pbCount: pbEntries.length,
+        bestEntry: bestEntry
+          ? {
+              event: bestEntry.event,
+              course: bestEntry.course,
+              time_ms: bestEntry.time_ms,
+            }
+          : null,
+      });
+    }
+
+    return summaries;
+  }, [swimTimes]);
+
   async function fetchSwimmers() {
     setLoading(true);
     setStatus("Loading swimmers…");
 
-    const { data, error } = await supabase
-      .from("swimmers")
-      .select("*")
-      .order("created_at", { ascending: false });
+    const [{ data: swimmersData, error: swimmersError }, { data: timesData, error: timesError }] =
+      await Promise.all([
+        supabase.from("swimmers").select("*").order("created_at", { ascending: false }),
+        supabase
+          .from("swim_times")
+          .select("id, swimmer_id, event, course, time_ms, created_at")
+          .order("created_at", { ascending: false }),
+      ]);
 
-    if (error) {
-      setStatus(`Fetch failed ❌ ${error.message}`);
+    if (swimmersError) {
+      setStatus(`Fetch failed ❌ ${swimmersError.message}`);
       setLoading(false);
       return;
     }
 
-    setSwimmers((data ?? []) as Swimmer[]);
+    if (timesError) {
+      setStatus(`Times fetch failed ❌ ${timesError.message}`);
+      setLoading(false);
+      return;
+    }
+
+    setSwimmers((swimmersData ?? []) as Swimmer[]);
+    setSwimTimes((timesData ?? []) as SwimTime[]);
     setStatus("Loaded ✅");
     setLoading(false);
   }
@@ -151,6 +247,33 @@ export default function SwimmersPage() {
     fetchSwimmers();
   }, []);
 
+  function renderPbSummary(swimmerId: string | number) {
+    const summary = swimmerSummaries.get(String(swimmerId));
+
+    if (!summary || summary.totalTimes === 0) {
+      return (
+        <div className="mt-3">
+          <div className="text-sm text-gray-400">No PB yet</div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="mt-3">
+        <div className="text-sm font-semibold text-emerald-700">
+          {summary.pbCount} PB event{summary.pbCount === 1 ? "" : "s"}
+        </div>
+
+        {summary.bestEntry ? (
+          <div className="mt-1 text-sm text-gray-600">
+            Best: {summary.bestEntry.event} ({summary.bestEntry.course}) —{" "}
+            {formatTime(summary.bestEntry.time_ms)}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
   function renderSwimmerGroup(group: GroupKey, items: Swimmer[]) {
     const isOpen = openGroups[group];
 
@@ -214,7 +337,7 @@ export default function SwimmersPage() {
                         </span>
                       </div>
 
-                      <div className="mt-3 text-sm text-gray-400">No PB yet</div>
+                      {renderPbSummary(s.id)}
 
                       <div className="mt-2 text-sm text-gray-600">
                         Added: {formatCreatedAt(s.created_at)}
