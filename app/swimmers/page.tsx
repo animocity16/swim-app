@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
 type Swimmer = {
   id: string | number;
+  user_id?: string | null;
   name: string;
   age: number;
   birth_year?: number | null;
@@ -70,6 +72,8 @@ function getEmptyLabel(group: GroupKey) {
 }
 
 export default function SwimmersPage() {
+  const router = useRouter();
+
   const [status, setStatus] = useState("Ready ✅");
   const [loading, setLoading] = useState(false);
 
@@ -146,28 +150,59 @@ export default function SwimmersPage() {
     setLoading(true);
     setStatus("Loading swimmers…");
 
-    const [{ data: swimmersData, error: swimmersError }, { data: timesData, error: timesError }] =
-      await Promise.all([
-        supabase.from("swimmers").select("*").order("created_at", { ascending: false }),
-        supabase
-          .from("swim_times")
-          .select("id, swimmer_id, event, course, time_ms, created_at")
-          .order("created_at", { ascending: false }),
-      ]);
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      setStatus("Not logged in");
+      setSwimmers([]);
+      setSwimTimes([]);
+      setLoading(false);
+      router.push("/login");
+      return;
+    }
+
+    const { data: swimmersData, error: swimmersError } = await supabase
+      .from("swimmers")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
 
     if (swimmersError) {
       setStatus(`Fetch failed ❌ ${swimmersError.message}`);
+      setSwimmers([]);
+      setSwimTimes([]);
       setLoading(false);
       return;
     }
+
+    const swimmerList = (swimmersData ?? []) as Swimmer[];
+    setSwimmers(swimmerList);
+
+    if (swimmerList.length === 0) {
+      setSwimTimes([]);
+      setStatus("Loaded ✅");
+      setLoading(false);
+      return;
+    }
+
+    const swimmerIds = swimmerList.map((s) => s.id);
+
+    const { data: timesData, error: timesError } = await supabase
+      .from("swim_times")
+      .select("id, swimmer_id, event, course, time_ms, created_at")
+      .in("swimmer_id", swimmerIds)
+      .order("created_at", { ascending: false });
 
     if (timesError) {
       setStatus(`Times fetch failed ❌ ${timesError.message}`);
+      setSwimTimes([]);
       setLoading(false);
       return;
     }
 
-    setSwimmers((swimmersData ?? []) as Swimmer[]);
     setSwimTimes((timesData ?? []) as SwimTime[]);
     setStatus("Loaded ✅");
     setLoading(false);
@@ -190,11 +225,25 @@ export default function SwimmersPage() {
     setLoading(true);
     setStatus("Adding swimmer…");
 
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      alert("You must be logged in");
+      setStatus("Not logged in");
+      setLoading(false);
+      router.push("/login");
+      return;
+    }
+
     const { error } = await supabase.from("swimmers").insert([
       {
         name: trimmedName,
         age: parsedAge,
         group_type: groupType,
+        user_id: user.id,
       },
     ]);
 
@@ -234,6 +283,12 @@ export default function SwimmersPage() {
     setLoading(false);
 
     await fetchSwimmers();
+  }
+
+  async function handleLogout() {
+    setStatus("Logging out…");
+    await supabase.auth.signOut();
+    router.push("/login");
   }
 
   function toggleGroup(group: GroupKey) {
@@ -380,13 +435,23 @@ export default function SwimmersPage() {
               </p>
             </div>
 
-            <div className="rounded-2xl bg-slate-100 px-3 py-2 text-right">
-              <div className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                Status
+            <div className="flex gap-2">
+              <div className="rounded-2xl bg-slate-100 px-3 py-2 text-right">
+                <div className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                  Status
+                </div>
+                <div className="mt-1 text-sm font-semibold text-gray-900">
+                  {status} {loading ? "⏳" : ""}
+                </div>
               </div>
-              <div className="mt-1 text-sm font-semibold text-gray-900">
-                {status} {loading ? "⏳" : ""}
-              </div>
+
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="rounded-2xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+              >
+                Logout
+              </button>
             </div>
           </div>
 
