@@ -5,13 +5,15 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
+type GroupKey = "primary" | "following";
+
 type Swimmer = {
   id: string | number;
   user_id?: string | null;
   name: string;
   age: number;
   birth_year?: number | null;
-  group_type?: "primary" | "following" | string | null;
+  group_type?: GroupKey | string | null;
   created_at?: string | null;
 };
 
@@ -23,8 +25,6 @@ type SwimTime = {
   time_ms: number;
   created_at?: string | null;
 };
-
-type GroupKey = "primary" | "following";
 
 type SwimmerSummary = {
   totalTimes: number;
@@ -38,8 +38,10 @@ type SwimmerSummary = {
 
 function formatCreatedAt(value?: string | null) {
   if (!value) return "No date available";
+
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "No date available";
+
   return date.toLocaleString();
 }
 
@@ -75,7 +77,7 @@ export default function SwimmersPage() {
   const router = useRouter();
 
   const [status, setStatus] = useState("Ready ✅");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const [swimmers, setSwimmers] = useState<Swimmer[]>([]);
   const [swimTimes, setSwimTimes] = useState<SwimTime[]>([]);
@@ -102,10 +104,14 @@ export default function SwimmersPage() {
   const swimmerSummaries = useMemo(() => {
     const grouped = new Map<string, SwimTime[]>();
 
-    for (const t of swimTimes) {
-      const swimmerId = String(t.swimmer_id);
-      if (!grouped.has(swimmerId)) grouped.set(swimmerId, []);
-      grouped.get(swimmerId)!.push(t);
+    for (const time of swimTimes) {
+      const swimmerId = String(time.swimmer_id);
+
+      if (!grouped.has(swimmerId)) {
+        grouped.set(swimmerId, []);
+      }
+
+      grouped.get(swimmerId)!.push(time);
     }
 
     const summaries = new Map<string, SwimmerSummary>();
@@ -113,14 +119,16 @@ export default function SwimmersPage() {
     for (const [swimmerId, items] of grouped.entries()) {
       const pbMap = new Map<string, SwimTime>();
 
-      for (const t of items) {
-        if (!t.event || !t.course || !Number.isFinite(t.time_ms)) continue;
+      for (const time of items) {
+        if (!time.event || !time.course || !Number.isFinite(time.time_ms)) {
+          continue;
+        }
 
-        const k = keyOf(t.event, t.course);
+        const k = keyOf(time.event, time.course);
         const prev = pbMap.get(k);
 
-        if (!prev || t.time_ms < prev.time_ms) {
-          pbMap.set(k, t);
+        if (!prev || time.time_ms < prev.time_ms) {
+          pbMap.set(k, time);
         }
       }
 
@@ -146,7 +154,7 @@ export default function SwimmersPage() {
     return summaries;
   }, [swimTimes]);
 
-  async function fetchSwimmers() {
+  async function fetchSwimmersForCurrentUser() {
     setLoading(true);
     setStatus("Loading swimmers…");
 
@@ -156,9 +164,9 @@ export default function SwimmersPage() {
     } = await supabase.auth.getUser();
 
     if (userError || !user) {
-      setStatus("Not logged in");
       setSwimmers([]);
       setSwimTimes([]);
+      setStatus("Not logged in");
       setLoading(false);
       router.push("/login");
       return;
@@ -171,9 +179,9 @@ export default function SwimmersPage() {
       .order("created_at", { ascending: false });
 
     if (swimmersError) {
-      setStatus(`Fetch failed ❌ ${swimmersError.message}`);
       setSwimmers([]);
       setSwimTimes([]);
+      setStatus(`Fetch failed ❌ ${swimmersError.message}`);
       setLoading(false);
       return;
     }
@@ -197,8 +205,8 @@ export default function SwimmersPage() {
       .order("created_at", { ascending: false });
 
     if (timesError) {
-      setStatus(`Times fetch failed ❌ ${timesError.message}`);
       setSwimTimes([]);
+      setStatus(`Times fetch failed ❌ ${timesError.message}`);
       setLoading(false);
       return;
     }
@@ -206,6 +214,23 @@ export default function SwimmersPage() {
     setSwimTimes((timesData ?? []) as SwimTime[]);
     setStatus("Loaded ✅");
     setLoading(false);
+  }
+
+  async function checkSessionAndLoad() {
+    setLoading(true);
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session) {
+      setStatus("Not logged in");
+      setLoading(false);
+      router.push("/login");
+      return;
+    }
+
+    await fetchSwimmersForCurrentUser();
   }
 
   async function addSwimmer() {
@@ -231,7 +256,6 @@ export default function SwimmersPage() {
     } = await supabase.auth.getUser();
 
     if (userError || !user) {
-      alert("You must be logged in");
       setStatus("Not logged in");
       setLoading(false);
       router.push("/login");
@@ -249,7 +273,7 @@ export default function SwimmersPage() {
 
     if (error) {
       alert(`Insert failed ❌ ${error.message}`);
-      setStatus("Insert failed ❌");
+      setStatus(`Insert failed ❌ ${error.message}`);
       setLoading(false);
       return;
     }
@@ -258,9 +282,8 @@ export default function SwimmersPage() {
     setAge("");
     setGroupType("primary");
     setStatus("Added ✅");
-    setLoading(false);
 
-    await fetchSwimmers();
+    await fetchSwimmersForCurrentUser();
   }
 
   async function deleteSwimmer(id: string | number, swimmerName: string) {
@@ -274,33 +297,34 @@ export default function SwimmersPage() {
 
     if (error) {
       alert(`Delete failed ❌ ${error.message}`);
-      setStatus("Delete failed ❌");
+      setStatus(`Delete failed ❌ ${error.message}`);
       setLoading(false);
       return;
     }
 
     setStatus("Deleted ✅");
-    setLoading(false);
-
-    await fetchSwimmers();
+    await fetchSwimmersForCurrentUser();
   }
 
   async function handleLogout() {
-    setStatus("Logging out…");
-    await supabase.auth.signOut();
-    router.push("/login");
+  setStatus("Logging out…");
+
+  const { error } = await supabase.auth.signOut();
+
+  if (error) {
+    setStatus(`Logout failed ❌ ${error.message}`);
+    alert(`Logout failed: ${error.message}`);
+    return;
   }
 
+  window.location.href = "/login";
+}
   function toggleGroup(group: GroupKey) {
     setOpenGroups((prev) => ({
       ...prev,
       [group]: !prev[group],
     }));
   }
-
-  useEffect(() => {
-    fetchSwimmers();
-  }, []);
 
   function renderPbSummary(swimmerId: string | number) {
     const summary = swimmerSummaries.get(String(swimmerId));
@@ -364,23 +388,25 @@ export default function SwimmersPage() {
             </div>
           ) : (
             <div className="mt-4 space-y-3">
-              {items.map((s) => (
+              {items.map((swimmer) => (
                 <div
-                  key={String(s.id)}
+                  key={String(swimmer.id)}
                   className="rounded-2xl border border-gray-200 bg-white p-4 transition hover:shadow-md"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <Link
-                      href={`/swimmers/${s.id}`}
+                      href={`/swimmers/${swimmer.id}`}
                       className="min-w-0 flex-1 rounded-2xl transition hover:bg-sky-50"
                     >
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="text-lg font-bold text-gray-900">
-                          {s.name}
+                          {swimmer.name}
                         </h3>
+
                         <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
-                          Age {s.age}
+                          Age {swimmer.age}
                         </span>
+
                         <span
                           className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
                             group === "primary"
@@ -392,10 +418,10 @@ export default function SwimmersPage() {
                         </span>
                       </div>
 
-                      {renderPbSummary(s.id)}
+                      {renderPbSummary(swimmer.id)}
 
                       <div className="mt-2 text-sm text-gray-600">
-                        Added: {formatCreatedAt(s.created_at)}
+                        Added: {formatCreatedAt(swimmer.created_at)}
                       </div>
 
                       <div className="mt-3 text-sm font-semibold text-sky-700">
@@ -405,9 +431,9 @@ export default function SwimmersPage() {
 
                     <button
                       type="button"
-                      onClick={() => deleteSwimmer(s.id, s.name)}
+                      onClick={() => deleteSwimmer(swimmer.id, swimmer.name)}
                       className="shrink-0 rounded-xl border border-red-200 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 active:scale-[0.98]"
-                      aria-label={`Delete ${s.name}`}
+                      aria-label={`Delete ${swimmer.name}`}
                     >
                       Delete
                     </button>
@@ -420,6 +446,40 @@ export default function SwimmersPage() {
       </section>
     );
   }
+
+  useEffect(() => {
+  let mounted = true;
+
+  async function init() {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!mounted) return;
+
+    if (!session) {
+      window.location.href = "/login";
+      return;
+    }
+
+    await fetchSwimmersForCurrentUser();
+  }
+
+  init();
+
+  const {
+    data: { subscription },
+  } = supabase.auth.onAuthStateChange((_event, session) => {
+    if (!session) {
+      window.location.href = "/login";
+    }
+  });
+
+  return () => {
+    mounted = false;
+    subscription.unsubscribe();
+  };
+}, []);
 
   return (
     <main className="min-h-screen bg-slate-50 text-gray-900">

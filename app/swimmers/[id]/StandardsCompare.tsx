@@ -9,10 +9,15 @@ type SwimTimeRow = {
   time_ms: number;
 };
 
-type StandardRow = {
+type StandardSet = {
   id: number;
-  standard_type: string;
   name: string;
+  type: "UPGRADING" | "IMPORTANT_MEET";
+};
+
+type StandardItem = {
+  id: number;
+  standard_set_id: number;
   event: string;
   course: string;
   min_age: number | null;
@@ -143,7 +148,12 @@ function Tile({
   return (
     <div className={["rounded-2xl bg-white p-3 ring-1", t.tileRing].join(" ")}>
       <div className="text-[11px] font-medium text-zinc-600">{label}</div>
-      <div className={["mt-1 text-lg font-semibold tabular-nums break-words", t.value].join(" ")}>
+      <div
+        className={[
+          "mt-1 text-lg font-semibold tabular-nums break-words",
+          t.value,
+        ].join(" ")}
+      >
         {value}
       </div>
       {hint ? <div className="mt-1 text-[11px] text-zinc-500">{hint}</div> : null}
@@ -202,74 +212,114 @@ export default function StandardsCompare({
   swimmerAge: number;
 }) {
   const [loading, setLoading] = useState(true);
+  const [loadingItems, setLoadingItems] = useState(false);
+
   const [pbMap, setPbMap] = useState<Map<string, number>>(new Map());
   const [pbLabelMap, setPbLabelMap] = useState<Map<string, { event: string; course: string }>>(
     new Map()
   );
-  const [standards, setStandards] = useState<StandardRow[]>([]);
+
+  const [sets, setSets] = useState<StandardSet[]>([]);
+  const [selectedSetId, setSelectedSetId] = useState<number | "">("");
+  const [items, setItems] = useState<StandardItem[]>([]);
 
   useEffect(() => {
     if (!swimmerId) return;
+    loadInitialData();
+  }, [swimmerId, swimmerAge]);
 
-    async function load() {
-      setLoading(true);
+  useEffect(() => {
+    if (!selectedSetId) {
+      setItems([]);
+      return;
+    }
+    loadItemsForSet(Number(selectedSetId));
+  }, [selectedSetId, swimmerAge]);
 
-      const { data: times, error: tErr } = await supabase
-        .from("swim_times")
-        .select("event,course,time_ms")
-        .eq("swimmer_id", swimmerId);
+  async function loadInitialData() {
+    setLoading(true);
 
-      if (tErr) {
-        alert("Failed to load swim times ❌ " + tErr.message);
-        setLoading(false);
-        return;
+    const { data: times, error: tErr } = await supabase
+      .from("swim_times")
+      .select("event, course, time_ms")
+      .eq("swimmer_id", swimmerId);
+
+    if (tErr) {
+      alert("Failed to load swim times ❌ " + tErr.message);
+      setLoading(false);
+      return;
+    }
+
+    const map = new Map<string, number>();
+    const labelMap = new Map<string, { event: string; course: string }>();
+
+    (times as SwimTimeRow[] | null)?.forEach((t) => {
+      const k = keyOf(t.event, t.course);
+      const currentPb = map.get(k);
+
+      if (currentPb == null || t.time_ms < currentPb) {
+        map.set(k, t.time_ms);
+        labelMap.set(k, {
+          event: t.event.trim(),
+          course: normalizeCourse(t.course),
+        });
+      } else if (!labelMap.has(k)) {
+        labelMap.set(k, {
+          event: t.event.trim(),
+          course: normalizeCourse(t.course),
+        });
       }
+    });
 
-      const map = new Map<string, number>();
-      const labelMap = new Map<string, { event: string; course: string }>();
+    const { data: setData, error: setErr } = await supabase
+      .from("standard_sets")
+      .select("id, name, type")
+      .order("created_at", { ascending: false });
 
-      (times as SwimTimeRow[] | null)?.forEach((t) => {
-        const k = keyOf(t.event, t.course);
-        const currentPb = map.get(k);
+    if (setErr) {
+      alert("Failed to load standard sets ❌ " + setErr.message);
+      setLoading(false);
+      return;
+    }
 
-        if (currentPb == null || t.time_ms < currentPb) {
-          map.set(k, t.time_ms);
-          labelMap.set(k, {
-            event: t.event.trim(),
-            course: normalizeCourse(t.course),
-          });
-        } else if (!labelMap.has(k)) {
-          labelMap.set(k, {
-            event: t.event.trim(),
-            course: normalizeCourse(t.course),
-          });
-        }
-      });
+    const loadedSets = (setData as StandardSet[] | null) ?? [];
 
-      const { data: stds, error: sErr } = await supabase
-        .from("standards")
-        .select("id, standard_type, name, event, course, min_age, max_age, gender, qualifying_time_ms");
+    setPbMap(map);
+    setPbLabelMap(labelMap);
+    setSets(loadedSets);
 
-      if (sErr) {
-        alert("Failed to load standards ❌ " + sErr.message);
-        setLoading(false);
-        return;
-      }
+    if (loadedSets.length > 0) {
+      setSelectedSetId(loadedSets[0].id);
+    }
 
-      const filtered = (stds as StandardRow[] | null)?.filter((s) => {
+    setLoading(false);
+  }
+
+  async function loadItemsForSet(setId: number) {
+    setLoadingItems(true);
+
+    const { data, error } = await supabase
+      .from("standard_items")
+      .select("id, standard_set_id, event, course, min_age, max_age, gender, qualifying_time_ms")
+      .eq("standard_set_id", setId)
+      .order("event", { ascending: true });
+
+    if (error) {
+      alert("Failed to load standard items ❌ " + error.message);
+      setLoadingItems(false);
+      return;
+    }
+
+    const filtered =
+      (data as StandardItem[] | null)?.filter((s) => {
         const minOk = s.min_age == null || swimmerAge >= s.min_age;
         const maxOk = s.max_age == null || swimmerAge <= s.max_age;
         return minOk && maxOk;
       }) ?? [];
 
-      setPbMap(map);
-      setPbLabelMap(labelMap);
-      setStandards(filtered);
-      setLoading(false);
-    }
-
-    load();
-  }, [swimmerId, swimmerAge]);
+    setItems(filtered);
+    setLoadingItems(false);
+  }
 
   const rows = useMemo(() => {
     const byKey = new Map<
@@ -278,8 +328,7 @@ export default function StandardsCompare({
         event: string;
         course: string;
         pbMs: number | null;
-        upgradingMs: number | null;
-        majorMs: number | null;
+        targetMs: number | null;
       }
     >();
 
@@ -290,12 +339,11 @@ export default function StandardsCompare({
         event: label?.event ?? "",
         course: label?.course ?? "",
         pbMs: pb,
-        upgradingMs: null,
-        majorMs: null,
+        targetMs: null,
       });
     }
 
-    for (const s of standards) {
+    for (const s of items) {
       const k = keyOf(s.event, s.course);
       const existing = byKey.get(k);
 
@@ -303,19 +351,10 @@ export default function StandardsCompare({
         event: s.event.trim(),
         course: normalizeCourse(s.course),
         pbMs: pbMap.get(k) ?? null,
-        upgradingMs: null,
-        majorMs: null,
+        targetMs: null,
       };
 
-      const type = (s.standard_type || "").toUpperCase();
-
-      if (type === "UPGRADING") {
-        row.upgradingMs = s.qualifying_time_ms;
-      }
-
-      if (type === "MAJOR_MEET") {
-        row.majorMs = s.qualifying_time_ms;
-      }
+      row.targetMs = s.qualifying_time_ms;
 
       if (!row.event) row.event = s.event.trim();
       if (!row.course) row.course = normalizeCourse(s.course);
@@ -324,69 +363,94 @@ export default function StandardsCompare({
     }
 
     return Array.from(byKey.values())
-      .filter((r) => r.pbMs != null || r.upgradingMs != null || r.majorMs != null)
+      .filter((r) => r.pbMs != null || r.targetMs != null)
       .sort((a, b) => {
-        const courseCompare = a.course.localeCompare(b.course);
-        if (courseCompare !== 0) return courseCompare;
-        return a.event.localeCompare(b.event);
+        const aGap = a.pbMs != null && a.targetMs != null ? a.pbMs - a.targetMs : 999999999;
+        const bGap = b.pbMs != null && b.targetMs != null ? b.pbMs - b.targetMs : 999999999;
+        return aGap - bGap;
       });
-  }, [pbMap, pbLabelMap, standards]);
+  }, [pbMap, pbLabelMap, items]);
+
+  const selectedSet = sets.find((s) => s.id === selectedSetId) ?? null;
 
   return (
     <div className="rounded-2xl bg-white p-4 ring-1 ring-zinc-200">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold text-zinc-900">Qualifying / Upgrading</h2>
           <p className="mt-0.5 text-sm text-zinc-500">Age: {swimmerAge}</p>
         </div>
+
+        <div className="min-w-[220px]">
+          <select
+            value={selectedSetId}
+            onChange={(e) =>
+              setSelectedSetId(e.target.value ? Number(e.target.value) : "")
+            }
+            className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm"
+          >
+            <option value="">Select a standard set</option>
+            {sets.map((set) => (
+              <option key={set.id} value={set.id}>
+                {set.name} ({set.type})
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
-      {loading ? (
+      {selectedSet ? (
+        <div className="mt-3">
+          <Chip
+            label="Using"
+            value={`${selectedSet.name} • ${selectedSet.type}`}
+            tone="neutral"
+          />
+        </div>
+      ) : null}
+
+      {loading || loadingItems ? (
         <div className="mt-4 rounded-2xl bg-zinc-50 p-4 ring-1 ring-zinc-200">
           <p className="text-sm text-zinc-600">Loading comparison…</p>
         </div>
       ) : rows.length === 0 ? (
         <div className="mt-4 rounded-2xl bg-zinc-50 p-4 ring-1 ring-zinc-200">
-          <p className="text-sm text-zinc-600">No standards yet (or no PBs yet).</p>
+          <p className="text-sm text-zinc-600">No matching standards yet.</p>
         </div>
       ) : (
         <div className="mt-4 space-y-4">
           {rows.map((r) => {
             const chips: Array<{ label: string; value: string; tone?: Tone }> = [];
 
-            if (r.pbMs != null && r.upgradingMs != null) {
+            if (r.pbMs != null && r.targetMs != null) {
               chips.push({
-                label: "Gap to Upgrading",
-                value: gapText(r.pbMs, r.upgradingMs),
-                tone: gapTone(r.pbMs, r.upgradingMs),
-              });
-            }
-
-            if (r.pbMs != null && r.majorMs != null) {
-              chips.push({
-                label: "Gap to Major",
-                value: gapText(r.pbMs, r.majorMs),
-                tone: gapTone(r.pbMs, r.majorMs),
+                label: "Gap",
+                value: gapText(r.pbMs, r.targetMs),
+                tone: gapTone(r.pbMs, r.targetMs),
               });
             }
 
             const statusValue =
-              r.pbMs != null && r.majorMs != null && r.pbMs <= r.majorMs
-                ? "Major ✅"
-                : r.pbMs != null && r.upgradingMs != null && r.pbMs <= r.upgradingMs
-                ? "Upgrading ✅"
-                : "In progress";
+              r.pbMs != null && r.targetMs != null
+                ? r.pbMs <= r.targetMs
+                  ? "Qualified ✅"
+                  : "In progress"
+                : r.pbMs != null
+                ? "No target"
+                : "No PB yet";
 
             const statusTone: Tone =
-              r.pbMs != null &&
-              ((r.majorMs != null && r.pbMs <= r.majorMs) ||
-                (r.upgradingMs != null && r.pbMs <= r.upgradingMs))
+              r.pbMs != null && r.targetMs != null && r.pbMs <= r.targetMs
                 ? "good"
+                : r.pbMs != null &&
+                  r.targetMs != null &&
+                  r.pbMs - r.targetMs <= 1000
+                ? "warn"
                 : "neutral";
 
             return (
               <EventCard
-                key={`${keyOf(r.event, r.course)}`}
+                key={keyOf(r.event, r.course)}
                 title={r.event}
                 subtitle={r.course ? `Course: ${r.course}` : undefined}
                 chips={chips.length ? chips : undefined}
@@ -398,21 +462,24 @@ export default function StandardsCompare({
                     tone: "neutral",
                   },
                   {
-                    label: "Upgrading",
-                    value: formatMs(r.upgradingMs),
-                    hint: r.upgradingMs != null ? "Qualifying time" : "Not set",
+                    label: "Target",
+                    value: formatMs(r.targetMs),
+                    hint: r.targetMs != null ? "Selected standard set" : "Not set",
                     tone:
-                      r.pbMs != null && r.upgradingMs != null
-                        ? gapTone(r.pbMs, r.upgradingMs)
+                      r.pbMs != null && r.targetMs != null
+                        ? gapTone(r.pbMs, r.targetMs)
                         : "neutral",
                   },
                   {
-                    label: "Major Meet",
-                    value: formatMs(r.majorMs),
-                    hint: r.majorMs != null ? "Qualifying time" : "Not set",
+                    label: "Gap",
+                    value:
+                      r.pbMs != null && r.targetMs != null
+                        ? gapText(r.pbMs, r.targetMs)
+                        : "—",
+                    hint: "How far from target",
                     tone:
-                      r.pbMs != null && r.majorMs != null
-                        ? gapTone(r.pbMs, r.majorMs)
+                      r.pbMs != null && r.targetMs != null
+                        ? gapTone(r.pbMs, r.targetMs)
                         : "neutral",
                   },
                   {
