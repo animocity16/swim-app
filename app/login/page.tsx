@@ -1,12 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function LoginPage() {
-  const router = useRouter();
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -28,7 +25,7 @@ export default function LoginPage() {
       }
 
       if (data.session) {
-        router.replace("/swimmers");
+        window.location.href = "/swimmers";
         return;
       }
 
@@ -37,19 +34,10 @@ export default function LoginPage() {
 
     checkSession();
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
-        router.replace("/swimmers");
-      }
-    });
-
     return () => {
       mounted = false;
-      subscription.unsubscribe();
     };
-  }, [router]);
+  }, []);
 
   async function handlePasswordLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -78,8 +66,8 @@ export default function LoginPage() {
     }
 
     setStatus("Login successful. Redirecting...");
-    router.replace("/swimmers");
-    router.refresh();
+    setLoading(false);
+    window.location.href = "/swimmers";
   }
 
   if (checkingSession) {
