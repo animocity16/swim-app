@@ -1,236 +1,98 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
-type GroupKey = "primary" | "following";
-
 type Swimmer = {
-  id: string | number;
-  user_id?: string | null;
+  id: number | string;
   name: string;
   age: number;
   birth_year?: number | null;
-  group_type?: GroupKey | string | null;
+  group_type?: "primary" | "following" | string | null;
   created_at?: string | null;
-};
-
-type SwimTime = {
-  id: string | number;
-  swimmer_id: string | number;
-  event: string;
-  course: string;
-  time_ms: number;
-  created_at?: string | null;
-};
-
-type SwimmerSummary = {
-  totalTimes: number;
-  pbCount: number;
-  bestEntry: {
-    event: string;
-    course: string;
-    time_ms: number;
-  } | null;
 };
 
 function formatCreatedAt(value?: string | null) {
   if (!value) return "No date available";
-
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "No date available";
-
   return date.toLocaleString();
-}
-
-function formatTime(ms: number) {
-  if (!Number.isFinite(ms) || ms <= 0) return "-";
-
-  const totalSeconds = ms / 1000;
-
-  if (totalSeconds >= 60) {
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds - minutes * 60;
-    return `${minutes}:${seconds.toFixed(2).padStart(5, "0")}`;
-  }
-
-  return totalSeconds.toFixed(2);
-}
-
-function keyOf(event: string, course: string) {
-  return `${event.trim().toLowerCase()}|${course.trim().toUpperCase()}`;
-}
-
-function getGroupLabel(group: GroupKey) {
-  return group === "primary" ? "My Swimmers" : "Following";
-}
-
-function getEmptyLabel(group: GroupKey) {
-  return group === "primary"
-    ? "No primary swimmers yet."
-    : "No followed swimmers yet.";
 }
 
 export default function SwimmersPage() {
   const router = useRouter();
 
-  const [status, setStatus] = useState("Ready ✅");
-  const [loading, setLoading] = useState(true);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [status, setStatus] = useState("Checking session...");
+  const [loading, setLoading] = useState(false);
 
   const [swimmers, setSwimmers] = useState<Swimmer[]>([]);
-  const [swimTimes, setSwimTimes] = useState<SwimTime[]>([]);
-
   const [name, setName] = useState("");
   const [age, setAge] = useState("");
-  const [groupType, setGroupType] = useState<GroupKey>("primary");
+  const [groupType, setGroupType] = useState<"primary" | "following">("primary");
 
-  const [openGroups, setOpenGroups] = useState<Record<GroupKey, boolean>>({
-    primary: true,
-    following: false,
-  });
+  useEffect(() => {
+    let mounted = true;
 
-  const primarySwimmers = useMemo(
-    () => swimmers.filter((s) => s.group_type === "primary"),
-    [swimmers]
-  );
+    async function initPage() {
+      const { data, error } = await supabase.auth.getSession();
 
-  const followingSwimmers = useMemo(
-    () => swimmers.filter((s) => s.group_type === "following"),
-    [swimmers]
-  );
+      if (!mounted) return;
 
-  const swimmerSummaries = useMemo(() => {
-    const grouped = new Map<string, SwimTime[]>();
-
-    for (const time of swimTimes) {
-      const swimmerId = String(time.swimmer_id);
-
-      if (!grouped.has(swimmerId)) {
-        grouped.set(swimmerId, []);
+      if (error) {
+        console.error("getSession error:", error);
+        setStatus(`Session error: ${error.message}`);
+        setAuthChecked(true);
+        return;
       }
 
-      grouped.get(swimmerId)!.push(time);
-    }
-
-    const summaries = new Map<string, SwimmerSummary>();
-
-    for (const [swimmerId, items] of grouped.entries()) {
-      const pbMap = new Map<string, SwimTime>();
-
-      for (const time of items) {
-        if (!time.event || !time.course || !Number.isFinite(time.time_ms)) {
-          continue;
-        }
-
-        const k = keyOf(time.event, time.course);
-        const prev = pbMap.get(k);
-
-        if (!prev || time.time_ms < prev.time_ms) {
-          pbMap.set(k, time);
-        }
+      if (!data.session) {
+        router.replace("/login");
+        return;
       }
 
-      const pbEntries = Array.from(pbMap.values());
-      const bestEntry =
-        pbEntries.length > 0
-          ? pbEntries.slice().sort((a, b) => a.time_ms - b.time_ms)[0]
-          : null;
-
-      summaries.set(swimmerId, {
-        totalTimes: items.length,
-        pbCount: pbEntries.length,
-        bestEntry: bestEntry
-          ? {
-              event: bestEntry.event,
-              course: bestEntry.course,
-              time_ms: bestEntry.time_ms,
-            }
-          : null,
-      });
+      setAuthChecked(true);
+      await fetchSwimmers();
     }
 
-    return summaries;
-  }, [swimTimes]);
-
-  async function fetchSwimmersForCurrentUser() {
-    setLoading(true);
-    setStatus("Loading swimmers…");
+    initPage();
 
     const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) {
+        router.replace("/login");
+      }
+    });
 
-    if (userError || !user) {
-      setSwimmers([]);
-      setSwimTimes([]);
-      setStatus("Not logged in");
-      setLoading(false);
-      router.push("/login");
-      return;
-    }
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [router]);
 
-    const { data: swimmersData, error: swimmersError } = await supabase
+  async function fetchSwimmers() {
+    setLoading(true);
+    setStatus("Loading swimmers...");
+
+    const { data, error } = await supabase
       .from("swimmers")
-      .select("*")
-      .eq("user_id", user.id)
+      .select("id, name, age, birth_year, group_type, created_at")
       .order("created_at", { ascending: false });
 
-    if (swimmersError) {
+    if (error) {
+      console.error("fetchSwimmers error:", error);
+      setStatus(`Error loading swimmers: ${error.message}`);
       setSwimmers([]);
-      setSwimTimes([]);
-      setStatus(`Fetch failed ❌ ${swimmersError.message}`);
       setLoading(false);
       return;
     }
 
-    const swimmerList = (swimmersData ?? []) as Swimmer[];
-    setSwimmers(swimmerList);
-
-    if (swimmerList.length === 0) {
-      setSwimTimes([]);
-      setStatus("Loaded ✅");
-      setLoading(false);
-      return;
-    }
-
-    const swimmerIds = swimmerList.map((s) => s.id);
-
-    const { data: timesData, error: timesError } = await supabase
-      .from("swim_times")
-      .select("id, swimmer_id, event, course, time_ms, created_at")
-      .in("swimmer_id", swimmerIds)
-      .order("created_at", { ascending: false });
-
-    if (timesError) {
-      setSwimTimes([]);
-      setStatus(`Times fetch failed ❌ ${timesError.message}`);
-      setLoading(false);
-      return;
-    }
-
-    setSwimTimes((timesData ?? []) as SwimTime[]);
-    setStatus("Loaded ✅");
+    setSwimmers((data as Swimmer[]) || []);
+    setStatus("Ready");
     setLoading(false);
-  }
-
-  async function checkSessionAndLoad() {
-    setLoading(true);
-
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    if (!session) {
-      setStatus("Not logged in");
-      setLoading(false);
-      router.push("/login");
-      return;
-    }
-
-    await fetchSwimmersForCurrentUser();
   }
 
   async function addSwimmer() {
@@ -238,42 +100,29 @@ export default function SwimmersPage() {
     const parsedAge = Number(age);
 
     if (!trimmedName) {
-      alert("Please enter a name 🙂");
+      setStatus("Please enter swimmer name.");
       return;
     }
 
-    if (!Number.isFinite(parsedAge) || parsedAge <= 0) {
-      alert("Please enter a valid age 🙂");
+    if (!age || Number.isNaN(parsedAge) || parsedAge <= 0) {
+      setStatus("Please enter a valid age.");
       return;
     }
 
     setLoading(true);
-    setStatus("Adding swimmer…");
-
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      setStatus("Not logged in");
-      setLoading(false);
-      router.push("/login");
-      return;
-    }
+    setStatus("Adding swimmer...");
 
     const { error } = await supabase.from("swimmers").insert([
       {
         name: trimmedName,
         age: parsedAge,
         group_type: groupType,
-        user_id: user.id,
       },
     ]);
 
     if (error) {
-      alert(`Insert failed ❌ ${error.message}`);
-      setStatus(`Insert failed ❌ ${error.message}`);
+      console.error("addSwimmer error:", error);
+      setStatus(`Error adding swimmer: ${error.message}`);
       setLoading(false);
       return;
     }
@@ -281,316 +130,217 @@ export default function SwimmersPage() {
     setName("");
     setAge("");
     setGroupType("primary");
-    setStatus("Added ✅");
-
-    await fetchSwimmersForCurrentUser();
+    setStatus("Swimmer added.");
+    await fetchSwimmers();
   }
 
-  async function deleteSwimmer(id: string | number, swimmerName: string) {
-    const ok = confirm(`Delete ${swimmerName}?`);
-    if (!ok) return;
+  async function deleteSwimmer(id: number | string, swimmerName: string) {
+    const confirmed = window.confirm(`Delete "${swimmerName}"?`);
+    if (!confirmed) return;
 
     setLoading(true);
-    setStatus("Deleting swimmer…");
+    setStatus(`Deleting "${swimmerName}"...`);
 
     const { error } = await supabase.from("swimmers").delete().eq("id", id);
 
     if (error) {
-      alert(`Delete failed ❌ ${error.message}`);
-      setStatus(`Delete failed ❌ ${error.message}`);
+      console.error("deleteSwimmer error:", error);
+      setStatus(`Error deleting swimmer: ${error.message}`);
       setLoading(false);
       return;
     }
 
-    setStatus("Deleted ✅");
-    await fetchSwimmersForCurrentUser();
+    setStatus(`Deleted "${swimmerName}".`);
+    await fetchSwimmers();
   }
 
   async function handleLogout() {
-  setStatus("Logging out…");
+    setStatus("Signing out...");
 
-  const { error } = await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut();
 
-  if (error) {
-    setStatus(`Logout failed ❌ ${error.message}`);
-    alert(`Logout failed: ${error.message}`);
-    return;
-  }
-
-  window.location.href = "/login";
-}
-  function toggleGroup(group: GroupKey) {
-    setOpenGroups((prev) => ({
-      ...prev,
-      [group]: !prev[group],
-    }));
-  }
-
-  function renderPbSummary(swimmerId: string | number) {
-    const summary = swimmerSummaries.get(String(swimmerId));
-
-    if (!summary || summary.totalTimes === 0) {
-      return (
-        <div className="mt-3">
-          <div className="text-sm text-gray-400">No PB yet</div>
-        </div>
-      );
-    }
-
-    return (
-      <div className="mt-3">
-        <div className="text-sm font-semibold text-emerald-700">
-          {summary.pbCount} PB event{summary.pbCount === 1 ? "" : "s"}
-        </div>
-
-        {summary.bestEntry ? (
-          <div className="mt-1 text-sm text-gray-600">
-            Best: {summary.bestEntry.event} ({summary.bestEntry.course}) —{" "}
-            {formatTime(summary.bestEntry.time_ms)}
-          </div>
-        ) : null}
-      </div>
-    );
-  }
-
-  function renderSwimmerGroup(group: GroupKey, items: Swimmer[]) {
-    const isOpen = openGroups[group];
-
-    return (
-      <section className="rounded-3xl border border-gray-200 bg-white p-4 shadow-sm">
-        <button
-          type="button"
-          onClick={() => toggleGroup(group)}
-          className="flex w-full items-center justify-between gap-4 text-left"
-        >
-          <div>
-            <h2
-              className={`text-xl font-bold ${
-                group === "primary" ? "text-sky-700" : "text-gray-800"
-              }`}
-            >
-              {getGroupLabel(group)}
-            </h2>
-            <p className="mt-1 text-sm text-gray-500">
-              {items.length} swimmer{items.length === 1 ? "" : "s"}
-            </p>
-          </div>
-
-          <div className="rounded-full bg-gray-100 px-3 py-1 text-sm font-medium text-gray-600">
-            {isOpen ? "Hide" : "Show"}
-          </div>
-        </button>
-
-        {isOpen ? (
-          items.length === 0 ? (
-            <div className="mt-4 rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-4 py-4 text-sm text-gray-500">
-              {getEmptyLabel(group)}
-            </div>
-          ) : (
-            <div className="mt-4 space-y-3">
-              {items.map((swimmer) => (
-                <div
-                  key={String(swimmer.id)}
-                  className="rounded-2xl border border-gray-200 bg-white p-4 transition hover:shadow-md"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <Link
-                      href={`/swimmers/${swimmer.id}`}
-                      className="min-w-0 flex-1 rounded-2xl transition hover:bg-sky-50"
-                    >
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-lg font-bold text-gray-900">
-                          {swimmer.name}
-                        </h3>
-
-                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
-                          Age {swimmer.age}
-                        </span>
-
-                        <span
-                          className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                            group === "primary"
-                              ? "bg-sky-100 text-sky-700"
-                              : "bg-gray-100 text-gray-700"
-                          }`}
-                        >
-                          {group === "primary" ? "My Swimmer" : "Following"}
-                        </span>
-                      </div>
-
-                      {renderPbSummary(swimmer.id)}
-
-                      <div className="mt-2 text-sm text-gray-600">
-                        Added: {formatCreatedAt(swimmer.created_at)}
-                      </div>
-
-                      <div className="mt-3 text-sm font-semibold text-sky-700">
-                        View profile →
-                      </div>
-                    </Link>
-
-                    <button
-                      type="button"
-                      onClick={() => deleteSwimmer(swimmer.id, swimmer.name)}
-                      className="shrink-0 rounded-xl border border-red-200 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 active:scale-[0.98]"
-                      aria-label={`Delete ${swimmer.name}`}
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )
-        ) : null}
-      </section>
-    );
-  }
-
-  useEffect(() => {
-  let mounted = true;
-
-  async function init() {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    if (!mounted) return;
-
-    if (!session) {
-      window.location.href = "/login";
+    if (error) {
+      console.error("signOut error:", error);
+      setStatus(`Logout error: ${error.message}`);
       return;
     }
 
-    await fetchSwimmersForCurrentUser();
+    router.replace("/login");
   }
 
-  init();
+  const primarySwimmers = swimmers.filter((s) => s.group_type === "primary");
+  const followingSwimmers = swimmers.filter((s) => s.group_type === "following");
 
-  const {
-    data: { subscription },
-  } = supabase.auth.onAuthStateChange((_event, session) => {
-    if (!session) {
-      window.location.href = "/login";
-    }
-  });
-
-  return () => {
-    mounted = false;
-    subscription.unsubscribe();
-  };
-}, []);
+  if (!authChecked) {
+    return (
+      <main className="min-h-screen bg-black px-4 py-6 text-white sm:px-6 sm:py-8">
+        <div className="mx-auto max-w-5xl">
+          <p className="text-white/70">{status}</p>
+        </div>
+      </main>
+    );
+  }
 
   return (
-    <main className="min-h-screen bg-slate-50 text-gray-900">
-      <div className="mx-auto max-w-2xl px-4 py-6">
-        <header className="mb-6 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-gray-200">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight text-sky-700">
-                Swimmers
-              </h1>
-              <p className="mt-2 text-sm text-gray-600">
-                Manage your swimmer list and open each profile from here.
-              </p>
-            </div>
+    <main className="min-h-screen bg-black px-4 py-6 text-white sm:px-6 sm:py-8">
+      <div className="mx-auto max-w-5xl">
+        <div className="mb-6 flex items-center justify-between gap-3">
+          <h1 className="text-3xl font-bold sm:text-4xl">Swimmers</h1>
 
-            <div className="flex gap-2">
-              <div className="rounded-2xl bg-slate-100 px-3 py-2 text-right">
-                <div className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                  Status
-                </div>
-                <div className="mt-1 text-sm font-semibold text-gray-900">
-                  {status} {loading ? "⏳" : ""}
-                </div>
-              </div>
+          <div className="flex gap-3">
+            <Link
+              href="/standards"
+              className="rounded-2xl border border-white/20 px-4 py-2 text-sm text-white/80 transition hover:bg-white/10"
+            >
+              Standards
+            </Link>
 
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="rounded-2xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
-              >
-                Logout
-              </button>
-            </div>
+            <button
+              onClick={handleLogout}
+              className="rounded-2xl border border-red-400/30 px-4 py-2 text-sm text-red-300 transition hover:bg-red-500/10"
+            >
+              Logout
+            </button>
           </div>
+        </div>
 
-          <div className="mt-4 grid grid-cols-3 gap-3">
-            <div className="rounded-2xl bg-sky-50 p-3">
-              <div className="text-xs font-medium uppercase tracking-wide text-sky-700">
-                Total
-              </div>
-              <div className="mt-1 text-2xl font-bold text-sky-900">
-                {swimmers.length}
-              </div>
-            </div>
-
-            <div className="rounded-2xl bg-white p-3 ring-1 ring-gray-200">
-              <div className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                My Swimmers
-              </div>
-              <div className="mt-1 text-2xl font-bold text-gray-900">
-                {primarySwimmers.length}
-              </div>
-            </div>
-
-            <div className="rounded-2xl bg-white p-3 ring-1 ring-gray-200">
-              <div className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                Following
-              </div>
-              <div className="mt-1 text-2xl font-bold text-gray-900">
-                {followingSwimmers.length}
-              </div>
-            </div>
-          </div>
-        </header>
-
-        <section className="mb-6 rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
-          <h2 className="text-xl font-bold text-gray-900">Add Swimmer</h2>
-          <p className="mt-1 text-sm text-gray-500">
-            Add your own swimmer or someone you want to follow.
-          </p>
-
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <div className="mb-6 rounded-3xl border border-white/10 bg-white/5 p-5">
+          <div className="grid gap-3 md:grid-cols-[1fr_140px_160px_120px]">
             <input
-              type="text"
-              placeholder="Name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full rounded-2xl border border-gray-300 px-4 py-3 text-base outline-none focus:border-sky-500"
+              placeholder="Swimmer name"
+              className="h-14 rounded-2xl border border-white/20 bg-black px-4 text-lg text-white placeholder:text-white/35 outline-none"
             />
 
             <input
-              type="number"
-              placeholder="Age"
               value={age}
               onChange={(e) => setAge(e.target.value)}
-              className="w-full rounded-2xl border border-gray-300 px-4 py-3 text-base outline-none focus:border-sky-500"
+              placeholder="Age"
+              inputMode="numeric"
+              className="h-14 rounded-2xl border border-white/20 bg-black px-4 text-lg text-white placeholder:text-white/35 outline-none"
             />
 
             <select
               value={groupType}
-              onChange={(e) => setGroupType(e.target.value as GroupKey)}
-              className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-base outline-none focus:border-sky-500"
+              onChange={(e) =>
+                setGroupType(e.target.value as "primary" | "following")
+              }
+              className="h-14 rounded-2xl border border-white/20 bg-black px-4 text-lg text-white outline-none"
             >
               <option value="primary">My Swimmer</option>
               <option value="following">Following</option>
             </select>
+
+            <button
+              onClick={addSwimmer}
+              disabled={loading}
+              className="h-14 rounded-2xl border border-white/20 bg-white/10 text-lg font-medium text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Add
+            </button>
           </div>
 
-          <button
-            type="button"
-            onClick={addSwimmer}
-            className="mt-4 w-full rounded-2xl bg-sky-600 px-6 py-3.5 text-base font-semibold text-white shadow-sm transition hover:bg-sky-700 active:scale-[0.99]"
-          >
-            Add Swimmer
-          </button>
-        </section>
-
-        <div className="space-y-4">
-          {renderSwimmerGroup("primary", primarySwimmers)}
-          {renderSwimmerGroup("following", followingSwimmers)}
+          <p className="mt-4 text-sm text-white/60">{status}</p>
         </div>
+
+        <section className="space-y-6">
+          <div>
+            <h2 className="mb-3 text-2xl font-semibold">My Swimmers</h2>
+
+            <div className="space-y-4">
+              {primarySwimmers.length === 0 ? (
+                <div className="rounded-3xl border border-white/10 bg-white/5 p-5 text-white/60">
+                  No primary swimmers yet.
+                </div>
+              ) : (
+                primarySwimmers.map((swimmer) => (
+                  <div
+                    key={swimmer.id}
+                    className="rounded-3xl border border-white/10 bg-white/5 p-5"
+                  >
+                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <h3 className="text-2xl font-bold">{swimmer.name}</h3>
+                        <p className="mt-2 text-white/70">Age: {swimmer.age}</p>
+                        <p className="mt-1 text-sm text-white/40">
+                          Added: {formatCreatedAt(swimmer.created_at)}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap gap-3">
+                        <Link
+                          href={`/swimmers/${swimmer.id}`}
+                          className="rounded-2xl border border-white/20 px-4 py-2 text-sm text-white/80 transition hover:bg-white/10"
+                        >
+                          Open
+                        </Link>
+
+                        <button
+                          onClick={() =>
+                            deleteSwimmer(swimmer.id, swimmer.name)
+                          }
+                          disabled={loading}
+                          className="rounded-2xl border border-red-400/30 px-4 py-2 text-sm text-red-300 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div>
+            <h2 className="mb-3 text-2xl font-semibold">Following</h2>
+
+            <div className="space-y-4">
+              {followingSwimmers.length === 0 ? (
+                <div className="rounded-3xl border border-white/10 bg-white/5 p-5 text-white/60">
+                  No followed swimmers yet.
+                </div>
+              ) : (
+                followingSwimmers.map((swimmer) => (
+                  <div
+                    key={swimmer.id}
+                    className="rounded-3xl border border-white/10 bg-white/5 p-5"
+                  >
+                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <h3 className="text-2xl font-bold">{swimmer.name}</h3>
+                        <p className="mt-2 text-white/70">Age: {swimmer.age}</p>
+                        <p className="mt-1 text-sm text-white/40">
+                          Added: {formatCreatedAt(swimmer.created_at)}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap gap-3">
+                        <Link
+                          href={`/swimmers/${swimmer.id}`}
+                          className="rounded-2xl border border-white/20 px-4 py-2 text-sm text-white/80 transition hover:bg-white/10"
+                        >
+                          Open
+                        </Link>
+
+                        <button
+                          onClick={() =>
+                            deleteSwimmer(swimmer.id, swimmer.name)
+                          }
+                          disabled={loading}
+                          className="rounded-2xl border border-red-400/30 px-4 py-2 text-sm text-red-300 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </section>
       </div>
     </main>
   );

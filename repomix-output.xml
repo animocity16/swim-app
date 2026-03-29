@@ -1,0 +1,3567 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+app/
+  auth/
+    confirm/
+      page.tsx
+  components/
+    BottomNav.tsx
+  login/
+    page.tsx
+  standards/
+    [id]/
+      page.tsx
+    page.tsx
+  swimmers/
+    [id]/
+      MeetMobileImport.tsx
+      page.tsx
+      StandardsCompare.tsx
+      SwimTimesSection.tsx
+    page.tsx
+  favicon.ico
+  globals.css
+  layout.tsx
+  page.tsx
+lib/
+  supabaseClient.ts
+public/
+  file.svg
+  globe.svg
+  icon-192.png
+  icon-512.png
+  manifest.webmanifest
+  next.svg
+  vercel.svg
+  window.svg
+.gitignore
+eslint.config.mjs
+next.config.ts
+package.json
+postcss.config.mjs
+README.md
+tsconfig.json
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="app/auth/confirm/page.tsx">
+"use client";
+
+import { useEffect } from "react";
+import { supabase } from "@/lib/supabaseClient";
+import { useRouter } from "next/navigation";
+
+export default function AuthConfirmPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    async function handleAuth() {
+      await supabase.auth.getSession();
+      router.replace("/swimmers");
+    }
+
+    handleAuth();
+  }, [router]);
+
+  return <div style={{ padding: 20 }}>Logging you in...</div>;
+}
+</file>
+
+<file path="app/components/BottomNav.tsx">
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+const tabs = [
+  { href: "/swimmers", label: "Swimmers", icon: "🏊" },
+  { href: "/times", label: "Times", icon: "⏱" },
+  { href: "/progress", label: "Progress", icon: "📈" },
+  { href: "/import", label: "Import", icon: "📥" },
+];
+
+export default function BottomNav() {
+  const pathname = usePathname();
+
+  return (
+    <nav className="fixed bottom-0 left-0 right-0 border-t bg-white">
+      <div className="mx-auto flex max-w-md justify-around py-2">
+        {tabs.map((tab) => {
+          const active = pathname.startsWith(tab.href);
+
+          return (
+            <Link
+              key={tab.href}
+              href={tab.href}
+              className={`flex flex-col items-center text-xs ${
+                active ? "text-sky-600" : "text-gray-500"
+              }`}
+            >
+              <span className="text-lg">{tab.icon}</span>
+              {tab.label}
+            </Link>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
+</file>
+
+<file path="app/standards/[id]/page.tsx">
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import { supabase } from "@/lib/supabaseClient";
+
+type StandardSet = {
+  id: number;
+  name: string;
+  type: "UPGRADING" | "IMPORTANT_MEET";
+};
+
+type StandardItem = {
+  id: number;
+  standard_set_id: number;
+  event: string;
+  course: "SCM" | "LCM";
+  gender: "Male" | "Female" | null;
+  min_age: number | null;
+  max_age: number | null;
+  qualifying_time_ms: number;
+};
+
+function formatMs(ms: number) {
+  const minutes = Math.floor(ms / 60000);
+  const seconds = Math.floor((ms % 60000) / 1000);
+  const hundredths = Math.floor((ms % 1000) / 10);
+
+  if (minutes > 0) {
+    return `${minutes}:${String(seconds).padStart(2, "0")}.${String(
+      hundredths
+    ).padStart(2, "0")}`;
+  }
+
+  return `${seconds}.${String(hundredths).padStart(2, "0")}`;
+}
+
+function parseTimeToMs(input: string) {
+  const trimmed = input.trim();
+
+  if (!trimmed) return null;
+
+  if (trimmed.includes(":")) {
+    const parts = trimmed.split(":");
+    if (parts.length !== 2) return null;
+
+    const minutes = Number(parts[0]);
+    const seconds = Number(parts[1]);
+
+    if (isNaN(minutes) || isNaN(seconds)) return null;
+
+    return Math.round((minutes * 60 + seconds) * 1000);
+  }
+
+  const seconds = Number(trimmed);
+  if (isNaN(seconds)) return null;
+
+  return Math.round(seconds * 1000);
+}
+
+export default function StandardItemsPage() {
+  const params = useParams();
+  const setId = Number(params.id);
+
+  const [setInfo, setSetInfo] = useState<StandardSet | null>(null);
+  const [items, setItems] = useState<StandardItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState("Ready");
+
+  const [event, setEvent] = useState("");
+  const [course, setCourse] = useState<"SCM" | "LCM">("SCM");
+  const [gender, setGender] = useState<"Male" | "Female" | "">("");
+  const [minAge, setMinAge] = useState("");
+  const [maxAge, setMaxAge] = useState("");
+  const [timeInput, setTimeInput] = useState("");
+
+  useEffect(() => {
+    if (!setId) return;
+    loadPage();
+  }, [setId]);
+
+  async function loadPage() {
+    setStatus("Loading...");
+
+    const { data: setData, error: setError } = await supabase
+      .from("standard_sets")
+      .select("id, name, type")
+      .eq("id", setId)
+      .single();
+
+    if (setError) {
+      setStatus(setError.message);
+      return;
+    }
+
+    setSetInfo(setData);
+
+    const { data: itemData, error: itemError } = await supabase
+      .from("standard_items")
+      .select(
+        "id, standard_set_id, event, course, gender, min_age, max_age, qualifying_time_ms"
+      )
+      .eq("standard_set_id", setId)
+      .order("event", { ascending: true });
+
+    if (itemError) {
+      setStatus(itemError.message);
+      return;
+    }
+
+    setItems(itemData || []);
+    setStatus("Ready");
+  }
+
+  async function addItem() {
+    if (!event.trim()) {
+      alert("Please enter an event");
+      return;
+    }
+
+    if (!timeInput.trim()) {
+      alert("Please enter time (e.g. 36.50 or 1:12.34)");
+      return;
+    }
+
+    const timeMs = parseTimeToMs(timeInput);
+
+    if (!timeMs) {
+      alert("Invalid time format");
+      return;
+    }
+
+    setLoading(true);
+    setStatus("Adding item...");
+
+    const { error } = await supabase.from("standard_items").insert([
+      {
+        standard_set_id: setId,
+        event: event.trim(),
+        course,
+        gender: gender || null,
+        min_age: minAge ? Number(minAge) : null,
+        max_age: maxAge ? Number(maxAge) : null,
+        qualifying_time_ms: timeMs,
+      },
+    ]);
+
+    if (error) {
+      setLoading(false);
+      setStatus(error.message);
+      alert(error.message);
+      return;
+    }
+
+    setEvent("");
+    setCourse("SCM");
+    setGender("");
+    setMinAge("");
+    setMaxAge("");
+    setTimeInput("");
+
+    await loadPage();
+    setLoading(false);
+    setStatus("Item added");
+  }
+
+  async function deleteItem(id: number) {
+    const ok = window.confirm("Delete this timing row?");
+    if (!ok) return;
+
+    const { error } = await supabase
+      .from("standard_items")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    await loadPage();
+  }
+
+  return (
+    <div style={{ padding: 20, maxWidth: 900, margin: "0 auto" }}>
+      <div style={{ marginBottom: 16 }}>
+        <Link href="/standards">← Back to Standards</Link>
+      </div>
+
+      <h1 style={{ fontSize: 32, marginBottom: 8 }}>
+        {setInfo ? setInfo.name : "Standard Set"}
+      </h1>
+
+      <p style={{ color: "#666", marginBottom: 20 }}>
+        {setInfo ? setInfo.type : ""}
+      </p>
+
+      <div
+        style={{
+          border: "1px solid #ddd",
+          borderRadius: 12,
+          padding: 16,
+          marginBottom: 24,
+          display: "grid",
+          gap: 12,
+        }}
+      >
+        <h2 style={{ margin: 0 }}>Add Timing Row</h2>
+
+        <input
+          placeholder="Event (e.g. 50 Freestyle)"
+          value={event}
+          onChange={(e) => setEvent(e.target.value)}
+          style={{
+            padding: "10px 12px",
+            border: "1px solid #ccc",
+            borderRadius: 8,
+          }}
+        />
+
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <select
+            value={course}
+            onChange={(e) => setCourse(e.target.value as "SCM" | "LCM")}
+            style={{
+              padding: "10px 12px",
+              border: "1px solid #ccc",
+              borderRadius: 8,
+            }}
+          >
+            <option value="SCM">SCM</option>
+            <option value="LCM">LCM</option>
+          </select>
+
+          <select
+            value={gender}
+            onChange={(e) => setGender(e.target.value as "Male" | "Female" | "")}
+            style={{
+              padding: "10px 12px",
+              border: "1px solid #ccc",
+              borderRadius: 8,
+            }}
+          >
+            <option value="">All genders</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+          </select>
+
+          <input
+            placeholder="Min age"
+            value={minAge}
+            onChange={(e) => setMinAge(e.target.value)}
+            style={{
+              padding: "10px 12px",
+              border: "1px solid #ccc",
+              borderRadius: 8,
+              width: 120,
+            }}
+          />
+
+          <input
+            placeholder="Max age"
+            value={maxAge}
+            onChange={(e) => setMaxAge(e.target.value)}
+            style={{
+              padding: "10px 12px",
+              border: "1px solid #ccc",
+              borderRadius: 8,
+              width: 120,
+            }}
+          />
+
+          <input
+            placeholder="Time (e.g. 36.50 or 1:12.34)"
+            value={timeInput}
+            onChange={(e) => setTimeInput(e.target.value)}
+            style={{
+              padding: "10px 12px",
+              border: "1px solid #ccc",
+              borderRadius: 8,
+              width: 220,
+            }}
+          />
+        </div>
+
+        <button
+          onClick={addItem}
+          disabled={loading}
+          style={{
+            padding: "10px 16px",
+            borderRadius: 8,
+            border: "1px solid #ccc",
+            cursor: "pointer",
+            width: 140,
+          }}
+        >
+          {loading ? "Adding..." : "Add Row"}
+        </button>
+      </div>
+
+      <p style={{ color: "#666", marginBottom: 16 }}>{status}</p>
+
+      {items.length === 0 ? (
+        <p>No timing rows yet.</p>
+      ) : (
+        <div style={{ display: "grid", gap: 12 }}>
+          {items.map((item) => (
+            <div
+              key={item.id}
+              style={{
+                border: "1px solid #ddd",
+                borderRadius: 12,
+                padding: 14,
+              }}
+            >
+              <div style={{ fontWeight: 700 }}>{item.event}</div>
+              <div style={{ color: "#666", marginTop: 4 }}>
+                {item.course} · {item.gender || "All genders"} · Ages{" "}
+                {item.min_age ?? "Any"}-{item.max_age ?? "Any"}
+              </div>
+              <div style={{ marginTop: 6 }}>
+                Target: {formatMs(item.qualifying_time_ms)} ({item.qualifying_time_ms} ms)
+              </div>
+              <button
+                onClick={() => deleteItem(item.id)}
+                style={{
+                  marginTop: 10,
+                  padding: "8px 12px",
+                  borderRadius: 8,
+                  border: "1px solid #ccc",
+                  cursor: "pointer",
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+</file>
+
+<file path="app/standards/page.tsx">
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { supabase } from "@/lib/supabaseClient";
+
+type StandardSet = {
+  id: number;
+  name: string;
+  type: "UPGRADING" | "IMPORTANT_MEET";
+  created_at?: string | null;
+};
+
+function formatCreatedAt(value?: string | null) {
+  if (!value) return "No date";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "No date";
+  return date.toLocaleString();
+}
+
+export default function StandardsPage() {
+  const [sets, setSets] = useState<StandardSet[]>([]);
+  const [name, setName] = useState("");
+  const [type, setType] = useState<"UPGRADING" | "IMPORTANT_MEET">("UPGRADING");
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState("Ready");
+
+  useEffect(() => {
+    loadSets();
+  }, []);
+
+  async function loadSets() {
+    setLoading(true);
+    setStatus("Loading standards...");
+
+    const { data, error } = await supabase
+      .from("standard_sets")
+      .select("id, name, type, created_at")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("loadSets error:", error);
+      setStatus(`Error loading sets: ${error.message}`);
+      setSets([]);
+      setLoading(false);
+      return;
+    }
+
+    setSets((data as StandardSet[]) || []);
+    setStatus("Ready");
+    setLoading(false);
+  }
+
+  async function addSet() {
+    const trimmedName = name.trim();
+
+    if (!trimmedName) {
+      setStatus("Please enter a set name.");
+      return;
+    }
+
+    setLoading(true);
+    setStatus("Adding standards set...");
+
+    const { error } = await supabase.from("standard_sets").insert([
+      {
+        name: trimmedName,
+        type,
+      },
+    ]);
+
+    if (error) {
+      console.error("addSet error:", error);
+      setStatus(`Error adding set: ${error.message}`);
+      setLoading(false);
+      return;
+    }
+
+    setName("");
+    setType("UPGRADING");
+    setStatus("Standards set added.");
+    await loadSets();
+  }
+
+  async function deleteSet(setId: number, setName: string) {
+  const confirmed = window.confirm(`Delete "${setName}" and all its standard items?`);
+  if (!confirmed) return;
+
+  setLoading(true);
+  setStatus(`Deleting "${setName}"...`);
+
+  const { error: childError } = await supabase
+    .from("standard_items")
+    .delete()
+    .eq("standard_set_id", setId);
+
+  if (childError) {
+    console.error("delete standard_items error:", childError);
+    setStatus(`Error deleting standard items: ${childError.message}`);
+    setLoading(false);
+    return;
+  }
+
+  const { error: setError } = await supabase
+    .from("standard_sets")
+    .delete()
+    .eq("id", setId);
+
+  if (setError) {
+    console.error("delete standard_sets error:", setError);
+    setStatus(`Error deleting set: ${setError.message}`);
+    setLoading(false);
+    return;
+  }
+
+  setStatus(`Deleted "${setName}".`);
+  await loadSets();
+}
+
+  return (
+    <main className="min-h-screen bg-black text-white px-4 py-6 sm:px-6 sm:py-8">
+      <div className="mx-auto w-full max-w-4xl">
+        <div className="mb-6 flex items-center justify-between gap-3">
+          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+            Standards
+          </h1>
+
+          <Link
+            href="/swimmers"
+            className="rounded-2xl border border-white/20 px-4 py-2 text-sm text-white/80 transition hover:bg-white/10"
+          >
+            Back
+          </Link>
+        </div>
+
+        <div className="mb-6 rounded-3xl border border-white/15 bg-white/5 p-5 shadow-sm">
+          <div className="grid gap-3 md:grid-cols-[1fr_220px_120px]">
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Set name"
+              className="h-14 w-full rounded-2xl border border-white/25 bg-black px-4 text-lg text-white placeholder:text-white/35 outline-none"
+            />
+
+            <select
+              value={type}
+              onChange={(e) =>
+                setType(e.target.value as "UPGRADING" | "IMPORTANT_MEET")
+              }
+              className="h-14 w-full rounded-2xl border border-white/25 bg-black px-4 text-lg text-white outline-none"
+            >
+              <option value="UPGRADING">Upgrading</option>
+              <option value="IMPORTANT_MEET">Important Meet</option>
+            </select>
+
+            <button
+              onClick={addSet}
+              disabled={loading}
+              className="h-14 rounded-2xl border border-white/25 bg-white/5 px-5 text-lg font-medium text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Add
+            </button>
+          </div>
+
+          <p className="mt-4 text-base text-white/55">{status}</p>
+        </div>
+
+        <div className="space-y-4">
+          {sets.length === 0 && !loading ? (
+            <div className="rounded-3xl border border-white/15 bg-white/5 p-5 text-white/60">
+              No standards sets yet.
+            </div>
+          ) : (
+            sets.map((setItem) => (
+              <div
+                key={setItem.id}
+                className="rounded-3xl border border-white/15 bg-white/5 p-5 shadow-sm"
+              >
+                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                  <div className="min-w-0">
+                    <h2 className="text-2xl font-semibold text-white sm:text-3xl">
+                      {setItem.name}
+                    </h2>
+
+                    <p className="mt-2 text-base uppercase tracking-wide text-white/45">
+                      {setItem.type === "UPGRADING"
+                        ? "Upgrading"
+                        : "Important Meet"}
+                    </p>
+
+                    <p className="mt-3 text-sm text-white/40">
+                      Added: {formatCreatedAt(setItem.created_at)}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-3">
+                    <Link
+                      href={`/standards/${setItem.id}`}
+                      className="rounded-2xl border border-white/20 px-5 py-2.5 text-sm text-white/80 transition hover:bg-white/10"
+                    >
+                      Open
+                    </Link>
+
+                    <button
+                      onClick={() => deleteSet(setItem.id, setItem.name)}
+                      disabled={loading}
+                      className="rounded-2xl border border-red-400/40 px-5 py-2.5 text-sm text-red-300 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </main>
+  );
+}
+</file>
+
+<file path="app/swimmers/[id]/MeetMobileImport.tsx">
+"use client";
+
+import React, { useMemo, useState } from "react";
+import { createWorker } from "tesseract.js";
+import { supabase } from "@/lib/supabaseClient";
+
+type Extracted = {
+  event: string;
+  course: "LCM" | "SCM";
+  matchedLine: string;
+  place: number | null;
+  club: string | null;
+  age: number | null;
+  timeStr: string;
+  timeMs: number;
+  rawText: string;
+};
+
+type Props = {
+  swimmerId: number;
+  swimmerName: string;
+  clubHint?: string;
+  onSaved?: () => void;
+};
+
+export default function MeetMobileImport({
+  swimmerId,
+  swimmerName,
+  clubHint,
+  onSaved,
+}: Props) {
+  const [file, setFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [extracted, setExtracted] = useState<Extracted | null>(null);
+  const [showRaw, setShowRaw] = useState(false);
+
+  const headerRight = useMemo(() => {
+    const clubText = clubHint ? ` (${clubHint})` : "";
+    return `${swimmerName || "—"}${clubText}`;
+  }, [swimmerName, clubHint]);
+
+  async function handleScan() {
+    setMsg("");
+    setExtracted(null);
+
+    if (!file) {
+      setMsg("❌ Please choose a screenshot first.");
+      return;
+    }
+
+    if (!swimmerId) {
+      setMsg("❌ swimmerId is missing. Pass swimmerId into MeetMobileImport.");
+      return;
+    }
+
+    if (!swimmerName) {
+      setMsg("❌ swimmerName is missing. Pass swimmerName into MeetMobileImport.");
+      return;
+    }
+
+    setBusy(true);
+
+    try {
+      const rawText = await ocrImageToText(file);
+
+      const parsed = parseMeetMobileOCR(rawText, swimmerName);
+
+      if (!parsed) {
+        setMsg("⚠️ Could not confirm this screenshot belongs to this swimmer.");
+        setExtracted({
+          event: "Unknown",
+          course: detectCourse(rawText),
+          matchedLine: "",
+          place: null,
+          club: null,
+          age: null,
+          timeStr: "",
+          timeMs: 0,
+          rawText,
+        });
+        return;
+      }
+
+      const finalExtract: Extracted = {
+        ...parsed,
+        rawText,
+      };
+
+      setExtracted(finalExtract);
+
+      const payload = {
+        swimmer_id: swimmerId,
+        event: extractEvent(finalExtract.event),
+        course: finalExtract.course,
+        time_ms: finalExtract.timeMs,
+        meet_name: "MeetMobile Import",
+        meet_date: null as string | null,
+        notes: `Matched line: ${finalExtract.matchedLine || "—"}`,
+      };
+
+      const result = await saveToSupabase(payload);
+
+      if (result.skipped) {
+        setMsg("✅ Already saved (duplicate).");
+      } else {
+        setMsg("✅ Saved to Supabase!");
+      }
+
+      onSaved?.();
+    } catch (e: any) {
+      setMsg("❌ " + (e?.message ?? "Unknown error"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border bg-white p-6">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-2xl font-bold">MeetMobile Screenshot Import</h2>
+        <div className="text-sm text-gray-600">{headerRight}</div>
+      </div>
+
+      <div className="mt-4">
+        <input
+          type="file"
+          accept="image/*"
+          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+        />
+      </div>
+
+      <button
+        onClick={handleScan}
+        disabled={busy || !file}
+        className="mt-4 w-full rounded-xl border px-4 py-3 text-lg font-semibold hover:bg-gray-50 disabled:opacity-50"
+      >
+        {busy ? "Scanning..." : "Scan screenshot"}
+      </button>
+
+      {msg && <div className="mt-4 rounded-xl border p-3 text-sm">{msg}</div>}
+
+      <div className="mt-5 rounded-2xl border p-4">
+        <div className="mb-3 text-lg font-semibold">Extracted</div>
+
+        {!extracted ? (
+          <div className="text-sm text-gray-500">No data yet.</div>
+        ) : (
+          <div className="space-y-2 text-sm">
+            <div>
+              <span className="text-gray-500">Event:</span>{" "}
+              <span className="font-semibold">{extracted.event}</span>
+            </div>
+
+            <div>
+              <span className="text-gray-500">Course:</span>{" "}
+              <span className="font-semibold">{extracted.course}</span>
+            </div>
+
+            <div>
+              <span className="text-gray-500">Matched line:</span>{" "}
+              <span className="font-semibold">
+                {extracted.matchedLine || "—"}
+              </span>
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <div>
+                <span className="text-gray-500">Place:</span>{" "}
+                <span className="font-semibold">{extracted.place ?? "—"}</span>
+              </div>
+
+              <div>
+                <span className="text-gray-500">Club:</span>{" "}
+                <span className="font-semibold">{extracted.club ?? "—"}</span>
+              </div>
+
+              <div>
+                <span className="text-gray-500">Age:</span>{" "}
+                <span className="font-semibold">{extracted.age ?? "—"}</span>
+              </div>
+
+              <div>
+                <span className="text-gray-500">Time:</span>{" "}
+                <span className="font-semibold">{extracted.timeStr || "—"}</span>
+              </div>
+            </div>
+
+            <div className="mt-4 border-t pt-4">
+              <div className="text-sm text-gray-500">time_ms (for Supabase):</div>
+              <div className="text-2xl font-bold">
+                {extracted.timeMs ? extracted.timeMs : "—"}
+              </div>
+            </div>
+
+            <button
+              onClick={() => setShowRaw((v) => !v)}
+              className="mt-3 text-sm text-gray-600 underline"
+              type="button"
+            >
+              {showRaw ? "Hide OCR raw text (debug)" : "Show OCR raw text (debug)"}
+            </button>
+
+            {showRaw && (
+              <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded-xl border bg-gray-50 p-3 text-xs">
+                {extracted.rawText || "(empty)"}
+              </pre>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+async function ocrImageToText(file: File): Promise<string> {
+  const worker = await createWorker("eng");
+
+  try {
+    const {
+      data: { text },
+    } = await worker.recognize(file);
+
+    return text || "";
+  } finally {
+    await worker.terminate();
+  }
+}
+
+async function saveToSupabase(payload: {
+  swimmer_id: number;
+  event: string;
+  course: string;
+  time_ms: number;
+  meet_name: string;
+  meet_date: string | null;
+  notes: string;
+}): Promise<{ skipped: boolean }> {
+  const { data: existing, error: checkErr } = await supabase
+    .from("swim_times")
+    .select("id")
+    .eq("swimmer_id", payload.swimmer_id)
+    .eq("event", payload.event)
+    .eq("course", payload.course)
+    .eq("time_ms", payload.time_ms)
+    .limit(1);
+
+  if (checkErr) {
+    throw new Error(checkErr.message);
+  }
+
+  if (existing && existing.length > 0) {
+    return { skipped: true };
+  }
+
+  const { error } = await supabase.from("swim_times").insert([payload]);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return { skipped: false };
+}
+
+function parseMeetMobileOCR(raw: string, swimmerName: string) {
+  const text = raw.replace(/\r/g, "");
+
+  const lines = text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  let matchedLine = "";
+  let club: string | null = null;
+  let age: number | null = null;
+  let place: number | null = null;
+  let timeStr: string | null = null;
+  let event: string | null = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const lower = line.toLowerCase();
+
+    if (!matchedLine && looksLikeSwimmerName(line, swimmerName)) {
+      matchedLine = line;
+    }
+
+    if (line.includes("|")) {
+      const parts = line.split("|");
+
+      if (parts.length === 2) {
+        const maybeClub = parts[0].trim();
+        const maybeAge = parseInt(parts[1].trim(), 10);
+
+        if (maybeClub) club = maybeClub;
+        if (!Number.isNaN(maybeAge)) age = maybeAge;
+      }
+    }
+
+    if (line.toUpperCase().includes("PLACE")) {
+      const next = lines[i + 1] ?? "";
+      const sameLineDigits = line.replace(/[^\d]/g, "");
+      const nextLineDigits = next.replace(/[^\d]/g, "");
+
+      if (sameLineDigits) {
+        const parsedPlace = parseInt(sameLineDigits, 10);
+        if (!Number.isNaN(parsedPlace)) place = parsedPlace;
+      } else if (nextLineDigits) {
+        const parsedPlace = parseInt(nextLineDigits, 10);
+        if (!Number.isNaN(parsedPlace)) place = parsedPlace;
+      }
+    }
+
+    if (line.toUpperCase().includes("FINALS")) {
+      const tokenFromSameLine = extractTimeToken(line);
+      const tokenFromNextLine = extractTimeToken(lines[i + 1] ?? "");
+
+      if (tokenFromSameLine) {
+        timeStr = normalizeTimeToken(tokenFromSameLine);
+      } else if (tokenFromNextLine) {
+        timeStr = normalizeTimeToken(tokenFromNextLine);
+      }
+    }
+
+    if (
+      !event &&
+      (lower.includes("meter") || /\b\d+\s*m\s*/i.test(line)) &&
+      !lower.includes("split") &&
+      !lower.includes("event summary") &&
+      !lower.includes("combined")
+    ) {
+      const cleanedEvent = extractEvent(line);
+      if (cleanedEvent !== "Unknown") {
+        event = cleanedEvent;
+      }
+    }
+  }
+
+  if (!matchedLine || !timeStr) {
+    return null;
+  }
+
+  const course = detectCourse(text);
+  const timeMs = timeToMs(timeStr);
+
+  return {
+    event: event || "Unknown",
+    course,
+    matchedLine,
+    place,
+    club,
+    age,
+    timeStr,
+    timeMs,
+  };
+}
+
+function detectCourse(text: string): "LCM" | "SCM" {
+  const t = text.toUpperCase();
+
+  if (/\b50\s*M\b/.test(t)) return "LCM";
+  if (/\b25\s*M\b/.test(t)) return "SCM";
+
+  if (/\bLCM\b/.test(t)) return "LCM";
+  if (/\bSCM\b/.test(t)) return "SCM";
+
+  return "LCM";
+}
+
+function extractEvent(text: string): string {
+  let cleaned = text
+    .replace(/\(.*?\)/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  cleaned = cleaned.replace(
+    /^(girls?|boys?|women|men|mixed)\s+[a-z0-9&\-\s]+?(?=\d+\s*(meter|m)\b)/i,
+    ""
+  ).trim();
+
+  cleaned = cleaned.replace(/^(girls?|boys?|women|men|mixed)\s+/i, "").trim();
+
+  let m = cleaned.match(/\b(\d+)\s*(meter|m)?\s*individual medley\b/i);
+  if (m) return `${m[1]} IM`;
+
+  m = cleaned.match(
+    /\b(\d+)\s*(meter|m)?\s*(backstroke|freestyle|butterfly|breaststroke)\b/i
+  );
+  if (m) return `${m[1]} ${strokeShortName(m[3])}`;
+
+  m = cleaned.match(/\b(\d+)\s*(meter|m)?\s*(back|free|fly|breast|im)\b/i);
+  if (m) return `${m[1]} ${capitalize(m[3])}`;
+
+  return "Unknown";
+}
+
+function timeToMs(t: string): number {
+  if (t.includes(":")) {
+    const [mm, ss] = t.split(":");
+    const minutes = parseInt(mm, 10);
+    const seconds = parseFloat(ss);
+    return Math.round((minutes * 60 + seconds) * 1000);
+  }
+
+  return Math.round(parseFloat(t) * 1000);
+}
+
+function capitalize(s: string) {
+  const x = s.toLowerCase();
+
+  if (x === "im") return "IM";
+
+  return x.charAt(0).toUpperCase() + x.slice(1);
+}
+
+function extractTimeToken(line: string): string | null {
+  const cleaned = line.replace(",", ".");
+
+  const m1 = cleaned.match(/(\d+:\d+\.\d+)/);
+  if (m1) return m1[1];
+
+  const m2 = cleaned.match(/(\d+\.\d+)/);
+  if (m2) return m2[1];
+
+  const m3 = cleaned.match(/\b(\d{3,4})\b/);
+  if (m3) return m3[1];
+
+  return null;
+}
+
+function normalizeTimeToken(token: string): string {
+  const t = token.replace(",", ".");
+
+  if (t.includes(":") || t.includes(".")) return t;
+
+  if (/^\d{4}$/.test(t)) return `${t.slice(0, 2)}.${t.slice(2)}`;
+  if (/^\d{3}$/.test(t)) return `${t.slice(0, 1)}.${t.slice(1)}`;
+
+  return t;
+}
+
+function strokeShortName(s: string): string {
+  const x = s.toLowerCase();
+
+  if (x === "backstroke") return "Back";
+  if (x === "freestyle") return "Free";
+  if (x === "butterfly") return "Fly";
+  if (x === "breaststroke") return "Breast";
+
+  return capitalize(s);
+}
+
+function looksLikeSwimmerName(line: string, swimmerName: string): boolean {
+  const normalize = (s: string) =>
+    s
+      .toLowerCase()
+      .replace(/[^a-z\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const lineNorm = normalize(line);
+  const swimmerNorm = normalize(swimmerName);
+
+  if (!lineNorm || !swimmerNorm) return false;
+
+  if (lineNorm.includes(swimmerNorm)) return true;
+
+  const swimmerParts = swimmerNorm.split(" ").filter((p) => p.length >= 3);
+  const matchedParts = swimmerParts.filter((part) => lineNorm.includes(part));
+
+  if (swimmerParts.length >= 2) {
+    return matchedParts.length >= 2;
+  }
+
+  return matchedParts.length >= 1;
+}
+</file>
+
+<file path="app/swimmers/[id]/SwimTimesSection.tsx">
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
+
+type SwimTime = {
+  id: number;
+  swimmer_id: number;
+  event: string;
+  course: string;
+  time_ms: number;
+  meet_name: string | null;
+  meet_date: string | null;
+  notes: string | null;
+  created_at: string;
+};
+
+function parseToMs(input: string) {
+  const s = input.trim();
+  if (!s) return null;
+
+  // "1:12.33"
+  if (s.includes(":")) {
+    const [mStr, secStr] = s.split(":");
+    const minutes = Number(mStr);
+    const seconds = Number(secStr);
+    if (!Number.isFinite(minutes) || !Number.isFinite(seconds)) return null;
+    return Math.round((minutes * 60 + seconds) * 1000);
+  }
+
+  // "35.04"
+  const seconds = Number(s);
+  if (!Number.isFinite(seconds)) return null;
+  return Math.round(seconds * 1000);
+}
+
+function formatMs(ms: number) {
+  const totalSeconds = ms / 1000;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds - minutes * 60;
+
+  return minutes > 0
+    ? `${minutes}:${seconds.toFixed(2).padStart(5, "0")}`
+    : seconds.toFixed(2);
+}
+
+function formatGapMs(gapMs: number) {
+  // Always show +x.xx seconds (even if > 60s it's okay for now)
+  const s = (gapMs / 1000).toFixed(2);
+  return `+${s}s`;
+}
+
+function keyOf(t: Pick<SwimTime, "event" | "course">) {
+  return `${t.event.trim().toLowerCase()}|${t.course.trim().toUpperCase()}`;
+}
+
+export default function SwimTimesSection({ swimmerId }: { swimmerId: number }) {
+  const [times, setTimes] = useState<SwimTime[]>([]);
+  const [event, setEvent] = useState("50 Free");
+  const [course, setCourse] = useState("SCM");
+  const [timeStr, setTimeStr] = useState("");
+  const [meetName, setMeetName] = useState("");
+  const [meetDate, setMeetDate] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function fetchTimes() {
+    const { data, error } = await supabase
+      .from("swim_times")
+      .select("*")
+      .eq("swimmer_id", swimmerId)
+      .order("meet_date", { ascending: false })
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      alert("Fetch times failed ❌ " + error.message);
+      return;
+    }
+
+    setTimes((data as SwimTime[]) || []);
+  }
+
+  async function addTime() {
+    const time_ms = parseToMs(timeStr);
+    if (!time_ms) {
+      alert("Enter a valid time like 35.04 or 1:12.33");
+      return;
+    }
+
+    setSaving(true);
+
+    const { error } = await supabase.from("swim_times").insert([
+      {
+        swimmer_id: swimmerId,
+        event,
+        course,
+        time_ms,
+        meet_name: meetName || null,
+        meet_date: meetDate || null,
+      },
+    ]);
+
+    setSaving(false);
+
+    if (error) {
+      alert("Insert failed ❌ " + error.message);
+      return;
+    }
+
+    setTimeStr("");
+    setMeetName("");
+    setMeetDate("");
+    fetchTimes();
+  }
+
+  async function deleteTime(id: number) {
+    const ok = confirm("Delete this swim time?");
+    if (!ok) return;
+
+    const { error } = await supabase.from("swim_times").delete().eq("id", id);
+    if (error) alert("Delete failed ❌ " + error.message);
+    else fetchTimes();
+  }
+
+  useEffect(() => {
+    if (!swimmerId) return;
+    fetchTimes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [swimmerId]);
+
+  // Build PB map: (event|course) -> min time_ms
+  const pbByEventCourse = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const t of times) {
+      const k = keyOf(t);
+      const cur = map.get(k);
+      if (cur === undefined || t.time_ms < cur) map.set(k, t.time_ms);
+    }
+    return map;
+  }, [times]);
+
+  // Optional: quick PB summary rows (one per event/course)
+  const pbSummary = useMemo(() => {
+    const items: { key: string; event: string; course: string; pb_ms: number }[] = [];
+    for (const [k, pb_ms] of pbByEventCourse.entries()) {
+      // k was normalized; recover display from first matching time
+      const first = times.find((t) => keyOf(t) === k);
+      if (!first) continue;
+      items.push({ key: k, event: first.event, course: first.course, pb_ms });
+    }
+    // Sort by event name then course
+    items.sort((a, b) => (a.event + a.course).localeCompare(b.event + b.course));
+    return items;
+  }, [pbByEventCourse, times]);
+
+  return (
+    <div className="border rounded-2xl p-4 shadow-sm">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold">Swim Times</h2>
+        <div className="text-sm text-gray-500">Swimmer ID: {swimmerId}</div>
+      </div>
+
+      {/* PB Summary */}
+      {pbSummary.length > 0 ? (
+        <div className="mt-3 rounded-xl border bg-gray-50 p-3">
+          <div className="text-sm font-semibold text-gray-800">PBs</div>
+          <div className="mt-2 grid gap-1">
+            {pbSummary.map((p) => (
+              <div key={p.key} className="text-sm text-gray-700 flex justify-between">
+                <span>
+                  {p.event} ({p.course})
+                </span>
+                <span className="font-semibold">{formatMs(p.pb_ms)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {/* Add form */}
+      <div className="mt-4 grid gap-3 max-w-md">
+        <label className="grid gap-1">
+          <span className="text-sm text-gray-700">Event</span>
+          <input
+            className="px-3 py-2 rounded-xl border"
+            value={event}
+            onChange={(e) => setEvent(e.target.value)}
+            placeholder="50 Free"
+          />
+        </label>
+
+        <label className="grid gap-1">
+          <span className="text-sm text-gray-700">Course</span>
+          <select
+            className="px-3 py-2 rounded-xl border"
+            value={course}
+            onChange={(e) => setCourse(e.target.value)}
+          >
+            <option value="SCM">SCM</option>
+            <option value="LCM">LCM</option>
+          </select>
+        </label>
+
+        <label className="grid gap-1">
+          <span className="text-sm text-gray-700">Time (35.04 or 1:12.33)</span>
+          <input
+            className="px-3 py-2 rounded-xl border"
+            value={timeStr}
+            onChange={(e) => setTimeStr(e.target.value)}
+            placeholder="35.04"
+          />
+        </label>
+
+        <label className="grid gap-1">
+          <span className="text-sm text-gray-700">Meet name (optional)</span>
+          <input
+            className="px-3 py-2 rounded-xl border"
+            value={meetName}
+            onChange={(e) => setMeetName(e.target.value)}
+            placeholder="SSA Meet"
+          />
+        </label>
+
+        <label className="grid gap-1">
+          <span className="text-sm text-gray-700">Meet date (optional)</span>
+          <input
+            className="px-3 py-2 rounded-xl border"
+            type="date"
+            value={meetDate}
+            onChange={(e) => setMeetDate(e.target.value)}
+          />
+        </label>
+
+        <button
+          onClick={addTime}
+          disabled={saving}
+          className="px-4 py-2 rounded-xl border hover:bg-gray-50 disabled:opacity-60"
+        >
+          {saving ? "Saving..." : "Add time"}
+        </button>
+      </div>
+
+      {/* Times list */}
+      <div className="mt-6">
+        {times.length === 0 ? (
+          <p className="text-gray-600">No swim times yet.</p>
+        ) : (
+          <ul className="space-y-2">
+            {times.map((t) => {
+              const k = keyOf(t);
+              const pb = pbByEventCourse.get(k);
+              const isPB = pb !== undefined && t.time_ms === pb;
+              const gapMs = pb !== undefined ? t.time_ms - pb : 0;
+
+              return (
+                <li
+                  key={t.id}
+                  className={[
+                    "flex items-center justify-between border rounded-xl p-3",
+                    isPB ? "bg-green-50 border-green-200" : "",
+                  ].join(" ")}
+                >
+                  <div>
+                    <div className="font-semibold flex items-center gap-2 flex-wrap">
+                      <span>
+                        {t.event} ({t.course}) — {formatMs(t.time_ms)}
+                      </span>
+
+                      {isPB ? (
+                        <span className="text-xs font-semibold px-2 py-1 rounded-full border bg-white">
+                          🏅 PB
+                        </span>
+                      ) : pb !== undefined ? (
+                        <span className="text-xs text-gray-600">
+                          {formatGapMs(gapMs)} vs PB
+                        </span>
+                      ) : null}
+                    </div>
+
+                    <div className="text-sm text-gray-600">
+                      {t.meet_date ? t.meet_date : "No date"}
+                      {t.meet_name ? ` • ${t.meet_name}` : ""}
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => deleteTime(t.id)}
+                    className="px-3 py-2 rounded-xl border hover:bg-gray-50"
+                  >
+                    Delete
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+</file>
+
+<file path="lib/supabaseClient.ts">
+import { createBrowserClient } from "@supabase/ssr";
+
+export const supabase = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
+);
+</file>
+
+<file path="public/file.svg">
+<svg fill="none" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M14.5 13.5V5.41a1 1 0 0 0-.3-.7L9.8.29A1 1 0 0 0 9.08 0H1.5v13.5A2.5 2.5 0 0 0 4 16h8a2.5 2.5 0 0 0 2.5-2.5m-1.5 0v-7H8v-5H3v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1M9.5 5V2.12L12.38 5zM5.13 5h-.62v1.25h2.12V5zm-.62 3h7.12v1.25H4.5zm.62 3h-.62v1.25h7.12V11z" clip-rule="evenodd" fill="#666" fill-rule="evenodd"/></svg>
+</file>
+
+<file path="public/globe.svg">
+<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><g clip-path="url(#a)"><path fill-rule="evenodd" clip-rule="evenodd" d="M10.27 14.1a6.5 6.5 0 0 0 3.67-3.45q-1.24.21-2.7.34-.31 1.83-.97 3.1M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16m.48-1.52a7 7 0 0 1-.96 0H7.5a4 4 0 0 1-.84-1.32q-.38-.89-.63-2.08a40 40 0 0 0 3.92 0q-.25 1.2-.63 2.08a4 4 0 0 1-.84 1.31zm2.94-4.76q1.66-.15 2.95-.43a7 7 0 0 0 0-2.58q-1.3-.27-2.95-.43a18 18 0 0 1 0 3.44m-1.27-3.54a17 17 0 0 1 0 3.64 39 39 0 0 1-4.3 0 17 17 0 0 1 0-3.64 39 39 0 0 1 4.3 0m1.1-1.17q1.45.13 2.69.34a6.5 6.5 0 0 0-3.67-3.44q.65 1.26.98 3.1M8.48 1.5l.01.02q.41.37.84 1.31.38.89.63 2.08a40 40 0 0 0-3.92 0q.25-1.2.63-2.08a4 4 0 0 1 .85-1.32 7 7 0 0 1 .96 0m-2.75.4a6.5 6.5 0 0 0-3.67 3.44 29 29 0 0 1 2.7-.34q.31-1.83.97-3.1M4.58 6.28q-1.66.16-2.95.43a7 7 0 0 0 0 2.58q1.3.27 2.95.43a18 18 0 0 1 0-3.44m.17 4.71q-1.45-.12-2.69-.34a6.5 6.5 0 0 0 3.67 3.44q-.65-1.27-.98-3.1" fill="#666"/></g><defs><clipPath id="a"><path fill="#fff" d="M0 0h16v16H0z"/></clipPath></defs></svg>
+</file>
+
+<file path="public/manifest.webmanifest">
+{
+  "name": "SwimIOSG",
+  "short_name": "SwimIOSG",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
+</file>
+
+<file path="public/next.svg">
+<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 394 80"><path fill="#000" d="M262 0h68.5v12.7h-27.2v66.6h-13.6V12.7H262V0ZM149 0v12.7H94v20.4h44.3v12.6H94v21h55v12.6H80.5V0h68.7zm34.3 0h-17.8l63.8 79.4h17.9l-32-39.7 32-39.6h-17.9l-23 28.6-23-28.6zm18.3 56.7-9-11-27.1 33.7h17.8l18.3-22.7z"/><path fill="#000" d="M81 79.3 17 0H0v79.3h13.6V17l50.2 62.3H81Zm252.6-.4c-1 0-1.8-.4-2.5-1s-1.1-1.6-1.1-2.6.3-1.8 1-2.5 1.6-1 2.6-1 1.8.3 2.5 1a3.4 3.4 0 0 1 .6 4.3 3.7 3.7 0 0 1-3 1.8zm23.2-33.5h6v23.3c0 2.1-.4 4-1.3 5.5a9.1 9.1 0 0 1-3.8 3.5c-1.6.8-3.5 1.3-5.7 1.3-2 0-3.7-.4-5.3-1s-2.8-1.8-3.7-3.2c-.9-1.3-1.4-3-1.4-5h6c.1.8.3 1.6.7 2.2s1 1.2 1.6 1.5c.7.4 1.5.5 2.4.5 1 0 1.8-.2 2.4-.6a4 4 0 0 0 1.6-1.8c.3-.8.5-1.8.5-3V45.5zm30.9 9.1a4.4 4.4 0 0 0-2-3.3 7.5 7.5 0 0 0-4.3-1.1c-1.3 0-2.4.2-3.3.5-.9.4-1.6 1-2 1.6a3.5 3.5 0 0 0-.3 4c.3.5.7.9 1.3 1.2l1.8 1 2 .5 3.2.8c1.3.3 2.5.7 3.7 1.2a13 13 0 0 1 3.2 1.8 8.1 8.1 0 0 1 3 6.5c0 2-.5 3.7-1.5 5.1a10 10 0 0 1-4.4 3.5c-1.8.8-4.1 1.2-6.8 1.2-2.6 0-4.9-.4-6.8-1.2-2-.8-3.4-2-4.5-3.5a10 10 0 0 1-1.7-5.6h6a5 5 0 0 0 3.5 4.6c1 .4 2.2.6 3.4.6 1.3 0 2.5-.2 3.5-.6 1-.4 1.8-1 2.4-1.7a4 4 0 0 0 .8-2.4c0-.9-.2-1.6-.7-2.2a11 11 0 0 0-2.1-1.4l-3.2-1-3.8-1c-2.8-.7-5-1.7-6.6-3.2a7.2 7.2 0 0 1-2.4-5.7 8 8 0 0 1 1.7-5 10 10 0 0 1 4.3-3.5c2-.8 4-1.2 6.4-1.2 2.3 0 4.4.4 6.2 1.2 1.8.8 3.2 2 4.3 3.4 1 1.4 1.5 3 1.5 5h-5.8z"/></svg>
+</file>
+
+<file path="public/vercel.svg">
+<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1155 1000"><path d="m577.3 0 577.4 1000H0z" fill="#fff"/></svg>
+</file>
+
+<file path="public/window.svg">
+<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path fill-rule="evenodd" clip-rule="evenodd" d="M1.5 2.5h13v10a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1zM0 1h16v11.5a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 0 12.5zm3.75 4.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5M7 4.75a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0m1.75.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5" fill="#666"/></svg>
+</file>
+
+<file path=".gitignore">
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+</file>
+
+<file path="eslint.config.mjs">
+import { defineConfig, globalIgnores } from "eslint/config";
+import nextVitals from "eslint-config-next/core-web-vitals";
+import nextTs from "eslint-config-next/typescript";
+
+const eslintConfig = defineConfig([
+  ...nextVitals,
+  ...nextTs,
+  // Override default ignores of eslint-config-next.
+  globalIgnores([
+    // Default ignores of eslint-config-next:
+    ".next/**",
+    "out/**",
+    "build/**",
+    "next-env.d.ts",
+  ]),
+]);
+
+export default eslintConfig;
+</file>
+
+<file path="next.config.ts">
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+  /* config options here */
+};
+
+export default nextConfig;
+</file>
+
+<file path="postcss.config.mjs">
+const config = {
+  plugins: {
+    "@tailwindcss/postcss": {},
+  },
+};
+
+export default config;
+</file>
+
+<file path="README.md">
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+
+## Getting Started
+
+First, run the development server:
+
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+
+## Learn More
+
+To learn more about Next.js, take a look at the following resources:
+
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+
+## Deploy on Vercel
+
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+</file>
+
+<file path="tsconfig.json">
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts",
+    "**/*.mts"
+  ],
+  "exclude": ["node_modules"]
+}
+</file>
+
+<file path="app/login/page.tsx">
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabaseClient";
+
+export default function LoginPage() {
+  const router = useRouter();
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
+  const [status, setStatus] = useState("Enter your email and password.");
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function checkSession() {
+      const { data, error } = await supabase.auth.getSession();
+
+      if (!mounted) return;
+
+      if (error) {
+        console.error("getSession error:", error);
+        setCheckingSession(false);
+        return;
+      }
+
+      if (data.session) {
+        router.replace("/swimmers");
+        return;
+      }
+
+      setCheckingSession(false);
+    }
+
+    checkSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        router.replace("/swimmers");
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [router]);
+
+  async function handlePasswordLogin(e: React.FormEvent) {
+    e.preventDefault();
+
+    const trimmedEmail = email.trim().toLowerCase();
+    const trimmedPassword = password.trim();
+
+    if (!trimmedEmail || !trimmedPassword) {
+      setStatus("Please enter both email and password.");
+      return;
+    }
+
+    setLoading(true);
+    setStatus("Signing in...");
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email: trimmedEmail,
+      password: trimmedPassword,
+    });
+
+    if (error) {
+      console.error("signInWithPassword error:", error);
+      setStatus(`Login error: ${error.message}`);
+      setLoading(false);
+      return;
+    }
+
+    setStatus("Login successful. Redirecting...");
+    router.replace("/swimmers");
+    router.refresh();
+  }
+
+  if (checkingSession) {
+    return (
+      <main className="min-h-screen bg-black px-4 py-8 text-white">
+        <div className="mx-auto max-w-md rounded-3xl border border-white/10 bg-white/5 p-6">
+          <h1 className="text-3xl font-bold">Login</h1>
+          <p className="mt-4 text-white/70">Checking session...</p>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-black px-4 py-8 text-white">
+      <div className="mx-auto max-w-md rounded-3xl border border-white/10 bg-white/5 p-6 shadow-sm">
+        <h1 className="text-3xl font-bold">Login</h1>
+        <p className="mt-3 text-white/70">
+          Sign in with your email and password.
+        </p>
+
+        <form onSubmit={handlePasswordLogin} className="mt-6 space-y-4">
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            autoComplete="email"
+            className="h-14 w-full rounded-2xl border border-white/20 bg-black px-4 text-lg text-white placeholder:text-white/35 outline-none"
+          />
+
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Password"
+            autoComplete="current-password"
+            className="h-14 w-full rounded-2xl border border-white/20 bg-black px-4 text-lg text-white placeholder:text-white/35 outline-none"
+          />
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="h-14 w-full rounded-2xl border border-white/20 bg-white/10 text-lg font-medium text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {loading ? "Signing in..." : "Login"}
+          </button>
+        </form>
+
+        <p className="mt-4 text-sm text-white/60">{status}</p>
+      </div>
+    </main>
+  );
+}
+</file>
+
+<file path="app/swimmers/[id]/page.tsx">
+"use client";
+
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { useParams } from "next/navigation";
+import { supabase } from "@/lib/supabaseClient";
+import MeetMobileImport from "./MeetMobileImport";
+
+type Swimmer = {
+  id: number | string;
+  name: string;
+  age: number;
+  birth_year?: number | null;
+  group_type?: string | null;
+  created_at?: string | null;
+};
+
+type SwimTimeRow = {
+  id?: number;
+  swimmer_id?: number | string;
+  event: string;
+  course: string;
+  time_ms: number;
+  created_at?: string | null;
+};
+
+type StandardSet = {
+  id: number;
+  name: string;
+  type: "UPGRADING" | "IMPORTANT_MEET";
+  created_at?: string | null;
+};
+
+type StandardItem = {
+  id: number;
+  standard_set_id: number;
+  event: string;
+  course: string;
+  gender?: string | null;
+  min_age?: number | null;
+  max_age?: number | null;
+  qualifying_time_ms: number;
+  created_at?: string | null;
+};
+
+type TabKey = "overview" | "swimTimes" | "standards" | "meetmobile";
+
+function formatCreatedAt(value?: string | null) {
+  if (!value) return "No date available";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "No date available";
+  return date.toLocaleString();
+}
+
+function formatMs(ms?: number | null) {
+  if (ms == null || Number.isNaN(ms)) return "-";
+  return (ms / 1000).toFixed(2);
+}
+
+function keyOf(event: string, course: string) {
+  return `${event.trim().toLowerCase()}|${course.trim().toUpperCase()}`;
+}
+
+function getPBMap(swimTimes: SwimTimeRow[]) {
+  const map = new Map<string, SwimTimeRow>();
+
+  for (const row of swimTimes) {
+    const key = keyOf(row.event, row.course);
+    const existing = map.get(key);
+
+    if (!existing || row.time_ms < existing.time_ms) {
+      map.set(key, row);
+    }
+  }
+
+  return map;
+}
+
+function findNextTarget(
+  swimTimes: SwimTimeRow[],
+  standards: StandardItem[],
+  swimmerAge?: number | null
+) {
+  const pbMap = getPBMap(swimTimes);
+  const candidates: Array<{
+    event: string;
+    course: string;
+    pb: number;
+    target: number;
+    gap: number;
+  }> = [];
+
+  for (const std of standards) {
+    if (
+      swimmerAge != null &&
+      std.min_age != null &&
+      swimmerAge < std.min_age
+    ) {
+      continue;
+    }
+
+    if (
+      swimmerAge != null &&
+      std.max_age != null &&
+      swimmerAge > std.max_age
+    ) {
+      continue;
+    }
+
+    const pb = pbMap.get(keyOf(std.event, std.course));
+    if (!pb) continue;
+
+    const gap = pb.time_ms - std.qualifying_time_ms;
+
+    // Only targets not yet achieved
+    if (gap > 0) {
+      candidates.push({
+        event: std.event,
+        course: std.course,
+        pb: pb.time_ms,
+        target: std.qualifying_time_ms,
+        gap,
+      });
+    }
+  }
+
+  if (candidates.length === 0) return null;
+
+  candidates.sort((a, b) => a.gap - b.gap);
+  return candidates[0];
+}
+
+export default function SwimmerProfilePage() {
+  const params = useParams();
+  const swimmerId = Number(params?.id);
+
+  const [activeTab, setActiveTab] = useState<TabKey>("overview");
+  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState("Loading swimmer...");
+
+  const [swimmer, setSwimmer] = useState<Swimmer | null>(null);
+  const [swimTimes, setSwimTimes] = useState<SwimTimeRow[]>([]);
+  const [standardSets, setStandardSets] = useState<StandardSet[]>([]);
+  const [selectedSetId, setSelectedSetId] = useState<number | null>(null);
+  const [standardItems, setStandardItems] = useState<StandardItem[]>([]);
+
+  async function loadPage() {
+    if (!swimmerId || Number.isNaN(swimmerId)) {
+      setStatus("Invalid swimmer id.");
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setStatus("Loading swimmer...");
+
+    const [
+      swimmerRes,
+      swimTimesRes,
+      standardSetsRes,
+    ] = await Promise.all([
+      supabase
+        .from("swimmers")
+        .select("id, name, age, birth_year, group_type, created_at")
+        .eq("id", swimmerId)
+        .single(),
+      supabase
+        .from("swim_times")
+        .select("id, swimmer_id, event, course, time_ms, created_at")
+        .eq("swimmer_id", swimmerId)
+        .order("event", { ascending: true }),
+      supabase
+        .from("standard_sets")
+        .select("id, name, type, created_at")
+        .order("created_at", { ascending: false }),
+    ]);
+
+    if (swimmerRes.error) {
+      console.error("swimmer load error:", swimmerRes.error);
+      setStatus(`Error loading swimmer: ${swimmerRes.error.message}`);
+      setLoading(false);
+      return;
+    }
+
+    if (swimTimesRes.error) {
+      console.error("swim times load error:", swimTimesRes.error);
+      setStatus(`Error loading swim times: ${swimTimesRes.error.message}`);
+      setLoading(false);
+      return;
+    }
+
+    if (standardSetsRes.error) {
+      console.error("standard sets load error:", standardSetsRes.error);
+      setStatus(`Error loading standards sets: ${standardSetsRes.error.message}`);
+      setLoading(false);
+      return;
+    }
+
+    const swimmerData = swimmerRes.data as Swimmer;
+    const swimTimesData = (swimTimesRes.data as SwimTimeRow[]) || [];
+    const standardSetsData = (standardSetsRes.data as StandardSet[]) || [];
+
+    setSwimmer(swimmerData);
+    setSwimTimes(swimTimesData);
+    setStandardSets(standardSetsData);
+
+    const upgradingSet =
+      standardSetsData.find((s) => s.type === "UPGRADING") || standardSetsData[0];
+
+    setSelectedSetId(upgradingSet?.id ?? null);
+
+    setStatus("Ready");
+    setLoading(false);
+  }
+
+  async function loadStandardItems(setId: number | null) {
+    if (!setId) {
+      setStandardItems([]);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("standard_items")
+      .select(
+        "id, standard_set_id, event, course, gender, min_age, max_age, qualifying_time_ms, created_at"
+      )
+      .eq("standard_set_id", setId)
+      .order("event", { ascending: true });
+
+    if (error) {
+      console.error("standard items load error:", error);
+      setStatus(`Error loading standard items: ${error.message}`);
+      setStandardItems([]);
+      return;
+    }
+
+    setStandardItems((data as StandardItem[]) || []);
+  }
+
+  useEffect(() => {
+    loadPage();
+  }, [swimmerId]);
+
+  useEffect(() => {
+    loadStandardItems(selectedSetId);
+  }, [selectedSetId]);
+
+  const pbMap = useMemo(() => getPBMap(swimTimes), [swimTimes]);
+
+  const nextTarget = useMemo(() => {
+    return findNextTarget(swimTimes, standardItems, swimmer?.age ?? null);
+  }, [swimTimes, standardItems, swimmer?.age]);
+
+  const selectedSet = useMemo(() => {
+    return standardSets.find((s) => s.id === selectedSetId) || null;
+  }, [standardSets, selectedSetId]);
+
+  const standardsRows = useMemo(() => {
+    return standardItems.map((item) => {
+      const pb = pbMap.get(keyOf(item.event, item.course));
+      const swimmerAge = swimmer?.age ?? null;
+
+      const ageTooYoung =
+        swimmerAge != null &&
+        item.min_age != null &&
+        swimmerAge < item.min_age;
+
+      const ageTooOld =
+        swimmerAge != null &&
+        item.max_age != null &&
+        swimmerAge > item.max_age;
+
+      if (ageTooYoung || ageTooOld) {
+        return {
+          ...item,
+          pbMs: null,
+          gapMs: null,
+          status: "Age not in range",
+        };
+      }
+
+      if (!pb) {
+        return {
+          ...item,
+          pbMs: null,
+          gapMs: null,
+          status: "No PB yet",
+        };
+      }
+
+      const gapMs = pb.time_ms - item.qualifying_time_ms;
+
+      if (gapMs <= 0) {
+        return {
+          ...item,
+          pbMs: pb.time_ms,
+          gapMs,
+          status: "Qualified",
+        };
+      }
+
+      return {
+        ...item,
+        pbMs: pb.time_ms,
+        gapMs,
+        status: "In progress",
+      };
+    });
+  }, [standardItems, pbMap, swimmer?.age]);
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-black px-4 py-6 text-white sm:px-6 sm:py-8">
+        <div className="mx-auto max-w-5xl">
+          <p className="text-white/70">{status}</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (!swimmer) {
+    return (
+      <main className="min-h-screen bg-black px-4 py-6 text-white sm:px-6 sm:py-8">
+        <div className="mx-auto max-w-5xl">
+          <p className="text-red-300">{status || "Swimmer not found."}</p>
+          <Link
+            href="/swimmers"
+            className="mt-4 inline-block rounded-2xl border border-white/20 px-4 py-2 text-white/80 hover:bg-white/10"
+          >
+            Back
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-[#f3f4f6] px-4 py-6 text-slate-900 sm:px-6 sm:py-8">
+      <div className="mx-auto max-w-5xl">
+        <div className="mb-6">
+          <Link
+            href="/swimmers"
+            className="inline-flex rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+          >
+            ← Back
+          </Link>
+        </div>
+
+        <section className="mb-6 overflow-hidden rounded-[32px] bg-gradient-to-r from-sky-600 to-cyan-500 text-white shadow-lg">
+          <div className="grid gap-5 p-6 md:grid-cols-[1.4fr_1fr]">
+            <div>
+              <p className="text-sm uppercase tracking-[0.3em] text-white/80">
+                Profile
+              </p>
+              <h1 className="mt-3 text-5xl font-bold tracking-tight">
+                {swimmer.name}
+              </h1>
+              <p className="mt-6 text-2xl text-white/90">Age {swimmer.age}</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="rounded-[28px] bg-white/15 p-5 backdrop-blur">
+                <p className="text-sm uppercase text-white/80">Swimmer ID</p>
+                <p className="mt-3 text-4xl font-bold">{swimmer.id}</p>
+              </div>
+
+              <div className="rounded-[28px] bg-white/15 p-5 backdrop-blur">
+                <p className="text-sm uppercase text-white/80">Status</p>
+                <p className="mt-3 text-3xl font-bold">Active</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="mb-6 rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="rounded-[24px] bg-slate-100 p-5">
+              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                Age
+              </p>
+              <p className="mt-3 text-5xl font-bold text-slate-900">
+                {swimmer.age}
+              </p>
+            </div>
+
+            <div className="rounded-[24px] bg-slate-100 p-5">
+              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                Added
+              </p>
+              <p className="mt-3 text-2xl font-semibold text-slate-900">
+                {formatCreatedAt(swimmer.created_at)}
+              </p>
+            </div>
+
+            <div className="rounded-[24px] bg-slate-100 p-5">
+              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                PB Events
+              </p>
+              <p className="mt-3 text-5xl font-bold text-slate-900">
+                {pbMap.size}
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="mb-6 rounded-[32px] border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={() => setActiveTab("overview")}
+              className={`rounded-2xl px-5 py-3 text-lg font-semibold transition ${
+                activeTab === "overview"
+                  ? "bg-sky-600 text-white"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+              }`}
+            >
+              Overview
+            </button>
+
+            <button
+              onClick={() => setActiveTab("swimTimes")}
+              className={`rounded-2xl px-5 py-3 text-lg font-semibold transition ${
+                activeTab === "swimTimes"
+                  ? "bg-sky-600 text-white"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+              }`}
+            >
+              Swim Times
+            </button>
+
+            <button
+              onClick={() => setActiveTab("standards")}
+              className={`rounded-2xl px-5 py-3 text-lg font-semibold transition ${
+                activeTab === "standards"
+                  ? "bg-sky-600 text-white"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+              }`}
+            >
+              Standards
+            </button>
+
+            <button
+              onClick={() => setActiveTab("meetmobile")}
+              className={`rounded-2xl px-5 py-3 text-lg font-semibold transition ${
+                activeTab === "meetmobile"
+                  ? "bg-sky-600 text-white"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+              }`}
+            >
+              MeetMobile
+            </button>
+          </div>
+        </section>
+
+        {activeTab === "overview" && (
+          <section className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-3xl font-bold text-slate-900">Overview</h2>
+            <p className="mt-2 text-lg text-slate-500">
+              Quick snapshot for {swimmer.name}.
+            </p>
+
+            <div className="mt-6 grid gap-4 md:grid-cols-2">
+              <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-5">
+                <p className="text-sm uppercase tracking-wide text-slate-500">
+                  Current status
+                </p>
+                <p className="mt-3 text-2xl font-bold text-slate-900">
+                  {swimTimes.length > 0 ? "Tracking active" : "No times yet"}
+                </p>
+                <p className="mt-2 text-slate-600">
+                  {swimTimes.length > 0
+                    ? `${swimTimes.length} swim time entr${
+                        swimTimes.length === 1 ? "y" : "ies"
+                      } recorded.`
+                    : "Import or add some times to start comparisons."}
+                </p>
+              </div>
+
+              <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-5">
+                <p className="text-sm uppercase tracking-wide text-slate-500">
+                  Best next action
+                </p>
+                <p className="mt-3 text-2xl font-bold text-slate-900">
+                  {nextTarget
+                    ? `${nextTarget.event} (${nextTarget.course})`
+                    : "No target yet"}
+                </p>
+                <p className="mt-2 text-slate-600">
+                  {nextTarget
+                    ? `${formatMs(nextTarget.gap)}s away from the target time.`
+                    : "Choose a standards set and make sure PBs exist for matching events."}
+                </p>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {activeTab === "swimTimes" && (
+          <section className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-3xl font-bold text-slate-900">Swim Times</h2>
+            <p className="mt-2 text-lg text-slate-500">
+              Best recorded times by event and course.
+            </p>
+
+            <div className="mt-6 space-y-4">
+              {pbMap.size === 0 ? (
+                <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-5 text-slate-600">
+                  No swim times yet.
+                </div>
+              ) : (
+                Array.from(pbMap.values())
+                  .sort((a, b) => {
+                    if (a.event === b.event) {
+                      return a.course.localeCompare(b.course);
+                    }
+                    return a.event.localeCompare(b.event);
+                  })
+                  .map((row) => (
+                    <div
+                      key={`${row.event}-${row.course}`}
+                      className="rounded-[24px] border border-slate-200 bg-slate-50 p-5"
+                    >
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <h3 className="text-2xl font-bold text-slate-900">
+                            {row.event}
+                          </h3>
+                          <p className="mt-1 text-slate-500">
+                            Course: {row.course}
+                          </p>
+                        </div>
+
+                        <div className="rounded-2xl bg-white px-4 py-3 text-right shadow-sm">
+                          <p className="text-sm uppercase tracking-wide text-slate-500">
+                            PB
+                          </p>
+                          <p className="text-3xl font-bold text-slate-900">
+                            {formatMs(row.time_ms)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+              )}
+            </div>
+          </section>
+        )}
+
+        {activeTab === "standards" && (
+          <section className="space-y-6">
+            <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <h2 className="text-3xl font-bold text-slate-900">
+                    Standards Compare
+                  </h2>
+                  <p className="mt-2 text-lg text-slate-500">
+                    See how close {swimmer.name} is to qualifying standards.
+                  </p>
+                </div>
+
+                <div className="w-full max-w-sm">
+                  <label className="mb-2 block text-sm font-semibold uppercase tracking-wide text-slate-500">
+                    Standard Set
+                  </label>
+                  <select
+                    value={selectedSetId ?? ""}
+                    onChange={(e) => setSelectedSetId(Number(e.target.value))}
+                    className="h-14 w-full rounded-2xl border border-slate-300 bg-white px-4 text-lg text-slate-900 outline-none"
+                  >
+                    {standardSets.map((set) => (
+                      <option key={set.id} value={set.id}>
+                        {set.name} ({set.type === "UPGRADING" ? "Upgrading" : "Important Meet"})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {nextTarget && (
+              <div className="rounded-[32px] border border-emerald-200 bg-emerald-50 p-6 shadow-sm">
+                <p className="text-sm font-semibold uppercase tracking-[0.25em] text-emerald-600">
+                  Next Target
+                </p>
+
+                <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                  <div>
+                    <h3 className="text-4xl font-bold text-slate-900">
+                      {nextTarget.event}
+                    </h3>
+                    <p className="mt-1 text-lg text-slate-600">
+                      Course: {nextTarget.course}
+                    </p>
+                  </div>
+
+                  <div className="rounded-[24px] bg-white px-5 py-4 shadow-sm">
+                    <p className="text-sm uppercase tracking-wide text-slate-500">
+                      Gap to target
+                    </p>
+                    <p className="text-4xl font-bold text-emerald-600">
+                      {formatMs(nextTarget.gap)}s away
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                  <div className="rounded-[24px] border border-emerald-100 bg-white p-5">
+                    <p className="text-sm uppercase tracking-wide text-slate-500">
+                      Current PB
+                    </p>
+                    <p className="mt-2 text-3xl font-bold text-slate-900">
+                      {formatMs(nextTarget.pb)}
+                    </p>
+                  </div>
+
+                  <div className="rounded-[24px] border border-emerald-100 bg-white p-5">
+                    <p className="text-sm uppercase tracking-wide text-slate-500">
+                      Target time
+                    </p>
+                    <p className="mt-2 text-3xl font-bold text-slate-900">
+                      {formatMs(nextTarget.target)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {!nextTarget && selectedSet && (
+              <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
+                <h3 className="text-2xl font-bold text-slate-900">Next Target</h3>
+                <p className="mt-3 text-slate-600">
+                  No active next target found for <strong>{selectedSet.name}</strong>.
+                  That usually means either:
+                </p>
+                <div className="mt-3 space-y-1 text-slate-600">
+                  <p>• no matching PB exists yet</p>
+                  <p>• all matching events are already qualified</p>
+                  <p>• age range does not match this swimmer</p>
+                </div>
+              </div>
+            )}
+
+            <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
+              <h3 className="text-3xl font-bold text-slate-900">
+                {selectedSet?.name || "Standards"}
+              </h3>
+              <p className="mt-2 text-lg text-slate-500">
+                Age: {swimmer.age}
+              </p>
+
+              <div className="mt-6 space-y-4">
+                {standardsRows.length === 0 ? (
+                  <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-5 text-slate-600">
+                    No standards found in this set.
+                  </div>
+                ) : (
+                  standardsRows.map((row) => {
+                    const qualified = row.status === "Qualified";
+                    const inProgress = row.status === "In progress";
+
+                    return (
+                      <div
+                        key={row.id}
+                        className="rounded-[28px] border border-slate-200 bg-slate-50 p-5"
+                      >
+                        <div className="mb-4">
+                          <h4 className="text-2xl font-bold text-slate-900">
+                            {row.event}
+                          </h4>
+                          <p className="mt-1 text-slate-500">
+                            Course: {row.course}
+                          </p>
+                        </div>
+
+                        <div className="grid gap-4 md:grid-cols-4">
+                          <div className="rounded-[24px] border border-slate-200 bg-white p-4">
+                            <p className="text-sm text-slate-500">PB</p>
+                            <p className="mt-2 text-3xl font-bold text-slate-900">
+                              {row.pbMs == null ? "-" : formatMs(row.pbMs)}
+                            </p>
+                            <p className="mt-2 text-sm text-slate-500">
+                              Best recorded time
+                            </p>
+                          </div>
+
+                          <div className="rounded-[24px] border border-slate-200 bg-white p-4">
+                            <p className="text-sm text-slate-500">Target</p>
+                            <p className="mt-2 text-3xl font-bold text-slate-900">
+                              {formatMs(row.qualifying_time_ms)}
+                            </p>
+                            <p className="mt-2 text-sm text-slate-500">
+                              Standard time
+                            </p>
+                          </div>
+
+                          <div className="rounded-[24px] border border-slate-200 bg-white p-4">
+                            <p className="text-sm text-slate-500">Gap</p>
+                            <p className="mt-2 text-3xl font-bold text-slate-900">
+                              {row.gapMs == null ? "-" : formatMs(Math.abs(row.gapMs))}
+                            </p>
+                            <p className="mt-2 text-sm text-slate-500">
+                              {qualified
+                                ? "Inside target"
+                                : inProgress
+                                ? "Time to drop"
+                                : "Waiting for PB"}
+                            </p>
+                          </div>
+
+                          <div className="rounded-[24px] border border-slate-200 bg-white p-4">
+                            <p className="text-sm text-slate-500">Status</p>
+                            <p
+                              className={`mt-2 text-3xl font-bold ${
+                                qualified
+                                  ? "text-emerald-600"
+                                  : inProgress
+                                  ? "text-amber-600"
+                                  : "text-slate-900"
+                              }`}
+                            >
+                              {qualified
+                                ? "Qualified"
+                                : inProgress
+                                ? "In progress"
+                                : row.status}
+                            </p>
+                            <p className="mt-2 text-sm text-slate-500">
+                              Quick read
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {activeTab === "meetmobile" && (
+          <section className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-3xl font-bold text-slate-900">MeetMobile Import</h2>
+            <p className="mt-2 text-lg text-slate-500">
+              Import meet results for {swimmer.name}.
+            </p>
+
+            <div className="mt-6">
+              <MeetMobileImport
+                swimmerId={Number(swimmer.id)}
+                swimmerName={swimmer.name}
+                onSaved={loadPage}
+              />
+            </div>
+          </section>
+        )}
+      </div>
+    </main>
+  );
+}
+</file>
+
+<file path="app/swimmers/[id]/StandardsCompare.tsx">
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
+
+type SwimTimeRow = {
+  event: string;
+  course: string;
+  time_ms: number;
+};
+
+type StandardSet = {
+  id: number;
+  name: string;
+  type: "UPGRADING" | "IMPORTANT_MEET";
+};
+
+type StandardItem = {
+  id: number;
+  standard_set_id: number;
+  event: string;
+  course: string;
+  min_age: number | null;
+  max_age: number | null;
+  gender: string | null;
+  qualifying_time_ms: number;
+};
+
+type Tone = "neutral" | "good" | "warn";
+
+function normalizeEvent(event: string) {
+  return event
+    .trim()
+    .toLowerCase()
+    .replace(/freestyle/g, "free")
+    .replace(/butterfly/g, "fly")
+    .replace(/breaststroke/g, "breast")
+    .replace(/backstroke/g, "back")
+    .replace(/\s+/g, " ");
+}
+
+function normalizeCourse(course: string) {
+  const c = course.trim().toUpperCase();
+
+  if (c === "50M") return "LCM";
+  if (c === "25M") return "SCM";
+
+  return c;
+}
+
+function keyOf(event: string, course: string) {
+  return `${normalizeEvent(event)}|${normalizeCourse(course)}`;
+}
+
+function formatMs(ms: number | null | undefined) {
+  if (ms == null) return "—";
+
+  const totalSeconds = ms / 1000;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds - minutes * 60;
+
+  return minutes > 0
+    ? `${minutes}:${seconds.toFixed(2).padStart(5, "0")}`
+    : seconds.toFixed(2);
+}
+
+function gapSeconds(pbMs: number, qualMs: number) {
+  return (pbMs - qualMs) / 1000;
+}
+
+function gapText(pbMs: number, qualMs: number) {
+  const g = gapSeconds(pbMs, qualMs);
+  const abs = Math.abs(g).toFixed(2);
+
+  if (g <= 0) return `Qualified • ${abs}s under`;
+  return `Needs ${abs}s`;
+}
+
+function gapTone(pbMs: number, qualMs: number): Tone {
+  const g = gapSeconds(pbMs, qualMs);
+
+  if (g <= 0) return "good";
+  if (g <= 1.0) return "warn";
+  return "neutral";
+}
+
+function toneStyles(tone: Tone) {
+  switch (tone) {
+    case "good":
+      return {
+        chip: "bg-emerald-50 text-emerald-800 ring-emerald-200",
+        tileRing: "ring-emerald-200",
+        value: "text-emerald-900",
+      };
+    case "warn":
+      return {
+        chip: "bg-amber-50 text-amber-800 ring-amber-200",
+        tileRing: "ring-amber-200",
+        value: "text-amber-900",
+      };
+    default:
+      return {
+        chip: "bg-zinc-50 text-zinc-800 ring-zinc-200",
+        tileRing: "ring-zinc-200",
+        value: "text-zinc-900",
+      };
+  }
+}
+
+function Chip({
+  label,
+  value,
+  tone = "neutral",
+}: {
+  label: string;
+  value: string;
+  tone?: Tone;
+}) {
+  const t = toneStyles(tone);
+
+  return (
+    <div
+      className={[
+        "inline-flex items-center gap-2 rounded-full px-3 py-1.5",
+        "ring-1",
+        t.chip,
+      ].join(" ")}
+    >
+      <span className="text-[11px] font-medium">{label}</span>
+      <span className="text-[11px] font-semibold tabular-nums">{value}</span>
+    </div>
+  );
+}
+
+function Tile({
+  label,
+  value,
+  hint,
+  tone = "neutral",
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  tone?: Tone;
+}) {
+  const t = toneStyles(tone);
+
+  return (
+    <div className={["rounded-2xl bg-white p-3 ring-1", t.tileRing].join(" ")}>
+      <div className="text-[11px] font-medium text-zinc-600">{label}</div>
+      <div
+        className={[
+          "mt-1 text-lg font-semibold tabular-nums break-words",
+          t.value,
+        ].join(" ")}
+      >
+        {value}
+      </div>
+      {hint ? <div className="mt-1 text-[11px] text-zinc-500">{hint}</div> : null}
+    </div>
+  );
+}
+
+function EventCard({
+  title,
+  subtitle,
+  chips,
+  tiles,
+}: {
+  title: string;
+  subtitle?: string;
+  chips?: Array<{ label: string; value: string; tone?: Tone }>;
+  tiles: Array<{ label: string; value: string; hint?: string; tone?: Tone }>;
+}) {
+  return (
+    <section className="rounded-2xl bg-white p-4 ring-1 ring-zinc-200">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="text-sm font-semibold text-zinc-900">{title}</div>
+          {subtitle ? <div className="mt-0.5 text-xs text-zinc-500">{subtitle}</div> : null}
+        </div>
+
+        {chips?.length ? (
+          <div className="flex flex-wrap gap-2 sm:justify-end">
+            {chips.map((c, i) => (
+              <Chip key={i} label={c.label} value={c.value} tone={c.tone ?? "neutral"} />
+            ))}
+          </div>
+        ) : null}
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {tiles.map((t, i) => (
+          <Tile
+            key={i}
+            label={t.label}
+            value={t.value}
+            hint={t.hint}
+            tone={t.tone ?? "neutral"}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+export default function StandardsCompare({
+  swimmerId,
+  swimmerAge,
+}: {
+  swimmerId: number;
+  swimmerAge: number;
+}) {
+  const [loading, setLoading] = useState(true);
+  const [loadingItems, setLoadingItems] = useState(false);
+
+  const [pbMap, setPbMap] = useState<Map<string, number>>(new Map());
+  const [pbLabelMap, setPbLabelMap] = useState<Map<string, { event: string; course: string }>>(
+    new Map()
+  );
+
+  const [sets, setSets] = useState<StandardSet[]>([]);
+  const [selectedSetId, setSelectedSetId] = useState<number | "">("");
+  const [items, setItems] = useState<StandardItem[]>([]);
+
+  useEffect(() => {
+    if (!swimmerId) return;
+    loadInitialData();
+  }, [swimmerId, swimmerAge]);
+
+  useEffect(() => {
+    if (!selectedSetId) {
+      setItems([]);
+      return;
+    }
+    loadItemsForSet(Number(selectedSetId));
+  }, [selectedSetId, swimmerAge]);
+
+  async function loadInitialData() {
+    setLoading(true);
+
+    const { data: times, error: tErr } = await supabase
+      .from("swim_times")
+      .select("event, course, time_ms")
+      .eq("swimmer_id", swimmerId);
+
+    if (tErr) {
+      alert("Failed to load swim times ❌ " + tErr.message);
+      setLoading(false);
+      return;
+    }
+
+    const map = new Map<string, number>();
+    const labelMap = new Map<string, { event: string; course: string }>();
+
+    (times as SwimTimeRow[] | null)?.forEach((t) => {
+      const k = keyOf(t.event, t.course);
+      const currentPb = map.get(k);
+
+      if (currentPb == null || t.time_ms < currentPb) {
+        map.set(k, t.time_ms);
+        labelMap.set(k, {
+          event: t.event.trim(),
+          course: normalizeCourse(t.course),
+        });
+      } else if (!labelMap.has(k)) {
+        labelMap.set(k, {
+          event: t.event.trim(),
+          course: normalizeCourse(t.course),
+        });
+      }
+    });
+
+    const { data: setData, error: setErr } = await supabase
+      .from("standard_sets")
+      .select("id, name, type")
+      .order("created_at", { ascending: false });
+
+    if (setErr) {
+      alert("Failed to load standard sets ❌ " + setErr.message);
+      setLoading(false);
+      return;
+    }
+
+    const loadedSets = (setData as StandardSet[] | null) ?? [];
+
+    setPbMap(map);
+    setPbLabelMap(labelMap);
+    setSets(loadedSets);
+
+    if (loadedSets.length > 0) {
+      setSelectedSetId(loadedSets[0].id);
+    }
+
+    setLoading(false);
+  }
+
+  async function loadItemsForSet(setId: number) {
+    setLoadingItems(true);
+
+    const { data, error } = await supabase
+      .from("standard_items")
+      .select("id, standard_set_id, event, course, min_age, max_age, gender, qualifying_time_ms")
+      .eq("standard_set_id", setId)
+      .order("event", { ascending: true });
+
+    if (error) {
+      alert("Failed to load standard items ❌ " + error.message);
+      setLoadingItems(false);
+      return;
+    }
+
+    const filtered =
+      (data as StandardItem[] | null)?.filter((s) => {
+        const minOk = s.min_age == null || swimmerAge >= s.min_age;
+        const maxOk = s.max_age == null || swimmerAge <= s.max_age;
+        return minOk && maxOk;
+      }) ?? [];
+
+    setItems(filtered);
+    setLoadingItems(false);
+  }
+
+  const rows = useMemo(() => {
+    const byKey = new Map<
+      string,
+      {
+        event: string;
+        course: string;
+        pbMs: number | null;
+        targetMs: number | null;
+      }
+    >();
+
+    for (const [k, pb] of pbMap.entries()) {
+      const label = pbLabelMap.get(k);
+
+      byKey.set(k, {
+        event: label?.event ?? "",
+        course: label?.course ?? "",
+        pbMs: pb,
+        targetMs: null,
+      });
+    }
+
+    for (const s of items) {
+      const k = keyOf(s.event, s.course);
+      const existing = byKey.get(k);
+
+      const row = existing ?? {
+        event: s.event.trim(),
+        course: normalizeCourse(s.course),
+        pbMs: pbMap.get(k) ?? null,
+        targetMs: null,
+      };
+
+      row.targetMs = s.qualifying_time_ms;
+
+      if (!row.event) row.event = s.event.trim();
+      if (!row.course) row.course = normalizeCourse(s.course);
+
+      byKey.set(k, row);
+    }
+
+    return Array.from(byKey.values())
+      .filter((r) => r.pbMs != null || r.targetMs != null)
+      .sort((a, b) => {
+        const aGap = a.pbMs != null && a.targetMs != null ? a.pbMs - a.targetMs : 999999999;
+        const bGap = b.pbMs != null && b.targetMs != null ? b.pbMs - b.targetMs : 999999999;
+        return aGap - bGap;
+      });
+  }, [pbMap, pbLabelMap, items]);
+
+  const selectedSet = sets.find((s) => s.id === selectedSetId) ?? null;
+
+  return (
+    <div className="rounded-2xl bg-white p-4 ring-1 ring-zinc-200">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-zinc-900">Qualifying / Upgrading</h2>
+          <p className="mt-0.5 text-sm text-zinc-500">Age: {swimmerAge}</p>
+        </div>
+
+        <div className="min-w-[220px]">
+          <select
+            value={selectedSetId}
+            onChange={(e) =>
+              setSelectedSetId(e.target.value ? Number(e.target.value) : "")
+            }
+            className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm"
+          >
+            <option value="">Select a standard set</option>
+            {sets.map((set) => (
+              <option key={set.id} value={set.id}>
+                {set.name} ({set.type})
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {selectedSet ? (
+        <div className="mt-3">
+          <Chip
+            label="Using"
+            value={`${selectedSet.name} • ${selectedSet.type}`}
+            tone="neutral"
+          />
+        </div>
+      ) : null}
+
+      {loading || loadingItems ? (
+        <div className="mt-4 rounded-2xl bg-zinc-50 p-4 ring-1 ring-zinc-200">
+          <p className="text-sm text-zinc-600">Loading comparison…</p>
+        </div>
+      ) : rows.length === 0 ? (
+        <div className="mt-4 rounded-2xl bg-zinc-50 p-4 ring-1 ring-zinc-200">
+          <p className="text-sm text-zinc-600">No matching standards yet.</p>
+        </div>
+      ) : (
+        <div className="mt-4 space-y-4">
+          {rows.map((r) => {
+            const chips: Array<{ label: string; value: string; tone?: Tone }> = [];
+
+            if (r.pbMs != null && r.targetMs != null) {
+              chips.push({
+                label: "Gap",
+                value: gapText(r.pbMs, r.targetMs),
+                tone: gapTone(r.pbMs, r.targetMs),
+              });
+            }
+
+            const statusValue =
+              r.pbMs != null && r.targetMs != null
+                ? r.pbMs <= r.targetMs
+                  ? "Qualified ✅"
+                  : "In progress"
+                : r.pbMs != null
+                ? "No target"
+                : "No PB yet";
+
+            const statusTone: Tone =
+              r.pbMs != null && r.targetMs != null && r.pbMs <= r.targetMs
+                ? "good"
+                : r.pbMs != null &&
+                  r.targetMs != null &&
+                  r.pbMs - r.targetMs <= 1000
+                ? "warn"
+                : "neutral";
+
+            return (
+              <EventCard
+                key={keyOf(r.event, r.course)}
+                title={r.event}
+                subtitle={r.course ? `Course: ${r.course}` : undefined}
+                chips={chips.length ? chips : undefined}
+                tiles={[
+                  {
+                    label: "PB",
+                    value: formatMs(r.pbMs),
+                    hint: r.pbMs != null ? "Best recorded time" : "No PB yet",
+                    tone: "neutral",
+                  },
+                  {
+                    label: "Target",
+                    value: formatMs(r.targetMs),
+                    hint: r.targetMs != null ? "Selected standard set" : "Not set",
+                    tone:
+                      r.pbMs != null && r.targetMs != null
+                        ? gapTone(r.pbMs, r.targetMs)
+                        : "neutral",
+                  },
+                  {
+                    label: "Gap",
+                    value:
+                      r.pbMs != null && r.targetMs != null
+                        ? gapText(r.pbMs, r.targetMs)
+                        : "—",
+                    hint: "How far from target",
+                    tone:
+                      r.pbMs != null && r.targetMs != null
+                        ? gapTone(r.pbMs, r.targetMs)
+                        : "neutral",
+                  },
+                  {
+                    label: "Status",
+                    value: statusValue,
+                    hint: "Quick read",
+                    tone: statusTone,
+                  },
+                ]}
+              />
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+</file>
+
+<file path="app/layout.tsx">
+import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
+import "./globals.css";
+import BottomNav from "./components/BottomNav";
+
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+export const metadata: Metadata = {
+  title: "SwimTrack SG",
+  description: "Swim performance tracker",
+};
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en">
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} bg-slate-50 text-black antialiased`}
+      >
+        <div className="mx-auto min-h-screen max-w-md pb-20">{children}</div>
+
+        <BottomNav />
+      </body>
+    </html>
+  );
+}
+</file>
+
+<file path="app/globals.css">
+@import "tailwindcss";
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
+
+body {
+  background: #000;
+  color: #fff;
+  font-family: Arial, Helvetica, sans-serif;
+}
+</file>
+
+<file path="package.json">
+{
+  "name": "swimtrack-sg",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.9.0",
+    "@supabase/supabase-js": "^2.98.0",
+    "next": "16.1.6",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "tesseract.js": "^7.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.6",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
+</file>
+
+<file path="app/swimmers/page.tsx">
+"use client";
+
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabaseClient";
+
+type Swimmer = {
+  id: number | string;
+  name: string;
+  age: number;
+  birth_year?: number | null;
+  group_type?: "primary" | "following" | string | null;
+  created_at?: string | null;
+};
+
+function formatCreatedAt(value?: string | null) {
+  if (!value) return "No date available";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "No date available";
+  return date.toLocaleString();
+}
+
+export default function SwimmersPage() {
+  const router = useRouter();
+
+  const [authChecked, setAuthChecked] = useState(false);
+  const [status, setStatus] = useState("Checking session...");
+  const [loading, setLoading] = useState(false);
+
+  const [swimmers, setSwimmers] = useState<Swimmer[]>([]);
+  const [name, setName] = useState("");
+  const [age, setAge] = useState("");
+  const [groupType, setGroupType] = useState<"primary" | "following">("primary");
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function initPage() {
+      const { data, error } = await supabase.auth.getSession();
+
+      if (!mounted) return;
+
+      if (error) {
+        console.error("getSession error:", error);
+        setStatus(`Session error: ${error.message}`);
+        setAuthChecked(true);
+        return;
+      }
+
+      if (!data.session) {
+        router.replace("/login");
+        return;
+      }
+
+      setAuthChecked(true);
+      await fetchSwimmers();
+    }
+
+    initPage();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) {
+        router.replace("/login");
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [router]);
+
+  async function fetchSwimmers() {
+    setLoading(true);
+    setStatus("Loading swimmers...");
+
+    const { data, error } = await supabase
+      .from("swimmers")
+      .select("id, name, age, birth_year, group_type, created_at")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("fetchSwimmers error:", error);
+      setStatus(`Error loading swimmers: ${error.message}`);
+      setSwimmers([]);
+      setLoading(false);
+      return;
+    }
+
+    setSwimmers((data as Swimmer[]) || []);
+    setStatus("Ready");
+    setLoading(false);
+  }
+
+  async function addSwimmer() {
+    const trimmedName = name.trim();
+    const parsedAge = Number(age);
+
+    if (!trimmedName) {
+      setStatus("Please enter swimmer name.");
+      return;
+    }
+
+    if (!age || Number.isNaN(parsedAge) || parsedAge <= 0) {
+      setStatus("Please enter a valid age.");
+      return;
+    }
+
+    setLoading(true);
+    setStatus("Adding swimmer...");
+
+    const { error } = await supabase.from("swimmers").insert([
+      {
+        name: trimmedName,
+        age: parsedAge,
+        group_type: groupType,
+      },
+    ]);
+
+    if (error) {
+      console.error("addSwimmer error:", error);
+      setStatus(`Error adding swimmer: ${error.message}`);
+      setLoading(false);
+      return;
+    }
+
+    setName("");
+    setAge("");
+    setGroupType("primary");
+    setStatus("Swimmer added.");
+    await fetchSwimmers();
+  }
+
+  async function deleteSwimmer(id: number | string, swimmerName: string) {
+    const confirmed = window.confirm(`Delete "${swimmerName}"?`);
+    if (!confirmed) return;
+
+    setLoading(true);
+    setStatus(`Deleting "${swimmerName}"...`);
+
+    const { error } = await supabase.from("swimmers").delete().eq("id", id);
+
+    if (error) {
+      console.error("deleteSwimmer error:", error);
+      setStatus(`Error deleting swimmer: ${error.message}`);
+      setLoading(false);
+      return;
+    }
+
+    setStatus(`Deleted "${swimmerName}".`);
+    await fetchSwimmers();
+  }
+
+  async function handleLogout() {
+    setStatus("Signing out...");
+
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      console.error("signOut error:", error);
+      setStatus(`Logout error: ${error.message}`);
+      return;
+    }
+
+    router.replace("/login");
+  }
+
+  const primarySwimmers = swimmers.filter((s) => s.group_type === "primary");
+  const followingSwimmers = swimmers.filter((s) => s.group_type === "following");
+
+  if (!authChecked) {
+    return (
+      <main className="min-h-screen bg-black px-4 py-6 text-white sm:px-6 sm:py-8">
+        <div className="mx-auto max-w-5xl">
+          <p className="text-white/70">{status}</p>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-black px-4 py-6 text-white sm:px-6 sm:py-8">
+      <div className="mx-auto max-w-5xl">
+        <div className="mb-6 flex items-center justify-between gap-3">
+          <h1 className="text-3xl font-bold sm:text-4xl">Swimmers</h1>
+
+          <div className="flex gap-3">
+            <Link
+              href="/standards"
+              className="rounded-2xl border border-white/20 px-4 py-2 text-sm text-white/80 transition hover:bg-white/10"
+            >
+              Standards
+            </Link>
+
+            <button
+              onClick={handleLogout}
+              className="rounded-2xl border border-red-400/30 px-4 py-2 text-sm text-red-300 transition hover:bg-red-500/10"
+            >
+              Logout
+            </button>
+          </div>
+        </div>
+
+        <div className="mb-6 rounded-3xl border border-white/10 bg-white/5 p-5">
+          <div className="grid gap-3 md:grid-cols-[1fr_140px_160px_120px]">
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Swimmer name"
+              className="h-14 rounded-2xl border border-white/20 bg-black px-4 text-lg text-white placeholder:text-white/35 outline-none"
+            />
+
+            <input
+              value={age}
+              onChange={(e) => setAge(e.target.value)}
+              placeholder="Age"
+              inputMode="numeric"
+              className="h-14 rounded-2xl border border-white/20 bg-black px-4 text-lg text-white placeholder:text-white/35 outline-none"
+            />
+
+            <select
+              value={groupType}
+              onChange={(e) =>
+                setGroupType(e.target.value as "primary" | "following")
+              }
+              className="h-14 rounded-2xl border border-white/20 bg-black px-4 text-lg text-white outline-none"
+            >
+              <option value="primary">My Swimmer</option>
+              <option value="following">Following</option>
+            </select>
+
+            <button
+              onClick={addSwimmer}
+              disabled={loading}
+              className="h-14 rounded-2xl border border-white/20 bg-white/10 text-lg font-medium text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Add
+            </button>
+          </div>
+
+          <p className="mt-4 text-sm text-white/60">{status}</p>
+        </div>
+
+        <section className="space-y-6">
+          <div>
+            <h2 className="mb-3 text-2xl font-semibold">My Swimmers</h2>
+
+            <div className="space-y-4">
+              {primarySwimmers.length === 0 ? (
+                <div className="rounded-3xl border border-white/10 bg-white/5 p-5 text-white/60">
+                  No primary swimmers yet.
+                </div>
+              ) : (
+                primarySwimmers.map((swimmer) => (
+                  <div
+                    key={swimmer.id}
+                    className="rounded-3xl border border-white/10 bg-white/5 p-5"
+                  >
+                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <h3 className="text-2xl font-bold">{swimmer.name}</h3>
+                        <p className="mt-2 text-white/70">Age: {swimmer.age}</p>
+                        <p className="mt-1 text-sm text-white/40">
+                          Added: {formatCreatedAt(swimmer.created_at)}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap gap-3">
+                        <Link
+                          href={`/swimmers/${swimmer.id}`}
+                          className="rounded-2xl border border-white/20 px-4 py-2 text-sm text-white/80 transition hover:bg-white/10"
+                        >
+                          Open
+                        </Link>
+
+                        <button
+                          onClick={() =>
+                            deleteSwimmer(swimmer.id, swimmer.name)
+                          }
+                          disabled={loading}
+                          className="rounded-2xl border border-red-400/30 px-4 py-2 text-sm text-red-300 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div>
+            <h2 className="mb-3 text-2xl font-semibold">Following</h2>
+
+            <div className="space-y-4">
+              {followingSwimmers.length === 0 ? (
+                <div className="rounded-3xl border border-white/10 bg-white/5 p-5 text-white/60">
+                  No followed swimmers yet.
+                </div>
+              ) : (
+                followingSwimmers.map((swimmer) => (
+                  <div
+                    key={swimmer.id}
+                    className="rounded-3xl border border-white/10 bg-white/5 p-5"
+                  >
+                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <h3 className="text-2xl font-bold">{swimmer.name}</h3>
+                        <p className="mt-2 text-white/70">Age: {swimmer.age}</p>
+                        <p className="mt-1 text-sm text-white/40">
+                          Added: {formatCreatedAt(swimmer.created_at)}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap gap-3">
+                        <Link
+                          href={`/swimmers/${swimmer.id}`}
+                          className="rounded-2xl border border-white/20 px-4 py-2 text-sm text-white/80 transition hover:bg-white/10"
+                        >
+                          Open
+                        </Link>
+
+                        <button
+                          onClick={() =>
+                            deleteSwimmer(swimmer.id, swimmer.name)
+                          }
+                          disabled={loading}
+                          className="rounded-2xl border border-red-400/30 px-4 py-2 text-sm text-red-300 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  );
+}
+</file>
+
+<file path="app/page.tsx">
+import { redirect } from "next/navigation";
+
+export default function HomePage() {
+  redirect("/login");
+}
+</file>
+
+</files>
