@@ -1,56 +1,80 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function ResetPasswordPage() {
+  const router = useRouter();
+
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
-  const [status, setStatus] = useState("Checking recovery session...");
+  const [status, setStatus] = useState("Checking reset link...");
 
   useEffect(() => {
-    async function checkRecoverySession() {
-      const { data, error } = await supabase.auth.getSession();
+    async function handleRecovery() {
+      try {
+        const hash = window.location.hash;
 
-      if (error) {
-        console.error("getSession error:", error);
-        setStatus("Could not verify reset session.");
+        if (hash) {
+          const params = new URLSearchParams(hash.substring(1));
+          const access_token = params.get("access_token");
+          const refresh_token = params.get("refresh_token");
+          const type = params.get("type");
+
+          if (type === "recovery" && access_token && refresh_token) {
+            const { error } = await supabase.auth.setSession({
+              access_token,
+              refresh_token,
+            });
+
+            if (error) {
+              setStatus(`Recovery link error: ${error.message}`);
+              setChecking(false);
+              return;
+            }
+
+            setStatus("Recovery verified. Enter your new password.");
+            setChecking(false);
+            return;
+          }
+        }
+
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (session) {
+          setStatus("Session found. Enter your new password.");
+        } else {
+          setStatus("Invalid or expired reset link.");
+        }
+      } catch {
+        setStatus("Something went wrong while checking the reset link.");
+      } finally {
         setChecking(false);
-        return;
       }
-
-      if (!data.session) {
-        setStatus("Reset link is invalid or expired.");
-        setChecking(false);
-        return;
-      }
-
-      setStatus("Enter your new password.");
-      setChecking(false);
     }
 
-    checkRecoverySession();
+    handleRecovery();
   }, []);
 
-  async function handleResetPassword(e: React.FormEvent) {
+  async function handleUpdatePassword(e: React.FormEvent) {
     e.preventDefault();
 
-    const trimmedPassword = password.trim();
-    const trimmedConfirmPassword = confirmPassword.trim();
-
-    if (!trimmedPassword || !trimmedConfirmPassword) {
-      setStatus("Please enter and confirm your new password.");
+    if (!password || !confirmPassword) {
+      setStatus("Please fill in both password fields.");
       return;
     }
 
-    if (trimmedPassword.length < 6) {
+    if (password.length < 6) {
       setStatus("Password must be at least 6 characters.");
       return;
     }
 
-    if (trimmedPassword !== trimmedConfirmPassword) {
+    if (password !== confirmPassword) {
       setStatus("Passwords do not match.");
       return;
     }
@@ -59,54 +83,59 @@ export default function ResetPasswordPage() {
     setStatus("Updating password...");
 
     const { error } = await supabase.auth.updateUser({
-      password: trimmedPassword,
+      password,
     });
 
     if (error) {
-      console.error("updateUser error:", error);
-      setStatus(`Reset error: ${error.message}`);
+      setStatus(`Update failed: ${error.message}`);
       setLoading(false);
       return;
     }
 
-    setStatus("Password updated successfully. Redirecting to swimmers...");
+    setStatus("Password updated successfully. Redirecting to login...");
+
+    setTimeout(() => {
+      router.push("/login");
+    }, 1500);
+
     setLoading(false);
-    window.location.href = "/swimmers";
   }
 
   return (
-    <main className="min-h-screen bg-black px-4 py-8 text-white">
-      <div className="mx-auto max-w-md rounded-3xl border border-white/10 bg-white/5 p-6 shadow-sm">
-        <h1 className="text-3xl font-bold">Reset Password</h1>
-        <p className="mt-3 text-white/70">{status}</p>
+    <main className="min-h-screen bg-black text-white flex items-center justify-center px-4">
+      <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl">
+        <h1 className="text-5xl font-bold mb-4">Reset Password</h1>
+        <p className="text-white/70 mb-8">Set a new password for your account.</p>
 
-        {!checking && (
-          <form onSubmit={handleResetPassword} className="mt-6 space-y-4">
+        {checking ? (
+          <p className="text-white/70">{status}</p>
+        ) : (
+          <form onSubmit={handleUpdatePassword} className="space-y-5">
             <input
               type="password"
+              placeholder="New password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="New password"
-              autoComplete="new-password"
-              className="h-14 w-full rounded-2xl border border-white/20 bg-black px-4 text-lg text-white placeholder:text-white/35 outline-none"
+              className="w-full rounded-2xl border border-white/15 bg-black px-5 py-4 text-xl outline-none"
             />
 
             <input
               type="password"
+              placeholder="Confirm new password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Confirm new password"
-              autoComplete="new-password"
-              className="h-14 w-full rounded-2xl border border-white/20 bg-black px-4 text-lg text-white placeholder:text-white/35 outline-none"
+              className="w-full rounded-2xl border border-white/15 bg-black px-5 py-4 text-xl outline-none"
             />
 
             <button
               type="submit"
               disabled={loading}
-              className="h-14 w-full rounded-2xl border border-white/20 bg-white/10 text-lg font-medium text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-full rounded-2xl bg-white/20 py-4 text-2xl font-medium hover:bg-white/30 disabled:opacity-60"
             >
-              {loading ? "Updating..." : "Set New Password"}
+              {loading ? "Updating..." : "Update Password"}
             </button>
+
+            <p className="text-white/70">{status}</p>
           </form>
         )}
       </div>
