@@ -10,6 +10,9 @@ export default function LoginPage() {
   const [checkingSession, setCheckingSession] = useState(true);
   const [status, setStatus] = useState("Enter your email and password.");
 
+  console.log("LIVE URL:", process.env.NEXT_PUBLIC_SUPABASE_URL);
+console.log("LIVE KEY:", process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
+
   useEffect(() => {
     let mounted = true;
 
