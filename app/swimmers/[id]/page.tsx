@@ -5,6 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import MeetMobileImport from "./MeetMobileImport";
+import SwimTimesSection from "./SwimTimesSection";
+import { canonicalCourse, canonicalEventName, eventKey } from "@/lib/events";
 
 type Swimmer = {
   id: number | string;
@@ -43,6 +45,20 @@ type StandardItem = {
   created_at?: string | null;
 };
 
+type StandardsRow = StandardItem & {
+  pbMs: number | null;
+  gapMs: number | null;
+  status: "Qualified" | "In progress" | "No PB yet" | "Age not in range";
+};
+
+type NextTarget = {
+  event: string;
+  course: string;
+  pb: number;
+  target: number;
+  gap: number;
+};
+
 type TabKey = "overview" | "swimTimes" | "standards" | "meetmobile";
 
 function formatCreatedAt(value?: string | null) {
@@ -54,11 +70,18 @@ function formatCreatedAt(value?: string | null) {
 
 function formatMs(ms?: number | null) {
   if (ms == null || Number.isNaN(ms)) return "-";
-  return (ms / 1000).toFixed(2);
+
+  const totalSeconds = ms / 1000;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds - minutes * 60;
+
+  return minutes > 0
+    ? `${minutes}:${seconds.toFixed(2).padStart(5, "0")}`
+    : seconds.toFixed(2);
 }
 
 function keyOf(event: string, course: string) {
-  return `${event.trim().toLowerCase()}|${course.trim().toUpperCase()}`;
+  return eventKey(canonicalEventName(event), canonicalCourse(course));
 }
 
 function getPBMap(swimTimes: SwimTimeRow[]) {
@@ -80,30 +103,16 @@ function findNextTarget(
   swimTimes: SwimTimeRow[],
   standards: StandardItem[],
   swimmerAge?: number | null
-) {
+): NextTarget | null {
   const pbMap = getPBMap(swimTimes);
-  const candidates: Array<{
-    event: string;
-    course: string;
-    pb: number;
-    target: number;
-    gap: number;
-  }> = [];
+  const candidates: NextTarget[] = [];
 
   for (const std of standards) {
-    if (
-      swimmerAge != null &&
-      std.min_age != null &&
-      swimmerAge < std.min_age
-    ) {
+    if (swimmerAge != null && std.min_age != null && swimmerAge < std.min_age) {
       continue;
     }
 
-    if (
-      swimmerAge != null &&
-      std.max_age != null &&
-      swimmerAge > std.max_age
-    ) {
+    if (swimmerAge != null && std.max_age != null && swimmerAge > std.max_age) {
       continue;
     }
 
@@ -112,11 +121,10 @@ function findNextTarget(
 
     const gap = pb.time_ms - std.qualifying_time_ms;
 
-    // Only targets not yet achieved
     if (gap > 0) {
       candidates.push({
-        event: std.event,
-        course: std.course,
+        event: canonicalEventName(std.event),
+        course: canonicalCourse(std.course),
         pb: pb.time_ms,
         target: std.qualifying_time_ms,
         gap,
@@ -144,6 +152,14 @@ export default function SwimmerProfilePage() {
   const [selectedSetId, setSelectedSetId] = useState<number | null>(null);
   const [standardItems, setStandardItems] = useState<StandardItem[]>([]);
 
+  useEffect(() => {
+    loadPage();
+  }, [swimmerId]);
+
+  useEffect(() => {
+    loadStandardItems(selectedSetId);
+  }, [selectedSetId]);
+
   async function loadPage() {
     if (!swimmerId || Number.isNaN(swimmerId)) {
       setStatus("Invalid swimmer id.");
@@ -154,11 +170,7 @@ export default function SwimmerProfilePage() {
     setLoading(true);
     setStatus("Loading swimmer...");
 
-    const [
-      swimmerRes,
-      swimTimesRes,
-      standardSetsRes,
-    ] = await Promise.all([
+    const [swimmerRes, swimTimesRes, standardSetsRes] = await Promise.all([
       supabase
         .from("swimmers")
         .select("id, name, age, birth_year, group_type, created_at")
@@ -237,14 +249,6 @@ export default function SwimmerProfilePage() {
     setStandardItems((data as StandardItem[]) || []);
   }
 
-  useEffect(() => {
-    loadPage();
-  }, [swimmerId]);
-
-  useEffect(() => {
-    loadStandardItems(selectedSetId);
-  }, [selectedSetId]);
-
   const pbMap = useMemo(() => getPBMap(swimTimes), [swimTimes]);
 
   const nextTarget = useMemo(() => {
@@ -255,7 +259,7 @@ export default function SwimmerProfilePage() {
     return standardSets.find((s) => s.id === selectedSetId) || null;
   }, [standardSets, selectedSetId]);
 
-  const standardsRows = useMemo(() => {
+  const standardsRows = useMemo<StandardsRow[]>(() => {
     return standardItems.map((item) => {
       const pb = pbMap.get(keyOf(item.event, item.course));
       const swimmerAge = swimmer?.age ?? null;
@@ -307,6 +311,16 @@ export default function SwimmerProfilePage() {
       };
     });
   }, [standardItems, pbMap, swimmer?.age]);
+
+  const hasQualifiedRows = useMemo(
+    () => standardsRows.some((row) => row.status === "Qualified"),
+    [standardsRows]
+  );
+
+  const hasInProgressRows = useMemo(
+    () => standardsRows.some((row) => row.status === "In progress"),
+    [standardsRows]
+  );
 
   if (loading) {
     return (
@@ -481,12 +495,18 @@ export default function SwimmerProfilePage() {
                 </p>
                 <p className="mt-3 text-2xl font-bold text-slate-900">
                   {nextTarget
-                    ? `${nextTarget.event} (${nextTarget.course})`
+                    ? `${canonicalEventName(nextTarget.event)} (${canonicalCourse(
+                        nextTarget.course
+                      )})`
+                    : hasQualifiedRows
+                    ? "All standards achieved"
                     : "No target yet"}
                 </p>
                 <p className="mt-2 text-slate-600">
                   {nextTarget
-                    ? `${formatMs(nextTarget.gap)}s away from the target time.`
+                    ? `${formatMs(nextTarget.gap)} away from the target time.`
+                    : hasQualifiedRows
+                    ? "This swimmer has already achieved all currently matching standards."
                     : "Choose a standards set and make sure PBs exist for matching events."}
                 </p>
               </div>
@@ -496,52 +516,7 @@ export default function SwimmerProfilePage() {
 
         {activeTab === "swimTimes" && (
           <section className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-3xl font-bold text-slate-900">Swim Times</h2>
-            <p className="mt-2 text-lg text-slate-500">
-              Best recorded times by event and course.
-            </p>
-
-            <div className="mt-6 space-y-4">
-              {pbMap.size === 0 ? (
-                <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-5 text-slate-600">
-                  No swim times yet.
-                </div>
-              ) : (
-                Array.from(pbMap.values())
-                  .sort((a, b) => {
-                    if (a.event === b.event) {
-                      return a.course.localeCompare(b.course);
-                    }
-                    return a.event.localeCompare(b.event);
-                  })
-                  .map((row) => (
-                    <div
-                      key={`${row.event}-${row.course}`}
-                      className="rounded-[24px] border border-slate-200 bg-slate-50 p-5"
-                    >
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                          <h3 className="text-2xl font-bold text-slate-900">
-                            {row.event}
-                          </h3>
-                          <p className="mt-1 text-slate-500">
-                            Course: {row.course}
-                          </p>
-                        </div>
-
-                        <div className="rounded-2xl bg-white px-4 py-3 text-right shadow-sm">
-                          <p className="text-sm uppercase tracking-wide text-slate-500">
-                            PB
-                          </p>
-                          <p className="text-3xl font-bold text-slate-900">
-                            {formatMs(row.time_ms)}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-              )}
-            </div>
+            <SwimTimesSection swimmerId={Number(swimmer.id)} />
           </section>
         )}
 
@@ -586,10 +561,10 @@ export default function SwimmerProfilePage() {
                 <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                   <div>
                     <h3 className="text-4xl font-bold text-slate-900">
-                      {nextTarget.event}
+                      {canonicalEventName(nextTarget.event)}
                     </h3>
                     <p className="mt-1 text-lg text-slate-600">
-                      Course: {nextTarget.course}
+                      Course: {canonicalCourse(nextTarget.course)}
                     </p>
                   </div>
 
@@ -598,7 +573,7 @@ export default function SwimmerProfilePage() {
                       Gap to target
                     </p>
                     <p className="text-4xl font-bold text-emerald-600">
-                      {formatMs(nextTarget.gap)}s away
+                      {formatMs(nextTarget.gap)}
                     </p>
                   </div>
                 </div>
@@ -628,15 +603,40 @@ export default function SwimmerProfilePage() {
             {!nextTarget && selectedSet && (
               <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
                 <h3 className="text-2xl font-bold text-slate-900">Next Target</h3>
-                <p className="mt-3 text-slate-600">
-                  No active next target found for <strong>{selectedSet.name}</strong>.
-                  That usually means either:
-                </p>
-                <div className="mt-3 space-y-1 text-slate-600">
-                  <p>• no matching PB exists yet</p>
-                  <p>• all matching events are already qualified</p>
-                  <p>• age range does not match this swimmer</p>
-                </div>
+
+                {hasInProgressRows ? (
+                  <>
+                    <p className="mt-3 text-slate-600">
+                      A target should be available, but no closest next target could be calculated.
+                    </p>
+                    <div className="mt-3 space-y-1 text-slate-600">
+                      <p>• check event/course naming</p>
+                      <p>• check age ranges</p>
+                      <p>• check that PBs and standards are in the same course</p>
+                    </div>
+                  </>
+                ) : hasQualifiedRows ? (
+                  <>
+                    <p className="mt-3 text-slate-600">
+                      All current standards for <strong>{selectedSet.name}</strong> are already achieved ✅
+                    </p>
+                    <div className="mt-3 space-y-1 text-slate-600">
+                      <p>• all matching events are qualified</p>
+                      <p>• add tougher standards if you want a new target</p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="mt-3 text-slate-600">
+                      No active next target found for <strong>{selectedSet.name}</strong>.
+                    </p>
+                    <div className="mt-3 space-y-1 text-slate-600">
+                      <p>• no matching PB exists yet</p>
+                      <p>• age range does not match this swimmer</p>
+                      <p>• course or event naming still does not match</p>
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
@@ -644,9 +644,7 @@ export default function SwimmerProfilePage() {
               <h3 className="text-3xl font-bold text-slate-900">
                 {selectedSet?.name || "Standards"}
               </h3>
-              <p className="mt-2 text-lg text-slate-500">
-                Age: {swimmer.age}
-              </p>
+              <p className="mt-2 text-lg text-slate-500">Age: {swimmer.age}</p>
 
               <div className="mt-6 space-y-4">
                 {standardsRows.length === 0 ? (
@@ -665,10 +663,10 @@ export default function SwimmerProfilePage() {
                       >
                         <div className="mb-4">
                           <h4 className="text-2xl font-bold text-slate-900">
-                            {row.event}
+                            {canonicalEventName(row.event)}
                           </h4>
                           <p className="mt-1 text-slate-500">
-                            Course: {row.course}
+                            Course: {canonicalCourse(row.course)}
                           </p>
                         </div>
 

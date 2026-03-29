@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from "react";
 import { createWorker } from "tesseract.js";
 import { supabase } from "@/lib/supabaseClient";
+import SwimTimesSection from "./SwimTimesSection";
 
 type Extracted = {
   event: string;

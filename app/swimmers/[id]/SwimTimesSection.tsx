@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { canonicalCourse, canonicalEventName, eventKey } from "@/lib/events";
 
 type SwimTime = {
   id: number;
@@ -15,20 +16,40 @@ type SwimTime = {
   created_at: string;
 };
 
+const EVENT_OPTIONS = [
+  "50 Free",
+  "100 Free",
+  "200 Free",
+  "400 Free",
+  "800 Free",
+  "1500 Free",
+  "50 Fly",
+  "100 Fly",
+  "200 Fly",
+  "50 Back",
+  "100 Back",
+  "200 Back",
+  "50 Breast",
+  "100 Breast",
+  "200 Breast",
+  "100 IM",
+  "200 IM",
+  "400 IM",
+];
+
 function parseToMs(input: string) {
   const s = input.trim();
   if (!s) return null;
 
-  // "1:12.33"
   if (s.includes(":")) {
     const [mStr, secStr] = s.split(":");
     const minutes = Number(mStr);
     const seconds = Number(secStr);
+
     if (!Number.isFinite(minutes) || !Number.isFinite(seconds)) return null;
     return Math.round((minutes * 60 + seconds) * 1000);
   }
 
-  // "35.04"
   const seconds = Number(s);
   if (!Number.isFinite(seconds)) return null;
   return Math.round(seconds * 1000);
@@ -45,18 +66,19 @@ function formatMs(ms: number) {
 }
 
 function formatGapMs(gapMs: number) {
-  // Always show +x.xx seconds (even if > 60s it's okay for now)
   const s = (gapMs / 1000).toFixed(2);
   return `+${s}s`;
 }
 
 function keyOf(t: Pick<SwimTime, "event" | "course">) {
-  return `${t.event.trim().toLowerCase()}|${t.course.trim().toUpperCase()}`;
+  return eventKey(t.event, t.course);
 }
 
 export default function SwimTimesSection({ swimmerId }: { swimmerId: number }) {
   const [times, setTimes] = useState<SwimTime[]>([]);
+  const [eventMode, setEventMode] = useState<"preset" | "custom">("preset");
   const [event, setEvent] = useState("50 Free");
+  const [customEvent, setCustomEvent] = useState("");
   const [course, setCourse] = useState("SCM");
   const [timeStr, setTimeStr] = useState("");
   const [meetName, setMeetName] = useState("");
@@ -80,21 +102,31 @@ export default function SwimTimesSection({ swimmerId }: { swimmerId: number }) {
   }
 
   async function addTime() {
+    const rawEvent = eventMode === "custom" ? customEvent : event;
+
+    if (!rawEvent.trim()) {
+      alert("Please enter an event");
+      return;
+    }
+
     const time_ms = parseToMs(timeStr);
     if (!time_ms) {
       alert("Enter a valid time like 35.04 or 1:12.33");
       return;
     }
 
+    const cleanEvent = canonicalEventName(rawEvent);
+    const cleanCourse = canonicalCourse(course);
+
     setSaving(true);
 
     const { error } = await supabase.from("swim_times").insert([
       {
         swimmer_id: swimmerId,
-        event,
-        course,
+        event: cleanEvent,
+        course: cleanCourse,
         time_ms,
-        meet_name: meetName || null,
+        meet_name: meetName.trim() || null,
         meet_date: meetDate || null,
       },
     ]);
@@ -106,9 +138,14 @@ export default function SwimTimesSection({ swimmerId }: { swimmerId: number }) {
       return;
     }
 
+    setEventMode("preset");
+    setEvent("50 Free");
+    setCustomEvent("");
+    setCourse("SCM");
     setTimeStr("");
     setMeetName("");
     setMeetDate("");
+
     fetchTimes();
   }
 
@@ -117,55 +154,67 @@ export default function SwimTimesSection({ swimmerId }: { swimmerId: number }) {
     if (!ok) return;
 
     const { error } = await supabase.from("swim_times").delete().eq("id", id);
-    if (error) alert("Delete failed ❌ " + error.message);
-    else fetchTimes();
+
+    if (error) {
+      alert("Delete failed ❌ " + error.message);
+      return;
+    }
+
+    fetchTimes();
   }
 
   useEffect(() => {
     if (!swimmerId) return;
     fetchTimes();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [swimmerId]);
 
-  // Build PB map: (event|course) -> min time_ms
   const pbByEventCourse = useMemo(() => {
     const map = new Map<string, number>();
+
     for (const t of times) {
       const k = keyOf(t);
       const cur = map.get(k);
-      if (cur === undefined || t.time_ms < cur) map.set(k, t.time_ms);
+
+      if (cur === undefined || t.time_ms < cur) {
+        map.set(k, t.time_ms);
+      }
     }
+
     return map;
   }, [times]);
 
-  // Optional: quick PB summary rows (one per event/course)
   const pbSummary = useMemo(() => {
     const items: { key: string; event: string; course: string; pb_ms: number }[] = [];
+
     for (const [k, pb_ms] of pbByEventCourse.entries()) {
-      // k was normalized; recover display from first matching time
       const first = times.find((t) => keyOf(t) === k);
       if (!first) continue;
-      items.push({ key: k, event: first.event, course: first.course, pb_ms });
+
+      items.push({
+        key: k,
+        event: canonicalEventName(first.event),
+        course: canonicalCourse(first.course),
+        pb_ms,
+      });
     }
-    // Sort by event name then course
+
     items.sort((a, b) => (a.event + a.course).localeCompare(b.event + b.course));
     return items;
   }, [pbByEventCourse, times]);
 
   return (
-    <div className="border rounded-2xl p-4 shadow-sm">
+    <div className="rounded-2xl border p-4 shadow-sm">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold">Swim Times</h2>
         <div className="text-sm text-gray-500">Swimmer ID: {swimmerId}</div>
       </div>
 
-      {/* PB Summary */}
       {pbSummary.length > 0 ? (
         <div className="mt-3 rounded-xl border bg-gray-50 p-3">
-          <div className="text-sm font-semibold text-gray-800">PBs</div>
+          <div className="text-sm font-semibold text-gray-800">PB Summary</div>
           <div className="mt-2 grid gap-1">
             {pbSummary.map((p) => (
-              <div key={p.key} className="text-sm text-gray-700 flex justify-between">
+              <div key={p.key} className="flex justify-between text-sm text-gray-700">
                 <span>
                   {p.event} ({p.course})
                 </span>
@@ -176,22 +225,44 @@ export default function SwimTimesSection({ swimmerId }: { swimmerId: number }) {
         </div>
       ) : null}
 
-      {/* Add form */}
-      <div className="mt-4 grid gap-3 max-w-md">
+      <div className="mt-4 grid max-w-md gap-3">
         <label className="grid gap-1">
           <span className="text-sm text-gray-700">Event</span>
-          <input
-            className="px-3 py-2 rounded-xl border"
-            value={event}
-            onChange={(e) => setEvent(e.target.value)}
-            placeholder="50 Free"
-          />
+
+          <select
+            className="rounded-xl border px-3 py-2"
+            value={eventMode === "custom" ? "__custom__" : event}
+            onChange={(e) => {
+              if (e.target.value === "__custom__") {
+                setEventMode("custom");
+              } else {
+                setEventMode("preset");
+                setEvent(e.target.value);
+              }
+            }}
+          >
+            {EVENT_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+            <option value="__custom__">Custom event</option>
+          </select>
+
+          {eventMode === "custom" ? (
+            <input
+              className="rounded-xl border px-3 py-2"
+              value={customEvent}
+              onChange={(e) => setCustomEvent(e.target.value)}
+              placeholder="e.g. 200 Medley Relay Lead-Off"
+            />
+          ) : null}
         </label>
 
         <label className="grid gap-1">
           <span className="text-sm text-gray-700">Course</span>
           <select
-            className="px-3 py-2 rounded-xl border"
+            className="rounded-xl border px-3 py-2"
             value={course}
             onChange={(e) => setCourse(e.target.value)}
           >
@@ -203,7 +274,7 @@ export default function SwimTimesSection({ swimmerId }: { swimmerId: number }) {
         <label className="grid gap-1">
           <span className="text-sm text-gray-700">Time (35.04 or 1:12.33)</span>
           <input
-            className="px-3 py-2 rounded-xl border"
+            className="rounded-xl border px-3 py-2"
             value={timeStr}
             onChange={(e) => setTimeStr(e.target.value)}
             placeholder="35.04"
@@ -213,7 +284,7 @@ export default function SwimTimesSection({ swimmerId }: { swimmerId: number }) {
         <label className="grid gap-1">
           <span className="text-sm text-gray-700">Meet name (optional)</span>
           <input
-            className="px-3 py-2 rounded-xl border"
+            className="rounded-xl border px-3 py-2"
             value={meetName}
             onChange={(e) => setMeetName(e.target.value)}
             placeholder="SSA Meet"
@@ -223,7 +294,7 @@ export default function SwimTimesSection({ swimmerId }: { swimmerId: number }) {
         <label className="grid gap-1">
           <span className="text-sm text-gray-700">Meet date (optional)</span>
           <input
-            className="px-3 py-2 rounded-xl border"
+            className="rounded-xl border px-3 py-2"
             type="date"
             value={meetDate}
             onChange={(e) => setMeetDate(e.target.value)}
@@ -233,14 +304,15 @@ export default function SwimTimesSection({ swimmerId }: { swimmerId: number }) {
         <button
           onClick={addTime}
           disabled={saving}
-          className="px-4 py-2 rounded-xl border hover:bg-gray-50 disabled:opacity-60"
+          className="rounded-xl border px-4 py-2 hover:bg-gray-50 disabled:opacity-60"
         >
           {saving ? "Saving..." : "Add time"}
         </button>
       </div>
 
-      {/* Times list */}
       <div className="mt-6">
+        <div className="mb-2 text-sm font-semibold text-gray-800">All Swim Times</div>
+
         {times.length === 0 ? (
           <p className="text-gray-600">No swim times yet.</p>
         ) : (
@@ -255,18 +327,19 @@ export default function SwimTimesSection({ swimmerId }: { swimmerId: number }) {
                 <li
                   key={t.id}
                   className={[
-                    "flex items-center justify-between border rounded-xl p-3",
-                    isPB ? "bg-green-50 border-green-200" : "",
+                    "flex items-center justify-between rounded-xl border p-3",
+                    isPB ? "border-green-200 bg-green-50" : "",
                   ].join(" ")}
                 >
                   <div>
-                    <div className="font-semibold flex items-center gap-2 flex-wrap">
+                    <div className="flex flex-wrap items-center gap-2 font-semibold">
                       <span>
-                        {t.event} ({t.course}) — {formatMs(t.time_ms)}
+                        {canonicalEventName(t.event)} ({canonicalCourse(t.course)}) —{" "}
+                        {formatMs(t.time_ms)}
                       </span>
 
                       {isPB ? (
-                        <span className="text-xs font-semibold px-2 py-1 rounded-full border bg-white">
+                        <span className="rounded-full border bg-white px-2 py-1 text-xs font-semibold">
                           🏅 PB
                         </span>
                       ) : pb !== undefined ? (
@@ -284,7 +357,7 @@ export default function SwimTimesSection({ swimmerId }: { swimmerId: number }) {
 
                   <button
                     onClick={() => deleteTime(t.id)}
-                    className="px-3 py-2 rounded-xl border hover:bg-gray-50"
+                    className="rounded-xl border px-3 py-2 hover:bg-gray-50"
                   >
                     Delete
                   </button>
