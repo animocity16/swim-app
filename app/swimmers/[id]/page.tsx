@@ -4,9 +4,13 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import MeetMobileImport from "./MeetMobileImport";
+import SwimScan from "./SwimScan";
 import SwimTimesSection from "./SwimTimesSection";
 import { canonicalCourse, canonicalEventName, eventKey } from "@/lib/events";
+import {
+  parseSwimOCRText,
+  type ParsedSwimResult,
+} from "@/lib/ocrMultiEventParser";
 
 type Swimmer = {
   id: number | string;
@@ -59,7 +63,13 @@ type NextTarget = {
   gap: number;
 };
 
-type TabKey = "overview" | "swimTimes" | "standards" | "meetmobile";
+type TabKey = "overview" | "swimTimes" | "standards" | "swimscan";
+
+type StrokeGroup = {
+  key: string;
+  label: string;
+  rows: StandardsRow[];
+};
 
 function formatCreatedAt(value?: string | null) {
   if (!value) return "No date available";
@@ -138,6 +148,42 @@ function findNextTarget(
   return candidates[0];
 }
 
+function tabClass(active: boolean) {
+  return active ? "segmented-btn-active" : "segmented-btn";
+}
+
+function statusClass(status: StandardsRow["status"]) {
+  if (status === "Qualified") return "success-text";
+  if (status === "In progress") return "warning-text";
+  return "text-white";
+}
+
+function getStrokeKey(event: string) {
+  const e = canonicalEventName(event).toLowerCase();
+
+  if (e.includes("free")) return "freestyle";
+  if (e.includes("back")) return "backstroke";
+  if (e.includes("breast")) return "breaststroke";
+  if (e.includes("fly")) return "butterfly";
+  if (e.includes("im")) return "im";
+
+  return "other";
+}
+
+function getStrokeLabel(stroke: string) {
+  if (stroke === "freestyle") return "Freestyle";
+  if (stroke === "backstroke") return "Backstroke";
+  if (stroke === "breaststroke") return "Breaststroke";
+  if (stroke === "butterfly") return "Butterfly";
+  if (stroke === "im") return "IM";
+  return "Other";
+}
+
+function getEventDistance(event: string) {
+  const match = canonicalEventName(event).match(/\d+/);
+  return match ? Number(match[0]) : 9999;
+}
+
 export default function SwimmerProfilePage() {
   const params = useParams();
   const swimmerId = Number(params?.id);
@@ -151,13 +197,25 @@ export default function SwimmerProfilePage() {
   const [standardSets, setStandardSets] = useState<StandardSet[]>([]);
   const [selectedSetId, setSelectedSetId] = useState<number | null>(null);
   const [standardItems, setStandardItems] = useState<StandardItem[]>([]);
+  const [ocrResults, setOcrResults] = useState<ParsedSwimResult[]>([]);
+  const [savingOcr, setSavingOcr] = useState(false);
+  const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({});
+  const [expandedStrokes, setExpandedStrokes] = useState<Record<string, boolean>>({
+    freestyle: true,
+    backstroke: false,
+    breaststroke: false,
+    butterfly: false,
+    im: false,
+    other: false,
+  });
 
   useEffect(() => {
-    loadPage();
+    void loadPage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [swimmerId]);
 
   useEffect(() => {
-    loadStandardItems(selectedSetId);
+    void loadStandardItems(selectedSetId);
   }, [selectedSetId]);
 
   async function loadPage() {
@@ -188,21 +246,18 @@ export default function SwimmerProfilePage() {
     ]);
 
     if (swimmerRes.error) {
-      console.error("swimmer load error:", swimmerRes.error);
       setStatus(`Error loading swimmer: ${swimmerRes.error.message}`);
       setLoading(false);
       return;
     }
 
     if (swimTimesRes.error) {
-      console.error("swim times load error:", swimTimesRes.error);
       setStatus(`Error loading swim times: ${swimTimesRes.error.message}`);
       setLoading(false);
       return;
     }
 
     if (standardSetsRes.error) {
-      console.error("standard sets load error:", standardSetsRes.error);
       setStatus(`Error loading standards sets: ${standardSetsRes.error.message}`);
       setLoading(false);
       return;
@@ -217,10 +272,11 @@ export default function SwimmerProfilePage() {
     setStandardSets(standardSetsData);
 
     const upgradingSet =
-      standardSetsData.find((s) => s.type === "UPGRADING") || standardSetsData[0];
+      standardSetsData.find((s) => s.type === "UPGRADING") ||
+      standardSetsData[0] ||
+      null;
 
     setSelectedSetId(upgradingSet?.id ?? null);
-
     setStatus("Ready");
     setLoading(false);
   }
@@ -240,13 +296,99 @@ export default function SwimmerProfilePage() {
       .order("event", { ascending: true });
 
     if (error) {
-      console.error("standard items load error:", error);
       setStatus(`Error loading standard items: ${error.message}`);
       setStandardItems([]);
       return;
     }
 
     setStandardItems((data as StandardItem[]) || []);
+    setExpandedRows({});
+    setExpandedStrokes({
+      freestyle: true,
+      backstroke: false,
+      breaststroke: false,
+      butterfly: false,
+      im: false,
+      other: false,
+    });
+  }
+
+  async function saveParsedResults() {
+    if (!swimmer || ocrResults.length === 0) {
+      setStatus("No OCR results to save.");
+      return;
+    }
+
+    setSavingOcr(true);
+    setStatus("Saving OCR results...");
+
+    try {
+      const rows = ocrResults.map((r) => ({
+        swimmer_id: Number(swimmer.id),
+        event: canonicalEventName(r.event),
+        course: canonicalCourse(r.course === "UNKNOWN" ? "LCM" : r.course),
+        time_ms: r.timeMs,
+      }));
+
+      const uniqueRows = rows.filter(
+        (row, index, arr) =>
+          index ===
+          arr.findIndex(
+            (x) =>
+              x.swimmer_id === row.swimmer_id &&
+              x.event === row.event &&
+              x.course === row.course &&
+              x.time_ms === row.time_ms
+          )
+      );
+
+      for (const row of uniqueRows) {
+        const { data: existing, error: checkError } = await supabase
+          .from("swim_times")
+          .select("id")
+          .eq("swimmer_id", row.swimmer_id)
+          .eq("event", row.event)
+          .eq("course", row.course)
+          .eq("time_ms", row.time_ms)
+          .limit(1);
+
+        if (checkError) {
+          setStatus(`Error checking duplicates: ${checkError.message}`);
+          return;
+        }
+
+        if (!existing || existing.length === 0) {
+          const { error: insertError } = await supabase
+            .from("swim_times")
+            .insert([row]);
+
+          if (insertError) {
+            setStatus(`Error saving OCR results: ${insertError.message}`);
+            return;
+          }
+        }
+      }
+
+      setStatus("OCR results saved!");
+      setOcrResults([]);
+      await loadPage();
+    } finally {
+      setSavingOcr(false);
+    }
+  }
+
+  function toggleRow(id: number) {
+    setExpandedRows((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  }
+
+  function toggleStroke(stroke: string) {
+    setExpandedStrokes((prev) => ({
+      ...prev,
+      [stroke]: !prev[stroke],
+    }));
   }
 
   const pbMap = useMemo(() => getPBMap(swimTimes), [swimTimes]);
@@ -265,14 +407,10 @@ export default function SwimmerProfilePage() {
       const swimmerAge = swimmer?.age ?? null;
 
       const ageTooYoung =
-        swimmerAge != null &&
-        item.min_age != null &&
-        swimmerAge < item.min_age;
+        swimmerAge != null && item.min_age != null && swimmerAge < item.min_age;
 
       const ageTooOld =
-        swimmerAge != null &&
-        item.max_age != null &&
-        swimmerAge > item.max_age;
+        swimmerAge != null && item.max_age != null && swimmerAge > item.max_age;
 
       if (ageTooYoung || ageTooOld) {
         return {
@@ -312,6 +450,35 @@ export default function SwimmerProfilePage() {
     });
   }, [standardItems, pbMap, swimmer?.age]);
 
+  const strokeGroups = useMemo<StrokeGroup[]>(() => {
+    const grouped: Record<string, StandardsRow[]> = {};
+
+    for (const row of standardsRows) {
+      const stroke = getStrokeKey(row.event);
+      if (!grouped[stroke]) grouped[stroke] = [];
+      grouped[stroke].push(row);
+    }
+
+    const order = ["freestyle", "backstroke", "breaststroke", "butterfly", "im", "other"];
+
+    return order
+      .filter((stroke) => grouped[stroke]?.length)
+      .map((stroke) => ({
+        key: stroke,
+        label: getStrokeLabel(stroke),
+        rows: [...grouped[stroke]].sort((a, b) => {
+          const aHasPb = a.pbMs != null ? 0 : 1;
+          const bHasPb = b.pbMs != null ? 0 : 1;
+          if (aHasPb !== bHasPb) return aHasPb - bHasPb;
+
+          const distanceDiff = getEventDistance(a.event) - getEventDistance(b.event);
+          if (distanceDiff !== 0) return distanceDiff;
+
+          return canonicalCourse(a.course).localeCompare(canonicalCourse(b.course));
+        }),
+      }));
+  }, [standardsRows]);
+
   const hasQualifiedRows = useMemo(
     () => standardsRows.some((row) => row.status === "Qualified"),
     [standardsRows]
@@ -324,163 +491,118 @@ export default function SwimmerProfilePage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-black px-4 py-6 text-white sm:px-6 sm:py-8">
-        <div className="mx-auto max-w-5xl">
-          <p className="text-white/70">{status}</p>
+      <div className="shell">
+        <div className="container-app">
+          <p className="muted">{status}</p>
         </div>
-      </main>
+      </div>
     );
   }
 
   if (!swimmer) {
     return (
-      <main className="min-h-screen bg-black px-4 py-6 text-white sm:px-6 sm:py-8">
-        <div className="mx-auto max-w-5xl">
-          <p className="text-red-300">{status || "Swimmer not found."}</p>
-          <Link
-            href="/swimmers"
-            className="mt-4 inline-block rounded-2xl border border-white/20 px-4 py-2 text-white/80 hover:bg-white/10"
-          >
-            Back
+      <div className="shell">
+        <div className="container-app">
+          <p className="danger-text">{status || "Swimmer not found."}</p>
+          <Link href="/swimmers" className="btn-outline mt-4 inline-flex">
+            ← Back
           </Link>
         </div>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-[#f3f4f6] px-4 py-6 text-slate-900 sm:px-6 sm:py-8">
-      <div className="mx-auto max-w-5xl">
+    <div className="shell">
+      <div className="container-app">
         <div className="mb-6">
-          <Link
-            href="/swimmers"
-            className="inline-flex rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
-          >
+          <Link href="/swimmers" className="btn-outline">
             ← Back
           </Link>
         </div>
 
-        <section className="mb-6 overflow-hidden rounded-[32px] bg-gradient-to-r from-sky-600 to-cyan-500 text-white shadow-lg">
-          <div className="grid gap-5 p-6 md:grid-cols-[1.4fr_1fr]">
-            <div>
-              <p className="text-sm uppercase tracking-[0.3em] text-white/80">
-                Profile
-              </p>
-              <h1 className="mt-3 text-5xl font-bold tracking-tight">
+        <section className="card mb-6">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="label">Profile</p>
+              <h1 className="mt-2 truncate text-5xl font-bold tracking-tight">
                 {swimmer.name}
               </h1>
-              <p className="mt-6 text-2xl text-white/90">Age {swimmer.age}</p>
+              <p className="mt-4 text-2xl text-white/80">Age {swimmer.age}</p>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="rounded-[28px] bg-white/15 p-5 backdrop-blur">
-                <p className="text-sm uppercase text-white/80">Swimmer ID</p>
-                <p className="mt-3 text-4xl font-bold">{swimmer.id}</p>
-              </div>
-
-              <div className="rounded-[28px] bg-white/15 p-5 backdrop-blur">
-                <p className="text-sm uppercase text-white/80">Status</p>
-                <p className="mt-3 text-3xl font-bold">Active</p>
-              </div>
+            <div className="rounded-3xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-right">
+              <p className="text-[11px] uppercase tracking-[0.2em] text-emerald-200/70">
+                PB Events
+              </p>
+              <p className="text-3xl font-bold text-emerald-200">{pbMap.size}</p>
             </div>
           </div>
-        </section>
 
-        <section className="mb-6 rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="rounded-[24px] bg-slate-100 p-5">
-              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                Age
-              </p>
-              <p className="mt-3 text-5xl font-bold text-slate-900">
-                {swimmer.age}
-              </p>
+          <div className="mt-6 grid grid-cols-2 gap-4">
+            <div className="card-soft">
+              <p className="label">Swimmer ID</p>
+              <p className="stat-number">{swimmer.id}</p>
             </div>
 
-            <div className="rounded-[24px] bg-slate-100 p-5">
-              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                Added
-              </p>
-              <p className="mt-3 text-2xl font-semibold text-slate-900">
+            <div className="card-soft">
+              <p className="label">Status</p>
+              <p className="stat-number accent-text">Active</p>
+            </div>
+
+            <div className="card-soft col-span-2">
+              <p className="label">Added</p>
+              <p className="mt-3 break-words text-xl font-semibold text-white">
                 {formatCreatedAt(swimmer.created_at)}
               </p>
             </div>
-
-            <div className="rounded-[24px] bg-slate-100 p-5">
-              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                PB Events
-              </p>
-              <p className="mt-3 text-5xl font-bold text-slate-900">
-                {pbMap.size}
-              </p>
-            </div>
           </div>
         </section>
 
-        <section className="mb-6 rounded-[32px] border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex flex-wrap gap-3">
+        <section className="card mb-6">
+          <div className="grid grid-cols-2 gap-3">
             <button
               onClick={() => setActiveTab("overview")}
-              className={`rounded-2xl px-5 py-3 text-lg font-semibold transition ${
-                activeTab === "overview"
-                  ? "bg-sky-600 text-white"
-                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-              }`}
+              className={tabClass(activeTab === "overview")}
             >
               Overview
             </button>
 
             <button
               onClick={() => setActiveTab("swimTimes")}
-              className={`rounded-2xl px-5 py-3 text-lg font-semibold transition ${
-                activeTab === "swimTimes"
-                  ? "bg-sky-600 text-white"
-                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-              }`}
+              className={tabClass(activeTab === "swimTimes")}
             >
               Swim Times
             </button>
 
             <button
               onClick={() => setActiveTab("standards")}
-              className={`rounded-2xl px-5 py-3 text-lg font-semibold transition ${
-                activeTab === "standards"
-                  ? "bg-sky-600 text-white"
-                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-              }`}
+              className={tabClass(activeTab === "standards")}
             >
               Standards
             </button>
 
             <button
-              onClick={() => setActiveTab("meetmobile")}
-              className={`rounded-2xl px-5 py-3 text-lg font-semibold transition ${
-                activeTab === "meetmobile"
-                  ? "bg-sky-600 text-white"
-                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-              }`}
+              onClick={() => setActiveTab("swimscan")}
+              className={tabClass(activeTab === "swimscan")}
             >
-              MeetMobile
+              SwimScan
             </button>
           </div>
         </section>
 
         {activeTab === "overview" && (
-          <section className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-3xl font-bold text-slate-900">Overview</h2>
-            <p className="mt-2 text-lg text-slate-500">
-              Quick snapshot for {swimmer.name}.
-            </p>
+          <section className="card">
+            <h2 className="title">Overview</h2>
+            <p className="mt-2 muted">Quick snapshot for {swimmer.name}.</p>
 
-            <div className="mt-6 grid gap-4 md:grid-cols-2">
-              <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-5">
-                <p className="text-sm uppercase tracking-wide text-slate-500">
-                  Current status
-                </p>
-                <p className="mt-3 text-2xl font-bold text-slate-900">
+            <div className="mt-6 space-y-4">
+              <div className="card-soft">
+                <p className="label">Current status</p>
+                <p className="mt-3 text-2xl font-bold text-white">
                   {swimTimes.length > 0 ? "Tracking active" : "No times yet"}
                 </p>
-                <p className="mt-2 text-slate-600">
+                <p className="mt-2 text-white/70">
                   {swimTimes.length > 0
                     ? `${swimTimes.length} swim time entr${
                         swimTimes.length === 1 ? "y" : "ies"
@@ -489,11 +611,9 @@ export default function SwimmerProfilePage() {
                 </p>
               </div>
 
-              <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-5">
-                <p className="text-sm uppercase tracking-wide text-slate-500">
-                  Best next action
-                </p>
-                <p className="mt-3 text-2xl font-bold text-slate-900">
+              <div className="card-soft">
+                <p className="label">Best next action</p>
+                <p className="mt-3 text-2xl font-bold text-white">
                   {nextTarget
                     ? `${canonicalEventName(nextTarget.event)} (${canonicalCourse(
                         nextTarget.course
@@ -502,7 +622,7 @@ export default function SwimmerProfilePage() {
                     ? "All standards achieved"
                     : "No target yet"}
                 </p>
-                <p className="mt-2 text-slate-600">
+                <p className="mt-2 text-white/70">
                   {nextTarget
                     ? `${formatMs(nextTarget.gap)} away from the target time.`
                     : hasQualifiedRows
@@ -515,32 +635,30 @@ export default function SwimmerProfilePage() {
         )}
 
         {activeTab === "swimTimes" && (
-          <section className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
+          <section className="card">
             <SwimTimesSection swimmerId={Number(swimmer.id)} />
           </section>
         )}
 
         {activeTab === "standards" && (
           <section className="space-y-6">
-            <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="card">
+              <div className="flex flex-col gap-4">
                 <div>
-                  <h2 className="text-3xl font-bold text-slate-900">
-                    Standards Compare
-                  </h2>
-                  <p className="mt-2 text-lg text-slate-500">
+                  <h2 className="title">Standards Compare</h2>
+                  <p className="mt-2 muted">
                     See how close {swimmer.name} is to qualifying standards.
                   </p>
                 </div>
 
-                <div className="w-full max-w-sm">
-                  <label className="mb-2 block text-sm font-semibold uppercase tracking-wide text-slate-500">
+                <div>
+                  <label className="mb-2 block text-xs uppercase tracking-[0.25em] text-white/45">
                     Standard Set
                   </label>
                   <select
                     value={selectedSetId ?? ""}
                     onChange={(e) => setSelectedSetId(Number(e.target.value))}
-                    className="h-14 w-full rounded-2xl border border-slate-300 bg-white px-4 text-lg text-slate-900 outline-none"
+                    className="input"
                   >
                     {standardSets.map((set) => (
                       <option key={set.id} value={set.id}>
@@ -553,46 +671,40 @@ export default function SwimmerProfilePage() {
             </div>
 
             {nextTarget && (
-              <div className="rounded-[32px] border border-emerald-200 bg-emerald-50 p-6 shadow-sm">
-                <p className="text-sm font-semibold uppercase tracking-[0.25em] text-emerald-600">
-                  Next Target
-                </p>
+              <div className="card border-emerald-400/20 bg-emerald-500/10">
+                <p className="label text-emerald-300/70">Next Target</p>
 
-                <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div className="mt-4 flex items-end justify-between gap-4">
                   <div>
-                    <h3 className="text-4xl font-bold text-slate-900">
+                    <h3 className="text-4xl font-bold text-white">
                       {canonicalEventName(nextTarget.event)}
                     </h3>
-                    <p className="mt-1 text-lg text-slate-600">
+                    <p className="mt-1 text-white/70">
                       Course: {canonicalCourse(nextTarget.course)}
                     </p>
                   </div>
 
-                  <div className="rounded-[24px] bg-white px-5 py-4 shadow-sm">
-                    <p className="text-sm uppercase tracking-wide text-slate-500">
-                      Gap to target
+                  <div className="rounded-3xl border border-emerald-400/20 bg-black/20 px-4 py-3 text-right">
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-emerald-200/70">
+                      Gap
                     </p>
-                    <p className="text-4xl font-bold text-emerald-600">
+                    <p className="text-2xl font-bold text-emerald-200">
                       {formatMs(nextTarget.gap)}
                     </p>
                   </div>
                 </div>
 
-                <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                  <div className="rounded-[24px] border border-emerald-100 bg-white p-5">
-                    <p className="text-sm uppercase tracking-wide text-slate-500">
-                      Current PB
-                    </p>
-                    <p className="mt-2 text-3xl font-bold text-slate-900">
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <div className="card-soft p-3">
+                    <p className="label">Current PB</p>
+                    <p className="mt-1 text-xl font-bold text-white">
                       {formatMs(nextTarget.pb)}
                     </p>
                   </div>
 
-                  <div className="rounded-[24px] border border-emerald-100 bg-white p-5">
-                    <p className="text-sm uppercase tracking-wide text-slate-500">
-                      Target time
-                    </p>
-                    <p className="mt-2 text-3xl font-bold text-slate-900">
+                  <div className="card-soft p-3">
+                    <p className="label">Target time</p>
+                    <p className="mt-1 text-xl font-bold text-white">
                       {formatMs(nextTarget.target)}
                     </p>
                   </div>
@@ -601,15 +713,15 @@ export default function SwimmerProfilePage() {
             )}
 
             {!nextTarget && selectedSet && (
-              <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
-                <h3 className="text-2xl font-bold text-slate-900">Next Target</h3>
+              <div className="card">
+                <h3 className="text-2xl font-bold text-white">Next Target</h3>
 
                 {hasInProgressRows ? (
                   <>
-                    <p className="mt-3 text-slate-600">
+                    <p className="mt-3 text-white/70">
                       A target should be available, but no closest next target could be calculated.
                     </p>
-                    <div className="mt-3 space-y-1 text-slate-600">
+                    <div className="mt-3 space-y-1 text-white/70">
                       <p>• check event/course naming</p>
                       <p>• check age ranges</p>
                       <p>• check that PBs and standards are in the same course</p>
@@ -617,20 +729,20 @@ export default function SwimmerProfilePage() {
                   </>
                 ) : hasQualifiedRows ? (
                   <>
-                    <p className="mt-3 text-slate-600">
+                    <p className="mt-3 text-white/70">
                       All current standards for <strong>{selectedSet.name}</strong> are already achieved ✅
                     </p>
-                    <div className="mt-3 space-y-1 text-slate-600">
+                    <div className="mt-3 space-y-1 text-white/70">
                       <p>• all matching events are qualified</p>
                       <p>• add tougher standards if you want a new target</p>
                     </div>
                   </>
                 ) : (
                   <>
-                    <p className="mt-3 text-slate-600">
+                    <p className="mt-3 text-white/70">
                       No active next target found for <strong>{selectedSet.name}</strong>.
                     </p>
-                    <div className="mt-3 space-y-1 text-slate-600">
+                    <div className="mt-3 space-y-1 text-white/70">
                       <p>• no matching PB exists yet</p>
                       <p>• age range does not match this swimmer</p>
                       <p>• course or event naming still does not match</p>
@@ -640,93 +752,151 @@ export default function SwimmerProfilePage() {
               </div>
             )}
 
-            <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
-              <h3 className="text-3xl font-bold text-slate-900">
-                {selectedSet?.name || "Standards"}
-              </h3>
-              <p className="mt-2 text-lg text-slate-500">Age: {swimmer.age}</p>
+            <div className="card">
+              <h3 className="title">{selectedSet?.name || "Standards"}</h3>
+              <p className="mt-2 muted">Age: {swimmer.age}</p>
 
               <div className="mt-6 space-y-4">
-                {standardsRows.length === 0 ? (
-                  <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-5 text-slate-600">
-                    No standards found in this set.
+                {strokeGroups.length === 0 ? (
+                  <div className="card-soft">
+                    <p className="text-white/70">No standards found in this set.</p>
                   </div>
                 ) : (
-                  standardsRows.map((row) => {
-                    const qualified = row.status === "Qualified";
-                    const inProgress = row.status === "In progress";
+                  strokeGroups.map((group) => {
+                    const isStrokeOpen = !!expandedStrokes[group.key];
+                    const qualifiedCount = group.rows.filter((r) => r.status === "Qualified").length;
+                    const activeCount = group.rows.filter((r) => r.status === "In progress").length;
 
                     return (
-                      <div
-                        key={row.id}
-                        className="rounded-[28px] border border-slate-200 bg-slate-50 p-5"
-                      >
-                        <div className="mb-4">
-                          <h4 className="text-2xl font-bold text-slate-900">
-                            {canonicalEventName(row.event)}
-                          </h4>
-                          <p className="mt-1 text-slate-500">
-                            Course: {canonicalCourse(row.course)}
-                          </p>
-                        </div>
+                      <div key={group.key} className="card-soft">
+                        <button
+                          type="button"
+                          onClick={() => toggleStroke(group.key)}
+                          className="w-full text-left"
+                        >
+                          <div className="flex items-center justify-between gap-4">
+                            <div>
+                              <h4 className="text-2xl font-bold text-white">{group.label}</h4>
+                              <p className="mt-1 text-sm text-white/50">
+                                {group.rows.length} event{group.rows.length === 1 ? "" : "s"}
+                              </p>
+                            </div>
 
-                        <div className="grid gap-4 md:grid-cols-4">
-                          <div className="rounded-[24px] border border-slate-200 bg-white p-4">
-                            <p className="text-sm text-slate-500">PB</p>
-                            <p className="mt-2 text-3xl font-bold text-slate-900">
-                              {row.pbMs == null ? "-" : formatMs(row.pbMs)}
-                            </p>
-                            <p className="mt-2 text-sm text-slate-500">
-                              Best recorded time
-                            </p>
+                            <div className="text-right">
+                              <p className="text-sm text-white/70">
+                                {qualifiedCount} qualified • {activeCount} active
+                              </p>
+                              <p className="mt-1 text-xs text-white/40">
+                                {isStrokeOpen ? "Hide" : "Show"}
+                              </p>
+                            </div>
                           </div>
+                        </button>
 
-                          <div className="rounded-[24px] border border-slate-200 bg-white p-4">
-                            <p className="text-sm text-slate-500">Target</p>
-                            <p className="mt-2 text-3xl font-bold text-slate-900">
-                              {formatMs(row.qualifying_time_ms)}
-                            </p>
-                            <p className="mt-2 text-sm text-slate-500">
-                              Standard time
-                            </p>
-                          </div>
+                        {isStrokeOpen && (
+                          <div className="mt-4 space-y-3">
+                            {group.rows.map((row) => {
+                              const qualified = row.status === "Qualified";
+                              const inProgress = row.status === "In progress";
+                              const isExpanded = !!expandedRows[row.id];
 
-                          <div className="rounded-[24px] border border-slate-200 bg-white p-4">
-                            <p className="text-sm text-slate-500">Gap</p>
-                            <p className="mt-2 text-3xl font-bold text-slate-900">
-                              {row.gapMs == null ? "-" : formatMs(Math.abs(row.gapMs))}
-                            </p>
-                            <p className="mt-2 text-sm text-slate-500">
-                              {qualified
-                                ? "Inside target"
-                                : inProgress
-                                ? "Time to drop"
-                                : "Waiting for PB"}
-                            </p>
-                          </div>
+                              return (
+                                <div
+                                  key={row.id}
+                                  className="rounded-2xl border border-white/10 bg-black/20 p-4"
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleRow(row.id)}
+                                    className="w-full text-left"
+                                  >
+                                    <div className="flex items-center justify-between gap-4">
+                                      <div className="min-w-0">
+                                        <h5 className="text-xl font-bold text-white">
+                                          {canonicalEventName(row.event)}
+                                        </h5>
 
-                          <div className="rounded-[24px] border border-slate-200 bg-white p-4">
-                            <p className="text-sm text-slate-500">Status</p>
-                            <p
-                              className={`mt-2 text-3xl font-bold ${
-                                qualified
-                                  ? "text-emerald-600"
-                                  : inProgress
-                                  ? "text-amber-600"
-                                  : "text-slate-900"
-                              }`}
-                            >
-                              {qualified
-                                ? "Qualified"
-                                : inProgress
-                                ? "In progress"
-                                : row.status}
-                            </p>
-                            <p className="mt-2 text-sm text-slate-500">
-                              Quick read
-                            </p>
+                                        <p className="text-sm text-white/50">
+                                          {canonicalCourse(row.course)}
+                                        </p>
+
+                                        <div className="mt-2 flex items-center gap-4 text-sm text-white/70">
+                                          <span>
+                                            PB{" "}
+                                            <span className="font-semibold text-white">
+                                              {row.pbMs == null ? "-" : formatMs(row.pbMs)}
+                                            </span>
+                                          </span>
+
+                                          <span>
+                                            Target{" "}
+                                            <span className="font-semibold text-white">
+                                              {formatMs(row.qualifying_time_ms)}
+                                            </span>
+                                          </span>
+                                        </div>
+                                      </div>
+
+                                      <div className="shrink-0 text-right">
+                                        <p className="text-lg font-bold text-white">
+                                          {row.gapMs == null ? "-" : formatMs(Math.abs(row.gapMs))}
+                                        </p>
+
+                                        <p className={`text-sm font-semibold ${statusClass(row.status)}`}>
+                                          {qualified
+                                            ? "Qualified"
+                                            : inProgress
+                                            ? "In progress"
+                                            : row.status}
+                                        </p>
+
+                                        <p className="mt-1 text-xs text-white/40">
+                                          {isExpanded ? "Hide" : "Details"}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </button>
+
+                                  {isExpanded && (
+                                    <div className="mt-4 grid grid-cols-2 gap-3">
+                                      <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                                        <p className="text-xs text-white/50">PB</p>
+                                        <p className="mt-1 text-xl font-bold text-white">
+                                          {row.pbMs == null ? "-" : formatMs(row.pbMs)}
+                                        </p>
+                                      </div>
+
+                                      <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                                        <p className="text-xs text-white/50">Target</p>
+                                        <p className="mt-1 text-xl font-bold text-white">
+                                          {formatMs(row.qualifying_time_ms)}
+                                        </p>
+                                      </div>
+
+                                      <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                                        <p className="text-xs text-white/50">Gap</p>
+                                        <p className="mt-1 text-xl font-bold text-white">
+                                          {row.gapMs == null ? "-" : formatMs(Math.abs(row.gapMs))}
+                                        </p>
+                                      </div>
+
+                                      <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                                        <p className="text-xs text-white/50">Status</p>
+                                        <p className={`mt-1 text-xl font-bold ${statusClass(row.status)}`}>
+                                          {qualified
+                                            ? "Qualified"
+                                            : inProgress
+                                            ? "In progress"
+                                            : row.status}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
-                        </div>
+                        )}
                       </div>
                     );
                   })
@@ -736,23 +906,68 @@ export default function SwimmerProfilePage() {
           </section>
         )}
 
-        {activeTab === "meetmobile" && (
-          <section className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-3xl font-bold text-slate-900">MeetMobile Import</h2>
-            <p className="mt-2 text-lg text-slate-500">
-              Import meet results for {swimmer.name}.
-            </p>
+        {activeTab === "swimscan" && (
+          <section className="card">
+            <h2 className="title">SwimScan</h2>
+            <p className="mt-2 muted">Scan race results for {swimmer.name}.</p>
 
             <div className="mt-6">
-              <MeetMobileImport
+              <SwimScan
                 swimmerId={Number(swimmer.id)}
                 swimmerName={swimmer.name}
-                onSaved={loadPage}
+                onSaved={(text) => {
+                  const parsed = parseSwimOCRText(text, {
+                    swimmerName: swimmer.name,
+                    defaultCourse: "LCM",
+                  });
+
+                  setOcrResults(parsed);
+                  setStatus(
+                    parsed.length > 0
+                      ? `Detected ${parsed.length} result${parsed.length === 1 ? "" : "s"}.`
+                      : "No results detected."
+                  );
+                }}
               />
             </div>
+
+            {ocrResults.length > 0 && (
+              <div className="mt-6 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm text-white/60">Detected results</div>
+
+                  <button
+                    onClick={saveParsedResults}
+                    disabled={savingOcr}
+                    className="rounded-2xl bg-emerald-500 px-4 py-2 text-sm font-bold text-white transition hover:bg-emerald-600 disabled:opacity-50"
+                  >
+                    {savingOcr ? "Saving..." : "Save all results"}
+                  </button>
+                </div>
+
+                {ocrResults.map((r, idx) => (
+                  <div
+                    key={`${r.event}-${r.timeStr}-${idx}`}
+                    className="rounded-2xl border border-white/10 bg-white/5 p-4"
+                  >
+                    <div className="text-lg font-semibold text-white">{r.event}</div>
+
+                    <div className="mt-1 text-sm text-white/70">
+                      {r.name || "Unknown swimmer"} • {r.course}
+                    </div>
+
+                    <div className="mt-2 text-2xl font-bold text-white">{r.timeStr}</div>
+
+                    <div className="mt-2 text-xs text-white/50">
+                      Confidence: {r.confidence}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
         )}
       </div>
-    </main>
+    </div>
   );
 }

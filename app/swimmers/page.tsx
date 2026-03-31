@@ -21,6 +21,70 @@ function formatCreatedAt(value?: string | null) {
   return date.toLocaleString();
 }
 
+type SectionProps = {
+  title: string;
+  swimmers: Swimmer[];
+  loading: boolean;
+  onDelete: (id: number | string, name: string) => void;
+};
+
+function SwimmerSection({ title, swimmers, loading, onDelete }: SectionProps) {
+  return (
+    <section className="mb-6">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-xl font-semibold text-white">{title}</h2>
+        <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/50">
+          {swimmers.length}
+        </span>
+      </div>
+
+      {swimmers.length === 0 ? (
+        <div className="card">
+          <p className="muted">No swimmers here yet.</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {swimmers.map((swimmer) => (
+            <div key={swimmer.id} className="card">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="label">Swimmer</p>
+                  <h3 className="mt-2 truncate text-2xl font-bold">{swimmer.name}</h3>
+                  <p className="mt-2 text-white/75">Age {swimmer.age}</p>
+                  <p className="mt-1 text-sm text-white/45">
+                    Added {formatCreatedAt(swimmer.created_at)}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-right">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-emerald-200/70">
+                    ID
+                  </p>
+                  <p className="text-lg font-bold text-emerald-200">{swimmer.id}</p>
+                </div>
+              </div>
+
+              <div className="mt-4 flex gap-3">
+                <Link href={`/swimmers/${swimmer.id}`} className="btn-outline">
+                  Open
+                </Link>
+
+                <button
+                  onClick={() => onDelete(swimmer.id, swimmer.name)}
+                  disabled={loading}
+                  className="btn-danger"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 export default function SwimmersPage() {
   const router = useRouter();
 
@@ -42,7 +106,6 @@ export default function SwimmersPage() {
       if (!mounted) return;
 
       if (error) {
-        console.error("getSession error:", error);
         setStatus(`Session error: ${error.message}`);
         setAuthChecked(true);
         return;
@@ -83,7 +146,6 @@ export default function SwimmersPage() {
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.error("fetchSwimmers error:", error);
       setStatus(`Error loading swimmers: ${error.message}`);
       setSwimmers([]);
       setLoading(false);
@@ -121,7 +183,6 @@ export default function SwimmersPage() {
     ]);
 
     if (error) {
-      console.error("addSwimmer error:", error);
       setStatus(`Error adding swimmer: ${error.message}`);
       setLoading(false);
       return;
@@ -144,7 +205,6 @@ export default function SwimmersPage() {
     const { error } = await supabase.from("swimmers").delete().eq("id", id);
 
     if (error) {
-      console.error("deleteSwimmer error:", error);
       setStatus(`Error deleting swimmer: ${error.message}`);
       setLoading(false);
       return;
@@ -160,7 +220,6 @@ export default function SwimmersPage() {
     const { error } = await supabase.auth.signOut();
 
     if (error) {
-      console.error("signOut error:", error);
       setStatus(`Logout error: ${error.message}`);
       return;
     }
@@ -173,44 +232,60 @@ export default function SwimmersPage() {
 
   if (!authChecked) {
     return (
-      <main className="min-h-screen bg-black px-4 py-6 text-white sm:px-6 sm:py-8">
-        <div className="mx-auto max-w-5xl">
-          <p className="text-white/70">{status}</p>
+      <div className="shell">
+        <div className="container-app">
+          <p className="muted">{status}</p>
         </div>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-black px-4 py-6 text-white sm:px-6 sm:py-8">
-      <div className="mx-auto max-w-5xl">
-        <div className="mb-6 flex items-center justify-between gap-3">
-          <h1 className="text-3xl font-bold sm:text-4xl">Swimmers</h1>
+    <div className="shell">
+      <div className="container-app">
+        <section className="card mb-6 overflow-hidden">
+          <div className="absolute pointer-events-none" />
 
-          <div className="flex gap-3">
-            <Link
-              href="/standards"
-              className="rounded-2xl border border-white/20 px-4 py-2 text-sm text-white/80 transition hover:bg-white/10"
-            >
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="label">Swimio</p>
+              <h1 className="mt-2 text-4xl font-bold tracking-tight">Swimmers</h1>
+              <p className="mt-2 max-w-xs text-white/60">
+                Track swimmers, compare progress, and keep everything clean in one place.
+              </p>
+            </div>
+
+            <div className="rounded-3xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-right">
+              <p className="text-[11px] uppercase tracking-[0.2em] text-emerald-200/70">
+                Total
+              </p>
+              <p className="text-3xl font-bold text-emerald-200">{swimmers.length}</p>
+            </div>
+          </div>
+
+          <div className="mt-5 flex gap-3">
+            <Link href="/standards" className="btn-outline">
               Standards
             </Link>
 
-            <button
-              onClick={handleLogout}
-              className="rounded-2xl border border-red-400/30 px-4 py-2 text-sm text-red-300 transition hover:bg-red-500/10"
-            >
+            <button onClick={handleLogout} className="btn-danger">
               Logout
             </button>
           </div>
-        </div>
+        </section>
 
-        <div className="mb-6 rounded-3xl border border-white/10 bg-white/5 p-5">
-          <div className="grid gap-3 md:grid-cols-[1fr_140px_160px_120px]">
+        <section className="card mb-6">
+          <div className="mb-4">
+            <p className="label">Add swimmer</p>
+            <h2 className="mt-2 text-2xl font-bold">New entry</h2>
+          </div>
+
+          <div className="space-y-3">
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Swimmer name"
-              className="h-14 rounded-2xl border border-white/20 bg-black px-4 text-lg text-white placeholder:text-white/35 outline-none"
+              className="input"
             />
 
             <input
@@ -218,130 +293,40 @@ export default function SwimmersPage() {
               onChange={(e) => setAge(e.target.value)}
               placeholder="Age"
               inputMode="numeric"
-              className="h-14 rounded-2xl border border-white/20 bg-black px-4 text-lg text-white placeholder:text-white/35 outline-none"
+              className="input"
             />
 
             <select
               value={groupType}
-              onChange={(e) =>
-                setGroupType(e.target.value as "primary" | "following")
-              }
-              className="h-14 rounded-2xl border border-white/20 bg-black px-4 text-lg text-white outline-none"
+              onChange={(e) => setGroupType(e.target.value as "primary" | "following")}
+              className="input"
             >
               <option value="primary">My Swimmer</option>
               <option value="following">Following</option>
             </select>
 
-            <button
-              onClick={addSwimmer}
-              disabled={loading}
-              className="h-14 rounded-2xl border border-white/20 bg-white/10 text-lg font-medium text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Add
+            <button onClick={addSwimmer} disabled={loading} className="btn-block">
+              Add swimmer
             </button>
           </div>
 
-          <p className="mt-4 text-sm text-white/60">{status}</p>
-        </div>
-
-        <section className="space-y-6">
-          <div>
-            <h2 className="mb-3 text-2xl font-semibold">My Swimmers</h2>
-
-            <div className="space-y-4">
-              {primarySwimmers.length === 0 ? (
-                <div className="rounded-3xl border border-white/10 bg-white/5 p-5 text-white/60">
-                  No primary swimmers yet.
-                </div>
-              ) : (
-                primarySwimmers.map((swimmer) => (
-                  <div
-                    key={swimmer.id}
-                    className="rounded-3xl border border-white/10 bg-white/5 p-5"
-                  >
-                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                      <div>
-                        <h3 className="text-2xl font-bold">{swimmer.name}</h3>
-                        <p className="mt-2 text-white/70">Age: {swimmer.age}</p>
-                        <p className="mt-1 text-sm text-white/40">
-                          Added: {formatCreatedAt(swimmer.created_at)}
-                        </p>
-                      </div>
-
-                      <div className="flex flex-wrap gap-3">
-                        <Link
-                          href={`/swimmers/${swimmer.id}`}
-                          className="rounded-2xl border border-white/20 px-4 py-2 text-sm text-white/80 transition hover:bg-white/10"
-                        >
-                          Open
-                        </Link>
-
-                        <button
-                          onClick={() =>
-                            deleteSwimmer(swimmer.id, swimmer.name)
-                          }
-                          disabled={loading}
-                          className="rounded-2xl border border-red-400/30 px-4 py-2 text-sm text-red-300 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          <div>
-            <h2 className="mb-3 text-2xl font-semibold">Following</h2>
-
-            <div className="space-y-4">
-              {followingSwimmers.length === 0 ? (
-                <div className="rounded-3xl border border-white/10 bg-white/5 p-5 text-white/60">
-                  No followed swimmers yet.
-                </div>
-              ) : (
-                followingSwimmers.map((swimmer) => (
-                  <div
-                    key={swimmer.id}
-                    className="rounded-3xl border border-white/10 bg-white/5 p-5"
-                  >
-                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                      <div>
-                        <h3 className="text-2xl font-bold">{swimmer.name}</h3>
-                        <p className="mt-2 text-white/70">Age: {swimmer.age}</p>
-                        <p className="mt-1 text-sm text-white/40">
-                          Added: {formatCreatedAt(swimmer.created_at)}
-                        </p>
-                      </div>
-
-                      <div className="flex flex-wrap gap-3">
-                        <Link
-                          href={`/swimmers/${swimmer.id}`}
-                          className="rounded-2xl border border-white/20 px-4 py-2 text-sm text-white/80 transition hover:bg-white/10"
-                        >
-                          Open
-                        </Link>
-
-                        <button
-                          onClick={() =>
-                            deleteSwimmer(swimmer.id, swimmer.name)
-                          }
-                          disabled={loading}
-                          className="rounded-2xl border border-red-400/30 px-4 py-2 text-sm text-red-300 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+          <p className="mt-4 text-sm text-white/55">{status}</p>
         </section>
+
+        <SwimmerSection
+          title="My Swimmers"
+          swimmers={primarySwimmers}
+          loading={loading}
+          onDelete={deleteSwimmer}
+        />
+
+        <SwimmerSection
+          title="Following"
+          swimmers={followingSwimmers}
+          loading={loading}
+          onDelete={deleteSwimmer}
+        />
       </div>
-    </main>
+    </div>
   );
 }

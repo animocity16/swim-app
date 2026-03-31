@@ -1,14 +1,117 @@
 @import "tailwindcss";
 
+:root {
+  --background: #06070a;
+  --foreground: #f5f7fb;
+}
+
 html,
 body {
   margin: 0;
   padding: 0;
-  min-height: 100%;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
-  background: #000;
-  color: #fff;
-  font-family: Arial, Helvetica, sans-serif;
+  min-height: 100vh;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+@layer components {
+  .shell {
+    @apply min-h-screen bg-[#06070a] text-white;
+  }
+
+  .container-app {
+    @apply mx-auto w-full max-w-md px-4 pt-6 pb-28;
+  }
+
+  .card {
+    @apply rounded-[28px] border border-white/10 bg-white/5 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.28)];
+  }
+
+  .card-soft {
+    @apply rounded-[24px] border border-white/10 bg-white/[0.04] p-4;
+  }
+
+  .input {
+    @apply w-full h-14 rounded-[20px] border border-white/10 bg-black/40 px-4 text-white outline-none placeholder:text-white/35;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center rounded-[20px] border border-emerald-400/25 bg-emerald-500/15 px-4 py-3 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-block {
+    @apply inline-flex h-14 w-full items-center justify-center rounded-[20px] border border-emerald-400/25 bg-emerald-500/15 px-4 text-base font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-outline {
+    @apply inline-flex items-center justify-center rounded-[20px] border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-medium text-white/85 transition hover:bg-white/10;
+  }
+
+  .btn-danger {
+    @apply inline-flex items-center justify-center rounded-[20px] border border-rose-400/25 bg-rose-500/10 px-4 py-3 text-sm font-medium text-rose-200 transition hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .segmented {
+    @apply rounded-[22px] border border-white/10 bg-white/[0.04] p-2;
+  }
+
+  .segmented-btn {
+    @apply rounded-[16px] px-4 py-3 text-sm font-semibold text-white/65 transition hover:bg-white/8 hover:text-white;
+  }
+
+  .segmented-btn-active {
+    @apply rounded-[16px] border border-emerald-400/20 bg-emerald-500/15 px-4 py-3 text-sm font-semibold text-emerald-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)];
+  }
+
+  .label {
+    @apply text-xs uppercase tracking-[0.25em] text-white/45;
+  }
+
+  .title {
+    @apply text-3xl font-bold tracking-tight text-white;
+  }
+
+  .muted {
+    @apply text-white/60;
+  }
+
+  .stat-number {
+    @apply mt-3 text-4xl font-bold tracking-tight text-white;
+  }
+
+  .accent-text {
+    @apply text-emerald-300;
+  }
+
+  .success-text {
+    @apply text-emerald-300;
+  }
+
+  .warning-text {
+    @apply text-amber-300;
+  }
+
+  .danger-text {
+    @apply text-rose-300;
+  }
 }

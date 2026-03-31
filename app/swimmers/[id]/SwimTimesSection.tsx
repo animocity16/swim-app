@@ -4,58 +4,37 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { canonicalCourse, canonicalEventName, eventKey } from "@/lib/events";
 
-type SwimTime = {
+type Props = {
+  swimmerId: number;
+};
+
+type SwimTimeRow = {
   id: number;
   swimmer_id: number;
   event: string;
   course: string;
   time_ms: number;
-  meet_name: string | null;
-  meet_date: string | null;
-  notes: string | null;
-  created_at: string;
+  created_at?: string | null;
 };
 
-const EVENT_OPTIONS = [
-  "50 Free",
-  "100 Free",
-  "200 Free",
-  "400 Free",
-  "800 Free",
-  "1500 Free",
-  "50 Fly",
-  "100 Fly",
-  "200 Fly",
-  "50 Back",
-  "100 Back",
-  "200 Back",
-  "50 Breast",
-  "100 Breast",
-  "200 Breast",
-  "100 IM",
-  "200 IM",
-  "400 IM",
-];
+type EventGroup = {
+  key: string;
+  event: string;
+  shortEvent: string;
+  course: string;
+  pb: SwimTimeRow;
+  times: SwimTimeRow[];
+};
 
-function parseToMs(input: string) {
-  const s = input.trim();
-  if (!s) return null;
+type StrokeGroup = {
+  key: string;
+  label: string;
+  events: EventGroup[];
+};
 
-  if (s.includes(":")) {
-    const [mStr, secStr] = s.split(":");
-    const minutes = Number(mStr);
-    const seconds = Number(secStr);
+function formatMs(ms?: number | null) {
+  if (ms == null || Number.isNaN(ms)) return "-";
 
-    if (!Number.isFinite(minutes) || !Number.isFinite(seconds)) return null;
-    return Math.round((minutes * 60 + seconds) * 1000);
-  }
-
-  const seconds = Number(s);
-  if (!Number.isFinite(seconds)) return null;
-  return Math.round(seconds * 1000);
-}
-
-function formatMs(ms: number) {
   const totalSeconds = ms / 1000;
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds - minutes * 60;
@@ -65,308 +44,452 @@ function formatMs(ms: number) {
     : seconds.toFixed(2);
 }
 
-function formatGapMs(gapMs: number) {
-  const s = (gapMs / 1000).toFixed(2);
-  return `+${s}s`;
+function getStrokeKey(event: string) {
+  const e = canonicalEventName(event).toLowerCase();
+
+  if (e.includes("free")) return "freestyle";
+  if (e.includes("back")) return "backstroke";
+  if (e.includes("breast")) return "breaststroke";
+  if (e.includes("fly")) return "butterfly";
+  if (e.includes("im")) return "im";
+
+  return "other";
 }
 
-function keyOf(t: Pick<SwimTime, "event" | "course">) {
-  return eventKey(t.event, t.course);
+function getStrokeLabel(stroke: string) {
+  if (stroke === "freestyle") return "Freestyle";
+  if (stroke === "backstroke") return "Backstroke";
+  if (stroke === "breaststroke") return "Breaststroke";
+  if (stroke === "butterfly") return "Butterfly";
+  if (stroke === "im") return "IM";
+  return "Other";
 }
 
-export default function SwimTimesSection({ swimmerId }: { swimmerId: number }) {
-  const [times, setTimes] = useState<SwimTime[]>([]);
-  const [eventMode, setEventMode] = useState<"preset" | "custom">("preset");
-  const [event, setEvent] = useState("50 Free");
-  const [customEvent, setCustomEvent] = useState("");
-  const [course, setCourse] = useState("SCM");
-  const [timeStr, setTimeStr] = useState("");
-  const [meetName, setMeetName] = useState("");
-  const [meetDate, setMeetDate] = useState("");
+function getEventDistance(event: string) {
+  const match = canonicalEventName(event).match(/\d+/);
+  return match ? Number(match[0]) : 9999;
+}
+
+function toShortEventName(event: string) {
+  const e = canonicalEventName(event);
+
+  return e
+    .replace("Freestyle", "Free")
+    .replace("Butterfly", "Fly")
+    .replace("Backstroke", "Back")
+    .replace("Breaststroke", "Breast");
+}
+
+function parseTimeInputToMs(value: string) {
+  const trimmed = value.trim();
+
+  if (!trimmed) return null;
+
+  if (/^\d{1,2}:\d{2}\.\d{2}$/.test(trimmed)) {
+    const [mm, ss] = trimmed.split(":");
+    const [sec, hundredths] = ss.split(".");
+    return (
+      Number(mm) * 60_000 +
+      Number(sec) * 1000 +
+      Number(hundredths) * 10
+    );
+  }
+
+  if (/^\d{1,2}\.\d{2}$/.test(trimmed)) {
+    const [sec, hundredths] = trimmed.split(".");
+    return Number(sec) * 1000 + Number(hundredths) * 10;
+  }
+
+  return null;
+}
+
+export default function SwimTimesSection({ swimmerId }: Props) {
+  const [rows, setRows] = useState<SwimTimeRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState("Loading swim times...");
+
+  const [newEvent, setNewEvent] = useState("");
+  const [newCourse, setNewCourse] = useState("LCM");
+  const [newTime, setNewTime] = useState("");
   const [saving, setSaving] = useState(false);
 
-  async function fetchTimes() {
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [expandedStrokes, setExpandedStrokes] = useState<Record<string, boolean>>({
+    freestyle: true,
+    backstroke: false,
+    breaststroke: false,
+    butterfly: false,
+    im: false,
+    other: false,
+  });
+  const [expandedEvents, setExpandedEvents] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    void loadTimes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [swimmerId]);
+
+  async function loadTimes() {
+    if (!swimmerId || Number.isNaN(swimmerId)) {
+      setStatus("Invalid swimmer id.");
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setStatus("Loading swim times...");
+
     const { data, error } = await supabase
       .from("swim_times")
-      .select("*")
+      .select("id, swimmer_id, event, course, time_ms, created_at")
       .eq("swimmer_id", swimmerId)
-      .order("meet_date", { ascending: false })
       .order("created_at", { ascending: false });
 
     if (error) {
-      alert("Fetch times failed ❌ " + error.message);
+      setStatus(`Error loading swim times: ${error.message}`);
+      setRows([]);
+      setLoading(false);
       return;
     }
 
-    setTimes((data as SwimTime[]) || []);
+    setRows((data as SwimTimeRow[]) || []);
+    setStatus("Ready");
+    setLoading(false);
   }
 
-  async function addTime() {
-    const rawEvent = eventMode === "custom" ? customEvent : event;
+  async function handleAddTime() {
+    const event = canonicalEventName(newEvent.trim());
+    const course = canonicalCourse(newCourse.trim());
+    const timeMs = parseTimeInputToMs(newTime);
 
-    if (!rawEvent.trim()) {
-      alert("Please enter an event");
+    if (!event) {
+      setStatus("Please enter an event.");
       return;
     }
 
-    const time_ms = parseToMs(timeStr);
-    if (!time_ms) {
-      alert("Enter a valid time like 35.04 or 1:12.33");
+    if (!timeMs) {
+      setStatus("Please enter a valid time like 35.04 or 1:12.33");
       return;
     }
-
-    const cleanEvent = canonicalEventName(rawEvent);
-    const cleanCourse = canonicalCourse(course);
 
     setSaving(true);
+    setStatus("Adding time...");
 
     const { error } = await supabase.from("swim_times").insert([
       {
         swimmer_id: swimmerId,
-        event: cleanEvent,
-        course: cleanCourse,
-        time_ms,
-        meet_name: meetName.trim() || null,
-        meet_date: meetDate || null,
+        event,
+        course,
+        time_ms: timeMs,
       },
     ]);
 
-    setSaving(false);
-
     if (error) {
-      alert("Insert failed ❌ " + error.message);
+      setStatus(`Error adding time: ${error.message}`);
+      setSaving(false);
       return;
     }
 
-    setEventMode("preset");
-    setEvent("50 Free");
-    setCustomEvent("");
-    setCourse("SCM");
-    setTimeStr("");
-    setMeetName("");
-    setMeetDate("");
-
-    fetchTimes();
+    setNewEvent("");
+    setNewCourse("LCM");
+    setNewTime("");
+    setShowAddModal(false);
+    setStatus("Time added.");
+    setSaving(false);
+    await loadTimes();
   }
 
-  async function deleteTime(id: number) {
-    const ok = confirm("Delete this swim time?");
-    if (!ok) return;
+  async function handleDelete(id: number) {
+    const confirmed = window.confirm("Delete this swim time?");
+    if (!confirmed) return;
+
+    setStatus("Deleting time...");
 
     const { error } = await supabase.from("swim_times").delete().eq("id", id);
 
     if (error) {
-      alert("Delete failed ❌ " + error.message);
+      setStatus(`Error deleting time: ${error.message}`);
       return;
     }
 
-    fetchTimes();
+    setStatus("Time deleted.");
+    await loadTimes();
   }
 
-  useEffect(() => {
-    if (!swimmerId) return;
-    fetchTimes();
-  }, [swimmerId]);
+  function toggleStroke(stroke: string) {
+    setExpandedStrokes((prev) => ({
+      ...prev,
+      [stroke]: !prev[stroke],
+    }));
+  }
 
-  const pbByEventCourse = useMemo(() => {
-    const map = new Map<string, number>();
+  function toggleEvent(key: string) {
+    setExpandedEvents((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  }
 
-    for (const t of times) {
-      const k = keyOf(t);
-      const cur = map.get(k);
+  const strokeGroups = useMemo<StrokeGroup[]>(() => {
+    const groupedEvents = new Map<string, SwimTimeRow[]>();
 
-      if (cur === undefined || t.time_ms < cur) {
-        map.set(k, t.time_ms);
-      }
-    }
+    for (const row of rows) {
+      const key = eventKey(
+        canonicalEventName(row.event),
+        canonicalCourse(row.course)
+      );
 
-    return map;
-  }, [times]);
-
-  const pbSummary = useMemo(() => {
-    const items: { key: string; event: string; course: string; pb_ms: number }[] = [];
-
-    for (const [k, pb_ms] of pbByEventCourse.entries()) {
-      const first = times.find((t) => keyOf(t) === k);
-      if (!first) continue;
-
-      items.push({
-        key: k,
-        event: canonicalEventName(first.event),
-        course: canonicalCourse(first.course),
-        pb_ms,
+      const current = groupedEvents.get(key) || [];
+      current.push({
+        ...row,
+        event: canonicalEventName(row.event),
+        course: canonicalCourse(row.course),
       });
+      groupedEvents.set(key, current);
     }
 
-    items.sort((a, b) => (a.event + a.course).localeCompare(b.event + b.course));
-    return items;
-  }, [pbByEventCourse, times]);
+    const eventGroups: EventGroup[] = Array.from(groupedEvents.entries()).map(
+      ([key, times]) => {
+        const sortedTimes = [...times].sort((a, b) => a.time_ms - b.time_ms);
+        const event = canonicalEventName(sortedTimes[0].event);
+
+        return {
+          key,
+          event,
+          shortEvent: toShortEventName(event),
+          course: canonicalCourse(sortedTimes[0].course),
+          pb: sortedTimes[0],
+          times: sortedTimes,
+        };
+      }
+    );
+
+    const groupedByStroke: Record<string, EventGroup[]> = {};
+
+    for (const group of eventGroups) {
+      const stroke = getStrokeKey(group.event);
+      if (!groupedByStroke[stroke]) groupedByStroke[stroke] = [];
+      groupedByStroke[stroke].push(group);
+    }
+
+    const order = ["freestyle", "backstroke", "breaststroke", "butterfly", "im", "other"];
+
+    return order
+      .filter((stroke) => groupedByStroke[stroke]?.length)
+      .map((stroke) => ({
+        key: stroke,
+        label: getStrokeLabel(stroke),
+        events: [...groupedByStroke[stroke]].sort((a, b) => {
+          const distanceDiff = getEventDistance(a.event) - getEventDistance(b.event);
+          if (distanceDiff !== 0) return distanceDiff;
+          return a.course.localeCompare(b.course);
+        }),
+      }));
+  }, [rows]);
+
+  if (loading) {
+    return <p className="muted">{status}</p>;
+  }
 
   return (
-    <div className="rounded-2xl border p-4 shadow-sm">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold">Swim Times</h2>
-        <div className="text-sm text-gray-500">Swimmer ID: {swimmerId}</div>
-      </div>
+    <>
+      <div className="space-y-6">
+        <div className="card-soft">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h2 className="title">Swim Times</h2>
+              <p className="mt-2 muted">
+                PB-first view with full time history grouped by stroke.
+              </p>
+            </div>
 
-      {pbSummary.length > 0 ? (
-        <div className="mt-3 rounded-xl border bg-gray-50 p-3">
-          <div className="text-sm font-semibold text-gray-800">PB Summary</div>
-          <div className="mt-2 grid gap-1">
-            {pbSummary.map((p) => (
-              <div key={p.key} className="flex justify-between text-sm text-gray-700">
-                <span>
-                  {p.event} ({p.course})
-                </span>
-                <span className="font-semibold">{formatMs(p.pb_ms)}</span>
-              </div>
-            ))}
+            <button
+              type="button"
+              onClick={() => setShowAddModal(true)}
+              className="rounded-2xl border border-emerald-500/40 bg-emerald-500/20 px-4 py-3 font-semibold text-emerald-200 transition hover:bg-emerald-500/30"
+            >
+              Add Time
+            </button>
           </div>
+
+          <p className="mt-4 text-sm text-white/50">{status}</p>
         </div>
-      ) : null}
 
-      <div className="mt-4 grid max-w-md gap-3">
-        <label className="grid gap-1">
-          <span className="text-sm text-gray-700">Event</span>
-
-          <select
-            className="rounded-xl border px-3 py-2"
-            value={eventMode === "custom" ? "__custom__" : event}
-            onChange={(e) => {
-              if (e.target.value === "__custom__") {
-                setEventMode("custom");
-              } else {
-                setEventMode("preset");
-                setEvent(e.target.value);
-              }
-            }}
-          >
-            {EVENT_OPTIONS.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-            <option value="__custom__">Custom event</option>
-          </select>
-
-          {eventMode === "custom" ? (
-            <input
-              className="rounded-xl border px-3 py-2"
-              value={customEvent}
-              onChange={(e) => setCustomEvent(e.target.value)}
-              placeholder="e.g. 200 Medley Relay Lead-Off"
-            />
-          ) : null}
-        </label>
-
-        <label className="grid gap-1">
-          <span className="text-sm text-gray-700">Course</span>
-          <select
-            className="rounded-xl border px-3 py-2"
-            value={course}
-            onChange={(e) => setCourse(e.target.value)}
-          >
-            <option value="SCM">SCM</option>
-            <option value="LCM">LCM</option>
-          </select>
-        </label>
-
-        <label className="grid gap-1">
-          <span className="text-sm text-gray-700">Time (35.04 or 1:12.33)</span>
-          <input
-            className="rounded-xl border px-3 py-2"
-            value={timeStr}
-            onChange={(e) => setTimeStr(e.target.value)}
-            placeholder="35.04"
-          />
-        </label>
-
-        <label className="grid gap-1">
-          <span className="text-sm text-gray-700">Meet name (optional)</span>
-          <input
-            className="rounded-xl border px-3 py-2"
-            value={meetName}
-            onChange={(e) => setMeetName(e.target.value)}
-            placeholder="SSA Meet"
-          />
-        </label>
-
-        <label className="grid gap-1">
-          <span className="text-sm text-gray-700">Meet date (optional)</span>
-          <input
-            className="rounded-xl border px-3 py-2"
-            type="date"
-            value={meetDate}
-            onChange={(e) => setMeetDate(e.target.value)}
-          />
-        </label>
-
-        <button
-          onClick={addTime}
-          disabled={saving}
-          className="rounded-xl border px-4 py-2 hover:bg-gray-50 disabled:opacity-60"
-        >
-          {saving ? "Saving..." : "Add time"}
-        </button>
-      </div>
-
-      <div className="mt-6">
-        <div className="mb-2 text-sm font-semibold text-gray-800">All Swim Times</div>
-
-        {times.length === 0 ? (
-          <p className="text-gray-600">No swim times yet.</p>
+        {strokeGroups.length === 0 ? (
+          <div className="card-soft">
+            <p className="text-white/70">No swim times yet.</p>
+          </div>
         ) : (
-          <ul className="space-y-2">
-            {times.map((t) => {
-              const k = keyOf(t);
-              const pb = pbByEventCourse.get(k);
-              const isPB = pb !== undefined && t.time_ms === pb;
-              const gapMs = pb !== undefined ? t.time_ms - pb : 0;
+          strokeGroups.map((strokeGroup) => {
+            const isStrokeOpen = !!expandedStrokes[strokeGroup.key];
 
-              return (
-                <li
-                  key={t.id}
-                  className={[
-                    "flex items-center justify-between rounded-xl border p-3",
-                    isPB ? "border-green-200 bg-green-50" : "",
-                  ].join(" ")}
+            return (
+              <div key={strokeGroup.key} className="card-soft">
+                <button
+                  type="button"
+                  onClick={() => toggleStroke(strokeGroup.key)}
+                  className="w-full text-left"
                 >
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2 font-semibold">
-                      <span>
-                        {canonicalEventName(t.event)} ({canonicalCourse(t.course)}) —{" "}
-                        {formatMs(t.time_ms)}
-                      </span>
-
-                      {isPB ? (
-                        <span className="rounded-full border bg-white px-2 py-1 text-xs font-semibold">
-                          🏅 PB
-                        </span>
-                      ) : pb !== undefined ? (
-                        <span className="text-xs text-gray-600">
-                          {formatGapMs(gapMs)} vs PB
-                        </span>
-                      ) : null}
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <h3 className="text-3xl font-bold text-white">
+                        {strokeGroup.label}
+                      </h3>
+                      <p className="mt-1 text-sm text-white/50">
+                        {strokeGroup.events.length} event
+                        {strokeGroup.events.length === 1 ? "" : "s"}
+                      </p>
                     </div>
 
-                    <div className="text-sm text-gray-600">
-                      {t.meet_date ? t.meet_date : "No date"}
-                      {t.meet_name ? ` • ${t.meet_name}` : ""}
-                    </div>
+                    <p className="text-sm text-white/40">
+                      {isStrokeOpen ? "Hide" : "Show"}
+                    </p>
                   </div>
+                </button>
 
-                  <button
-                    onClick={() => deleteTime(t.id)}
-                    className="rounded-xl border px-3 py-2 hover:bg-gray-50"
-                  >
-                    Delete
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+                {isStrokeOpen && (
+                  <div className="mt-5 space-y-5">
+                    {strokeGroup.events.map((group) => {
+                      const isEventOpen = !!expandedEvents[group.key];
+
+                      return (
+                        <div
+                          key={group.key}
+                          className="rounded-3xl border border-white/10 bg-white/5 p-5"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => toggleEvent(group.key)}
+                            className="w-full text-left"
+                          >
+                            <div className="flex items-start justify-between gap-4">
+                              <div>
+                                <h4 className="text-3xl font-bold text-white">
+                                  {group.shortEvent}
+                                </h4>
+                                <p className="mt-1 text-2xl text-white/55">
+                                  {group.course}
+                                </p>
+                              </div>
+
+                              <div className="text-right">
+                                <p className="text-3xl font-bold text-emerald-400">
+                                  PB {formatMs(group.pb.time_ms)}
+                                </p>
+                                <p className="mt-1 text-xs text-white/40">
+                                  {isEventOpen ? "Hide history" : "Show history"}
+                                </p>
+                              </div>
+                            </div>
+                          </button>
+
+                          <div className="mt-5 space-y-3">
+                            {group.times
+                              .slice(0, isEventOpen ? group.times.length : 1)
+                              .map((time, index) => {
+                                const isPb = index === 0;
+
+                                return (
+                                  <div
+                                    key={time.id}
+                                    className={`flex items-center justify-between gap-4 rounded-3xl border p-5 ${
+                                      isPb
+                                        ? "border-emerald-500/40 bg-emerald-500/15"
+                                        : "border-white/10 bg-white/5"
+                                    }`}
+                                  >
+                                    <div>
+                                      <div className="flex items-center gap-4">
+                                        <p className="text-3xl font-bold text-white">
+                                          {formatMs(time.time_ms)}
+                                        </p>
+                                        {isPb && (
+                                          <span className="text-2xl font-bold text-emerald-400">
+                                            PB
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDelete(time.id)}
+                                      className="rounded-3xl border border-white/15 bg-white/5 px-6 py-4 text-2xl font-semibold text-white transition hover:bg-white/10"
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })
         )}
       </div>
-    </div>
+
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-2xl rounded-3xl border border-white/10 bg-[#111318] p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-4xl font-bold text-white">Add Time</h3>
+                <p className="mt-2 text-white/55">
+                  Add a new swim time for this swimmer.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowAddModal(false)}
+                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-white hover:bg-white/10"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-6 space-y-4">
+              <input
+                value={newEvent}
+                onChange={(e) => setNewEvent(e.target.value)}
+                placeholder="50 Free"
+                className="input"
+              />
+
+              <select
+                value={newCourse}
+                onChange={(e) => setNewCourse(e.target.value)}
+                className="input"
+              >
+                <option value="LCM">LCM</option>
+                <option value="SCM">SCM</option>
+                <option value="SCY">SCY</option>
+              </select>
+
+              <input
+                value={newTime}
+                onChange={(e) => setNewTime(e.target.value)}
+                placeholder="35.04 or 1:12.33"
+                className="input"
+              />
+
+              <button
+                type="button"
+                onClick={handleAddTime}
+                disabled={saving}
+                className="w-full rounded-2xl border border-emerald-500/40 bg-emerald-500/20 px-4 py-4 text-lg font-semibold text-emerald-200 transition hover:bg-emerald-500/30 disabled:opacity-50"
+              >
+                {saving ? "Adding..." : "Add time"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
