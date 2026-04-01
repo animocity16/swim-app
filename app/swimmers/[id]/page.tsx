@@ -233,7 +233,7 @@ export default function SwimmerProfilePage() {
         .from("swimmers")
         .select("id, name, age, birth_year, group_type, created_at")
         .eq("id", swimmerId)
-        .single(),
+        .limit(1),
       supabase
         .from("swim_times")
         .select("id, swimmer_id, event, course, time_ms, created_at")
@@ -263,7 +263,19 @@ export default function SwimmerProfilePage() {
       return;
     }
 
-    const swimmerData = swimmerRes.data as Swimmer;
+    const swimmerRows = (swimmerRes.data as Swimmer[]) || [];
+
+    if (swimmerRows.length === 0) {
+      setSwimmer(null);
+      setSwimTimes([]);
+      setStandardSets([]);
+      setSelectedSetId(null);
+      setStatus("Swimmer not found.");
+      setLoading(false);
+      return;
+    }
+
+    const swimmerData = swimmerRows[0];
     const swimTimesData = (swimTimesRes.data as SwimTimeRow[]) || [];
     const standardSetsData = (standardSetsRes.data as StandardSet[]) || [];
 
