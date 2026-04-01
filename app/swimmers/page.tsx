@@ -15,6 +15,7 @@ type Swimmer = {
   school?: string | null;
   group_type?: "primary" | "following" | string | null;
   created_at?: string | null;
+  user_id?: string | null;
 };
 
 type SectionProps = {
@@ -184,77 +185,115 @@ export default function SwimmersPage() {
   }, [router]);
 
   async function fetchSwimmers() {
-    setLoading(true);
-    setStatus("Loading swimmers...");
+  setLoading(true);
+  setStatus("Loading swimmers...");
 
-    const { data, error } = await supabase
-      .from("swimmers")
-      .select(
-        "id, name, age, birth_month, country, swim_club, school, group_type, created_at"
-      )
-      .order("created_at", { ascending: false });
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
 
-    if (error) {
-      setStatus(`Error loading swimmers: ${error.message}`);
-      setSwimmers([]);
-      setLoading(false);
-      return;
-    }
-
-    setSwimmers((data as Swimmer[]) || []);
-    setStatus("Ready");
+  if (userError || !user) {
+    console.error("fetchSwimmers user error:", userError);
+    setStatus("You must be logged in.");
+    setSwimmers([]);
     setLoading(false);
+    return;
   }
 
-  async function addSwimmer() {
-    const trimmedName = name.trim();
-    const parsedAge = Number(age);
-    const trimmedCountry = country.trim();
-    const trimmedSwimClub = swimClub.trim();
-    const trimmedSchool = school.trim();
+  const { data, error } = await supabase
+    .from("swimmers")
+    .select(
+      "id, name, age, birth_month, country, swim_club, school, group_type, created_at, user_id"
+    )
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false });
 
-    if (!trimmedName) {
-      setStatus("Please enter swimmer name.");
-      return;
-    }
-
-    if (!age || Number.isNaN(parsedAge) || parsedAge <= 0) {
-      setStatus("Please enter a valid age.");
-      return;
-    }
-
-    setLoading(true);
-    setStatus("Adding swimmer...");
-
-    const { error } = await supabase.from("swimmers").insert([
-      {
-        name: trimmedName,
-        age: parsedAge,
-        birth_month: birthMonth === "" ? null : birthMonth,
-        country: trimmedCountry || null,
-        swim_club: trimmedSwimClub || null,
-        school: trimmedSchool || null,
-        group_type: groupType,
-      },
-    ]);
-
-    if (error) {
-      setStatus(`Error adding swimmer: ${error.message}`);
-      setLoading(false);
-      return;
-    }
-
-    setName("");
-    setAge("");
-    setBirthMonth("");
-    setCountry("");
-    setSwimClub("");
-    setSchool("");
-    setGroupType("primary");
-    setStatus("Swimmer added.");
-
-    await fetchSwimmers();
+  if (error) {
+    console.error("fetchSwimmers error:", error);
+    setStatus(`Error loading swimmers: ${error.message}`);
+    setSwimmers([]);
+    setLoading(false);
+    return;
   }
+
+  console.log("Fetched swimmers:", data);
+
+  setSwimmers((data as Swimmer[]) || []);
+  setStatus("Ready");
+  setLoading(false);
+}
+
+ async function addSwimmer() {
+  const trimmedName = name.trim();
+  const parsedAge = Number(age);
+  const trimmedCountry = country.trim();
+  const trimmedSwimClub = swimClub.trim();
+  const trimmedSchool = school.trim();
+
+  if (!trimmedName) {
+    setStatus("Please enter swimmer name.");
+    return;
+  }
+
+  if (!age || Number.isNaN(parsedAge) || parsedAge <= 0) {
+    setStatus("Please enter a valid age.");
+    return;
+  }
+
+  setLoading(true);
+  setStatus("Adding swimmer...");
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    console.error("addSwimmer user error:", userError);
+    setStatus("You must be logged in.");
+    setLoading(false);
+    return;
+  }
+
+  const payload = {
+    name: trimmedName,
+    age: parsedAge,
+    birth_month: birthMonth === "" ? null : birthMonth,
+    country: trimmedCountry || null,
+    swim_club: trimmedSwimClub || null,
+    school: trimmedSchool || null,
+    group_type: groupType,
+    user_id: user.id,
+  };
+
+  console.log("Adding swimmer payload:", payload);
+
+  const { data, error } = await supabase
+    .from("swimmers")
+    .insert([payload])
+    .select();
+
+  if (error) {
+    console.error("addSwimmer insert error:", error);
+    setStatus(`Error adding swimmer: ${error.message}`);
+    setLoading(false);
+    return;
+  }
+
+  console.log("Inserted swimmer:", data);
+
+  setName("");
+  setAge("");
+  setBirthMonth("");
+  setCountry("");
+  setSwimClub("");
+  setSchool("");
+  setGroupType("primary");
+
+  setStatus("Swimmer added.");
+  await fetchSwimmers();
+}
 
   async function deleteSwimmer(id: number | string, swimmerName: string) {
     const confirmed = window.confirm(`Delete "${swimmerName}"?`);
@@ -263,7 +302,22 @@ export default function SwimmersPage() {
     setLoading(true);
     setStatus(`Deleting "${swimmerName}"...`);
 
-    const { error } = await supabase.from("swimmers").delete().eq("id", id);
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      setStatus("You must be logged in.");
+      setLoading(false);
+      return;
+    }
+
+    const { error } = await supabase
+      .from("swimmers")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", user.id);
 
     if (error) {
       setStatus(`Error deleting swimmer: ${error.message}`);
