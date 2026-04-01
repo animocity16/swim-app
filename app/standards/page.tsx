@@ -9,6 +9,7 @@ type StandardSet = {
   name: string;
   type: "UPGRADING" | "IMPORTANT_MEET";
   created_at?: string | null;
+  user_id?: string | null;
 };
 
 function formatCreatedAt(value?: string | null) {
@@ -26,16 +27,30 @@ export default function StandardsPage() {
   const [status, setStatus] = useState("Ready");
 
   useEffect(() => {
-    loadSets();
+    void loadSets();
   }, []);
 
   async function loadSets() {
     setLoading(true);
     setStatus("Loading standards...");
 
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      console.error("loadSets user error:", userError);
+      setStatus("You must be logged in.");
+      setSets([]);
+      setLoading(false);
+      return;
+    }
+
     const { data, error } = await supabase
       .from("standard_sets")
-      .select("id, name, type, created_at")
+      .select("id, name, type, created_at, user_id")
+      .eq("user_id", user.id)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -62,10 +77,23 @@ export default function StandardsPage() {
     setLoading(true);
     setStatus("Adding standards set...");
 
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      console.error("addSet user error:", userError);
+      setStatus("You must be logged in.");
+      setLoading(false);
+      return;
+    }
+
     const { error } = await supabase.from("standard_sets").insert([
       {
         name: trimmedName,
         type,
+        user_id: user.id,
       },
     ]);
 
@@ -83,42 +111,55 @@ export default function StandardsPage() {
   }
 
   async function deleteSet(setId: number, setName: string) {
-  const confirmed = window.confirm(`Delete "${setName}" and all its standard items?`);
-  if (!confirmed) return;
+    const confirmed = window.confirm(`Delete "${setName}" and all its standard items?`);
+    if (!confirmed) return;
 
-  setLoading(true);
-  setStatus(`Deleting "${setName}"...`);
+    setLoading(true);
+    setStatus(`Deleting "${setName}"...`);
 
-  const { error: childError } = await supabase
-    .from("standard_items")
-    .delete()
-    .eq("standard_set_id", setId);
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
 
-  if (childError) {
-    console.error("delete standard_items error:", childError);
-    setStatus(`Error deleting standard items: ${childError.message}`);
-    setLoading(false);
-    return;
+    if (userError || !user) {
+      console.error("deleteSet user error:", userError);
+      setStatus("You must be logged in.");
+      setLoading(false);
+      return;
+    }
+
+    const { error: childError } = await supabase
+      .from("standard_items")
+      .delete()
+      .eq("standard_set_id", setId);
+
+    if (childError) {
+      console.error("delete standard_items error:", childError);
+      setStatus(`Error deleting standard items: ${childError.message}`);
+      setLoading(false);
+      return;
+    }
+
+    const { error: setError } = await supabase
+      .from("standard_sets")
+      .delete()
+      .eq("id", setId)
+      .eq("user_id", user.id);
+
+    if (setError) {
+      console.error("delete standard_sets error:", setError);
+      setStatus(`Error deleting set: ${setError.message}`);
+      setLoading(false);
+      return;
+    }
+
+    setStatus(`Deleted "${setName}".`);
+    await loadSets();
   }
-
-  const { error: setError } = await supabase
-    .from("standard_sets")
-    .delete()
-    .eq("id", setId);
-
-  if (setError) {
-    console.error("delete standard_sets error:", setError);
-    setStatus(`Error deleting set: ${setError.message}`);
-    setLoading(false);
-    return;
-  }
-
-  setStatus(`Deleted "${setName}".`);
-  await loadSets();
-}
 
   return (
-    <main className="min-h-screen bg-black text-white px-4 py-6 sm:px-6 sm:py-8">
+    <main className="min-h-screen bg-black px-4 py-6 text-white sm:px-6 sm:py-8">
       <div className="mx-auto w-full max-w-4xl">
         <div className="mb-6 flex items-center justify-between gap-3">
           <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
