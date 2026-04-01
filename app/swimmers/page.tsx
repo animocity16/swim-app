@@ -9,17 +9,13 @@ type Swimmer = {
   id: number | string;
   name: string;
   age: number;
-  birth_year?: number | null;
+  birth_month?: number | null;
+  country?: string | null;
+  swim_club?: string | null;
+  school?: string | null;
   group_type?: "primary" | "following" | string | null;
   created_at?: string | null;
 };
-
-function formatCreatedAt(value?: string | null) {
-  if (!value) return "No date available";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "No date available";
-  return date.toLocaleString();
-}
 
 type SectionProps = {
   title: string;
@@ -28,7 +24,40 @@ type SectionProps = {
   onDelete: (id: number | string, name: string) => void;
 };
 
-function SwimmerSection({ title, swimmers, loading, onDelete }: SectionProps) {
+const MONTHS = [
+  { value: 1, label: "January" },
+  { value: 2, label: "February" },
+  { value: 3, label: "March" },
+  { value: 4, label: "April" },
+  { value: 5, label: "May" },
+  { value: 6, label: "June" },
+  { value: 7, label: "July" },
+  { value: 8, label: "August" },
+  { value: 9, label: "September" },
+  { value: 10, label: "October" },
+  { value: 11, label: "November" },
+  { value: 12, label: "December" },
+];
+
+function formatCreatedAt(value?: string | null) {
+  if (!value) return "No date available";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "No date available";
+  return date.toLocaleString();
+}
+
+function formatBirthMonth(value?: number | null) {
+  if (!value) return null;
+  const found = MONTHS.find((month) => month.value === value);
+  return found ? found.label : null;
+}
+
+function SwimmerSection({
+  title,
+  swimmers,
+  loading,
+  onDelete,
+}: SectionProps) {
   return (
     <section className="mb-6">
       <div className="mb-3 flex items-center justify-between">
@@ -44,41 +73,54 @@ function SwimmerSection({ title, swimmers, loading, onDelete }: SectionProps) {
         </div>
       ) : (
         <div className="space-y-4">
-          {swimmers.map((swimmer) => (
-            <div key={swimmer.id} className="card">
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="label">Swimmer</p>
-                  <h3 className="mt-2 truncate text-2xl font-bold">{swimmer.name}</h3>
-                  <p className="mt-2 text-white/75">Age {swimmer.age}</p>
-                  <p className="mt-1 text-sm text-white/45">
-                    Added {formatCreatedAt(swimmer.created_at)}
-                  </p>
+          {swimmers.map((swimmer) => {
+            const birthMonthLabel = formatBirthMonth(swimmer.birth_month);
+
+            return (
+              <div key={swimmer.id} className="card">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="label">Swimmer</p>
+                    <h3 className="mt-2 truncate text-2xl font-bold">
+                      {swimmer.name}
+                    </h3>
+                    <p className="mt-2 text-white/75">Age {swimmer.age}</p>
+
+                    <div className="mt-3 space-y-1 text-sm text-white/55">
+                      {birthMonthLabel ? <p>Birth month: {birthMonthLabel}</p> : null}
+                      {swimmer.country ? <p>Country: {swimmer.country}</p> : null}
+                      {swimmer.swim_club ? <p>Swim club: {swimmer.swim_club}</p> : null}
+                      {swimmer.school ? <p>School: {swimmer.school}</p> : null}
+                      <p>Added {formatCreatedAt(swimmer.created_at)}</p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-right">
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-emerald-200/70">
+                      ID
+                    </p>
+                    <p className="text-lg font-bold text-emerald-200">
+                      {swimmer.id}
+                    </p>
+                  </div>
                 </div>
 
-                <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-right">
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-emerald-200/70">
-                    ID
-                  </p>
-                  <p className="text-lg font-bold text-emerald-200">{swimmer.id}</p>
+                <div className="mt-4 flex gap-3">
+                  <Link href={`/swimmers/${swimmer.id}`} className="btn-outline">
+                    Open
+                  </Link>
+
+                  <button
+                    onClick={() => onDelete(swimmer.id, swimmer.name)}
+                    disabled={loading}
+                    className="btn-danger"
+                  >
+                    Delete
+                  </button>
                 </div>
               </div>
-
-              <div className="mt-4 flex gap-3">
-                <Link href={`/swimmers/${swimmer.id}`} className="btn-outline">
-                  Open
-                </Link>
-
-                <button
-                  onClick={() => onDelete(swimmer.id, swimmer.name)}
-                  disabled={loading}
-                  className="btn-danger"
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </section>
@@ -93,8 +135,13 @@ export default function SwimmersPage() {
   const [loading, setLoading] = useState(false);
 
   const [swimmers, setSwimmers] = useState<Swimmer[]>([]);
+
   const [name, setName] = useState("");
   const [age, setAge] = useState("");
+  const [birthMonth, setBirthMonth] = useState<number | "">("");
+  const [country, setCountry] = useState("");
+  const [swimClub, setSwimClub] = useState("");
+  const [school, setSchool] = useState("");
   const [groupType, setGroupType] = useState<"primary" | "following">("primary");
 
   useEffect(() => {
@@ -142,7 +189,9 @@ export default function SwimmersPage() {
 
     const { data, error } = await supabase
       .from("swimmers")
-      .select("id, name, age, birth_year, group_type, created_at")
+      .select(
+        "id, name, age, birth_month, country, swim_club, school, group_type, created_at"
+      )
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -160,6 +209,9 @@ export default function SwimmersPage() {
   async function addSwimmer() {
     const trimmedName = name.trim();
     const parsedAge = Number(age);
+    const trimmedCountry = country.trim();
+    const trimmedSwimClub = swimClub.trim();
+    const trimmedSchool = school.trim();
 
     if (!trimmedName) {
       setStatus("Please enter swimmer name.");
@@ -178,6 +230,10 @@ export default function SwimmersPage() {
       {
         name: trimmedName,
         age: parsedAge,
+        birth_month: birthMonth === "" ? null : birthMonth,
+        country: trimmedCountry || null,
+        swim_club: trimmedSwimClub || null,
+        school: trimmedSchool || null,
         group_type: groupType,
       },
     ]);
@@ -190,8 +246,13 @@ export default function SwimmersPage() {
 
     setName("");
     setAge("");
+    setBirthMonth("");
+    setCountry("");
+    setSwimClub("");
+    setSchool("");
     setGroupType("primary");
     setStatus("Swimmer added.");
+
     await fetchSwimmers();
   }
 
@@ -243,15 +304,20 @@ export default function SwimmersPage() {
   return (
     <div className="shell">
       <div className="container-app">
-        <section className="card mb-6 overflow-hidden">
-          <div className="absolute pointer-events-none" />
+        <section className="card relative mb-6 overflow-hidden">
+          <button
+            onClick={handleLogout}
+            className="absolute right-5 top-5 rounded-full border border-red-400/20 bg-red-500/10 px-4 py-2 text-sm font-medium text-red-200 transition hover:bg-red-500/15"
+          >
+            Logout
+          </button>
 
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start justify-between gap-4 pr-24">
             <div>
-              <p className="label">Swimio</p>
-              <h1 className="mt-2 text-4xl font-bold tracking-tight">Swimmers</h1>
-              <p className="mt-2 max-w-xs text-white/60">
-                Track swimmers, compare progress, and keep everything clean in one place.
+              <p className="label">Natrix</p>
+              <h1 className="mt-2 text-4xl font-bold tracking-tight">Progress</h1>
+              <p className="mt-2 max-w-md text-white/60">
+                Track times, build swimmer profiles, and keep progress in one place.
               </p>
             </div>
 
@@ -259,25 +325,23 @@ export default function SwimmersPage() {
               <p className="text-[11px] uppercase tracking-[0.2em] text-emerald-200/70">
                 Total
               </p>
-              <p className="text-3xl font-bold text-emerald-200">{swimmers.length}</p>
+              <p className="text-3xl font-bold text-emerald-200">
+                {swimmers.length}
+              </p>
             </div>
           </div>
 
-          <div className="mt-5 flex gap-3">
-            <Link href="/standards" className="btn-outline">
-              Standards
+          <div className="mt-5">
+            <Link href="#add-swimmer" className="btn-outline inline-flex">
+              Add swimmer
             </Link>
-
-            <button onClick={handleLogout} className="btn-danger">
-              Logout
-            </button>
           </div>
         </section>
 
-        <section className="card mb-6">
+        <section id="add-swimmer" className="card mb-6">
           <div className="mb-4">
             <p className="label">Add swimmer</p>
-            <h2 className="mt-2 text-2xl font-bold">New entry</h2>
+            <h2 className="mt-2 text-2xl font-bold">Swimmer profile</h2>
           </div>
 
           <div className="space-y-3">
@@ -297,6 +361,42 @@ export default function SwimmersPage() {
             />
 
             <select
+              value={birthMonth}
+              onChange={(e) =>
+                setBirthMonth(e.target.value ? Number(e.target.value) : "")
+              }
+              className="input"
+            >
+              <option value="">Birth month (optional)</option>
+              {MONTHS.map((month) => (
+                <option key={month.value} value={month.value}>
+                  {month.label}
+                </option>
+              ))}
+            </select>
+
+            <input
+              value={country}
+              onChange={(e) => setCountry(e.target.value)}
+              placeholder="Country (optional)"
+              className="input"
+            />
+
+            <input
+              value={swimClub}
+              onChange={(e) => setSwimClub(e.target.value)}
+              placeholder="Swim club (optional)"
+              className="input"
+            />
+
+            <input
+              value={school}
+              onChange={(e) => setSchool(e.target.value)}
+              placeholder="School (optional)"
+              className="input"
+            />
+
+            <select
               value={groupType}
               onChange={(e) => setGroupType(e.target.value as "primary" | "following")}
               className="input"
@@ -306,7 +406,7 @@ export default function SwimmersPage() {
             </select>
 
             <button onClick={addSwimmer} disabled={loading} className="btn-block">
-              Add swimmer
+              {loading ? "Saving..." : "Add swimmer"}
             </button>
           </div>
 

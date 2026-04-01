@@ -3,32 +3,32 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const tabs = [
-  { href: "/swimmers", label: "Swimmers", icon: "🏊" },
-  { href: "/times", label: "Times", icon: "⏱" },
-  { href: "/progress", label: "Progress", icon: "📈" },
-  { href: "/import", label: "Import", icon: "📥" },
+const items = [
+  { href: "/swimmers", label: "Progress" },
+  { href: "/scan", label: "Scan" },
+  { href: "/standards", label: "Standards" },
 ];
 
 export default function BottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 border-t bg-white">
-      <div className="mx-auto flex max-w-md justify-around py-2">
-        {tabs.map((tab) => {
-          const active = pathname.startsWith(tab.href);
+    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-white/10 bg-black/95 backdrop-blur">
+      <div className="mx-auto flex max-w-3xl items-center justify-around px-4 py-3">
+        {items.map((item) => {
+          const active = pathname === item.href;
 
           return (
             <Link
-              key={tab.href}
-              href={tab.href}
-              className={`flex flex-col items-center text-xs ${
-                active ? "text-sky-600" : "text-gray-500"
+              key={item.href}
+              href={item.href}
+              className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${
+                active
+                  ? "bg-emerald-500/15 text-emerald-200"
+                  : "text-white/60 hover:text-white"
               }`}
             >
-              <span className="text-lg">{tab.icon}</span>
-              {tab.label}
+              {item.label}
             </Link>
           );
         })}
