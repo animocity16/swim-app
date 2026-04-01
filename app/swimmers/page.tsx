@@ -223,8 +223,10 @@ export default function SwimmersPage() {
   setStatus("Ready");
   setLoading(false);
 }
+async function addSwimmer() {
+  console.log("addSwimmer started");
+  setStatus("addSwimmer started");
 
- async function addSwimmer() {
   const trimmedName = name.trim();
   const parsedAge = Number(age);
   const trimmedCountry = country.trim();
@@ -459,7 +461,16 @@ export default function SwimmersPage() {
               <option value="following">Following</option>
             </select>
 
-            <button onClick={addSwimmer} disabled={loading} className="btn-block">
+            <button
+  type="button"
+  onClick={() => {
+    console.log("BUTTON CLICKED");
+    setStatus("Button clicked");
+    addSwimmer();
+  }}
+  disabled={loading}
+  className="btn-block"
+>
               {loading ? "Saving..." : "Add swimmer"}
             </button>
           </div>
