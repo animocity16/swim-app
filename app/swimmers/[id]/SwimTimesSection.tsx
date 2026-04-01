@@ -88,11 +88,7 @@ function parseTimeInputToMs(value: string) {
   if (/^\d{1,2}:\d{2}\.\d{2}$/.test(trimmed)) {
     const [mm, ss] = trimmed.split(":");
     const [sec, hundredths] = ss.split(".");
-    return (
-      Number(mm) * 60_000 +
-      Number(sec) * 1000 +
-      Number(hundredths) * 10
-    );
+    return Number(mm) * 60_000 + Number(sec) * 1000 + Number(hundredths) * 10;
   }
 
   if (/^\d{1,2}\.\d{2}$/.test(trimmed)) {
@@ -295,7 +291,7 @@ export default function SwimTimesSection({ swimmerId }: Props) {
     <>
       <div className="space-y-6">
         <div className="card-soft">
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="title">Swim Times</h2>
               <p className="mt-2 muted">
@@ -306,7 +302,7 @@ export default function SwimTimesSection({ swimmerId }: Props) {
             <button
               type="button"
               onClick={() => setShowAddModal(true)}
-              className="rounded-2xl border border-emerald-500/40 bg-emerald-500/20 px-4 py-3 font-semibold text-emerald-200 transition hover:bg-emerald-500/30"
+              className="w-full rounded-2xl border border-emerald-500/40 bg-emerald-500/20 px-4 py-3 font-semibold text-emerald-200 transition hover:bg-emerald-500/30 sm:w-auto"
             >
               Add Time
             </button>
@@ -392,32 +388,34 @@ export default function SwimTimesSection({ swimmerId }: Props) {
                                 return (
                                   <div
                                     key={time.id}
-                                    className={`flex items-center justify-between gap-4 rounded-3xl border p-5 ${
+                                    className={`rounded-3xl border p-4 sm:p-5 ${
                                       isPb
                                         ? "border-emerald-500/40 bg-emerald-500/15"
                                         : "border-white/10 bg-white/5"
                                     }`}
                                   >
-                                    <div>
-                                      <div className="flex items-center gap-4">
-                                        <p className="text-3xl font-bold text-white">
-                                          {formatMs(time.time_ms)}
-                                        </p>
-                                        {isPb && (
-                                          <span className="text-2xl font-bold text-emerald-400">
-                                            PB
-                                          </span>
-                                        )}
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                      <div className="min-w-0">
+                                        <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+                                          <p className="text-3xl font-bold text-white">
+                                            {formatMs(time.time_ms)}
+                                          </p>
+                                          {isPb && (
+                                            <span className="text-2xl font-bold text-emerald-400">
+                                              PB
+                                            </span>
+                                          )}
+                                        </div>
                                       </div>
-                                    </div>
 
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDelete(time.id)}
-                                      className="rounded-3xl border border-white/15 bg-white/5 px-6 py-4 text-2xl font-semibold text-white transition hover:bg-white/10"
-                                    >
-                                      Delete
-                                    </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDelete(time.id)}
+                                        className="w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-lg font-semibold text-white transition hover:bg-white/10 sm:w-auto"
+                                      >
+                                        Delete
+                                      </button>
+                                    </div>
                                   </div>
                                 );
                               })}
