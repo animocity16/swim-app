@@ -134,6 +134,7 @@ export default function SwimmersPage() {
   const [authChecked, setAuthChecked] = useState(false);
   const [status, setStatus] = useState("Checking session...");
   const [loading, setLoading] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
 
   const [swimmers, setSwimmers] = useState<Swimmer[]>([]);
 
@@ -168,7 +169,7 @@ export default function SwimmersPage() {
       await fetchSwimmers();
     }
 
-    initPage();
+    void initPage();
 
     const {
       data: { subscription },
@@ -185,117 +186,118 @@ export default function SwimmersPage() {
   }, [router]);
 
   async function fetchSwimmers() {
-  setLoading(true);
-  setStatus("Loading swimmers...");
+    setLoading(true);
+    setStatus("Loading swimmers...");
 
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
 
-  if (userError || !user) {
-    console.error("fetchSwimmers user error:", userError);
-    setStatus("You must be logged in.");
-    setSwimmers([]);
+    if (userError || !user) {
+      console.error("fetchSwimmers user error:", userError);
+      setStatus("You must be logged in.");
+      setSwimmers([]);
+      setLoading(false);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("swimmers")
+      .select(
+        "id, name, age, birth_month, country, swim_club, school, group_type, created_at, user_id"
+      )
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("fetchSwimmers error:", error);
+      setStatus(`Error loading swimmers: ${error.message}`);
+      setSwimmers([]);
+      setLoading(false);
+      return;
+    }
+
+    console.log("Fetched swimmers:", data);
+
+    setSwimmers((data as Swimmer[]) || []);
+    setStatus("Ready");
     setLoading(false);
-    return;
   }
 
-  const { data, error } = await supabase
-    .from("swimmers")
-    .select(
-      "id, name, age, birth_month, country, swim_club, school, group_type, created_at, user_id"
-    )
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false });
+  async function addSwimmer() {
+    console.log("addSwimmer started");
 
-  if (error) {
-    console.error("fetchSwimmers error:", error);
-    setStatus(`Error loading swimmers: ${error.message}`);
-    setSwimmers([]);
-    setLoading(false);
-    return;
+    const trimmedName = name.trim();
+    const parsedAge = Number(age);
+    const trimmedCountry = country.trim();
+    const trimmedSwimClub = swimClub.trim();
+    const trimmedSchool = school.trim();
+
+    if (!trimmedName) {
+      setStatus("Please enter swimmer name.");
+      return;
+    }
+
+    if (!age || Number.isNaN(parsedAge) || parsedAge <= 0) {
+      setStatus("Please enter a valid age.");
+      return;
+    }
+
+    setLoading(true);
+    setStatus("Adding swimmer...");
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      console.error("addSwimmer user error:", userError);
+      setStatus("You must be logged in.");
+      setLoading(false);
+      return;
+    }
+
+    const payload = {
+      name: trimmedName,
+      age: parsedAge,
+      birth_month: birthMonth === "" ? null : birthMonth,
+      country: trimmedCountry || null,
+      swim_club: trimmedSwimClub || null,
+      school: trimmedSchool || null,
+      group_type: groupType,
+      user_id: user.id,
+    };
+
+    console.log("Adding swimmer payload:", payload);
+
+    const { data, error } = await supabase
+      .from("swimmers")
+      .insert([payload])
+      .select();
+
+    if (error) {
+      console.error("addSwimmer insert error:", error);
+      setStatus(`Error adding swimmer: ${error.message}`);
+      setLoading(false);
+      return;
+    }
+
+    console.log("Inserted swimmer:", data);
+
+    setName("");
+    setAge("");
+    setBirthMonth("");
+    setCountry("");
+    setSwimClub("");
+    setSchool("");
+    setGroupType("primary");
+    setShowAddForm(false);
+    setStatus("Swimmer added.");
+
+    await fetchSwimmers();
   }
-
-  console.log("Fetched swimmers:", data);
-
-  setSwimmers((data as Swimmer[]) || []);
-  setStatus("Ready");
-  setLoading(false);
-}
-async function addSwimmer() {
-  console.log("addSwimmer started");
-  setStatus("addSwimmer started");
-
-  const trimmedName = name.trim();
-  const parsedAge = Number(age);
-  const trimmedCountry = country.trim();
-  const trimmedSwimClub = swimClub.trim();
-  const trimmedSchool = school.trim();
-
-  if (!trimmedName) {
-    setStatus("Please enter swimmer name.");
-    return;
-  }
-
-  if (!age || Number.isNaN(parsedAge) || parsedAge <= 0) {
-    setStatus("Please enter a valid age.");
-    return;
-  }
-
-  setLoading(true);
-  setStatus("Adding swimmer...");
-
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-
-  if (userError || !user) {
-    console.error("addSwimmer user error:", userError);
-    setStatus("You must be logged in.");
-    setLoading(false);
-    return;
-  }
-
-  const payload = {
-    name: trimmedName,
-    age: parsedAge,
-    birth_month: birthMonth === "" ? null : birthMonth,
-    country: trimmedCountry || null,
-    swim_club: trimmedSwimClub || null,
-    school: trimmedSchool || null,
-    group_type: groupType,
-    user_id: user.id,
-  };
-
-  console.log("Adding swimmer payload:", payload);
-
-  const { data, error } = await supabase
-    .from("swimmers")
-    .insert([payload])
-    .select();
-
-  if (error) {
-    console.error("addSwimmer insert error:", error);
-    setStatus(`Error adding swimmer: ${error.message}`);
-    setLoading(false);
-    return;
-  }
-
-  console.log("Inserted swimmer:", data);
-
-  setName("");
-  setAge("");
-  setBirthMonth("");
-  setCountry("");
-  setSwimClub("");
-  setSchool("");
-  setGroupType("primary");
-
-  setStatus("Swimmer added.");
-  await fetchSwimmers();
-}
 
   async function deleteSwimmer(id: number | string, swimmerName: string) {
     const confirmed = window.confirm(`Delete "${swimmerName}"?`);
@@ -386,96 +388,100 @@ async function addSwimmer() {
               </p>
             </div>
           </div>
-
-          <div className="mt-5">
-            <Link href="#add-swimmer" className="btn-outline inline-flex">
-              Add swimmer
-            </Link>
-          </div>
         </section>
 
-        <section id="add-swimmer" className="card mb-6">
-          <div className="mb-4">
-            <p className="label">Add swimmer</p>
-            <h2 className="mt-2 text-2xl font-bold">Swimmer profile</h2>
-          </div>
+        <section className="card mb-6">
+          <button
+            type="button"
+            onClick={() => setShowAddForm((prev) => !prev)}
+            className="flex w-full items-center justify-between text-left"
+          >
+            <div>
+              <p className="label">Add swimmer</p>
+              <h2 className="mt-2 text-2xl font-bold">
+                {showAddForm ? "Close swimmer form" : "Add swimmer"}
+              </h2>
+            </div>
 
-          <div className="space-y-3">
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Swimmer name"
-              className="input"
-            />
+            <div className="text-3xl text-white/45">
+              {showAddForm ? "−" : "+"}
+            </div>
+          </button>
 
-            <input
-              value={age}
-              onChange={(e) => setAge(e.target.value)}
-              placeholder="Age"
-              inputMode="numeric"
-              className="input"
-            />
+          {showAddForm && (
+            <div className="mt-5 space-y-3">
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Swimmer name"
+                className="input"
+              />
 
-            <select
-              value={birthMonth}
-              onChange={(e) =>
-                setBirthMonth(e.target.value ? Number(e.target.value) : "")
-              }
-              className="input"
-            >
-              <option value="">Birth month (optional)</option>
-              {MONTHS.map((month) => (
-                <option key={month.value} value={month.value}>
-                  {month.label}
-                </option>
-              ))}
-            </select>
+              <input
+                value={age}
+                onChange={(e) => setAge(e.target.value)}
+                placeholder="Age"
+                inputMode="numeric"
+                className="input"
+              />
 
-            <input
-              value={country}
-              onChange={(e) => setCountry(e.target.value)}
-              placeholder="Country (optional)"
-              className="input"
-            />
+              <select
+                value={birthMonth}
+                onChange={(e) =>
+                  setBirthMonth(e.target.value ? Number(e.target.value) : "")
+                }
+                className="input"
+              >
+                <option value="">Birth month (optional)</option>
+                {MONTHS.map((month) => (
+                  <option key={month.value} value={month.value}>
+                    {month.label}
+                  </option>
+                ))}
+              </select>
 
-            <input
-              value={swimClub}
-              onChange={(e) => setSwimClub(e.target.value)}
-              placeholder="Swim club (optional)"
-              className="input"
-            />
+              <input
+                value={country}
+                onChange={(e) => setCountry(e.target.value)}
+                placeholder="Country (optional)"
+                className="input"
+              />
 
-            <input
-              value={school}
-              onChange={(e) => setSchool(e.target.value)}
-              placeholder="School (optional)"
-              className="input"
-            />
+              <input
+                value={swimClub}
+                onChange={(e) => setSwimClub(e.target.value)}
+                placeholder="Swim club (optional)"
+                className="input"
+              />
 
-            <select
-              value={groupType}
-              onChange={(e) => setGroupType(e.target.value as "primary" | "following")}
-              className="input"
-            >
-              <option value="primary">My Swimmer</option>
-              <option value="following">Following</option>
-            </select>
+              <input
+                value={school}
+                onChange={(e) => setSchool(e.target.value)}
+                placeholder="School (optional)"
+                className="input"
+              />
 
-            <button
-  type="button"
-  onClick={() => {
-    console.log("BUTTON CLICKED");
-    setStatus("Button clicked");
-    addSwimmer();
-  }}
-  disabled={loading}
-  className="btn-block"
->
-              {loading ? "Saving..." : "Add swimmer"}
-            </button>
-          </div>
+              <select
+                value={groupType}
+                onChange={(e) => setGroupType(e.target.value as "primary" | "following")}
+                className="input"
+              >
+                <option value="primary">My Swimmer</option>
+                <option value="following">Following</option>
+              </select>
 
-          <p className="mt-4 text-sm text-white/55">{status}</p>
+              <button
+                type="button"
+                onClick={addSwimmer}
+                disabled={loading}
+                className="btn-block"
+              >
+                {loading ? "Saving..." : "Add swimmer"}
+              </button>
+
+              <p className="mt-4 text-sm text-white/55">{status}</p>
+            </div>
+          )}
         </section>
 
         <SwimmerSection
