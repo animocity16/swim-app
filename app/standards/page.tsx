@@ -31,39 +31,50 @@ export default function StandardsPage() {
   }, []);
 
   async function loadSets() {
-    setLoading(true);
-    setStatus("Loading standards...");
+    try {
+      setLoading(true);
+      setStatus("Loading standards...");
 
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-    if (userError || !user) {
-      console.error("loadSets user error:", userError);
-      setStatus("You must be logged in.");
+      if (userError) {
+        console.error("loadSets user error:", userError);
+        setStatus("Could not check login.");
+        setSets([]);
+        return;
+      }
+
+      if (!user) {
+        setStatus("You must be logged in.");
+        setSets([]);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("standard_sets")
+        .select("id, name, type, created_at, user_id")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("loadSets error:", error);
+        setStatus(`Error loading sets: ${error.message}`);
+        setSets([]);
+        return;
+      }
+
+      setSets((data as StandardSet[]) || []);
+      setStatus("Ready");
+    } catch (err) {
+      console.error("Unexpected loadSets error:", err);
+      setStatus("Something went wrong while loading standards.");
       setSets([]);
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const { data, error } = await supabase
-      .from("standard_sets")
-      .select("id, name, type, created_at, user_id")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("loadSets error:", error);
-      setStatus(`Error loading sets: ${error.message}`);
-      setSets([]);
-      setLoading(false);
-      return;
-    }
-
-    setSets((data as StandardSet[]) || []);
-    setStatus("Ready");
-    setLoading(false);
   }
 
   async function addSet() {
@@ -74,88 +85,108 @@ export default function StandardsPage() {
       return;
     }
 
-    setLoading(true);
-    setStatus("Adding standards set...");
+    try {
+      setLoading(true);
+      setStatus("Adding standards set...");
 
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-    if (userError || !user) {
-      console.error("addSet user error:", userError);
-      setStatus("You must be logged in.");
+      if (userError) {
+        console.error("addSet user error:", userError);
+        setStatus("Could not check login.");
+        return;
+      }
+
+      if (!user) {
+        setStatus("You must be logged in.");
+        return;
+      }
+
+      const { error } = await supabase.from("standard_sets").insert([
+        {
+          name: trimmedName,
+          type,
+          user_id: user.id,
+        },
+      ]);
+
+      if (error) {
+        console.error("addSet error:", error);
+        setStatus(`Error adding set: ${error.message}`);
+        return;
+      }
+
+      setName("");
+      setType("UPGRADING");
+      setStatus("Standards set added.");
+      await loadSets();
+    } catch (err) {
+      console.error("Unexpected addSet error:", err);
+      setStatus("Something went wrong while adding the set.");
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const { error } = await supabase.from("standard_sets").insert([
-      {
-        name: trimmedName,
-        type,
-        user_id: user.id,
-      },
-    ]);
-
-    if (error) {
-      console.error("addSet error:", error);
-      setStatus(`Error adding set: ${error.message}`);
-      setLoading(false);
-      return;
-    }
-
-    setName("");
-    setType("UPGRADING");
-    setStatus("Standards set added.");
-    await loadSets();
   }
 
   async function deleteSet(setId: number, setName: string) {
     const confirmed = window.confirm(`Delete "${setName}" and all its standard items?`);
     if (!confirmed) return;
 
-    setLoading(true);
-    setStatus(`Deleting "${setName}"...`);
+    try {
+      setLoading(true);
+      setStatus(`Deleting "${setName}"...`);
 
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-    if (userError || !user) {
-      console.error("deleteSet user error:", userError);
-      setStatus("You must be logged in.");
+      if (userError) {
+        console.error("deleteSet user error:", userError);
+        setStatus("Could not check login.");
+        return;
+      }
+
+      if (!user) {
+        setStatus("You must be logged in.");
+        return;
+      }
+
+      const { error: childError } = await supabase
+        .from("standard_items")
+        .delete()
+        .eq("standard_set_id", setId)
+        .eq("user_id", user.id);
+
+      if (childError) {
+        console.error("delete standard_items error:", childError);
+        setStatus(`Error deleting standard items: ${childError.message}`);
+        return;
+      }
+
+      const { error: setError } = await supabase
+        .from("standard_sets")
+        .delete()
+        .eq("id", setId)
+        .eq("user_id", user.id);
+
+      if (setError) {
+        console.error("delete standard_sets error:", setError);
+        setStatus(`Error deleting set: ${setError.message}`);
+        return;
+      }
+
+      setStatus(`Deleted "${setName}".`);
+      await loadSets();
+    } catch (err) {
+      console.error("Unexpected deleteSet error:", err);
+      setStatus("Something went wrong while deleting the set.");
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const { error: childError } = await supabase
-      .from("standard_items")
-      .delete()
-      .eq("standard_set_id", setId);
-
-    if (childError) {
-      console.error("delete standard_items error:", childError);
-      setStatus(`Error deleting standard items: ${childError.message}`);
-      setLoading(false);
-      return;
-    }
-
-    const { error: setError } = await supabase
-      .from("standard_sets")
-      .delete()
-      .eq("id", setId)
-      .eq("user_id", user.id);
-
-    if (setError) {
-      console.error("delete standard_sets error:", setError);
-      setStatus(`Error deleting set: ${setError.message}`);
-      setLoading(false);
-      return;
-    }
-
-    setStatus(`Deleted "${setName}".`);
-    await loadSets();
   }
 
   return (
@@ -243,7 +274,7 @@ export default function StandardsPage() {
                     </Link>
 
                     <button
-                      onClick={() => deleteSet(setItem.id, setItem.name)}
+                      onClick={() => void deleteSet(setItem.id, setItem.name)}
                       disabled={loading}
                       className="rounded-2xl border border-red-400/40 px-5 py-2.5 text-sm text-red-300 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
                     >
