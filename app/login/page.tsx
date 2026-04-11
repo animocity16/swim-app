@@ -12,43 +12,24 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
-  const [status, setStatus] = useState("Checking session...");
+  const [status, setStatus] = useState("");
 
   useEffect(() => {
     async function checkSession() {
-      const {
-        data: { session },
-        error,
-      } = await supabase.auth.getSession();
-
-      if (error) {
-        setStatus(`Session check failed: ${error.message}`);
-        setCheckingSession(false);
-        return;
-      }
-
-      if (session) {
-        router.replace("/swimmers");
-        return;
-      }
-
-      setStatus("Enter your email and password.");
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error) { setCheckingSession(false); return; }
+      if (session) { router.replace("/dashboard"); return; }
       setCheckingSession(false);
     }
-
     checkSession();
   }, [router]);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
-
-    if (!email.trim() || !password.trim()) {
-      setStatus("Please enter your email and password.");
-      return;
-    }
+    if (!email.trim() || !password.trim()) { setStatus("Please enter your email and password."); return; }
 
     setLoading(true);
-    setStatus("Logging in...");
+    setStatus("");
 
     const { error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
@@ -56,73 +37,107 @@ export default function LoginPage() {
     });
 
     if (error) {
-      setStatus(`Login failed: ${error.message}`);
+      setStatus(error.message);
       setLoading(false);
       return;
     }
 
-    setStatus("Login successful. Redirecting...");
-    router.replace("/swimmers");
+    router.replace("/dashboard");
   }
 
   if (checkingSession) {
     return (
-      <main className="min-h-screen bg-black text-white flex items-center justify-center px-4">
-        <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl">
-          <h1 className="text-5xl font-bold mb-4">Login</h1>
-          <p className="text-white/70">{status}</p>
-        </div>
-      </main>
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-white/40 text-sm">Loading...</p>
+      </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-black text-white flex items-center justify-center px-4">
-      <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl">
-        <h1 className="text-5xl font-bold mb-4">Login</h1>
-        <p className="text-white/70 mb-8">
-          Sign in with your email and password.
-        </p>
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 py-12">
 
-        <form onSubmit={handleLogin} className="space-y-5">
+      {/* Logo + branding */}
+      <div className="mb-10 text-center">
+        <div
+          className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl text-3xl"
+          style={{ background: "rgba(217,119,6,0.25)", border: "1px solid rgba(253,230,138,0.3)" }}
+        >
+          🏊
+        </div>
+        <h1 className="text-4xl font-bold tracking-tight text-white">Natrix</h1>
+        <p className="mt-1 text-sm text-white/40">Swim meet results for parents</p>
+      </div>
+
+      {/* Glass card */}
+      <div
+        className="w-full max-w-sm rounded-3xl p-6 space-y-5"
+        style={{
+          background: "rgba(255,255,255,0.13)",
+          backdropFilter: "blur(24px) saturate(1.3)",
+          WebkitBackdropFilter: "blur(24px) saturate(1.3)",
+          border: "1px solid rgba(255,255,255,0.24)",
+        }}
+      >
+        <div>
+          <h2 className="text-2xl font-bold text-white">Welcome back</h2>
+          <p className="mt-1 text-sm text-white/45">Sign in to your account</p>
+        </div>
+
+        <form onSubmit={handleLogin} className="space-y-4">
           <input
             type="email"
-            placeholder="you@example.com"
+            placeholder="Email address"
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-2xl border border-white/15 bg-black px-5 py-4 text-xl outline-none"
+            className="input"
           />
-
           <input
             type="password"
             placeholder="Password"
             autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-2xl border border-white/15 bg-black px-5 py-4 text-xl outline-none"
+            className="input"
           />
 
           <div className="text-right">
-            <Link
-              href="/forgot-password"
-              className="text-sm text-white/70 underline hover:text-white"
-            >
+            <Link href="/forgot-password" className="text-xs text-white/40 hover:text-white/70 transition">
               Forgot password?
             </Link>
           </div>
 
+          {status && (
+            <p className="rounded-2xl border px-3 py-2 text-sm"
+              style={{ background: "rgba(226,75,74,0.1)", border: "1px solid rgba(226,75,74,0.2)", color: "#F09595" }}>
+              {status}
+            </p>
+          )}
+
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-2xl bg-white/20 py-4 text-2xl font-medium hover:bg-white/30 disabled:opacity-60"
+            className="w-full rounded-2xl py-3.5 text-base font-bold text-white transition disabled:opacity-50"
+            style={{ background: "#D97706" }}
           >
-            {loading ? "Logging in..." : "Login"}
+            {loading ? "Signing in..." : "Sign in"}
           </button>
-
-          <p className="text-white/70">{status}</p>
         </form>
+
+        <div className="text-center pt-2">
+          <p className="text-sm text-white/40">
+            Don&apos;t have an account?{" "}
+            <Link href="/signup" className="font-semibold transition" style={{ color: "#FDE68A" }}>
+              Sign up
+            </Link>
+          </p>
+        </div>
       </div>
-    </main>
+
+      {/* Footer */}
+      <p className="mt-8 text-xs text-white/20">
+        Made with 🏊 by J.O.D — Just an Ordinary Dad
+      </p>
+    </div>
   );
 }

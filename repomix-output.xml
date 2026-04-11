@@ -32,7 +32,7 @@ The content is organized as follows:
 <notes>
 - Some files may have been excluded based on .gitignore rules and Repomix's configuration
 - Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
-- Only files matching these patterns are included: app/standards/page.tsx
+- Only files matching these patterns are included: app/login/page.tsx, app/forgot-password/page.tsx, app/reset-password/page.tsx
 - Files matching patterns in .gitignore are excluded
 - Files matching default ignore patterns are excluded
 - Files are sorted by Git change count (files with more changes are at the bottom)
@@ -42,302 +42,370 @@ The content is organized as follows:
 
 <directory_structure>
 app/
-  standards/
+  forgot-password/
+    page.tsx
+  login/
+    page.tsx
+  reset-password/
     page.tsx
 </directory_structure>
 
 <files>
 This section contains the contents of the repository's files.
 
-<file path="app/standards/page.tsx">
+<file path="app/forgot-password/page.tsx">
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { supabase } from "@/lib/supabaseClient";
+
+export default function ForgotPasswordPage() {
+  const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState("Enter your email to reset your password.");
+
+  async function handleResetPassword(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+
+    if (!email.trim()) {
+      setStatus("Please enter your email.");
+      return;
+    }
+
+    setLoading(true);
+    setStatus("Sending reset email...");
+
+    const redirectTo =
+      window.location.hostname === "localhost"
+        ? "http://localhost:3000/reset-password"
+        : "https://swim-app-beta.vercel.app/reset-password";
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo,
+    });
+
+    if (error) {
+      setStatus(`Error: ${error.message}`);
+      setLoading(false);
+      return;
+    }
+
+    setStatus("Reset email sent! Check your inbox.");
+    setLoading(false);
+  }
+
+  return (
+    <main className="min-h-screen bg-black text-white flex items-center justify-center px-4">
+      <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl">
+        <h1 className="text-5xl font-bold mb-4">Forgot Password</h1>
+        <p className="text-white/70 mb-8">
+          Enter your email and we’ll send you a reset link.
+        </p>
+
+        <form onSubmit={handleResetPassword} className="space-y-5">
+          <input
+            type="email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full rounded-2xl border border-white/15 bg-black px-5 py-4 text-xl outline-none"
+          />
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded-2xl bg-white/20 py-4 text-2xl font-medium hover:bg-white/30 disabled:opacity-60"
+          >
+            {loading ? "Sending..." : "Send Reset Email"}
+          </button>
+
+          <p className="text-white/70">{status}</p>
+        </form>
+
+        <div className="mt-6">
+          <Link href="/login" className="text-white/70 underline hover:text-white">
+            Back to Login
+          </Link>
+        </div>
+      </div>
+    </main>
+  );
+}
+</file>
+
+<file path="app/reset-password/page.tsx">
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabaseClient";
+
+export default function ResetPasswordPage() {
+  const router = useRouter();
+
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [checking, setChecking] = useState(true);
+  const [status, setStatus] = useState("Checking reset link...");
+
+  useEffect(() => {
+    async function handleRecovery() {
+      try {
+        const hash = window.location.hash;
+
+        if (hash) {
+          const params = new URLSearchParams(hash.substring(1));
+          const access_token = params.get("access_token");
+          const refresh_token = params.get("refresh_token");
+          const type = params.get("type");
+
+          if (type === "recovery" && access_token && refresh_token) {
+            const { error } = await supabase.auth.setSession({
+              access_token,
+              refresh_token,
+            });
+
+            if (error) {
+              setStatus(`Recovery link error: ${error.message}`);
+              setChecking(false);
+              return;
+            }
+
+            setStatus("Recovery verified. Enter your new password.");
+            setChecking(false);
+            return;
+          }
+        }
+
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (session) {
+          setStatus("Session found. Enter your new password.");
+        } else {
+          setStatus("Invalid or expired reset link.");
+        }
+      } catch {
+        setStatus("Something went wrong while checking the reset link.");
+      } finally {
+        setChecking(false);
+      }
+    }
+
+    handleRecovery();
+  }, []);
+
+  async function handleUpdatePassword(e: React.FormEvent) {
+    e.preventDefault();
+
+    if (!password || !confirmPassword) {
+      setStatus("Please fill in both password fields.");
+      return;
+    }
+
+    if (password.length < 6) {
+      setStatus("Password must be at least 6 characters.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setStatus("Passwords do not match.");
+      return;
+    }
+
+    setLoading(true);
+    setStatus("Updating password...");
+
+    const { error } = await supabase.auth.updateUser({
+      password,
+    });
+
+    if (error) {
+      setStatus(`Update failed: ${error.message}`);
+      setLoading(false);
+      return;
+    }
+
+    setStatus("Password updated successfully. Redirecting to login...");
+
+    setTimeout(() => {
+      router.push("/login");
+    }, 1500);
+
+    setLoading(false);
+  }
+
+  return (
+    <main className="min-h-screen bg-black text-white flex items-center justify-center px-4">
+      <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl">
+        <h1 className="text-5xl font-bold mb-4">Reset Password</h1>
+        <p className="text-white/70 mb-8">Set a new password for your account.</p>
+
+        {checking ? (
+          <p className="text-white/70">{status}</p>
+        ) : (
+          <form onSubmit={handleUpdatePassword} className="space-y-5">
+            <input
+              type="password"
+              placeholder="New password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full rounded-2xl border border-white/15 bg-black px-5 py-4 text-xl outline-none"
+            />
+
+            <input
+              type="password"
+              placeholder="Confirm new password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="w-full rounded-2xl border border-white/15 bg-black px-5 py-4 text-xl outline-none"
+            />
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full rounded-2xl bg-white/20 py-4 text-2xl font-medium hover:bg-white/30 disabled:opacity-60"
+            >
+              {loading ? "Updating..." : "Update Password"}
+            </button>
+
+            <p className="text-white/70">{status}</p>
+          </form>
+        )}
+      </div>
+    </main>
+  );
+}
+</file>
+
+<file path="app/login/page.tsx">
 "use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
-type StandardSet = {
-  id: number;
-  name: string;
-  type: "UPGRADING" | "IMPORTANT_MEET";
-  created_at?: string | null;
-  user_id?: string | null;
-};
+export default function LoginPage() {
+  const router = useRouter();
 
-function formatCreatedAt(value?: string | null) {
-  if (!value) return "No date";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "No date";
-  return date.toLocaleString();
-}
-
-export default function StandardsPage() {
-  const [sets, setSets] = useState<StandardSet[]>([]);
-  const [name, setName] = useState("");
-  const [type, setType] = useState<"UPGRADING" | "IMPORTANT_MEET">("UPGRADING");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState("Ready");
+  const [checkingSession, setCheckingSession] = useState(true);
+  const [status, setStatus] = useState("Checking session...");
 
   useEffect(() => {
-    void loadSets();
-  }, []);
-
-  async function loadSets() {
-    try {
-      setLoading(true);
-      setStatus("Loading standards...");
-
+    async function checkSession() {
       const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
-
-      if (userError) {
-        console.error("loadSets user error:", userError);
-        setStatus("Could not check login.");
-        setSets([]);
-        return;
-      }
-
-      if (!user) {
-        setStatus("You must be logged in.");
-        setSets([]);
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from("standard_sets")
-        .select("id, name, type, created_at, user_id")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
+        data: { session },
+        error,
+      } = await supabase.auth.getSession();
 
       if (error) {
-        console.error("loadSets error:", error);
-        setStatus(`Error loading sets: ${error.message}`);
-        setSets([]);
+        setStatus(`Session check failed: ${error.message}`);
+        setCheckingSession(false);
         return;
       }
 
-      setSets((data as StandardSet[]) || []);
-      setStatus("Ready");
-    } catch (err) {
-      console.error("Unexpected loadSets error:", err);
-      setStatus("Something went wrong while loading standards.");
-      setSets([]);
-    } finally {
-      setLoading(false);
+      if (session) {
+        router.replace("/swimmers");
+        return;
+      }
+
+      setStatus("Enter your email and password.");
+      setCheckingSession(false);
     }
-  }
 
-  async function addSet() {
-    const trimmedName = name.trim();
+    checkSession();
+  }, [router]);
 
-    if (!trimmedName) {
-      setStatus("Please enter a set name.");
+  async function handleLogin(e: React.FormEvent) {
+    e.preventDefault();
+
+    if (!email.trim() || !password.trim()) {
+      setStatus("Please enter your email and password.");
       return;
     }
 
-    try {
-      setLoading(true);
-      setStatus("Adding standards set...");
+    setLoading(true);
+    setStatus("Logging in...");
 
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
 
-      if (userError) {
-        console.error("addSet user error:", userError);
-        setStatus("Could not check login.");
-        return;
-      }
-
-      if (!user) {
-        setStatus("You must be logged in.");
-        return;
-      }
-
-      const { error } = await supabase.from("standard_sets").insert([
-        {
-          name: trimmedName,
-          type,
-          user_id: user.id,
-        },
-      ]);
-
-      if (error) {
-        console.error("addSet error:", error);
-        setStatus(`Error adding set: ${error.message}`);
-        return;
-      }
-
-      setName("");
-      setType("UPGRADING");
-      setStatus("Standards set added.");
-      await loadSets();
-    } catch (err) {
-      console.error("Unexpected addSet error:", err);
-      setStatus("Something went wrong while adding the set.");
-    } finally {
+    if (error) {
+      setStatus(`Login failed: ${error.message}`);
       setLoading(false);
+      return;
     }
+
+    setStatus("Login successful. Redirecting...");
+    router.replace("/swimmers");
   }
 
-  async function deleteSet(setId: number, setName: string) {
-    const confirmed = window.confirm(`Delete "${setName}" and all its standard items?`);
-    if (!confirmed) return;
-
-    try {
-      setLoading(true);
-      setStatus(`Deleting "${setName}"...`);
-
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
-
-      if (userError) {
-        console.error("deleteSet user error:", userError);
-        setStatus("Could not check login.");
-        return;
-      }
-
-      if (!user) {
-        setStatus("You must be logged in.");
-        return;
-      }
-
-      const { error: childError } = await supabase
-        .from("standard_items")
-        .delete()
-        .eq("standard_set_id", setId)
-        .eq("user_id", user.id);
-
-      if (childError) {
-        console.error("delete standard_items error:", childError);
-        setStatus(`Error deleting standard items: ${childError.message}`);
-        return;
-      }
-
-      const { error: setError } = await supabase
-        .from("standard_sets")
-        .delete()
-        .eq("id", setId)
-        .eq("user_id", user.id);
-
-      if (setError) {
-        console.error("delete standard_sets error:", setError);
-        setStatus(`Error deleting set: ${setError.message}`);
-        return;
-      }
-
-      setStatus(`Deleted "${setName}".`);
-      await loadSets();
-    } catch (err) {
-      console.error("Unexpected deleteSet error:", err);
-      setStatus("Something went wrong while deleting the set.");
-    } finally {
-      setLoading(false);
-    }
+  if (checkingSession) {
+    return (
+      <main className="min-h-screen bg-black text-white flex items-center justify-center px-4">
+        <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl">
+          <h1 className="text-5xl font-bold mb-4">Login</h1>
+          <p className="text-white/70">{status}</p>
+        </div>
+      </main>
+    );
   }
 
   return (
-    <main className="min-h-screen bg-black px-4 py-6 text-white sm:px-6 sm:py-8">
-      <div className="mx-auto w-full max-w-4xl">
-        <div className="mb-6 flex items-center justify-between gap-3">
-          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-            Standards
-          </h1>
+    <main className="min-h-screen bg-black text-white flex items-center justify-center px-4">
+      <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl">
+        <h1 className="text-5xl font-bold mb-4">Login</h1>
+        <p className="text-white/70 mb-8">
+          Sign in with your email and password.
+        </p>
 
-          <Link
-            href="/swimmers"
-            className="rounded-2xl border border-white/20 px-4 py-2 text-sm text-white/80 transition hover:bg-white/10"
-          >
-            Back
-          </Link>
-        </div>
+        <form onSubmit={handleLogin} className="space-y-5">
+          <input
+            type="email"
+            placeholder="you@example.com"
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full rounded-2xl border border-white/15 bg-black px-5 py-4 text-xl outline-none"
+          />
 
-        <div className="mb-6 rounded-3xl border border-white/15 bg-white/5 p-5 shadow-sm">
-          <div className="grid gap-3 md:grid-cols-[1fr_220px_120px]">
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Set name"
-              className="h-14 w-full rounded-2xl border border-white/25 bg-black px-4 text-lg text-white placeholder:text-white/35 outline-none"
-            />
+          <input
+            type="password"
+            placeholder="Password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full rounded-2xl border border-white/15 bg-black px-5 py-4 text-xl outline-none"
+          />
 
-            <select
-              value={type}
-              onChange={(e) =>
-                setType(e.target.value as "UPGRADING" | "IMPORTANT_MEET")
-              }
-              className="h-14 w-full rounded-2xl border border-white/25 bg-black px-4 text-lg text-white outline-none"
+          <div className="text-right">
+            <Link
+              href="/forgot-password"
+              className="text-sm text-white/70 underline hover:text-white"
             >
-              <option value="UPGRADING">Upgrading</option>
-              <option value="IMPORTANT_MEET">Important Meet</option>
-            </select>
-
-            <button
-              onClick={addSet}
-              disabled={loading}
-              className="h-14 rounded-2xl border border-white/25 bg-white/5 px-5 text-lg font-medium text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Add
-            </button>
+              Forgot password?
+            </Link>
           </div>
 
-          <p className="mt-4 text-base text-white/55">{status}</p>
-        </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded-2xl bg-white/20 py-4 text-2xl font-medium hover:bg-white/30 disabled:opacity-60"
+          >
+            {loading ? "Logging in..." : "Login"}
+          </button>
 
-        <div className="space-y-4">
-          {sets.length === 0 && !loading ? (
-            <div className="rounded-3xl border border-white/15 bg-white/5 p-5 text-white/60">
-              No standards sets yet.
-            </div>
-          ) : (
-            sets.map((setItem) => (
-              <div
-                key={setItem.id}
-                className="rounded-3xl border border-white/15 bg-white/5 p-5 shadow-sm"
-              >
-                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                  <div className="min-w-0">
-                    <h2 className="text-2xl font-semibold text-white sm:text-3xl">
-                      {setItem.name}
-                    </h2>
-
-                    <p className="mt-2 text-base uppercase tracking-wide text-white/45">
-                      {setItem.type === "UPGRADING"
-                        ? "Upgrading"
-                        : "Important Meet"}
-                    </p>
-
-                    <p className="mt-3 text-sm text-white/40">
-                      Added: {formatCreatedAt(setItem.created_at)}
-                    </p>
-                  </div>
-
-                  <div className="flex flex-wrap gap-3">
-                    <Link
-                      href={`/standards/${setItem.id}`}
-                      className="rounded-2xl border border-white/20 px-5 py-2.5 text-sm text-white/80 transition hover:bg-white/10"
-                    >
-                      Open
-                    </Link>
-
-                    <button
-                      onClick={() => void deleteSet(setItem.id, setItem.name)}
-                      disabled={loading}
-                      className="rounded-2xl border border-red-400/40 px-5 py-2.5 text-sm text-red-300 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
+          <p className="text-white/70">{status}</p>
+        </form>
       </div>
     </main>
   );
