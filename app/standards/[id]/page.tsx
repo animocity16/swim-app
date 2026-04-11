@@ -1,423 +1,239 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import { canonicalCourse, canonicalEventName } from "@/lib/events";
 
 type StandardSet = {
   id: number;
   name: string;
   type: "UPGRADING" | "IMPORTANT_MEET";
+  created_at?: string | null;
+  user_id?: string | null;
 };
 
-type StandardItem = {
-  id: number;
-  standard_set_id: number;
-  event: string;
-  course: "SCM" | "LCM";
-  gender: "Male" | "Female" | null;
-  min_age: number | null;
-  max_age: number | null;
-  qualifying_time_ms: number;
-};
-
-const EVENT_OPTIONS = [
-  "50 Free",
-  "100 Free",
-  "200 Free",
-  "400 Free",
-  "800 Free",
-  "1500 Free",
-  "50 Fly",
-  "100 Fly",
-  "200 Fly",
-  "50 Back",
-  "100 Back",
-  "200 Back",
-  "50 Breast",
-  "100 Breast",
-  "200 Breast",
-  "100 IM",
-  "200 IM",
-  "400 IM",
-];
-
-function formatMs(ms: number) {
-  const minutes = Math.floor(ms / 60000);
-  const seconds = Math.floor((ms % 60000) / 1000);
-  const hundredths = Math.floor((ms % 1000) / 10);
-
-  if (minutes > 0) {
-    return `${minutes}:${String(seconds).padStart(2, "0")}.${String(
-      hundredths
-    ).padStart(2, "0")}`;
-  }
-
-  return `${seconds}.${String(hundredths).padStart(2, "0")}`;
+function formatCreatedAt(value?: string | null) {
+  if (!value) return "No date";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "No date";
+  return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
-function parseTimeToMs(input: string) {
-  const trimmed = input.trim();
-
-  if (!trimmed) return null;
-
-  if (trimmed.includes(":")) {
-    const parts = trimmed.split(":");
-    if (parts.length !== 2) return null;
-
-    const minutes = Number(parts[0]);
-    const seconds = Number(parts[1]);
-
-    if (!Number.isFinite(minutes) || !Number.isFinite(seconds)) return null;
-
-    return Math.round((minutes * 60 + seconds) * 1000);
-  }
-
-  const seconds = Number(trimmed);
-  if (!Number.isFinite(seconds)) return null;
-
-  return Math.round(seconds * 1000);
-}
-
-function sortEventName(event: string) {
-  const match = canonicalEventName(event).match(/^(\d+)\s+(.*)$/);
-  if (!match) return { distance: 9999, stroke: canonicalEventName(event) };
-
-  return {
-    distance: Number(match[1]),
-    stroke: match[2],
-  };
-}
-
-export default function StandardItemsPage() {
-  const params = useParams();
-  const setId = Number(params.id);
-
-  const [setInfo, setSetInfo] = useState<StandardSet | null>(null);
-  const [items, setItems] = useState<StandardItem[]>([]);
+export default function StandardsPage() {
+  const [sets, setSets] = useState<StandardSet[]>([]);
+  const [name, setName] = useState("");
+  const [type, setType] = useState<"UPGRADING" | "IMPORTANT_MEET">("UPGRADING");
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("Ready");
 
-  const [eventMode, setEventMode] = useState<"preset" | "custom">("preset");
-  const [event, setEvent] = useState("50 Free");
-  const [customEvent, setCustomEvent] = useState("");
-  const [course, setCourse] = useState<"SCM" | "LCM">("SCM");
-  const [gender, setGender] = useState<"Male" | "Female" | "">("");
-  const [minAge, setMinAge] = useState("");
-  const [maxAge, setMaxAge] = useState("");
-  const [timeInput, setTimeInput] = useState("");
+  useEffect(() => { void loadSets(); }, []);
 
-  useEffect(() => {
-    if (!setId || Number.isNaN(setId)) return;
-    loadPage();
-  }, [setId]);
+  async function loadSets() {
+    try {
+      setLoading(true);
+      setStatus("Loading standards...");
 
-  async function loadPage() {
-    setStatus("Loading...");
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) { setStatus("Could not check login."); setSets([]); return; }
+      if (!user) { setStatus("You must be logged in."); setSets([]); return; }
 
-    const { data: setData, error: setError } = await supabase
-      .from("standard_sets")
-      .select("id, name, type")
-      .eq("id", setId)
-      .single();
+      const { data, error } = await supabase
+        .from("standard_sets")
+        .select("id, name, type, created_at, user_id")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
 
-    if (setError) {
-      setStatus(setError.message);
-      return;
-    }
+      if (error) { setStatus(`Error loading sets: ${error.message}`); setSets([]); return; }
 
-    setSetInfo(setData as StandardSet);
-
-    const { data: itemData, error: itemError } = await supabase
-      .from("standard_items")
-      .select(
-        "id, standard_set_id, event, course, gender, min_age, max_age, qualifying_time_ms"
-      )
-      .eq("standard_set_id", setId);
-
-    if (itemError) {
-      setStatus(itemError.message);
-      return;
-    }
-
-    setItems((itemData as StandardItem[]) || []);
-    setStatus("Ready");
-  }
-
-  async function addItem() {
-    const rawEvent = eventMode === "custom" ? customEvent : event;
-
-    if (!rawEvent.trim()) {
-      alert("Please enter an event");
-      return;
-    }
-
-    if (!timeInput.trim()) {
-      alert("Please enter time like 36.50 or 1:12.34");
-      return;
-    }
-
-    const timeMs = parseTimeToMs(timeInput);
-    if (!timeMs) {
-      alert("Invalid time format");
-      return;
-    }
-
-    const cleanEvent = canonicalEventName(rawEvent);
-    const cleanCourse = canonicalCourse(course) as "SCM" | "LCM";
-
-    setLoading(true);
-    setStatus("Adding item...");
-
-    const { error } = await supabase.from("standard_items").insert([
-      {
-        standard_set_id: setId,
-        event: cleanEvent,
-        course: cleanCourse,
-        gender: gender || null,
-        min_age: minAge.trim() ? Number(minAge) : null,
-        max_age: maxAge.trim() ? Number(maxAge) : null,
-        qualifying_time_ms: timeMs,
-      },
-    ]);
-
-    if (error) {
+      setSets((data as StandardSet[]) || []);
+      setStatus("Ready");
+    } catch {
+      setStatus("Something went wrong while loading standards.");
+      setSets([]);
+    } finally {
       setLoading(false);
-      setStatus(error.message);
-      alert(error.message);
-      return;
     }
-
-    setEventMode("preset");
-    setEvent("50 Free");
-    setCustomEvent("");
-    setCourse("SCM");
-    setGender("");
-    setMinAge("");
-    setMaxAge("");
-    setTimeInput("");
-
-    await loadPage();
-    setLoading(false);
-    setStatus("Timing row added");
   }
 
-  async function deleteItem(id: number) {
-    const ok = window.confirm("Delete this timing row?");
-    if (!ok) return;
+  async function addSet() {
+    const trimmedName = name.trim();
+    if (!trimmedName) { setStatus("Please enter a set name."); return; }
 
-    const { error } = await supabase
-      .from("standard_items")
-      .delete()
-      .eq("id", id);
+    try {
+      setLoading(true);
+      setStatus("Adding standards set...");
 
-    if (error) {
-      alert(error.message);
-      return;
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) { setStatus("Could not check login."); return; }
+      if (!user) { setStatus("You must be logged in."); return; }
+
+      const { error } = await supabase.from("standard_sets").insert([{ name: trimmedName, type, user_id: user.id }]);
+      if (error) { setStatus(`Error adding set: ${error.message}`); return; }
+
+      setName("");
+      setType("UPGRADING");
+      setStatus("Standards set added.");
+      await loadSets();
+    } catch {
+      setStatus("Something went wrong while adding the set.");
+    } finally {
+      setLoading(false);
     }
-
-    await loadPage();
   }
 
-  const sortedItems = useMemo(() => {
-    return [...items].sort((a, b) => {
-      const aSort = sortEventName(a.event);
-      const bSort = sortEventName(b.event);
+  async function deleteSet(setId: number, setName: string) {
+    const confirmed = window.confirm(`Delete "${setName}" and all its standard items?`);
+    if (!confirmed) return;
 
-      if (aSort.stroke !== bSort.stroke) {
-        return aSort.stroke.localeCompare(bSort.stroke);
-      }
+    try {
+      setLoading(true);
+      setStatus(`Deleting "${setName}"...`);
 
-      if (aSort.distance !== bSort.distance) {
-        return aSort.distance - bSort.distance;
-      }
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) { setStatus("Could not check login."); return; }
+      if (!user) { setStatus("You must be logged in."); return; }
 
-      return a.course.localeCompare(b.course);
-    });
-  }, [items]);
+      const { error: childError } = await supabase
+        .from("standard_items").delete()
+        .eq("standard_set_id", setId).eq("user_id", user.id);
+
+      if (childError) { setStatus(`Error deleting standard items: ${childError.message}`); return; }
+
+      const { error: setError } = await supabase
+        .from("standard_sets").delete()
+        .eq("id", setId).eq("user_id", user.id);
+
+      if (setError) { setStatus(`Error deleting set: ${setError.message}`); return; }
+
+      setStatus(`Deleted "${setName}".`);
+      await loadSets();
+    } catch {
+      setStatus("Something went wrong while deleting the set.");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
-    <main className="min-h-screen bg-[#f3f4f6] px-4 py-6 text-slate-900 sm:px-6 sm:py-8">
-      <div className="mx-auto max-w-5xl">
-        <div className="mb-6">
-          <Link
-            href="/standards"
-            className="inline-flex rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
-          >
-            ← Back to Standards
-          </Link>
+    <div className="shell">
+      <div className="container-app space-y-5">
+
+        {/* Header */}
+        <div className="pt-2">
+          <p className="text-[10px] font-medium uppercase tracking-widest" style={{ color: "#BA7517" }}>
+            Natrix
+          </p>
+          <h1 className="mt-1 text-3xl font-bold tracking-tight text-white">Standards</h1>
+          <p className="mt-1 text-sm text-white/40">
+            Create qualifying standard sets to track how close your swimmer is to their next goal.
+          </p>
         </div>
 
-        <section className="mb-6 rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
-          <h1 className="text-3xl font-bold text-slate-900">
-            {setInfo ? setInfo.name : "Standard Set"}
-          </h1>
-          <p className="mt-2 text-lg text-slate-500">
-            {setInfo
-              ? setInfo.type === "UPGRADING"
-                ? "Upgrading"
-                : "Important Meet"
-              : ""}
-          </p>
-        </section>
+        {/* Add new set */}
+        <div className="card space-y-4">
+          <p className="label">New standard set</p>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && void addSet()}
+            placeholder="e.g. Elite B Upgrading 2026"
+            className="input"
+          />
+          <select
+            value={type}
+            onChange={(e) => setType(e.target.value as "UPGRADING" | "IMPORTANT_MEET")}
+            className="input"
+          >
+            <option value="UPGRADING">Upgrading</option>
+            <option value="IMPORTANT_MEET">Important Meet</option>
+          </select>
 
-        <section className="mb-6 rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-2xl font-bold text-slate-900">Add Timing Row</h2>
+          {status && status !== "Ready" && (
+            <p className="text-sm text-white/50">{status}</p>
+          )}
 
-          <div className="mt-5 grid gap-4 md:grid-cols-2">
-            <div className="grid gap-2">
-              <label className="text-sm font-semibold text-slate-600">Event</label>
+          <button
+            type="button"
+            onClick={addSet}
+            disabled={loading || !name.trim()}
+            className="w-full rounded-2xl py-3 text-sm font-semibold text-white transition disabled:opacity-40"
+            style={{ background: "#D97706" }}
+          >
+            {loading ? "Adding..." : "Add standard set"}
+          </button>
+        </div>
 
-              <select
-                value={eventMode === "custom" ? "__custom__" : event}
-                onChange={(e) => {
-                  if (e.target.value === "__custom__") {
-                    setEventMode("custom");
-                  } else {
-                    setEventMode("preset");
-                    setEvent(e.target.value);
-                  }
+        {/* Standards list */}
+        {loading && sets.length === 0 ? (
+          <p className="muted">Loading...</p>
+        ) : sets.length === 0 ? (
+          <div className="card text-center py-8">
+            <p className="text-white font-semibold">No standard sets yet</p>
+            <p className="mt-1 text-sm text-white/40">
+              Add your first set above — e.g. "Elite B Upgrading" or "SNAG Juniors 2026".
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <p className="label">Your sets</p>
+            {sets.map((setItem) => (
+              <div
+                key={setItem.id}
+                className="rounded-3xl overflow-hidden"
+                style={{
+                  background: "rgba(255,255,255,0.09)",
+                  backdropFilter: "blur(20px)",
+                  WebkitBackdropFilter: "blur(20px)",
+                  border: "1px solid rgba(255,255,255,0.18)",
                 }}
-                className="h-12 rounded-2xl border border-slate-300 bg-white px-4 text-slate-900 outline-none"
               >
-                {EVENT_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-                <option value="__custom__">Custom event</option>
-              </select>
-
-              {eventMode === "custom" ? (
-                <input
-                  placeholder="Enter custom event"
-                  value={customEvent}
-                  onChange={(e) => setCustomEvent(e.target.value)}
-                  className="h-12 rounded-2xl border border-slate-300 bg-white px-4 text-slate-900 outline-none"
-                />
-              ) : null}
-            </div>
-
-            <div className="grid gap-2">
-              <label className="text-sm font-semibold text-slate-600">Course</label>
-              <select
-                value={course}
-                onChange={(e) => setCourse(e.target.value as "SCM" | "LCM")}
-                className="h-12 rounded-2xl border border-slate-300 bg-white px-4 text-slate-900 outline-none"
-              >
-                <option value="SCM">SCM</option>
-                <option value="LCM">LCM</option>
-              </select>
-            </div>
-
-            <div className="grid gap-2">
-              <label className="text-sm font-semibold text-slate-600">Gender</label>
-              <select
-                value={gender}
-                onChange={(e) => setGender(e.target.value as "Male" | "Female" | "")}
-                className="h-12 rounded-2xl border border-slate-300 bg-white px-4 text-slate-900 outline-none"
-              >
-                <option value="">All genders</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-              </select>
-            </div>
-
-            <div className="grid gap-2">
-              <label className="text-sm font-semibold text-slate-600">
-                Target Time
-              </label>
-              <input
-                placeholder="36.50 or 1:12.34"
-                value={timeInput}
-                onChange={(e) => setTimeInput(e.target.value)}
-                className="h-12 rounded-2xl border border-slate-300 bg-white px-4 text-slate-900 outline-none"
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <label className="text-sm font-semibold text-slate-600">Min Age</label>
-              <input
-                placeholder="Optional"
-                value={minAge}
-                onChange={(e) => setMinAge(e.target.value)}
-                className="h-12 rounded-2xl border border-slate-300 bg-white px-4 text-slate-900 outline-none"
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <label className="text-sm font-semibold text-slate-600">Max Age</label>
-              <input
-                placeholder="Optional"
-                value={maxAge}
-                onChange={(e) => setMaxAge(e.target.value)}
-                className="h-12 rounded-2xl border border-slate-300 bg-white px-4 text-slate-900 outline-none"
-              />
-            </div>
-          </div>
-
-          <div className="mt-5 flex flex-wrap items-center gap-3">
-            <button
-              onClick={addItem}
-              disabled={loading}
-              className="rounded-2xl border border-slate-300 bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {loading ? "Adding..." : "Add Row"}
-            </button>
-
-            <p className="text-sm text-slate-500">{status}</p>
-          </div>
-        </section>
-
-        <section className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-2xl font-bold text-slate-900">Timing Rows</h2>
-
-          <div className="mt-5 space-y-4">
-            {sortedItems.length === 0 ? (
-              <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-5 text-slate-600">
-                No timing rows yet.
-              </div>
-            ) : (
-              sortedItems.map((item) => (
-                <div
-                  key={item.id}
-                  className="rounded-[24px] border border-slate-200 bg-slate-50 p-5"
-                >
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div>
-                      <h3 className="text-2xl font-bold text-slate-900">
-                        {canonicalEventName(item.event)}
-                      </h3>
-
-                      <p className="mt-2 text-slate-500">
-                        {canonicalCourse(item.course)} · {item.gender || "All genders"} · Ages{" "}
-                        {item.min_age ?? "Any"}–{item.max_age ?? "Any"}
-                      </p>
-
-                      <p className="mt-3 text-lg font-semibold text-slate-900">
-                        Target: {formatMs(item.qualifying_time_ms)}
-                      </p>
-
-                      <p className="mt-1 text-sm text-slate-500">
-                        {item.qualifying_time_ms} ms
-                      </p>
+                <div className="p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <h2 className="text-xl font-bold text-white truncate">{setItem.name}</h2>
+                      <div className="mt-2 flex items-center gap-2 flex-wrap">
+                        <span
+                          className="rounded-full px-3 py-1 text-xs font-semibold"
+                          style={{
+                            background: setItem.type === "UPGRADING"
+                              ? "rgba(217,119,6,0.2)"
+                              : "rgba(99,130,201,0.2)",
+                            color: setItem.type === "UPGRADING" ? "#FDE68A" : "#93C5FD",
+                            border: `1px solid ${setItem.type === "UPGRADING" ? "rgba(253,230,138,0.25)" : "rgba(147,197,253,0.25)"}`,
+                          }}
+                        >
+                          {setItem.type === "UPGRADING" ? "Upgrading" : "Important Meet"}
+                        </span>
+                        <span className="text-xs text-white/30">
+                          Added {formatCreatedAt(setItem.created_at)}
+                        </span>
+                      </div>
                     </div>
 
-                    <button
-                      onClick={() => deleteItem(item.id)}
-                      className="rounded-2xl border border-red-300 px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50"
-                    >
-                      Delete
-                    </button>
+                    <div className="flex gap-2 flex-shrink-0">
+                      <Link
+                        href={`/standards/${setItem.id}`}
+                        className="rounded-2xl border border-white/20 bg-white/5 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10"
+                      >
+                        Open
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => void deleteSet(setItem.id, setItem.name)}
+                        disabled={loading}
+                        className="rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-2 text-sm font-medium text-red-300 transition hover:bg-red-500/20 disabled:opacity-50"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
                 </div>
-              ))
-            )}
+              </div>
+            ))}
           </div>
-        </section>
+        )}
+
       </div>
-    </main>
+    </div>
   );
 }
