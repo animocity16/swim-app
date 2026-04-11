@@ -1,25 +1,47 @@
 @import "tailwindcss";
 
+/* ============================================================
+   NATRIX — Water Glass Theme
+   Pool caustic light + frosted glass cards
+   ============================================================ */
+
 :root {
-  --background: #06070a;
-  --foreground: #f5f7fb;
+  --background: #063554;
+  --foreground: #ffffff;
+
+  /* Amber accent palette */
+  --amber:        #D97706;
+  --amber-light:  #FDE68A;
+  --amber-glow:   rgba(217,119,6,0.35);
+
+  /* Glass surfaces */
+  --glass-bg:         rgba(255,255,255,0.13);
+  --glass-bg-hover:   rgba(255,255,255,0.18);
+  --glass-border:     rgba(255,255,255,0.24);
+  --glass-border-hover: rgba(255,255,255,0.38);
+
+  /* Text */
+  --text-primary:   #ffffff;
+  --text-secondary: rgba(255,255,255,0.65);
+  --text-muted:     rgba(255,255,255,0.38);
+  --text-hint:      rgba(255,255,255,0.22);
 }
 
-html,
-body {
-  margin: 0;
-  padding: 0;
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-}
+/* ============================================================
+   BASE
+   ============================================================ */
 
-* {
+*, *::before, *::after {
   box-sizing: border-box;
 }
 
-body {
+html, body {
+  margin: 0;
+  padding: 0;
   min-height: 100vh;
+  color: var(--foreground);
+  font-family: -apple-system, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
 a {
@@ -27,64 +49,250 @@ a {
   text-decoration: none;
 }
 
-button,
-input,
-select,
-textarea {
+button, input, select, textarea {
   font: inherit;
 }
 
+/* ============================================================
+   WATER BACKGROUND — CSS animated pool caustics
+   No JS needed. GPU-accelerated on iOS Safari.
+   ============================================================ */
+
+body {
+  background-color: #063554;
+  position: relative;
+  isolation: isolate;
+}
+
+/* Layer 1 — Deep water base gradient */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background:
+    radial-gradient(ellipse 60% 50% at 15% 25%, #0D6E9A 0%, transparent 65%),
+    radial-gradient(ellipse 50% 60% at 85% 55%, #073E6A 0%, transparent 60%),
+    radial-gradient(ellipse 70% 40% at 50% 85%, #0A5580 0%, transparent 65%),
+    radial-gradient(ellipse 40% 30% at 70% 15%, #0E7A9E 0%, transparent 55%),
+    linear-gradient(160deg, #063554 0%, #084A73 40%, #063554 100%);
+  animation: waterDepth 25s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+/* Layer 2 — Caustic light shimmer (pool light refraction) */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(ellipse 220px 110px at 25% 35%, rgba(140,210,255,0.12) 0%, transparent 70%),
+    radial-gradient(ellipse 180px 90px at 75% 25%, rgba(255,200,80,0.08) 0%, transparent 65%),
+    radial-gradient(ellipse 200px 100px at 60% 65%, rgba(120,200,240,0.10) 0%, transparent 70%),
+    radial-gradient(ellipse 150px 80px at 30% 75%, rgba(255,180,40,0.06) 0%, transparent 60%),
+    radial-gradient(ellipse 250px 120px at 80% 80%, rgba(100,190,230,0.09) 0%, transparent 70%);
+  animation: causticLight 18s ease-in-out infinite alternate-reverse;
+  pointer-events: none;
+}
+
+@keyframes waterDepth {
+  0%   { transform: translate(0px, 0px) scale(1); }
+  25%  { transform: translate(18px, -12px) scale(1.03); }
+  50%  { transform: translate(-14px, 20px) scale(0.98); }
+  75%  { transform: translate(10px, -8px) scale(1.02); }
+  100% { transform: translate(-8px, 15px) scale(1.01); }
+}
+
+@keyframes causticLight {
+  0%   { transform: translate(0px, 0px); opacity: 0.7; }
+  30%  { transform: translate(-28px, 18px); opacity: 1; }
+  60%  { transform: translate(22px, -15px); opacity: 0.75; }
+  100% { transform: translate(-12px, 25px); opacity: 0.85; }
+}
+
+/* Subtle ripple lines overlay — pool surface effect */
+.water-ripple {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 28px,
+    rgba(255,255,255,0.018) 28px,
+    rgba(255,255,255,0.018) 29px
+  );
+  animation: rippleMove 12s linear infinite;
+}
+
+@keyframes rippleMove {
+  from { transform: translateY(0); }
+  to   { transform: translateY(29px); }
+}
+
+/* ============================================================
+   GLASS UTILITY — reusable glass surface
+   ============================================================ */
+
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  border: 1px solid var(--glass-border);
+}
+
+/* ============================================================
+   COMPONENT LAYER
+   ============================================================ */
+
 @layer components {
+
+  /* Shell — full page wrapper, transparent so water shows through */
   .shell {
-    @apply min-h-screen bg-[#06070a] text-white;
+    @apply min-h-screen text-white;
+    background: transparent;
+    position: relative;
+    z-index: 1;
   }
 
+  /* Content container */
   .container-app {
     @apply mx-auto w-full max-w-md px-4 pt-6 pb-28;
   }
 
+  /* Card — frosted glass */
   .card {
-    @apply rounded-[28px] border border-white/10 bg-white/5 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.28)];
+    background: rgba(255,255,255,0.13);
+    backdrop-filter: blur(24px) saturate(1.3);
+    -webkit-backdrop-filter: blur(24px) saturate(1.3);
+    border: 1px solid rgba(255,255,255,0.24);
+    border-radius: 28px;
+    padding: 20px;
   }
 
+  /* Card soft — lighter glass */
   .card-soft {
-    @apply rounded-[24px] border border-white/10 bg-white/[0.04] p-4;
+    background: rgba(255,255,255,0.09);
+    backdrop-filter: blur(20px) saturate(1.2);
+    -webkit-backdrop-filter: blur(20px) saturate(1.2);
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 24px;
+    padding: 16px;
   }
 
+  /* Input — dark glass */
   .input {
-    @apply w-full h-14 rounded-[20px] border border-white/10 bg-black/40 px-4 text-white outline-none placeholder:text-white/35;
+    @apply w-full h-14 rounded-[20px] px-4 text-white outline-none placeholder:text-white/35;
+    background: rgba(0,20,50,0.35);
+    border: 1px solid rgba(255,255,255,0.2);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    transition: border-color 0.15s ease;
   }
 
+  .input:focus {
+    border-color: rgba(255,255,255,0.45);
+  }
+
+  /* Select */
+  select.input {
+    appearance: none;
+    -webkit-appearance: none;
+    color: white;
+  }
+
+  select.input option {
+    background: #063554;
+    color: white;
+  }
+
+  /* Buttons */
   .btn {
-    @apply inline-flex items-center justify-center rounded-[20px] border border-emerald-400/25 bg-emerald-500/15 px-4 py-3 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center rounded-[20px] px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50;
+    background: rgba(217,119,6,0.25);
+    border: 1px solid rgba(253,230,138,0.35);
+    color: #FDE68A;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .btn:hover:not(:disabled) {
+    background: rgba(217,119,6,0.35);
+    border-color: rgba(253,230,138,0.5);
   }
 
   .btn-block {
-    @apply inline-flex h-14 w-full items-center justify-center rounded-[20px] border border-emerald-400/25 bg-emerald-500/15 px-4 text-base font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex h-14 w-full items-center justify-center rounded-[20px] px-4 text-base font-semibold transition disabled:cursor-not-allowed disabled:opacity-50;
+    background: rgba(217,119,6,0.25);
+    border: 1px solid rgba(253,230,138,0.35);
+    color: #FDE68A;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .btn-block:hover:not(:disabled) {
+    background: rgba(217,119,6,0.35);
   }
 
   .btn-outline {
-    @apply inline-flex items-center justify-center rounded-[20px] border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-medium text-white/85 transition hover:bg-white/10;
+    @apply inline-flex items-center justify-center rounded-[20px] px-4 py-3 text-sm font-medium transition;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.22);
+    color: rgba(255,255,255,0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .btn-outline:hover {
+    background: rgba(255,255,255,0.14);
+    border-color: rgba(255,255,255,0.35);
   }
 
   .btn-danger {
-    @apply inline-flex items-center justify-center rounded-[20px] border border-rose-400/25 bg-rose-500/10 px-4 py-3 text-sm font-medium text-rose-200 transition hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center rounded-[20px] px-4 py-3 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50;
+    background: rgba(239,68,68,0.15);
+    border: 1px solid rgba(252,165,165,0.25);
+    color: #fca5a5;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
   }
 
+  .btn-danger:hover:not(:disabled) {
+    background: rgba(239,68,68,0.25);
+  }
+
+  /* Segmented control */
   .segmented {
-    @apply rounded-[22px] border border-white/10 bg-white/[0.04] p-2;
+    @apply rounded-[22px] p-2;
+    background: rgba(0,20,50,0.3);
+    border: 1px solid rgba(255,255,255,0.15);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
   }
 
   .segmented-btn {
-    @apply rounded-[16px] px-4 py-3 text-sm font-semibold text-white/65 transition hover:bg-white/8 hover:text-white;
+    @apply rounded-[16px] px-4 py-3 text-sm font-semibold transition;
+    color: rgba(255,255,255,0.55);
+  }
+
+  .segmented-btn:hover {
+    background: rgba(255,255,255,0.08);
+    color: white;
   }
 
   .segmented-btn-active {
-    @apply rounded-[16px] border border-emerald-400/20 bg-emerald-500/15 px-4 py-3 text-sm font-semibold text-emerald-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)];
+    @apply rounded-[16px] px-4 py-3 text-sm font-semibold;
+    background: rgba(217,119,6,0.25);
+    border: 1px solid rgba(253,230,138,0.3);
+    color: #FDE68A;
   }
 
+  /* Typography */
   .label {
-    @apply text-xs uppercase tracking-[0.25em] text-white/45;
+    @apply text-xs uppercase tracking-[0.25em];
+    color: rgba(255,255,255,0.4);
   }
 
   .title {
@@ -92,26 +300,51 @@ textarea {
   }
 
   .muted {
-    @apply text-white/60;
+    color: rgba(255,255,255,0.6);
   }
 
   .stat-number {
     @apply mt-3 text-4xl font-bold tracking-tight text-white;
   }
 
-  .accent-text {
-    @apply text-emerald-300;
-  }
+  /* Semantic text colours */
+  .accent-text   { color: #FDE68A; }
+  .success-text  { color: #6EE7B7; }
+  .warning-text  { color: #FCD34D; }
+  .danger-text   { color: #FCA5A5; }
+}
 
-  .success-text {
-    @apply text-emerald-300;
-  }
+/* ============================================================
+   GLOBAL TAILWIND OVERRIDES
+   Ensures inline Tailwind classes also get glass treatment
+   ============================================================ */
 
-  .warning-text {
-    @apply text-amber-300;
-  }
+/* Any element using bg-white/5 or similar gets glass treatment */
+.rounded-3xl.border,
+.rounded-2xl.border {
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+}
 
-  .danger-text {
-    @apply text-rose-300;
-  }
+/* Bottom nav glass */
+nav.fixed {
+  backdrop-filter: blur(30px) saturate(1.5);
+  -webkit-backdrop-filter: blur(30px) saturate(1.5);
+  background: rgba(6,53,84,0.75) !important;
+  border-top-color: rgba(255,255,255,0.15) !important;
+}
+
+/* Modal overlay */
+.fixed.inset-0.bg-black\/70 {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  background: rgba(0,20,50,0.65) !important;
+}
+
+/* Modal card inside overlay */
+.fixed.inset-0 > div > div {
+  background: rgba(8,50,80,0.85) !important;
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  border-color: rgba(255,255,255,0.2) !important;
 }

@@ -1,780 +1,670 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createWorker } from "tesseract.js";
 import { supabase } from "@/lib/supabaseClient";
+import { parseSwimOCRText } from "@/lib/ocrMultiEventParser";
+import { parseAndSaveSwimOCR } from "@/lib/parseSwimOCRFlow";
+import { parse400IMSplitsFromOCR } from "@/lib/parse400IMSplits";
+import {
+  parseEventResultsOCR,
+  isEventResultsPage,
+  type EventResultRow,
+} from "@/lib/ocrEventResultsParser";
+import { canonicalCourse, canonicalEventName } from "@/lib/events";
 
-type Row = {
+type Swimmer = {
+  id: number;
   name: string;
-  time: string;
-  place: number | null;
-  raw: string;
-  club: string | null;
-  age: number | null;
-  age_group: string | null;
-  event: string;
+  age: number;
+  swim_club?: string | null;
+  group_type?: string | null;
 };
 
-const TIME_RE = /\b(\d{1,2}:\d{2}\.\d{1,2}|\d{2,3}\.\d{1,2})\b/;
+type Step = "idle" | "scanning" | "done";
+type ScanMode = "single" | "event_results" | "400im" | null;
 
-function inputClass(hasIssue = false) {
-  return `input h-12 ${hasIssue ? "border-red-400/50" : ""}`;
-}
+// ✅ Multi-strategy fuzzy name matching
+// Handles OCR name variations vs shortened profile names
+//
+// Strategy 1: Exact full name match — "Mikaela Loh" = "Mikaela Loh"
+// Strategy 2: Profile name is substring of OCR name
+//             "Kimi Rachel" found inside "Kimi Rachel Koh"
+//             "Olivia Lim" found inside "En Ning Olivia Lim"
+// Strategy 3: Any word in OCR name matches profile first name
+//             "Mikaela" in profile, "Mikaela" appears in OCR name
+// Strategy 4: OCR first name + surname initial matches profile
+//             "Mikaela L" matches "Mikaela Loh"
+function fuzzyMatchSwimmer(ocrName: string, swimmers: Swimmer[]): Swimmer | null {
+  const clean = ocrName.trim().toLowerCase();
+  const ocrWords = clean.split(/\s+/);
 
-function textareaClass(hasIssue = false) {
-  return `input min-h-[90px] ${hasIssue ? "border-red-400/50" : ""}`;
-}
+  // Strategy 1: Exact full name
+  const exact = swimmers.find((s) => s.name.toLowerCase() === clean);
+  if (exact) return exact;
 
-function cleanName(raw: string): string {
-  return raw
-    .replace(/^place\s+\d*\s*/i, "")
-    .replace(/^\d+\s+/, "")
-    .replace(/[^a-zA-Z\s\-']/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
+  // Strategy 2: Profile full name appears as substring in OCR name
+  // e.g. profile "Olivia Lim" found inside OCR "En Ning Olivia Lim"
+  // e.g. profile "Kimi Rachel" found inside OCR "Kimi Rachel Koh"
+  const bySubstring = swimmers.find((s) => {
+    const profileName = s.name.toLowerCase();
+    return clean.includes(profileName);
+  });
+  if (bySubstring) return bySubstring;
 
-function normalizeStroke(text: string): string {
-  const lower = text.toLowerCase();
+  // Strategy 3: Any word in OCR name matches the first word of a profile
+  // e.g. OCR has "Mikaela" somewhere and profile first name is "Mikaela"
+  const byFirstName = swimmers.find((s) => {
+    const profileFirst = s.name.toLowerCase().split(/\s+/)[0];
+    return ocrWords.includes(profileFirst);
+  });
+  if (byFirstName) return byFirstName;
 
-  if (lower.includes("backstroke") || /\bback\b/.test(lower)) {
-    return "Backstroke";
-  }
-  if (lower.includes("breaststroke") || /\bbreast\b/.test(lower)) {
-    return "Breaststroke";
-  }
-  if (lower.includes("butterfly") || /\bfly\b/.test(lower)) {
-    return "Butterfly";
-  }
-  if (
-    lower.includes("individual medley") ||
-    /\bmedley\b/.test(lower) ||
-    /\bim\b/.test(lower)
-  ) {
-    return "IM";
-  }
-  if (lower.includes("freestyle") || /\bfree\b/.test(lower)) {
-    return "Freestyle";
-  }
+  // Strategy 4: OCR first word + surname initial matches profile first word + initial
+  // e.g. OCR "Tessa N..." matches profile "Tessa Ng"
+  const ocrFirst = ocrWords[0];
+  const ocrSurnameInitial = ocrWords[1]?.[0] ?? null;
 
-  return "";
-}
-
-function detectBaseEvent(text: string): {
-  gender: string;
-  distance: string;
-  stroke: string;
-  headerAgeGroup: string | null;
-  isOpen: boolean;
-} {
-  const lower = text.toLowerCase();
-
-  let gender = "";
-  if (/\bgirls\b/.test(lower)) gender = "Girls";
-  else if (/\bboys\b/.test(lower)) gender = "Boys";
-
-  let distance = "";
-  const distanceMatch =
-    text.match(/\b(25|50|100|200|400|800|1500)\s*meter\b/i) ||
-    text.match(/\b(25|50|100|200|400|800|1500)\s*m\b/i);
-
-  if (distanceMatch) {
-    distance = `${distanceMatch[1]}m`;
-  }
-
-  const stroke = normalizeStroke(text);
-
-  const isOpen = /\bopen\b/i.test(text);
-  let headerAgeGroup: string | null = null;
-
-  if (isOpen) {
-    headerAgeGroup = "Open";
-  }
-
-  if (!headerAgeGroup) {
-    const rangeMatch = text.match(
-      /\b(6|7|8|9|10|11|12|13|14|15|16|17|18)\s*[-–]\s*(6|7|8|9|10|11|12|13|14|15|16|17|18)\b/
-    );
-    if (rangeMatch) {
-      headerAgeGroup = `${rangeMatch[1]}-${rangeMatch[2]}`;
-    }
-  }
-
-  if (!headerAgeGroup) {
-    const underMatch = text.match(
-      /\b(6|7|8|9|10|11|12|13|14|15|16|17|18)\s*(?:&\s*under|under|and under)\b/i
-    );
-    if (underMatch) {
-      headerAgeGroup = `${underMatch[1]}&U`;
-    }
-  }
-
-  return {
-    gender,
-    distance,
-    stroke,
-    headerAgeGroup,
-    isOpen,
-  };
-}
-
-function detectSectionAgeGroup(text: string): string | null {
-  const yearOldMatches = [
-    ...text.matchAll(
-      /\b(6|7|8|9|10|11|12|13|14|15|16|17|18)\s*year\s*olds?\b/gi
-    ),
-  ];
-
-  if (yearOldMatches.length > 0) {
-    const last = yearOldMatches[yearOldMatches.length - 1];
-    return `${last[1]} Year Olds`;
-  }
-
-  if (/\bopen\b/i.test(text)) {
-    return "Open";
-  }
-
-  const rangeMatch = text.match(
-    /\b(6|7|8|9|10|11|12|13|14|15|16|17|18)\s*[-–]\s*(6|7|8|9|10|11|12|13|14|15|16|17|18)\b/
-  );
-  if (rangeMatch) {
-    return `${rangeMatch[1]}-${rangeMatch[2]}`;
-  }
-
-  const underMatch = text.match(
-    /\b(6|7|8|9|10|11|12|13|14|15|16|17|18)\s*(?:&\s*under|under|and under)\b/i
-  );
-  if (underMatch) {
-    return `${underMatch[1]}&U`;
+  if (ocrFirst) {
+    const byInitial = swimmers.find((s) => {
+      const parts = s.name.toLowerCase().split(/\s+/);
+      const profileFirst = parts[0];
+      const profileSurnameInitial = parts[1]?.[0] ?? null;
+      if (profileFirst !== ocrFirst) return false;
+      if (!profileSurnameInitial || !ocrSurnameInitial) return true; // first name only match
+      return profileSurnameInitial === ocrSurnameInitial;
+    });
+    if (byInitial) return byInitial;
   }
 
   return null;
 }
 
-function extractClubAndAge(combined: string): {
-  club: string | null;
-  age: number | null;
-} {
-  let n = combined.toUpperCase();
-
-  n = n
-    .replace(/[\[\(\{]/g, "|")
-    .replace(/[\]\)\}]/g, "")
-    .replace(/\bTIME\b/g, " ")
-    .replace(/DROPPED\s*:?\s*[\+\-]?\d+[\.\d]*/g, " ")
-    .replace(/ADDED\s*:?\s*[\+\-]?\d+[\.\d]*/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  n = n
-    .replace(/\b(ESC|CSC|TLSC|APSC|ACE)[A-Z]*?([0-9]{1,2})\b/g, "$1|$2")
-    .replace(/CSCLIO\b/g, "CSC|10")
-    .replace(/CSCLO\b/g, "CSC|10")
-    .replace(/CSCL0\b/g, "CSC|10")
-    .replace(/CSCIO\b/g, "CSC|10")
-    .replace(/CSCI0\b/g, "CSC|10")
-    .replace(/CSC1O\b/g, "CSC|10")
-    .replace(/ESCL0\b/g, "ESC|10")
-    .replace(/ESCI0\b/g, "ESC|10")
-    .replace(/ESC1O\b/g, "ESC|10")
-    .replace(/TLSCL0\b/g, "TLSC|10")
-    .replace(/TLSCI0\b/g, "TLSC|10")
-    .replace(/TLSC1O\b/g, "TLSC|10")
-    .replace(/APSCL0\b/g, "APSC|10")
-    .replace(/APSCI0\b/g, "APSC|10")
-    .replace(/APSC1O\b/g, "APSC|10")
-    .replace(/\b(ESC|CSC|TLSC|APSC|ACE)\s+(\d{1,2})\b/g, "$1|$2");
-
-  const matches = [
-    ...n.matchAll(/\b(ESC|CSC|TLSC|APSC|ACE)\s*\|\s*(\d{1,2})\b/g),
-  ];
-
-  if (matches.length > 0) {
-    const last = matches[matches.length - 1];
-    return {
-      club: last[1],
-      age: Number(last[2]),
-    };
-  }
-
-  if (
-    n.includes("CSCLIO") ||
-    n.includes("CSCLO") ||
-    n.includes("CSCL0") ||
-    n.includes("CSCIO") ||
-    n.includes("CSCI0") ||
-    n.includes("CSC1O")
-  ) {
-    return { club: "CSC", age: 10 };
-  }
-
-  if (n.includes("ESCI0") || n.includes("ESCL0") || n.includes("ESC10")) {
-    return { club: "ESC", age: 10 };
-  }
-
-  if (n.includes("TLSCI0") || n.includes("TLSCL0") || n.includes("TLSC10")) {
-    return { club: "TLSC", age: 10 };
-  }
-
-  if (n.includes("APSCI0") || n.includes("APSCL0") || n.includes("APSC10")) {
-    return { club: "APSC", age: 10 };
-  }
-
-  if (n.includes("ACE")) {
-    const ageMatch = n.match(/\b(6|7|8|9|10|11|12|13|14|15|16|17|18)\b/);
-    return {
-      club: "ACE",
-      age: ageMatch ? Number(ageMatch[1]) : null,
-    };
-  }
-
-  return {
-    club: null,
-    age: null,
-  };
+function formatMs(ms?: number | null) {
+  if (ms == null || isNaN(ms)) return "-";
+  const totalSeconds = ms / 1000;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds - minutes * 60;
+  return minutes > 0
+    ? `${minutes}:${seconds.toFixed(2).padStart(5, "0")}`
+    : seconds.toFixed(2);
 }
 
-function timeToMs(time: string): number {
-  if (time.includes(":")) {
-    const [mins, secs] = time.split(":");
-    return Math.round((Number(mins) * 60 + Number(secs)) * 1000);
-  }
-  return Math.round(Number(time) * 1000);
+function getInitials(name: string) {
+  return name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 }
 
-function buildEventName(parts: {
-  gender: string;
-  ageGroup: string | null;
-  distance: string;
-  stroke: string;
-}): string {
-  return [parts.gender, parts.ageGroup, parts.distance, parts.stroke]
-    .filter(Boolean)
-    .join(" ") || "Unknown";
-}
+const AVATAR_COLORS = [
+  { bg: "#92400E", text: "#FDE68A" },
+  { bg: "#78350F", text: "#FCD34D" },
+  { bg: "#854F0B", text: "#FAC775" },
+  { bg: "#633806", text: "#EF9F27" },
+  { bg: "#412402", text: "#BA7517" },
+];
 
-function parseRows(rawText: string): Row[] {
-  const lines = rawText
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
-
-  const base = detectBaseEvent(rawText);
-  const results: Row[] = [];
-  let activeSectionAgeGroup: string | null = null;
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const lower = line.toLowerCase();
-
-    const sectionAgeGroup = detectSectionAgeGroup(line);
-    if (sectionAgeGroup) {
-      activeSectionAgeGroup = sectionAgeGroup;
-    }
-
-    if (
-      /^(girls|boys)\s/i.test(line) ||
-      lower.includes("event details") ||
-      lower.includes("finals - results") ||
-      lower === "time" ||
-      lower === "place"
-    ) {
-      continue;
-    }
-
-    const timeMatch = line.match(TIME_RE);
-    if (!timeMatch) continue;
-
-    const time = timeMatch[0];
-    const timeIndex = line.indexOf(time);
-
-    let name = "";
-
-    if (lower.startsWith("dropped:") || lower.startsWith("added:")) {
-      for (let j = i - 1; j >= Math.max(0, i - 5); j--) {
-        const prev = lines[j];
-        const prevLower = prev.toLowerCase();
-
-        if (TIME_RE.test(prev)) break;
-
-        if (
-          prevLower.startsWith("dropped:") ||
-          prevLower.startsWith("added:") ||
-          prevLower === "place" ||
-          prevLower === "time" ||
-          /^\d{1,2}$/.test(prev)
-        ) {
-          continue;
-        }
-
-        const candidate = cleanName(prev);
-        if (candidate.length >= 3 && /[A-Z][a-z]/.test(candidate)) {
-          name = candidate;
-          break;
-        }
-      }
-    } else {
-      name = cleanName(line.substring(0, timeIndex));
-    }
-
-    if (!name || name.length < 3) continue;
-
-    const prevLine = lines[i - 1] || "";
-    const nextLine = lines[i + 1] || "";
-    const nextNextLine = lines[i + 2] || "";
-
-    const context = [prevLine, line, nextLine, nextNextLine]
-      .join(" ")
-      .replace(/\s+/g, " ")
-      .trim();
-
-    let { club, age } = extractClubAndAge(context);
-
-    if (!club || !age) {
-      const widerContext = [
-        lines[i - 1] || "",
-        lines[i] || "",
-        lines[i + 1] || "",
-        lines[i + 2] || "",
-        lines[i + 3] || "",
-      ]
-        .join(" ")
-        .replace(/\s+/g, " ")
-        .trim();
-
-      const fallback = extractClubAndAge(widerContext);
-
-      if (!club && fallback.club) club = fallback.club;
-      if (!age && fallback.age) age = fallback.age;
-    }
-
-    const chosenAgeGroup =
-      age != null
-        ? `${age} Year Olds`
-        : activeSectionAgeGroup ||
-          base.headerAgeGroup ||
-          (base.isOpen ? "Open" : null);
-
-    const event = buildEventName({
-      gender: base.gender,
-      ageGroup: chosenAgeGroup,
-      distance: base.distance,
-      stroke: base.stroke,
-    });
-
-    if (
-      results.some(
-        (r) => r.name === name && r.time === time && r.event === event
-      )
-    ) {
-      continue;
-    }
-
-    results.push({
-      name,
-      time,
-      place: null,
-      raw: context.substring(0, 220),
-      club,
-      age,
-      age_group: chosenAgeGroup,
-      event,
-    });
-  }
-
-  return results;
-}
-
-function rankRowsByTime(rows: Row[]): Row[] {
-  const groups = new Map<string, Row[]>();
-
-  for (const row of rows) {
-    const key = row.event || "Unknown";
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(row);
-  }
-
-  const rankedRows: Row[] = [];
-
-  for (const [, groupRows] of groups) {
-    const sorted = [...groupRows].sort(
-      (a, b) => timeToMs(a.time) - timeToMs(b.time)
-    );
-
-    sorted.forEach((row, index) => {
-      rankedRows.push({
-        ...row,
-        place: index + 1,
-      });
-    });
-  }
-
-  return rankedRows;
+function avatarColor(index: number) {
+  return AVATAR_COLORS[index % AVATAR_COLORS.length];
 }
 
 export default function ScanPage() {
-  const [file, setFile] = useState<File | null>(null);
-  const [status, setStatus] = useState("Ready");
-  const [text, setText] = useState("");
-  const [rows, setRows] = useState<Row[]>([]);
-  const [saving, setSaving] = useState(false);
-  const [runningOcr, setRunningOcr] = useState(false);
+  const router = useRouter();
+  const [swimmers, setSwimmers] = useState<Swimmer[]>([]);
+  const [primarySwimmers, setPrimarySwimmers] = useState<Swimmer[]>([]);
+  const [loadingSwimmers, setLoadingSwimmers] = useState(true);
 
-  function updateRow<K extends keyof Row>(
-    index: number,
-    field: K,
-    value: Row[K]
+  const [file1, setFile1] = useState<File | null>(null);
+  const [file2, setFile2] = useState<File | null>(null);
+  const [preview1, setPreview1] = useState<string | null>(null);
+  const [preview2, setPreview2] = useState<string | null>(null);
+  const [step, setStep] = useState<Step>("idle");
+  const [progress, setProgress] = useState(0);
+  const [message, setMessage] = useState("");
+  const [rawText, setRawText] = useState("");
+  const [scanMode, setScanMode] = useState<ScanMode>(null);
+
+  // Single swim state
+  const [detectedEvent, setDetectedEvent] = useState<string | null>(null);
+  const [detectedTime, setDetectedTime] = useState<string | null>(null);
+  const [matchedSwimmer, setMatchedSwimmer] = useState<Swimmer | null>(null);
+  const [showPicker, setShowPicker] = useState(false);
+  const [singleSaved, setSingleSaved] = useState(false);
+
+  // Event results state
+  const [eventRows, setEventRows] = useState<EventResultRow[]>([]);
+  const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
+  const [savingSelected, setSavingSelected] = useState(false);
+  const [savedNames, setSavedNames] = useState<string[]>([]);
+
+  const ref1 = useRef<HTMLInputElement | null>(null);
+  const ref2 = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => { void loadSwimmers(); }, []);
+
+  async function loadSwimmers() {
+    const { data: session } = await supabase.auth.getSession();
+    if (!session.session) { router.replace("/login"); return; }
+
+    // ✅ Load ALL swimmers (primary + following) for fuzzy matching
+    // But only show primary swimmers in the picker UI
+    const { data } = await supabase
+      .from("swimmers")
+      .select("id, name, age, swim_club, group_type")
+      .order("name", { ascending: true });
+
+    const all = (data as Swimmer[]) || [];
+    setSwimmers(all);
+    setPrimarySwimmers(all.filter((s) => s.group_type === "primary"));
+    setLoadingSwimmers(false);
+  }
+
+  function handleFile(
+    e: React.ChangeEvent<HTMLInputElement>,
+    setFile: (f: File | null) => void,
+    setPreview: (s: string | null) => void
   ) {
-    setRows((current) =>
-      current.map((row, i) => (i === index ? { ...row, [field]: value } : row))
+    const f = e.target.files?.[0] ?? null;
+    setFile(f);
+    setPreview(f ? URL.createObjectURL(f) : null);
+  }
+
+  function reset() {
+    setFile1(null); setFile2(null);
+    setPreview1(null); setPreview2(null);
+    setStep("idle"); setProgress(0); setMessage(""); setRawText("");
+    setScanMode(null); setDetectedEvent(null);
+    setDetectedTime(null); setMatchedSwimmer(null);
+    setShowPicker(false); setSingleSaved(false);
+    setEventRows([]); setSelectedRows(new Set());
+    setSavingSelected(false); setSavedNames([]);
+    if (ref1.current) ref1.current.value = "";
+    if (ref2.current) ref2.current.value = "";
+  }
+
+  function toggleRow(index: number) {
+    setSelectedRows((prev) => {
+      const next = new Set(prev);
+      next.has(index) ? next.delete(index) : next.add(index);
+      return next;
+    });
+  }
+
+  // ✅ Save single swim to a specific swimmer
+  async function saveSingleToSwimmer(swimmer: Swimmer) {
+    try {
+      const saveResult = await parseAndSaveSwimOCR(rawText, {
+        swimmerId: swimmer.id,
+        swimmerName: swimmer.name,
+        defaultCourse: "LCM",
+      });
+      if (saveResult.savedCount === 0) {
+        setMessage(`⚠️ ${saveResult.errors[0] || "Nothing saved."}`);
+      } else {
+        setMessage(`✓ Saved to ${swimmer.name} — ${saveResult.savedCount} swim(s), ${saveResult.splitSavedCount} split row(s).`);
+        setSingleSaved(true);
+      }
+    } catch (err: any) {
+      setMessage(`⚠️ Save error: ${err?.message ?? "Unknown"}`);
+    }
+    setShowPicker(false);
+    setMatchedSwimmer(swimmer);
+  }
+
+  // ✅ Save selected event results rows
+  async function handleSaveSelected() {
+    if (selectedRows.size === 0) return;
+    setSavingSelected(true);
+    const saved: string[] = [];
+    const errors: string[] = [];
+
+    for (const index of Array.from(selectedRows)) {
+      const row = eventRows[index];
+      if (!row) continue;
+
+      // ✅ Match against ALL swimmers (primary + following)
+      const matched = fuzzyMatchSwimmer(row.name, swimmers);
+      if (!matched) {
+        errors.push(`${row.name}: no matching swimmer profile`);
+        continue;
+      }
+
+      const eventName = canonicalEventName(row.event ?? "");
+      const courseName = canonicalCourse(row.course ?? "LCM");
+      if (!eventName) { errors.push(`${row.name}: no event`); continue; }
+
+      const { data: existing } = await supabase
+        .from("swim_times").select("id")
+        .eq("swimmer_id", matched.id)
+        .eq("event", eventName).eq("course", courseName)
+        .eq("time_ms", row.timeMs).limit(1);
+
+      if (existing && existing.length > 0) {
+        errors.push(`${row.name}: already saved`);
+        continue;
+      }
+
+      const { error } = await supabase.from("swim_times").insert({
+        swimmer_id: matched.id,
+        event: eventName,
+        course: courseName,
+        time_ms: row.timeMs,
+        place: row.place ?? null,
+        meet_name: row.meetName ?? null,
+        swam_at: row.swamAt ?? null,
+      });
+
+      error ? errors.push(`${row.name}: ${error.message}`) : saved.push(row.name);
+    }
+
+    setSavedNames((prev) => [...prev, ...saved]);
+    setMessage(
+      saved.length > 0
+        ? `✓ Saved ${saved.length} result(s)${errors.length > 0 ? ` · Issues: ${errors.join(", ")}` : ""}`
+        : `⚠️ Nothing saved. ${errors.join(", ")}`
     );
+    setSavingSelected(false);
+    setSelectedRows(new Set());
   }
 
-  function deleteRow(index: number) {
-    setRows((current) => current.filter((_, i) => i !== index));
-  }
+  async function handleScan() {
+    if (!file1) return;
+    setStep("scanning");
+    setProgress(0); setMessage(""); setRawText("");
+    setScanMode(null); setDetectedEvent(null);
+    setDetectedTime(null); setMatchedSwimmer(null); setShowPicker(false);
+    setSingleSaved(false); setEventRows([]); setSelectedRows(new Set()); setSavedNames([]);
 
-  function handleAgeChange(index: number, value: string) {
-    const trimmed = value.trim();
-    const nextAge = trimmed === "" ? null : Number(trimmed);
-    const safeAge = Number.isNaN(nextAge) ? null : nextAge;
+    try {
+      const files = [file1, file2].filter(Boolean) as File[];
+      let combined = "";
 
-    setRows((current) =>
-      current.map((row, i) => {
-        if (i !== index) return row;
-
-        const nextAgeGroup =
-          safeAge != null ? `${safeAge} Year Olds` : row.age_group;
-
-        const gender = row.event.includes("Girls")
-          ? "Girls"
-          : row.event.includes("Boys")
-            ? "Boys"
-            : "";
-
-        const distanceMatch = row.event.match(
-          /\b(25|50|100|200|400|800|1500)m\b/i
-        );
-        const distance = distanceMatch ? distanceMatch[0] : "";
-
-        const stroke = normalizeStroke(row.event);
-
-        const nextEvent = buildEventName({
-          gender,
-          ageGroup: nextAgeGroup,
-          distance,
-          stroke,
+      for (let i = 0; i < files.length; i++) {
+        const worker = await createWorker("eng", 1, {
+          logger: (m: any) => {
+            if (m.status === "recognizing text") {
+              setProgress((i / files.length) * 100 + (m.progress * 100) / files.length);
+            }
+          },
         });
+        try {
+          const { data: { text } } = await worker.recognize(files[i]);
+          combined += text + "\n\n";
+        } finally {
+          await worker.terminate();
+        }
+      }
 
-        return {
-          ...row,
-          age: safeAge,
-          age_group: nextAgeGroup,
-          event: nextEvent,
-        };
-      })
+      setRawText(combined);
+      const is400IM = /400\s*(meter|m)?\s*im/i.test(combined);
+      const isEventPage = isEventResultsPage(combined);
+
+      if (isEventPage) {
+        // ✅ EVENT RESULTS PAGE — show checklist
+        setScanMode("event_results");
+        const parsed = parseEventResultsOCR(combined);
+        setEventRows(parsed.results);
+
+        // Pre-tick rows that fuzzy match any swimmer in the app
+        const preSelected = new Set<number>();
+        parsed.results.forEach((row, idx) => {
+          if (fuzzyMatchSwimmer(row.name, swimmers)) preSelected.add(idx);
+        });
+        setSelectedRows(preSelected);
+        setMessage(parsed.results.length === 0 ? "⚠️ No results detected." : "");
+
+      } else {
+        // ✅ SINGLE SWIM DETAIL — try to auto-match swimmer name
+        setScanMode(is400IM ? "400im" : "single");
+        const results = parseSwimOCRText(combined, { swimmerName: "" });
+        const first = results[0];
+
+        if (first) {
+          setDetectedEvent(first.event);
+          setDetectedTime(first.timeStr ?? null);
+          const ocrName = first.name ?? null;
+
+          if (ocrName) {
+            // ✅ Try fuzzy match against ALL swimmers
+            const matched = fuzzyMatchSwimmer(ocrName, swimmers);
+            if (matched) {
+              setMatchedSwimmer(matched);
+              await saveSingleToSwimmer(matched);
+            } else {
+              // No match — show picker with primary swimmers only
+              setShowPicker(true);
+              setMessage(`Could not match "${ocrName}" — please select who to save to.`);
+            }
+          } else {
+            setShowPicker(true);
+            setMessage("Couldn't detect swimmer name — please select who to save to.");
+          }
+        } else {
+          setMessage("⚠️ No result detected. Try again with a clearer screenshot.");
+        }
+      }
+
+      setStep("done");
+    } catch (err: any) {
+      setMessage(`❌ ${err?.message ?? "Unknown error"}`);
+      setStep("done");
+    }
+  }
+
+  if (loadingSwimmers) {
+    return (
+      <div className="shell">
+        <div className="container-app">
+          <p className="muted">Loading...</p>
+        </div>
+      </div>
     );
-  }
-
-  async function handleRunOcr() {
-    if (!file) {
-      setStatus("Please upload a screenshot first");
-      return;
-    }
-
-    setRunningOcr(true);
-    setStatus("Reading image...");
-    setText("");
-    setRows([]);
-
-    let worker: Awaited<ReturnType<typeof createWorker>> | null = null;
-
-    try {
-      worker = await createWorker("eng");
-      const result = await worker.recognize(file);
-      const extractedText = result.data.text || "";
-
-      setText(extractedText);
-
-      const parsed = parseRows(extractedText);
-      const ranked = rankRowsByTime(parsed);
-
-      setRows(ranked);
-      setStatus(`OCR complete (${ranked.length} rows found)`);
-    } catch (err) {
-      console.error("OCR error:", err);
-      setStatus("OCR failed");
-    } finally {
-      if (worker) {
-        await worker.terminate();
-      }
-      setRunningOcr(false);
-    }
-  }
-
-  async function handleSave() {
-    if (rows.length === 0) {
-      alert("No data to save");
-      return;
-    }
-
-    setSaving(true);
-    setStatus("Saving results...");
-
-    try {
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
-
-      if (userError) {
-        console.error("Auth error:", userError);
-        alert("Could not check login.");
-        setStatus("Could not check login.");
-        return;
-      }
-
-      if (!user) {
-        alert("You must be logged in.");
-        setStatus("You must be logged in.");
-        return;
-      }
-
-      const payload = rows.map((r) => ({
-        swimmer_name: r.name.trim(),
-        time: r.time.trim(),
-        place: r.place ?? null,
-        source: "ocr",
-        club: r.club?.trim() || null,
-        age: r.age ?? null,
-        age_group: r.age_group?.trim() || null,
-        event: r.event.trim(),
-        user_id: user.id,
-      }));
-
-      const { error } = await supabase.from("swim_results").insert(payload);
-
-      if (error) {
-        console.error("Supabase save error:", error);
-        console.error("message:", error?.message);
-        console.error("details:", error?.details);
-        console.error("hint:", error?.hint);
-        console.error("code:", error?.code);
-
-        alert(`Error saving data: ${error?.message || "Unknown error"}`);
-        setStatus(`Error saving data: ${error?.message || "Unknown error"}`);
-        return;
-      }
-
-      alert("Saved to database 🚀");
-      setStatus(`Saved ${payload.length} rows to database`);
-    } catch (err) {
-      console.error("Unexpected save error:", err);
-      alert("Something went wrong while saving");
-      setStatus("Something went wrong while saving");
-    } finally {
-      setSaving(false);
-    }
   }
 
   return (
-    <main className="mx-auto max-w-3xl p-4">
-      <div className="card space-y-4">
-        <h1 className="text-2xl font-semibold">Scan Results</h1>
+    <div className="shell">
+      <div className="container-app space-y-5">
 
-        <p className="text-sm text-white/70">{status}</p>
-        <p className="text-sm text-white/70">
-          {file ? `Selected: ${file.name}` : "No file selected"}
-        </p>
-
-        <div className="flex flex-wrap gap-3">
-          <label className="inline-flex cursor-pointer items-center justify-center rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-medium text-white hover:bg-white/15">
-            Upload screenshot
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => setFile(e.target.files?.[0] || null)}
-            />
-          </label>
-
-          <button
-            type="button"
-            onClick={handleRunOcr}
-            disabled={runningOcr}
-            className="inline-flex items-center justify-center rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-medium text-white hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {runningOcr ? "Running OCR..." : "Run OCR"}
-          </button>
-
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving || rows.length === 0}
-            className="inline-flex items-center justify-center rounded-2xl border border-green-400/30 bg-green-500/20 px-4 py-3 text-sm font-medium text-white hover:bg-green-500/30 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {saving ? "Saving..." : "Save Results"}
-          </button>
+        {/* Header */}
+        <div className="pt-2">
+          <p className="text-[10px] font-medium uppercase tracking-widest" style={{ color: "#BA7517" }}>
+            SwimScan
+          </p>
+          <h1 className="mt-1 text-3xl font-bold tracking-tight text-white">
+            Scan result
+          </h1>
         </div>
 
-        <div>
-          <h2 className="mb-2 text-lg font-medium">Parsed Results</h2>
+        {/* No swimmers state */}
+        {primarySwimmers.length === 0 && (
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-8 text-center">
+            <p className="text-base font-semibold text-white">No swimmers added yet</p>
+            <p className="mt-1 text-sm text-white/40">Add a swimmer in My Kids first.</p>
+            <button
+              type="button"
+              onClick={() => router.push("/swimmers")}
+              className="mt-4 rounded-2xl px-5 py-2.5 text-sm font-semibold text-white"
+              style={{ background: "#D97706" }}
+            >
+              Go to My Kids
+            </button>
+          </div>
+        )}
 
-          {rows.length === 0 ? (
-            <div className="text-sm text-white/50">No rows yet</div>
-          ) : (
-            <div className="space-y-4">
-              {rows.map((r, i) => {
-                const missingName = !r.name.trim();
-                const missingEvent = !r.event.trim();
-                const missingTime = !r.time.trim();
-                const missingAgeGroup = !r.age_group?.trim();
-
-                return (
-                  <div
-                    key={i}
-                    className="space-y-3 rounded-2xl border border-white/10 p-4"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="text-sm text-white/50">
-                        Result #{i + 1}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => deleteRow(i)}
-                        className="rounded-xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-xs font-medium text-red-300 hover:bg-red-500/20"
-                      >
-                        Delete Row
-                      </button>
-                    </div>
-
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <div>
-                        <label className="mb-1 block text-xs text-white/50">
-                          Name
-                        </label>
-                        <input
-                          className={inputClass(missingName)}
-                          value={r.name}
-                          onChange={(e) =>
-                            updateRow(i, "name", e.target.value)
-                          }
-                        />
-                      </div>
-
-                      <div>
-                        <label className="mb-1 block text-xs text-white/50">
-                          Event
-                        </label>
-                        <input
-                          className={inputClass(missingEvent)}
-                          value={r.event}
-                          onChange={(e) =>
-                            updateRow(i, "event", e.target.value)
-                          }
-                        />
-                      </div>
-
-                      <div>
-                        <label className="mb-1 block text-xs text-white/50">
-                          Age Group
-                        </label>
-                        <input
-                          className={inputClass(missingAgeGroup)}
-                          value={r.age_group ?? ""}
-                          onChange={(e) =>
-                            updateRow(
-                              i,
-                              "age_group",
-                              e.target.value.trim() || null
-                            )
-                          }
-                        />
-                      </div>
-
-                      <div>
-                        <label className="mb-1 block text-xs text-white/50">
-                          Time
-                        </label>
-                        <input
-                          className={inputClass(missingTime)}
-                          value={r.time}
-                          onChange={(e) =>
-                            updateRow(i, "time", e.target.value)
-                          }
-                        />
-                      </div>
-
-                      <div>
-                        <label className="mb-1 block text-xs text-white/50">
-                          Place
-                        </label>
-                        <input
-                          className={inputClass(false)}
-                          value={r.place ?? ""}
-                          onChange={(e) => {
-                            const v = e.target.value.trim();
-                            updateRow(
-                              i,
-                              "place",
-                              v === ""
-                                ? null
-                                : Number.isNaN(Number(v))
-                                  ? null
-                                  : Number(v)
-                            );
-                          }}
-                        />
-                      </div>
-
-                      <div>
-                        <label className="mb-1 block text-xs text-white/50">
-                          Club
-                        </label>
-                        <input
-                          className={inputClass(false)}
-                          value={r.club ?? ""}
-                          onChange={(e) =>
-                            updateRow(i, "club", e.target.value.trim() || null)
-                          }
-                        />
-                      </div>
-
-                      <div>
-                        <label className="mb-1 block text-xs text-white/50">
-                          Age
-                        </label>
-                        <input
-                          className={inputClass(false)}
-                          inputMode="numeric"
-                          value={r.age ?? ""}
-                          onChange={(e) => handleAgeChange(i, e.target.value)}
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="mb-1 block text-xs text-white/50">
-                        Raw OCR
-                      </label>
-                      <textarea
-                        className={textareaClass(false)}
-                        value={r.raw}
-                        onChange={(e) => updateRow(i, "raw", e.target.value)}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
+        {/* IDLE — upload UI */}
+        {step === "idle" && primarySwimmers.length > 0 && (
+          <div className="space-y-4">
+            <div
+              className="rounded-2xl p-3 text-sm text-white/50 space-y-1"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+            >
+              <p className="font-medium text-white/70">Two scan modes — auto detected:</p>
+              <p>📋 Swim detail — single result with splits, name matched automatically</p>
+              <p>📊 Event results — full rankings, pre-ticks your swimmers</p>
             </div>
-          )}
-        </div>
 
-        <div>
-          <h2 className="mb-2 text-lg font-medium">OCR Raw Text</h2>
-          <textarea className="input min-h-[200px]" value={text} readOnly />
-        </div>
+            <div className="grid grid-cols-2 gap-3">
+              <SlotButton
+                label="Screen 1" hint="Required" preview={preview1}
+                inputRef={ref1} required
+                onChange={(e) => handleFile(e, setFile1, setPreview1)}
+              />
+              <SlotButton
+                label="Screen 2" hint="Optional" preview={preview2}
+                inputRef={ref2}
+                onChange={(e) => handleFile(e, setFile2, setPreview2)}
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={handleScan}
+              disabled={!file1}
+              className="w-full rounded-2xl py-4 text-lg font-bold text-white transition disabled:opacity-40"
+              style={{ background: file1 ? "#D97706" : "rgba(255,255,255,0.1)" }}
+            >
+              Scan
+            </button>
+          </div>
+        )}
+
+        {/* SCANNING */}
+        {step === "scanning" && (
+          <div className="space-y-4 pt-8">
+            <p className="text-center text-lg font-semibold text-white">
+              Scanning… {Math.round(progress)}%
+            </p>
+            <div className="h-2 overflow-hidden rounded-full bg-white/10">
+              <div
+                className="h-full rounded-full transition-all duration-200"
+                style={{ width: `${progress}%`, background: "#D97706" }}
+              />
+            </div>
+            <p className="text-center text-sm text-white/40">Reading screenshot</p>
+          </div>
+        )}
+
+        {/* DONE */}
+        {step === "done" && (
+          <div className="space-y-4">
+
+            {/* Message */}
+            {message && (
+              <div
+                className="rounded-2xl border p-3 text-sm"
+                style={
+                  message.startsWith("✓")
+                    ? { background: "rgba(186,117,23,0.12)", border: "1px solid rgba(186,117,23,0.3)", color: "#EF9F27" }
+                    : { background: "rgba(226,75,74,0.1)", border: "1px solid rgba(226,75,74,0.2)", color: "#F09595" }
+                }
+              >
+                {message}
+              </div>
+            )}
+
+            {/* SINGLE SWIM — auto matched and saved */}
+            {scanMode !== "event_results" && matchedSwimmer && singleSaved && (
+              <div
+                className="rounded-2xl p-4 space-y-1"
+                style={{ background: "rgba(186,117,23,0.08)", border: "1px solid rgba(186,117,23,0.2)" }}
+              >
+                <p className="text-xs text-white/40 uppercase tracking-widest">Saved to</p>
+                <p className="text-base font-semibold text-white">{matchedSwimmer.name}</p>
+                {detectedEvent && <p className="text-sm text-white/50">{detectedEvent}</p>}
+                {detectedTime && <p className="text-2xl font-bold text-white">{detectedTime}</p>}
+              </div>
+            )}
+
+            {/* SINGLE SWIM — no match, show picker */}
+            {scanMode !== "event_results" && showPicker && (
+              <div className="space-y-3">
+                {(detectedEvent || detectedTime) && (
+                  <div
+                    className="rounded-2xl p-3"
+                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                  >
+                    {detectedEvent && <p className="text-sm text-white/60">{detectedEvent}</p>}
+                    {detectedTime && <p className="text-2xl font-bold text-white mt-1">{detectedTime}</p>}
+                  </div>
+                )}
+                <p className="text-sm text-white/50">Who should this be saved to?</p>
+                {primarySwimmers.map((swimmer, index) => {
+                  const colors = avatarColor(index);
+                  return (
+                    <button
+                      key={swimmer.id}
+                      type="button"
+                      onClick={() => void saveSingleToSwimmer(swimmer)}
+                      className="flex w-full items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-3 text-left transition hover:bg-white/10"
+                    >
+                      <div
+                        className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-xs font-bold"
+                        style={{ background: colors.bg, color: colors.text }}
+                      >
+                        {getInitials(swimmer.name)}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-white">{swimmer.name}</p>
+                        <p className="text-xs text-white/40">
+                          Age {swimmer.age}{swimmer.swim_club ? ` · ${swimmer.swim_club}` : ""}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* EVENT RESULTS — checklist */}
+            {scanMode === "event_results" && eventRows.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-white">
+                      {eventRows[0]?.event ?? "Event"} results
+                    </p>
+                    <p className="text-xs text-white/40 mt-0.5">
+                      {eventRows.length} swimmers · tick who to save
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedRows(new Set(eventRows.map((_, i) => i)))}
+                      className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/60 hover:bg-white/10"
+                    >
+                      All
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedRows(new Set())}
+                      className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/60 hover:bg-white/10"
+                    >
+                      None
+                    </button>
+                  </div>
+                </div>
+
+                {eventRows.map((row, index) => {
+                  const isSelected = selectedRows.has(index);
+                  const alreadySaved = savedNames.includes(row.name);
+                  const hasProfile = !!fuzzyMatchSwimmer(row.name, swimmers);
+
+                  return (
+                    <button
+                      key={index}
+                      type="button"
+                      onClick={() => !alreadySaved && toggleRow(index)}
+                      disabled={alreadySaved}
+                      className="w-full rounded-2xl border p-3 text-left transition"
+                      style={
+                        alreadySaved
+                          ? { background: "rgba(186,117,23,0.08)", border: "1px solid rgba(186,117,23,0.2)", opacity: 0.6 }
+                          : isSelected
+                          ? { background: "rgba(186,117,23,0.12)", border: "1px solid rgba(186,117,23,0.4)" }
+                          : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }
+                      }
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="w-5 h-5 rounded-md flex-shrink-0 flex items-center justify-center"
+                          style={
+                            isSelected || alreadySaved
+                              ? { background: "#D97706", border: "1px solid #D97706" }
+                              : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)" }
+                          }
+                        >
+                          {(isSelected || alreadySaved) && (
+                            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                              <path d="M2 5L4 7L8 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          )}
+                        </div>
+                        <span className="text-xs text-white/30 w-8 flex-shrink-0">#{row.place}</span>
+                        <div className="flex-1 min-w-0">
+                          <p
+                            className="text-sm font-semibold truncate"
+                            style={{ color: hasProfile ? "#EF9F27" : "white" }}
+                          >
+                            {row.name}
+                            {hasProfile && (
+                              <span className="ml-2 text-[10px] opacity-60">in app</span>
+                            )}
+                          </p>
+                          {row.club && (
+                            <p className="text-xs text-white/30">
+                              {row.club}{row.age ? ` · Age ${row.age}` : ""}
+                            </p>
+                          )}
+                        </div>
+                        <p className="text-sm font-semibold text-white flex-shrink-0">{row.timeStr}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+
+                {selectedRows.size > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleSaveSelected}
+                    disabled={savingSelected}
+                    className="w-full rounded-2xl py-4 text-lg font-bold text-white transition disabled:opacity-50"
+                    style={{ background: "#D97706" }}
+                  >
+                    {savingSelected
+                      ? "Saving..."
+                      : `Save ${selectedRows.size} result${selectedRows.size === 1 ? "" : "s"}`}
+                  </button>
+                )}
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={reset}
+              className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 text-sm font-semibold text-white/60 transition hover:bg-white/10"
+            >
+              Scan another
+            </button>
+          </div>
+        )}
       </div>
-    </main>
+    </div>
+  );
+}
+
+function SlotButton({
+  label, hint, preview, inputRef, required, onChange,
+}: {
+  label: string;
+  hint: string;
+  preview: string | null;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  required?: boolean;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+}) {
+  return (
+    <div
+      onClick={() => inputRef.current?.click()}
+      className="relative flex min-h-[130px] cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-white/15 bg-white/[0.03] p-3 text-center transition hover:border-amber-400/50 hover:bg-white/5"
+    >
+      <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={onChange} />
+      {required && !preview && (
+        <span
+          className="absolute right-2 top-2 rounded-full px-2 py-0.5 text-[9px] uppercase tracking-wider"
+          style={{ background: "rgba(186,117,23,0.2)", color: "#EF9F27" }}
+        >
+          Required
+        </span>
+      )}
+      {preview ? (
+        <img src={preview} alt={label} className="max-h-40 rounded-xl object-contain" />
+      ) : (
+        <>
+          <span className="text-2xl text-white/15">📷</span>
+          <p className="mt-1 text-xs font-semibold text-white/40">{label}</p>
+          <p className="mt-0.5 text-[10px] text-white/20">{hint}</p>
+        </>
+      )}
+    </div>
   );
 }
