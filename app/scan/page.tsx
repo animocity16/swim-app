@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createWorker } from "tesseract.js";
 import { supabase } from "@/lib/supabaseClient";
 import { parseSwimOCRText } from "@/lib/ocrMultiEventParser";
-import { parseAndSaveSwimOCR } from "@/lib/parseSwimOCRFlow";
+import { parseAndSaveSwimOCR, detectMeetType } from "@/lib/parseSwimOCRFlow";
 import { parse400IMSplitsFromOCR } from "@/lib/parse400IMSplits";
 import {
   parseEventResultsOCR,
@@ -25,44 +25,25 @@ type Swimmer = {
 type Step = "idle" | "scanning" | "done";
 type ScanMode = "single" | "event_results" | "400im" | null;
 
-// ✅ Multi-strategy fuzzy name matching
-// Handles OCR name variations vs shortened profile names
-//
-// Strategy 1: Exact full name match — "Mikaela Loh" = "Mikaela Loh"
-// Strategy 2: Profile name is substring of OCR name
-//             "Kimi Rachel" found inside "Kimi Rachel Koh"
-//             "Olivia Lim" found inside "En Ning Olivia Lim"
-// Strategy 3: Any word in OCR name matches profile first name
-//             "Mikaela" in profile, "Mikaela" appears in OCR name
-// Strategy 4: OCR first name + surname initial matches profile
-//             "Mikaela L" matches "Mikaela Loh"
 function fuzzyMatchSwimmer(ocrName: string, swimmers: Swimmer[]): Swimmer | null {
   const clean = ocrName.trim().toLowerCase();
   const ocrWords = clean.split(/\s+/);
 
-  // Strategy 1: Exact full name
   const exact = swimmers.find((s) => s.name.toLowerCase() === clean);
   if (exact) return exact;
 
-  // Strategy 2: Profile full name appears as substring in OCR name
-  // e.g. profile "Olivia Lim" found inside OCR "En Ning Olivia Lim"
-  // e.g. profile "Kimi Rachel" found inside OCR "Kimi Rachel Koh"
   const bySubstring = swimmers.find((s) => {
     const profileName = s.name.toLowerCase();
     return clean.includes(profileName);
   });
   if (bySubstring) return bySubstring;
 
-  // Strategy 3: Any word in OCR name matches the first word of a profile
-  // e.g. OCR has "Mikaela" somewhere and profile first name is "Mikaela"
   const byFirstName = swimmers.find((s) => {
     const profileFirst = s.name.toLowerCase().split(/\s+/)[0];
     return ocrWords.includes(profileFirst);
   });
   if (byFirstName) return byFirstName;
 
-  // Strategy 4: OCR first word + surname initial matches profile first word + initial
-  // e.g. OCR "Tessa N..." matches profile "Tessa Ng"
   const ocrFirst = ocrWords[0];
   const ocrSurnameInitial = ocrWords[1]?.[0] ?? null;
 
@@ -72,7 +53,7 @@ function fuzzyMatchSwimmer(ocrName: string, swimmers: Swimmer[]): Swimmer | null
       const profileFirst = parts[0];
       const profileSurnameInitial = parts[1]?.[0] ?? null;
       if (profileFirst !== ocrFirst) return false;
-      if (!profileSurnameInitial || !ocrSurnameInitial) return true; // first name only match
+      if (!profileSurnameInitial || !ocrSurnameInitial) return true;
       return profileSurnameInitial === ocrSurnameInitial;
     });
     if (byInitial) return byInitial;
@@ -123,14 +104,12 @@ export default function ScanPage() {
   const [rawText, setRawText] = useState("");
   const [scanMode, setScanMode] = useState<ScanMode>(null);
 
-  // Single swim state
   const [detectedEvent, setDetectedEvent] = useState<string | null>(null);
   const [detectedTime, setDetectedTime] = useState<string | null>(null);
   const [matchedSwimmer, setMatchedSwimmer] = useState<Swimmer | null>(null);
   const [showPicker, setShowPicker] = useState(false);
   const [singleSaved, setSingleSaved] = useState(false);
 
-  // Event results state
   const [eventRows, setEventRows] = useState<EventResultRow[]>([]);
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
   const [savingSelected, setSavingSelected] = useState(false);
@@ -142,24 +121,23 @@ export default function ScanPage() {
   useEffect(() => { void loadSwimmers(); }, []);
 
   async function loadSwimmers() {
-  // ✅ Retry once to handle post-signup race condition
-  let session = (await supabase.auth.getSession()).data.session;
-  if (!session) {
-    await new Promise(r => setTimeout(r, 800));
-    session = (await supabase.auth.getSession()).data.session;
+    let session = (await supabase.auth.getSession()).data.session;
+    if (!session) {
+      await new Promise(r => setTimeout(r, 800));
+      session = (await supabase.auth.getSession()).data.session;
+    }
+    if (!session) { router.replace("/login"); return; }
+
+    const { data } = await supabase
+      .from("swimmers")
+      .select("id, name, age, swim_club, group_type")
+      .order("name", { ascending: true });
+
+    const all = (data as Swimmer[]) || [];
+    setSwimmers(all);
+    setPrimarySwimmers(all.filter((s) => s.group_type === "primary"));
+    setLoadingSwimmers(false);
   }
-  if (!session) { router.replace("/login"); return; }
-
-  const { data } = await supabase
-    .from("swimmers")
-    .select("id, name, age, swim_club, group_type")
-    .order("name", { ascending: true });
-
-  const all = (data as Swimmer[]) || [];
-  setSwimmers(all);
-  setPrimarySwimmers(all.filter((s) => s.group_type === "primary"));
-  setLoadingSwimmers(false);
-}
 
   function handleFile(
     e: React.ChangeEvent<HTMLInputElement>,
@@ -192,7 +170,6 @@ export default function ScanPage() {
     });
   }
 
-  // ✅ Save single swim to a specific swimmer
   async function saveSingleToSwimmer(swimmer: Swimmer) {
     try {
       const saveResult = await parseAndSaveSwimOCR(rawText, {
@@ -213,18 +190,21 @@ export default function ScanPage() {
     setMatchedSwimmer(swimmer);
   }
 
-  // ✅ Save selected event results rows
+  // ✅ Save selected event results rows — now with meet_type detection
   async function handleSaveSelected() {
     if (selectedRows.size === 0) return;
     setSavingSelected(true);
     const saved: string[] = [];
     const errors: string[] = [];
 
+    // ✅ Detect meet type from raw OCR text + first row's club code
+    const firstClub = eventRows[0]?.club ?? null;
+    const meetType = detectMeetType(rawText, firstClub);
+
     for (const index of Array.from(selectedRows)) {
       const row = eventRows[index];
       if (!row) continue;
 
-      // ✅ Match against ALL swimmers (primary + following)
       const matched = fuzzyMatchSwimmer(row.name, swimmers);
       if (!matched) {
         errors.push(`${row.name}: no matching swimmer profile`);
@@ -254,6 +234,7 @@ export default function ScanPage() {
         place: row.place ?? null,
         meet_name: row.meetName ?? null,
         swam_at: row.swamAt ?? null,
+        meet_type: meetType, // ✅ Tag with NSG / SNAG / CLUB
       });
 
       error ? errors.push(`${row.name}: ${error.message}`) : saved.push(row.name);
@@ -302,12 +283,10 @@ export default function ScanPage() {
       const isEventPage = isEventResultsPage(combined);
 
       if (isEventPage) {
-        // ✅ EVENT RESULTS PAGE — show checklist
         setScanMode("event_results");
         const parsed = parseEventResultsOCR(combined);
         setEventRows(parsed.results);
 
-        // Pre-tick rows that fuzzy match any swimmer in the app
         const preSelected = new Set<number>();
         parsed.results.forEach((row, idx) => {
           if (fuzzyMatchSwimmer(row.name, swimmers)) preSelected.add(idx);
@@ -316,7 +295,6 @@ export default function ScanPage() {
         setMessage(parsed.results.length === 0 ? "⚠️ No results detected." : "");
 
       } else {
-        // ✅ SINGLE SWIM DETAIL — try to auto-match swimmer name
         setScanMode(is400IM ? "400im" : "single");
         const results = parseSwimOCRText(combined, { swimmerName: "" });
         const first = results[0];
@@ -327,13 +305,11 @@ export default function ScanPage() {
           const ocrName = first.name ?? null;
 
           if (ocrName) {
-            // ✅ Try fuzzy match against ALL swimmers
             const matched = fuzzyMatchSwimmer(ocrName, swimmers);
             if (matched) {
               setMatchedSwimmer(matched);
               await saveSingleToSwimmer(matched);
             } else {
-              // No match — show picker with primary swimmers only
               setShowPicker(true);
               setMessage(`Could not match "${ocrName}" — please select who to save to.`);
             }
@@ -450,7 +426,6 @@ export default function ScanPage() {
         {step === "done" && (
           <div className="space-y-4">
 
-            {/* Message */}
             {message && (
               <div
                 className="rounded-2xl border p-3 text-sm"

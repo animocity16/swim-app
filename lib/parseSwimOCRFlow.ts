@@ -36,12 +36,15 @@ type ParsedSplitRow = {
   cumulativeMs: number | null;
 };
 
+export type MeetType = "NSG" | "SNAG" | "CLUB";
+
 export type OCRFlowResult = {
   parsedResults: AnyParsedResult[];
   savedCount: number;
   splitSavedCount: number;
   errors: string[];
   waitingForSecondShot?: boolean;
+  meetType?: MeetType;
 };
 
 type ParseAndSaveOptions = {
@@ -49,6 +52,85 @@ type ParseAndSaveOptions = {
   swimmerName: string;
   defaultCourse?: string;
 };
+
+// ✅ Detect meet type from OCR text and club/school codes
+// NSG = National School Games (uses school codes like MGS, ADP, NYP)
+// SNAG = Singapore National Age Group (uses club codes)
+// CLUB = regular club meet
+export function detectMeetType(rawOCRText: string, clubOrSchoolCode?: string | null): MeetType {
+  const text = rawOCRText.toUpperCase();
+
+  // ✅ Check meet name for NSG keywords
+  if (
+    /\bNSG\b/.test(text) ||
+    /NATIONAL SCHOOL GAMES/.test(text) ||
+    /SPSSC/.test(text) ||
+    /SSSC/.test(text) ||
+    /\bD DIV\b/.test(text) ||
+    /\bC DIV\b/.test(text) ||
+    /\bB DIV\b/.test(text) ||
+    /\bA DIV\b/.test(text) ||
+    /JR[12]\b/.test(text)
+  ) {
+    return "NSG";
+  }
+
+  // ✅ Check for SNAG keywords
+  if (
+    /\bSNAG\b/.test(text) ||
+    /SINGAPORE NATIONAL AGE GROUP/.test(text) ||
+    /NATIONAL AGE GROUP/.test(text)
+  ) {
+    return "SNAG";
+  }
+
+  // ✅ If club code looks like a school code (matches known SG school pattern)
+  // School codes are typically 3-6 uppercase letters, not typical club names
+  if (clubOrSchoolCode) {
+    const code = clubOrSchoolCode.trim().toUpperCase();
+    if (KNOWN_SCHOOL_CODES.has(code)) return "NSG";
+  }
+
+  return "CLUB";
+}
+
+// ✅ Known Singapore school codes from sg_schools table
+// Used to detect NSG meets from multi-swimmer event results scans
+const KNOWN_SCHOOL_CODES = new Set([
+  "ADP","AIBS","ATS","ALP","AGP","APS","AMK","ACSJ","ACSP","ANP",
+  "BCP","BGP","BDP","BRP","BLG","BPP","BTP","BVP",
+  "CBP","CCP","CTP","CSP","CHS","CDP","CGP","CHIJK","CHIJKL","CHIJOLGC",
+  "CHIJOLN","CHIJOLQP","CHIJTP","CHIJSN","CFS","CZP","CCKP","CLP","CVP",
+  "COP","CRP","CORP",
+  "DQP","DMP","DZP","DLS",
+  "ECP","ESP","EVP","EFP","ELP","ENP","EGP",
+  "FMS","FPP","FSP","FVP","FTP","FRP","FCP","FHP",
+  "GES","GMS","GSP","GDP","GRP","GWP",
+  "HGS","HPP","HIJ","HWS","HZP","HGP","HMP",
+  "INP",
+  "JMP","JSP","JYP","JP","JWP","JYG",
+  "KMP","KCS","KHS","KJP","KCPP",
+  "LKP","LHP",
+  "MBS","MSH","MLP","MCS","MFP","MTS","MDP","MGS","MJS",
+  "NCP","NHP","NYP","NBP","NTP","NGP","NSP","NSPP","NVP","NVSP","NLP","NOP",
+  "OAP","OEP",
+  "PVP","PKP","PRP","PLMG","PCP","PHP","PTP","PYP","PIP","PCS","PEP",
+  "PGCP","PGGP","PGP","PGVP",
+  "QFP","QHP","QTP",
+  "RMP","RGP","RSS","RVP","RSP","RVLP","ROS","RLP",
+  "SBP","SKGP","SLP","SKP","SQP","SCGS","SVP","SDP","SAJS","SACP","SAP",
+  "SGP","SHP","SJIJ","SMP","SSS",
+  "TNP","TP","TKP","TNS","TGP","TWP","TKR","TMP","TVP",
+  "UTP",
+  "VLP",
+  "WAP","WLP","WGP","WSP","WVP","WWP","WDGP","WDP","WDRP",
+  "XHP","XNP","XMP","XSP",
+  "YZP","YTP","YCKP","YSP","YNP","YHP","YMP",
+  "ZDP","ZHP","ZCP",
+  // Secondary
+  "ACS","ACSI","AHS","CGS","CHIJKL2","CHIJSN2","CHIJTP2","HCI","MGS2",
+  "NAS","NHS","NUS","RI","RGS","SJI","VS","MGS",
+]);
 
 function safeNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === "") return null;
@@ -78,10 +160,7 @@ function normalizeEventName(eventName: string | null | undefined): string {
   return canonicalEventName(String(eventName || "").trim());
 }
 
-function normalizeCourseName(
-  course: string | null | undefined,
-  fallback = "LCM"
-): string {
+function normalizeCourseName(course: string | null | undefined, fallback = "LCM"): string {
   return canonicalCourse(String(course || fallback || "").trim());
 }
 
@@ -132,24 +211,14 @@ function ordinalSplitLabel(position: number): string {
   return `${position}${suffix} 50`;
 }
 
-// ✅ Max reasonable times per distance (ms) — rejects clock times like "4:07 PM"
-// Even the slowest age-group swimmer won't exceed these
 const MAX_TIME_BY_DISTANCE: Record<number, number> = {
-  50: 120_000,    // 2 minutes
-  100: 240_000,   // 4 minutes
-  200: 480_000,   // 8 minutes
-  400: 960_000,   // 16 minutes
-  800: 1_800_000, // 30 minutes
-  1500: 3_600_000, // 60 minutes
+  50: 120_000, 100: 240_000, 200: 480_000,
+  400: 960_000, 800: 1_800_000, 1500: 3_600_000,
 };
 
 const MIN_TIME_BY_DISTANCE: Record<number, number> = {
-  50: 20_000,   // 20 seconds
-  100: 40_000,  // 40 seconds
-  200: 80_000,  // 80 seconds
-  400: 200_000, // ~3:20
-  800: 450_000, // ~7:30
-  1500: 900_000, // ~15:00
+  50: 20_000, 100: 40_000, 200: 80_000,
+  400: 200_000, 800: 450_000, 1500: 900_000,
 };
 
 function isReasonableSwimTime(distanceM: number, timeMs: number): boolean {
@@ -164,68 +233,44 @@ function parseGenericSplits(
   strokeKeyword: string,
   totalMs?: number | null
 ): ParsedSplitRow[] {
-  const lines = rawOCRText
-    .replace(/\r/g, "\n")
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
-
+  const lines = rawOCRText.replace(/\r/g, "\n").split("\n").map((l) => l.trim()).filter(Boolean);
   const expectedDistances: number[] = [];
-  for (let d = 50; d <= eventDistance; d += 50) {
-    expectedDistances.push(d);
-  }
+  for (let d = 50; d <= eventDistance; d += 50) expectedDistances.push(d);
 
   const strokeRegex = new RegExp(strokeKeyword, "i");
   const cumulativeByDist = new Map<number, number>();
   let pendingMs: number | null = null;
 
   for (const line of lines) {
-    if (/total|split|summary|entry|event/i.test(line)) {
-      pendingMs = null;
-      continue;
-    }
-
-    // ✅ Skip clock times — lines containing AM or PM
-    if (/\b(am|pm)\b/i.test(line)) {
-      pendingMs = null;
-      continue;
-    }
+    if (/total|split|summary|entry|event/i.test(line)) { pendingMs = null; continue; }
+    if (/\b(am|pm)\b/i.test(line)) { pendingMs = null; continue; }
 
     const isStandalone =
       /^\d{1,2}\.\d{2}$/.test(line) ||
       /^\d{1,2}:\d{2}\.\d{2}$/.test(line) ||
       /^\d{4}$/.test(line);
 
-    if (isStandalone) {
-      pendingMs = timeStrToMs(line);
-      continue;
-    }
+    if (isStandalone) { pendingMs = timeStrToMs(line); continue; }
 
     for (const dist of expectedDistances) {
       if (cumulativeByDist.has(dist)) continue;
-
       const distRegex = new RegExp(`\\b${dist}\\b`);
       if (!distRegex.test(line) || !strokeRegex.test(line)) continue;
-
       const allTimes = line.match(/(\d{1,2}:\d{2}\.\d{2}|\d{1,2}\.\d{2}|\d{4})/g);
       const lastTimeStr = allTimes ? allTimes[allTimes.length - 1] : null;
       const cumulativeMs = lastTimeStr ? timeStrToMs(lastTimeStr) : pendingMs;
-
       if (cumulativeMs && cumulativeMs > 0 && cumulativeMs < 400_000) {
         cumulativeByDist.set(dist, cumulativeMs);
       }
-
       pendingMs = null;
       break;
     }
   }
 
-  // If the final distance checkpoint is missing, fill with totalMs
   const finalDist = eventDistance;
   if (!cumulativeByDist.has(finalDist) && totalMs && totalMs > 0) {
     cumulativeByDist.set(finalDist, totalMs);
   }
-
   if (cumulativeByDist.size === 0) return [];
 
   const splits: ParsedSplitRow[] = [];
@@ -234,24 +279,12 @@ function parseGenericSplits(
 
   for (const dist of expectedDistances) {
     const cumulativeMs = cumulativeByDist.get(dist);
-    if (cumulativeMs == null) {
-      prevCumulativeMs = 0;
-      continue;
-    }
-
+    if (cumulativeMs == null) { prevCumulativeMs = 0; continue; }
     position++;
     const legMs = prevCumulativeMs > 0 ? cumulativeMs - prevCumulativeMs : cumulativeMs;
-
     if (legMs > 0) {
-      splits.push({
-        label: ordinalSplitLabel(position),
-        order: position,
-        distance: dist,
-        splitMs: legMs,
-        cumulativeMs,
-      });
+      splits.push({ label: ordinalSplitLabel(position), order: position, distance: dist, splitMs: legMs, cumulativeMs });
     }
-
     prevCumulativeMs = cumulativeMs;
   }
 
@@ -267,53 +300,32 @@ function getStrokeKeyword(eventName: string): string {
   return "Free";
 }
 
-// ✅ Use splits already parsed and calculated by ocrMultiEventParser if available
-// Only fall back to re-parsing raw OCR if no splits were found on the result object
-function getSplitsForResult(
-  result: AnyParsedResult,
-  rawOCRText: string,
-  totalMs?: number | null
-): ParsedSplitRow[] {
+function getSplitsForResult(result: AnyParsedResult, rawOCRText: string, totalMs?: number | null): ParsedSplitRow[] {
   const eventName = normalizeEventName(result.event);
 
-  // ✅ First: use splits already on the result (includes calculated 2nd 50)
   if (result.splits && result.splits.length > 0) {
     return result.splits
       .filter((s) => s.distance != null && s.splitMs > 0)
       .map((s, i) => ({
-        label: s.label,
-        order: s.order ?? i + 1,
-        distance: s.distance!,
-        splitMs: s.splitMs,
-        cumulativeMs: s.cumulativeMs ?? null,
+        label: s.label, order: s.order ?? i + 1,
+        distance: s.distance!, splitMs: s.splitMs, cumulativeMs: s.cumulativeMs ?? null,
       }));
   }
 
-  // Fallback: re-parse from raw OCR text
   if (is200IMEvent(eventName)) {
     const parsed = parse200IMSplitsFromOCR(rawOCRText);
-    return parsed.splits
-      .filter((s) => s.splitMs != null)
-      .map((s, i) => ({
-        label: `${s.distance} ${s.stroke}`,
-        order: i + 1,
-        distance: s.distance,
-        splitMs: s.splitMs!,
-        cumulativeMs: s.cumulativeMs ?? null,
-      }));
+    return parsed.splits.filter((s) => s.splitMs != null).map((s, i) => ({
+      label: `${s.distance} ${s.stroke}`, order: i + 1,
+      distance: s.distance, splitMs: s.splitMs!, cumulativeMs: s.cumulativeMs ?? null,
+    }));
   }
 
   if (is400IMEvent(eventName)) {
     const parsed = parse400IMSplitsFromOCR(rawOCRText);
-    return parsed.splits
-      .filter((s) => s.legMs != null)
-      .map((s, i) => ({
-        label: s.label,
-        order: i + 1,
-        distance: s.distance,
-        splitMs: s.legMs!,
-        cumulativeMs: s.cumulativeMs ?? null,
-      }));
+    return parsed.splits.filter((s) => s.legMs != null).map((s, i) => ({
+      label: s.label, order: i + 1, distance: s.distance,
+      splitMs: s.legMs!, cumulativeMs: s.cumulativeMs ?? null,
+    }));
   }
 
   const distMatch = eventName.match(/\b(100|200)\b/);
@@ -328,24 +340,13 @@ function getSplitsForResult(
 }
 
 async function isDuplicate(
-  swimmerId: number,
-  eventName: string,
-  courseName: string,
-  timeMs: number,
-  swamAt: string | null
+  swimmerId: number, eventName: string, courseName: string,
+  timeMs: number, swamAt: string | null
 ): Promise<boolean> {
-  let query = supabase
-    .from("swim_times")
-    .select("id")
-    .eq("swimmer_id", swimmerId)
-    .eq("event", eventName)
-    .eq("course", courseName)
-    .eq("time_ms", timeMs);
-
-  if (swamAt) {
-    query = query.eq("swam_at", swamAt);
-  }
-
+  let query = supabase.from("swim_times").select("id")
+    .eq("swimmer_id", swimmerId).eq("event", eventName)
+    .eq("course", courseName).eq("time_ms", timeMs);
+  if (swamAt) query = query.eq("swam_at", swamAt);
   const { data } = await query.limit(1);
   return (data?.length ?? 0) > 0;
 }
@@ -354,6 +355,7 @@ async function saveSwimTime(input: {
   swimmerId: number;
   result: AnyParsedResult;
   fallbackCourse?: string;
+  meetType?: MeetType;
 }): Promise<{ swimTimeId: number | null; error?: string; duplicate?: boolean }> {
   const eventName = normalizeEventName(input.result.event);
   const courseName = normalizeCourseName(input.result.course, input.fallbackCourse || "LCM");
@@ -363,7 +365,6 @@ async function saveSwimTime(input: {
   if (!courseName) return { swimTimeId: null, error: "Missing course name" };
   if (timeMs === null) return { swimTimeId: null, error: "Missing or invalid time" };
 
-  // ✅ Reject obvious clock times before saving
   const distMatch = eventName.match(/\b(50|100|200|400|800|1500)\b/);
   if (distMatch) {
     const dist = Number(distMatch[1]);
@@ -373,7 +374,6 @@ async function saveSwimTime(input: {
   }
 
   const swamAt = getSwamAt(input.result);
-
   const duplicate = await isDuplicate(input.swimmerId, eventName, courseName, timeMs, swamAt);
   if (duplicate) return { swimTimeId: null, duplicate: true };
 
@@ -382,6 +382,7 @@ async function saveSwimTime(input: {
     event: eventName,
     course: courseName,
     time_ms: timeMs,
+    meet_type: input.meetType ?? "CLUB", // ✅ Always save meet type
   };
 
   if (swamAt) payload.swam_at = swamAt;
@@ -393,14 +394,8 @@ async function saveSwimTime(input: {
     payload.place = Number(input.result.place);
   }
 
-  const { data, error } = await supabase
-    .from("swim_times")
-    .insert(payload)
-    .select("id")
-    .single();
-
+  const { data, error } = await supabase.from("swim_times").insert(payload).select("id").single();
   if (error) return { swimTimeId: null, error: error.message };
-
   return { swimTimeId: data?.id ?? null };
 }
 
@@ -442,18 +437,16 @@ export async function parseAndSaveSwimOCR(
     return { parsedResults: [], savedCount: 0, splitSavedCount: 0, errors: ["OCR text is empty"] };
   }
 
+  // ✅ Detect meet type from raw OCR text
+  const meetType = detectMeetType(rawOCRText);
+
   // 400 IM — dedicated parser
   const is400IM = /400\s*(meter|m)?\s*im/i.test(rawOCRText);
   if (is400IM) {
     const parsed = parse400IMSplitsFromOCR(rawOCRText);
 
     if (!parsed.finalTimeMs) {
-      return {
-        parsedResults: [],
-        savedCount: 0,
-        splitSavedCount: 0,
-        errors: ["Could not detect final time from 400 IM screenshots"],
-      };
+      return { parsedResults: [], savedCount: 0, splitSavedCount: 0, errors: ["Could not detect final time from 400 IM screenshots"] };
     }
 
     const fakeResult: AnyParsedResult = {
@@ -468,24 +461,15 @@ export async function parseAndSaveSwimOCR(
       swimmerId: options.swimmerId,
       result: fakeResult,
       fallbackCourse: options.defaultCourse || "LCM",
+      meetType,
     });
 
     if (swimTimeRes.duplicate) {
-      return {
-        parsedResults: [fakeResult],
-        savedCount: 0,
-        splitSavedCount: 0,
-        errors: ["This result has already been saved — same event, time and date."],
-      };
+      return { parsedResults: [fakeResult], savedCount: 0, splitSavedCount: 0, errors: ["This result has already been saved — same event, time and date."] };
     }
 
     if (!swimTimeRes.swimTimeId) {
-      return {
-        parsedResults: [fakeResult],
-        savedCount: 0,
-        splitSavedCount: 0,
-        errors: [swimTimeRes.error ?? "Failed to save 400 IM"],
-      };
+      return { parsedResults: [fakeResult], savedCount: 0, splitSavedCount: 0, errors: [swimTimeRes.error ?? "Failed to save 400 IM"] };
     }
 
     savedCount = 1;
@@ -499,39 +483,27 @@ export async function parseAndSaveSwimOCR(
         courseName: normalizeCourseName(parsed.course, "LCM"),
         splits,
       });
-      if (splitRes.error) {
-        errors.push(`Could not save 400 IM splits: ${splitRes.error}`);
-      } else {
-        splitSavedCount = splitRes.count;
-      }
+      if (splitRes.error) errors.push(`Could not save 400 IM splits: ${splitRes.error}`);
+      else splitSavedCount = splitRes.count;
     }
 
-    return { parsedResults: [fakeResult], savedCount, splitSavedCount, errors };
+    return { parsedResults: [fakeResult], savedCount, splitSavedCount, errors, meetType };
   }
 
   // All other events
   let parsedResults: AnyParsedResult[] = [];
 
   try {
-    parsedResults = (parseSwimOCRText(rawOCRText, {
-      swimmerName: options.swimmerName,
-    }) || []) as AnyParsedResult[];
+    parsedResults = (parseSwimOCRText(rawOCRText, { swimmerName: options.swimmerName }) || []) as AnyParsedResult[];
   } catch (error) {
     return {
-      parsedResults: [],
-      savedCount: 0,
-      splitSavedCount: 0,
+      parsedResults: [], savedCount: 0, splitSavedCount: 0,
       errors: [error instanceof Error ? error.message : "Failed to parse OCR text"],
     };
   }
 
   if (parsedResults.length === 0) {
-    return {
-      parsedResults: [],
-      savedCount: 0,
-      splitSavedCount: 0,
-      errors: ["No swim results detected from OCR text"],
-    };
+    return { parsedResults: [], savedCount: 0, splitSavedCount: 0, errors: ["No swim results detected from OCR text"] };
   }
 
   for (const result of parsedResults) {
@@ -540,26 +512,17 @@ export async function parseAndSaveSwimOCR(
     const courseName = normalizeCourseName(result.course, options.defaultCourse || "LCM");
     const totalMs = getTimeMs(result);
 
-    if (!swimmerName) {
-      errors.push(`Skipped — swimmer name missing (${eventName || "Unknown event"})`);
-      continue;
-    }
-
-    if (!eventName) {
-      errors.push(`Skipped "${swimmerName}" — event name missing`);
-      continue;
-    }
+    if (!swimmerName) { errors.push(`Skipped — swimmer name missing (${eventName || "Unknown event"})`); continue; }
+    if (!eventName) { errors.push(`Skipped "${swimmerName}" — event name missing`); continue; }
 
     const swimTimeRes = await saveSwimTime({
       swimmerId: options.swimmerId,
       result,
       fallbackCourse: options.defaultCourse || "LCM",
+      meetType,
     });
 
-    if (swimTimeRes.duplicate) {
-      errors.push(`"${eventName}" on this date already saved — skipped.`);
-      continue;
-    }
+    if (swimTimeRes.duplicate) { errors.push(`"${eventName}" on this date already saved — skipped.`); continue; }
 
     if (!swimTimeRes.swimTimeId) {
       errors.push(`Could not save "${swimmerName}" (${eventName}): ${swimTimeRes.error || "Unknown error"}`);
@@ -568,7 +531,6 @@ export async function parseAndSaveSwimOCR(
 
     savedCount += 1;
 
-    // ✅ Use splits from the parsed result object first (includes calculated 2nd 50)
     const splits = getSplitsForResult(result, rawOCRText, totalMs);
     if (splits.length > 0) {
       const splitRes = await saveSplits({
@@ -578,13 +540,10 @@ export async function parseAndSaveSwimOCR(
         courseName,
         splits,
       });
-      if (splitRes.error) {
-        errors.push(`Could not save splits for "${swimmerName}" (${eventName}): ${splitRes.error}`);
-      } else {
-        splitSavedCount += splitRes.count;
-      }
+      if (splitRes.error) errors.push(`Could not save splits for "${swimmerName}" (${eventName}): ${splitRes.error}`);
+      else splitSavedCount += splitRes.count;
     }
   }
 
-  return { parsedResults, savedCount, splitSavedCount, errors };
+  return { parsedResults, savedCount, splitSavedCount, errors, meetType };
 }
