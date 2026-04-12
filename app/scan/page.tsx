@@ -142,21 +142,24 @@ export default function ScanPage() {
   useEffect(() => { void loadSwimmers(); }, []);
 
   async function loadSwimmers() {
-    const { data: session } = await supabase.auth.getSession();
-    if (!session.session) { router.replace("/login"); return; }
-
-    // ✅ Load ALL swimmers (primary + following) for fuzzy matching
-    // But only show primary swimmers in the picker UI
-    const { data } = await supabase
-      .from("swimmers")
-      .select("id, name, age, swim_club, group_type")
-      .order("name", { ascending: true });
-
-    const all = (data as Swimmer[]) || [];
-    setSwimmers(all);
-    setPrimarySwimmers(all.filter((s) => s.group_type === "primary"));
-    setLoadingSwimmers(false);
+  // ✅ Retry once to handle post-signup race condition
+  let session = (await supabase.auth.getSession()).data.session;
+  if (!session) {
+    await new Promise(r => setTimeout(r, 800));
+    session = (await supabase.auth.getSession()).data.session;
   }
+  if (!session) { router.replace("/login"); return; }
+
+  const { data } = await supabase
+    .from("swimmers")
+    .select("id, name, age, swim_club, group_type")
+    .order("name", { ascending: true });
+
+  const all = (data as Swimmer[]) || [];
+  setSwimmers(all);
+  setPrimarySwimmers(all.filter((s) => s.group_type === "primary"));
+  setLoadingSwimmers(false);
+}
 
   function handleFile(
     e: React.ChangeEvent<HTMLInputElement>,

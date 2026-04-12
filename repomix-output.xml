@@ -64,7 +64,7 @@ app/
   settings/
     page.tsx
   signup/
-    page.tsc
+    page.tsx
   standards/
     [id]/
       page.tsx
@@ -111,438 +111,6 @@ tsconfig.json
 
 <files>
 This section contains the contents of the repository's files.
-
-<file path="app/invite/page.tsx">
-"use client";
-
-import { useState } from "react";
-import Link from "next/link";
-
-type Platform = "iphone" | "android";
-
-const STEPS = {
-  iphone: [
-    {
-      number: "1",
-      title: "Open in Safari",
-      detail: "This link must be opened in Safari — not Chrome or another browser. Copy the link and paste it into Safari if needed.",
-      icon: "🧭",
-    },
-    {
-      number: "2",
-      title: "Tap the Share button",
-      detail: 'Tap the Share icon at the bottom of Safari — it looks like a box with an arrow pointing up.',
-      icon: "⬆️",
-    },
-    {
-      number: "3",
-      title: "Add to Home Screen",
-      detail: 'Scroll down in the share sheet and tap "Add to Home Screen". Give it a name (Natrix) and tap Add.',
-      icon: "➕",
-    },
-    {
-      number: "4",
-      title: "Open from your home screen",
-      detail: "Natrix will appear on your home screen like a real app — full screen, no browser bar. Tap it to open!",
-      icon: "🏊",
-    },
-  ],
-  android: [
-    {
-      number: "1",
-      title: "Open in Chrome",
-      detail: "Open this link in Chrome on your Android phone. Other browsers may also work but Chrome is recommended.",
-      icon: "🌐",
-    },
-    {
-      number: "2",
-      title: "Tap the three dots menu",
-      detail: "Tap the ⋮ menu in the top right corner of Chrome.",
-      icon: "⋮",
-    },
-    {
-      number: "3",
-      title: "Add to Home screen",
-      detail: 'Tap "Add to Home screen" from the menu. Confirm by tapping Add when prompted.',
-      icon: "➕",
-    },
-    {
-      number: "4",
-      title: "Open from your home screen",
-      detail: "Natrix will appear on your home screen. Tap it to launch the app in full screen mode!",
-      icon: "🏊",
-    },
-  ],
-};
-
-const APP_URL = "https://natrix.vercel.app"; // ← update this to your actual Vercel URL
-
-export default function InvitePage() {
-  const [platform, setPlatform] = useState<Platform>("iphone");
-  const [copied, setCopied] = useState(false);
-
-  function copyLink() {
-    navigator.clipboard.writeText(APP_URL).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  }
-
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-start px-5 py-10">
-
-      {/* Header */}
-      <div className="text-center mb-8">
-        <div
-          className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-3xl text-4xl"
-          style={{ background: "rgba(217,119,6,0.25)", border: "1px solid rgba(253,230,138,0.3)" }}
-        >
-          🏊
-        </div>
-        <h1 className="text-3xl font-bold tracking-tight text-white">You're invited!</h1>
-        <p className="mt-2 text-white/50 text-sm max-w-xs mx-auto">
-          You've been invited to beta test Natrix — the swim meet tracker built for parents like you.
-        </p>
-      </div>
-
-      {/* Beta badge */}
-      <div
-        className="mb-6 rounded-full px-4 py-1.5 text-xs font-semibold uppercase tracking-widest"
-        style={{ background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.3)", color: "#FDE68A" }}
-      >
-        🎉 Beta Access — Free
-      </div>
-
-      {/* What is Natrix */}
-      <div
-        className="w-full max-w-sm rounded-3xl p-5 mb-5 space-y-3"
-        style={{
-          background: "rgba(255,255,255,0.09)",
-          backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)",
-          border: "1px solid rgba(255,255,255,0.18)",
-        }}
-      >
-        <p className="text-xs font-medium uppercase tracking-widest text-white/40">What is Natrix?</p>
-        {[
-          { icon: "📷", text: "Scan Meet Mobile screenshots — results save automatically" },
-          { icon: "📈", text: "Track PBs and progress charts for every event" },
-          { icon: "⭐", text: "See how close your swimmer is to qualifying standards" },
-          { icon: "👥", text: "Follow multiple swimmers across different clubs" },
-        ].map((item) => (
-          <div key={item.text} className="flex items-start gap-3">
-            <span className="text-lg flex-shrink-0">{item.icon}</span>
-            <p className="text-sm text-white/70 leading-snug">{item.text}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Install instructions */}
-      <div
-        className="w-full max-w-sm rounded-3xl p-5 mb-5"
-        style={{
-          background: "rgba(255,255,255,0.09)",
-          backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)",
-          border: "1px solid rgba(255,255,255,0.18)",
-        }}
-      >
-        <p className="text-xs font-medium uppercase tracking-widest text-white/40 mb-4">
-          Install on your phone
-        </p>
-
-        {/* Platform toggle */}
-        <div className="flex gap-2 mb-5">
-          {(["iphone", "android"] as Platform[]).map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => setPlatform(p)}
-              className="flex-1 rounded-2xl py-2.5 text-sm font-semibold transition"
-              style={
-                platform === p
-                  ? { background: "#D97706", color: "#fff" }
-                  : { background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.5)" }
-              }
-            >
-              {p === "iphone" ? "📱 iPhone" : "🤖 Android"}
-            </button>
-          ))}
-        </div>
-
-        {/* Steps */}
-        <div className="space-y-4">
-          {STEPS[platform].map((step) => (
-            <div key={step.number} className="flex items-start gap-3">
-              <div
-                className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-sm font-bold"
-                style={{ background: "rgba(217,119,6,0.25)", color: "#FDE68A", border: "1px solid rgba(253,230,138,0.2)" }}
-              >
-                {step.number}
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-white">{step.title}</p>
-                <p className="text-xs text-white/45 mt-0.5 leading-relaxed">{step.detail}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* App link + copy */}
-      <div
-        className="w-full max-w-sm rounded-3xl p-5 mb-5"
-        style={{
-          background: "rgba(255,255,255,0.09)",
-          backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)",
-          border: "1px solid rgba(255,255,255,0.18)",
-        }}
-      >
-        <p className="text-xs font-medium uppercase tracking-widest text-white/40 mb-3">
-          App link
-        </p>
-        <div
-          className="rounded-2xl px-4 py-3 mb-3 flex items-center justify-between gap-3"
-          style={{ background: "rgba(0,20,50,0.35)", border: "1px solid rgba(255,255,255,0.15)" }}
-        >
-          <p className="text-sm text-white/60 truncate font-mono">{APP_URL}</p>
-        </div>
-        <button
-          type="button"
-          onClick={copyLink}
-          className="w-full rounded-2xl py-3 text-sm font-bold text-white transition"
-          style={{ background: copied ? "rgba(110,231,183,0.25)" : "#D97706", border: copied ? "1px solid rgba(110,231,183,0.4)" : "none" }}
-        >
-          {copied ? "✓ Copied!" : "Copy link"}
-        </button>
-        <p className="mt-3 text-xs text-center text-white/30">
-          {platform === "iphone"
-            ? "Open this link in Safari, then follow the steps above"
-            : "Open this link in Chrome, then follow the steps above"}
-        </p>
-      </div>
-
-      {/* Sign up CTA */}
-      <div className="w-full max-w-sm space-y-3 mb-8">
-        <Link
-          href="/signup"
-          className="flex items-center justify-center w-full rounded-2xl py-4 text-base font-bold text-white transition"
-          style={{ background: "#D97706" }}
-        >
-          Create your free account →
-        </Link>
-        <Link
-          href="/login"
-          className="flex items-center justify-center w-full rounded-2xl py-3 text-sm font-semibold transition"
-          style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.6)" }}
-        >
-          Already have an account? Sign in
-        </Link>
-      </div>
-
-      {/* Footer */}
-      <p className="text-xs text-white/20 text-center">
-        Made with 🏊 by J.O.D — Just an Ordinary Dad<br />
-        Beta v1.0 · Natrix · Singapore
-      </p>
-
-    </div>
-  );
-}
-</file>
-
-<file path="app/signup/page.tsc">
-"use client";
-
-import { useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
-
-// ✅ Change this to whatever invite code you want to share with beta testers
-const BETA_INVITE_CODE = "NATRIX2026";
-
-export default function SignupPage() {
-  const router = useRouter();
-
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [inviteCode, setInviteCode] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState("");
-  const [isError, setIsError] = useState(false);
-
-  async function handleSignup(e: React.FormEvent) {
-    e.preventDefault();
-
-    // Validate all fields
-    if (!email.trim()) { setStatus("Please enter your email."); setIsError(true); return; }
-    if (!password) { setStatus("Please enter a password."); setIsError(true); return; }
-    if (password.length < 8) { setStatus("Password must be at least 8 characters."); setIsError(true); return; }
-    if (password !== confirmPassword) { setStatus("Passwords don't match."); setIsError(true); return; }
-
-    // ✅ Invite code check
-    if (inviteCode.trim().toUpperCase() !== BETA_INVITE_CODE) {
-      setStatus("Invalid invite code. Please check your invite and try again.");
-      setIsError(true);
-      return;
-    }
-
-    setLoading(true);
-    setStatus("");
-    setIsError(false);
-
-    const { error } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-    });
-
-    if (error) {
-      setStatus(error.message);
-      setIsError(true);
-      setLoading(false);
-      return;
-    }
-
-    // ✅ Sign them in immediately after signup
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
-
-    if (signInError) {
-      // Signup worked but auto-login failed — send to login
-      router.replace("/login");
-      return;
-    }
-
-    router.replace("/swimmers");
-  }
-
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-6 py-12">
-
-      {/* Logo */}
-      <div className="mb-10 text-center">
-        <div
-          className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl text-3xl"
-          style={{ background: "rgba(217,119,6,0.25)", border: "1px solid rgba(253,230,138,0.3)" }}
-        >
-          🏊
-        </div>
-        <h1 className="text-4xl font-bold tracking-tight text-white">Natrix</h1>
-        <p className="mt-1 text-sm text-white/40">Swim meet results for parents</p>
-      </div>
-
-      {/* Glass card */}
-      <div
-        className="w-full max-w-sm rounded-3xl p-6 space-y-5"
-        style={{
-          background: "rgba(255,255,255,0.13)",
-          backdropFilter: "blur(24px) saturate(1.3)",
-          WebkitBackdropFilter: "blur(24px) saturate(1.3)",
-          border: "1px solid rgba(255,255,255,0.24)",
-        }}
-      >
-        <div>
-          <div
-            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold mb-3"
-            style={{ background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.25)", color: "#FDE68A" }}
-          >
-            🎉 Beta access
-          </div>
-          <h2 className="text-2xl font-bold text-white">Create account</h2>
-          <p className="mt-1 text-sm text-white/45">You&apos;ll need your invite code to join.</p>
-        </div>
-
-        <form onSubmit={handleSignup} className="space-y-3">
-          <input
-            type="email"
-            placeholder="Email address"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="input"
-          />
-          <input
-            type="password"
-            placeholder="Password (min 8 characters)"
-            autoComplete="new-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="input"
-          />
-          <input
-            type="password"
-            placeholder="Confirm password"
-            autoComplete="new-password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            className="input"
-          />
-
-          {/* Divider */}
-          <div style={{ height: 1, background: "rgba(255,255,255,0.1)", margin: "4px 0" }} />
-
-          <div>
-            <input
-              type="text"
-              placeholder="Invite code"
-              autoComplete="off"
-              autoCapitalize="characters"
-              value={inviteCode}
-              onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-              className="input"
-              style={{ letterSpacing: "0.1em", fontWeight: 600 }}
-            />
-            <p className="mt-1.5 text-xs text-white/30 px-1">
-              Ask J.O.D for your invite code if you don&apos;t have one.
-            </p>
-          </div>
-
-          {status && (
-            <p
-              className="rounded-2xl px-3 py-2 text-sm"
-              style={
-                isError
-                  ? { background: "rgba(226,75,74,0.1)", border: "1px solid rgba(226,75,74,0.2)", color: "#F09595" }
-                  : { background: "rgba(110,231,183,0.1)", border: "1px solid rgba(110,231,183,0.2)", color: "#6EE7B7" }
-              }
-            >
-              {status}
-            </p>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-2xl py-3.5 text-base font-bold text-white transition disabled:opacity-50"
-            style={{ background: "#D97706" }}
-          >
-            {loading ? "Creating account..." : "Join Natrix 🏊"}
-          </button>
-        </form>
-
-        <div className="text-center pt-1">
-          <p className="text-sm text-white/40">
-            Already have an account?{" "}
-            <Link href="/login" className="font-semibold transition" style={{ color: "#FDE68A" }}>
-              Sign in
-            </Link>
-          </p>
-        </div>
-      </div>
-
-      {/* Footer */}
-      <p className="mt-8 text-xs text-white/20">
-        Made with 🏊 by J.O.D — Just an Ordinary Dad
-      </p>
-    </div>
-  );
-}
-</file>
 
 <file path="app/auth/confirm/page.tsx">
 "use client";
@@ -1620,488 +1188,193 @@ export default function DashboardPage() {
 }
 </file>
 
-<file path="app/settings/page.tsx">
+<file path="app/signup/page.tsx">
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import { replayTutorial } from "@/app/components/TutorialOverlay";
 
-const APP_VERSION = "1.0.0";
+// ✅ Change this to whatever invite code you want to share with beta testers
+const BETA_INVITE_CODE = "NATRIX2026";
 
-type NotifPrefs = {
-  pbAlerts: boolean;
-  meetReminders: boolean;
-  weeklyRecap: boolean;
-};
-
-const FEATURE_REQUESTS = [
-  "AI nutrition guide",
-  "Meet calendar",
-  "Apple Watch support",
-  "Team / club dashboard",
-  "Relay tracking",
-  "Compare with teammates",
-  "Export to PDF / spreadsheet",
-  "Push notifications",
-  "Other",
-];
-
-export default function SettingsPage() {
+export default function SignupPage() {
   const router = useRouter();
 
-  const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState("");
-  const [displayName, setDisplayName] = useState("");
-
-  const [showPasswordForm, setShowPasswordForm] = useState(false);
-  const [newPassword, setNewPassword] = useState("");
+  const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [passwordMsg, setPasswordMsg] = useState("");
-  const [savingPassword, setSavingPassword] = useState(false);
-
-  const [notifs, setNotifs] = useState<NotifPrefs>({
-    pbAlerts: true,
-    meetReminders: true,
-    weeklyRecap: false,
-  });
-
-  // Feedback state
-  const [feedbackRating, setFeedbackRating] = useState(0);
-  const [feedbackMessage, setFeedbackMessage] = useState("");
-  const [feedbackFeature, setFeedbackFeature] = useState("");
-  const [savingFeedback, setSavingFeedback] = useState(false);
-  const [feedbackSent, setFeedbackSent] = useState(false);
-  const [feedbackError, setFeedbackError] = useState("");
-
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [deleteInput, setDeleteInput] = useState("");
-  const [deletingAccount, setDeletingAccount] = useState(false);
-  const [loggingOut, setLoggingOut] = useState(false);
+  const [inviteCode, setInviteCode] = useState("");
+  const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
+  const [isError, setIsError] = useState(false);
 
-  useEffect(() => { void loadUser(); }, []);
+  async function handleSignup(e: React.FormEvent) {
+    e.preventDefault();
 
-  async function loadUser() {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) { router.replace("/login"); return; }
-    setEmail(session.user.email ?? "");
-    const meta = session.user.user_metadata;
-    setDisplayName(meta?.full_name ?? meta?.name ?? "");
-    setLoading(false);
-  }
+    // Validate all fields
+    if (!email.trim()) { setStatus("Please enter your email."); setIsError(true); return; }
+    if (!password) { setStatus("Please enter a password."); setIsError(true); return; }
+    if (password.length < 8) { setStatus("Password must be at least 8 characters."); setIsError(true); return; }
+    if (password !== confirmPassword) { setStatus("Passwords don't match."); setIsError(true); return; }
 
-  async function handleChangePassword() {
-    if (!newPassword) { setPasswordMsg("Please enter a new password."); return; }
-    if (newPassword.length < 8) { setPasswordMsg("Password must be at least 8 characters."); return; }
-    if (newPassword !== confirmPassword) { setPasswordMsg("Passwords don't match."); return; }
-    setSavingPassword(true);
-    setPasswordMsg("");
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
-    if (error) {
-      setPasswordMsg(`Error: ${error.message}`);
-    } else {
-      setPasswordMsg("✓ Password updated successfully.");
-      setNewPassword("");
-      setConfirmPassword("");
-      setTimeout(() => { setShowPasswordForm(false); setPasswordMsg(""); }, 2000);
+    // ✅ Invite code check
+    if (inviteCode.trim().toUpperCase() !== BETA_INVITE_CODE) {
+      setStatus("Invalid invite code. Please check your invite and try again.");
+      setIsError(true);
+      return;
     }
-    setSavingPassword(false);
-  }
 
-  async function handleSendFeedback() {
-    if (feedbackRating === 0) { setFeedbackError("Please select a star rating."); return; }
-    if (!feedbackMessage.trim()) { setFeedbackError("Please write something — even a sentence helps!"); return; }
+    setLoading(true);
+    setStatus("");
+    setIsError(false);
 
-    setSavingFeedback(true);
-    setFeedbackError("");
-
-    const { data: { session } } = await supabase.auth.getSession();
-
-    const { error } = await supabase.from("feedback").insert([{
-      user_id: session?.user?.id ?? null,
-      rating: feedbackRating,
-      message: feedbackMessage.trim(),
-      feature_request: feedbackFeature || null,
-    }]);
+    const { error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+    });
 
     if (error) {
-      setFeedbackError(`Couldn't send feedback: ${error.message}`);
-    } else {
-      setFeedbackSent(true);
-      setFeedbackRating(0);
-      setFeedbackMessage("");
-      setFeedbackFeature("");
+      setStatus(error.message);
+      setIsError(true);
+      setLoading(false);
+      return;
     }
-    setSavingFeedback(false);
-  }
 
-  async function handleLogout() {
-    setLoggingOut(true);
-    await supabase.auth.signOut();
-    router.replace("/login");
-  }
+    // ✅ Sign them in immediately after signup
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
 
-  async function handleDeleteAccount() {
-    if (deleteInput !== "DELETE") { setStatus("Please type DELETE to confirm."); return; }
-    setDeletingAccount(true);
-    setStatus("Deleting account...");
-    await supabase.auth.signOut();
-    router.replace("/login");
-  }
+    if (signInError) {
+      // Signup worked but auto-login failed — send to login
+      router.replace("/login");
+      return;
+    }
 
-  function toggleNotif(key: keyof NotifPrefs) {
-    setNotifs((prev) => ({ ...prev, [key]: !prev[key] }));
-  }
-
-  if (loading) {
-    return (
-      <div className="shell">
-        <div className="container-app">
-          <p className="muted">Loading...</p>
-        </div>
-      </div>
-    );
+    router.replace("/swimmers");
   }
 
   return (
-    <div className="shell">
-      <div className="container-app space-y-5">
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 py-12">
 
-        {/* Header */}
-        <div className="pt-2">
-          <p className="text-[10px] font-medium uppercase tracking-widest" style={{ color: "#BA7517" }}>
-            Natrix
-          </p>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight text-white">Settings</h1>
-        </div>
-
-        {/* Account */}
-        <div className="card space-y-4">
-          <p className="label">Account</p>
-          <div className="flex items-center gap-4">
-            <div
-              className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl text-lg font-bold"
-              style={{ background: "rgba(217,119,6,0.25)", color: "#FDE68A", border: "1px solid rgba(253,230,138,0.2)" }}
-            >
-              {(displayName || email).slice(0, 1).toUpperCase()}
-            </div>
-            <div className="min-w-0">
-              {displayName && <p className="text-base font-semibold text-white truncate">{displayName}</p>}
-              <p className="text-sm text-white/50 truncate">{email}</p>
-            </div>
-          </div>
-
-          {/* Change password */}
-          <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.05)" }}>
-            <button
-              type="button"
-              onClick={() => { setShowPasswordForm((v) => !v); setPasswordMsg(""); }}
-              className="w-full flex items-center justify-between px-4 py-3 text-left"
-            >
-              <div className="flex items-center gap-3">
-                <LockIcon />
-                <span className="text-sm font-medium text-white">Change password</span>
-              </div>
-              <ChevronIcon open={showPasswordForm} />
-            </button>
-            {showPasswordForm && (
-              <div className="px-4 pb-4 space-y-3 border-t border-white/10 pt-3">
-                <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="New password" className="input" />
-                <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm new password" className="input" />
-                {passwordMsg && (
-                  <p className="text-sm" style={{ color: passwordMsg.startsWith("✓") ? "#6EE7B7" : "#FCA5A5" }}>{passwordMsg}</p>
-                )}
-                <button type="button" onClick={handleChangePassword} disabled={savingPassword}
-                  className="w-full rounded-2xl py-3 text-sm font-semibold text-white transition disabled:opacity-50"
-                  style={{ background: "#D97706" }}>
-                  {savingPassword ? "Saving..." : "Update password"}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Notifications */}
-        <div className="card space-y-1">
-          <p className="label mb-3">Notifications</p>
-          <NotifRow icon={<BellIcon />} label="PB alerts" sub="Get notified when a new personal best is saved" value={notifs.pbAlerts} onToggle={() => toggleNotif("pbAlerts")} />
-          <div style={{ height: 1, background: "rgba(255,255,255,0.08)", margin: "4px 0" }} />
-          <NotifRow icon={<CalendarIcon />} label="Meet reminders" sub="Reminders before upcoming meets" value={notifs.meetReminders} onToggle={() => toggleNotif("meetReminders")} />
-          <div style={{ height: 1, background: "rgba(255,255,255,0.08)", margin: "4px 0" }} />
-          <NotifRow icon={<ChartIcon />} label="Weekly recap" sub="Summary of the week's results every Sunday" value={notifs.weeklyRecap} onToggle={() => toggleNotif("weeklyRecap")} />
-        </div>
-
-        {/* Tutorial recap */}
-        <div className="card">
-          <p className="label mb-3">Help</p>
-          <button
-            type="button"
-            onClick={replayTutorial}
-            className="w-full flex items-center justify-between rounded-2xl px-4 py-3 text-left transition"
-            style={{ background: "rgba(217,119,6,0.1)", border: "1px solid rgba(253,230,138,0.2)" }}
-          >
-            <div className="flex items-center gap-3">
-              <span style={{ fontSize: 18 }}>🎓</span>
-              <div>
-                <p className="text-sm font-semibold" style={{ color: "#FDE68A" }}>Replay tutorial</p>
-                <p className="text-xs text-white/40 mt-0.5">Walk through the app step by step again</p>
-              </div>
-            </div>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M6 3l5 5-5 5" stroke="rgba(253,230,138,0.5)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-
-          <div className="mt-4 space-y-2">
-            <p className="text-[9px] uppercase tracking-wider text-white/30 mb-2">Quick reference</p>
-            {[
-              { emoji: "👥", title: "Add a swimmer", desc: "Tap Brood → + button → fill in profile" },
-              { emoji: "📷", title: "Scan a result", desc: "Tap Scan → upload Meet Mobile screenshot" },
-              { emoji: "📈", title: "View progress", desc: "Swimmer profile → Progress tab" },
-              { emoji: "⭐", title: "Check standards", desc: "Tap Standards in bottom nav" },
-            ].map((item) => (
-              <div key={item.title} className="flex items-start gap-3 rounded-2xl px-3 py-2.5"
-                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>{item.emoji}</span>
-                <div>
-                  <p className="text-sm font-medium text-white">{item.title}</p>
-                  <p className="text-xs text-white/40">{item.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* ✅ Feedback */}
-        <div className="card space-y-4">
-          <div>
-            <p className="label">Feedback</p>
-            <p className="text-xs text-white/40 mt-1">Help shape Natrix — every message goes straight to J.O.D.</p>
-          </div>
-
-          {feedbackSent ? (
-            <div className="rounded-2xl py-6 text-center space-y-2"
-              style={{ background: "rgba(217,119,6,0.1)", border: "1px solid rgba(253,230,138,0.2)" }}>
-              <p className="text-2xl">🙏</p>
-              <p className="text-sm font-semibold" style={{ color: "#FDE68A" }}>Thank you!</p>
-              <p className="text-xs text-white/40">Your feedback means the world. We&apos;ll use it to make Natrix better.</p>
-              <button
-                type="button"
-                onClick={() => setFeedbackSent(false)}
-                className="mt-2 text-xs text-white/30 underline"
-              >
-                Send another
-              </button>
-            </div>
-          ) : (
-            <>
-              {/* Star rating */}
-              <div>
-                <p className="text-xs text-white/50 mb-2">How are you finding Natrix?</p>
-                <div className="flex gap-2">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      key={star}
-                      type="button"
-                      onClick={() => setFeedbackRating(star)}
-                      className="text-2xl transition-transform active:scale-90"
-                      style={{ opacity: feedbackRating >= star ? 1 : 0.25, filter: feedbackRating >= star ? "none" : "grayscale(1)" }}
-                    >
-                      ⭐
-                    </button>
-                  ))}
-                </div>
-                {feedbackRating > 0 && (
-                  <p className="text-xs mt-1.5" style={{ color: "#FDE68A" }}>
-                    {feedbackRating === 5 ? "Love it! 🏊" : feedbackRating === 4 ? "Really good!" : feedbackRating === 3 ? "It's okay" : feedbackRating === 2 ? "Needs work" : "Not great"}
-                  </p>
-                )}
-              </div>
-
-              {/* Message */}
-              <div>
-                <p className="text-xs text-white/50 mb-2">What would make Natrix better?</p>
-                <textarea
-                  value={feedbackMessage}
-                  onChange={(e) => setFeedbackMessage(e.target.value)}
-                  placeholder="Tell us anything — bugs, ideas, what you love, what's missing..."
-                  rows={3}
-                  className="w-full rounded-[20px] px-4 py-3 text-sm text-white outline-none resize-none placeholder:text-white/35"
-                  style={{
-                    background: "rgba(0,20,50,0.35)",
-                    border: "1px solid rgba(255,255,255,0.2)",
-                    backdropFilter: "blur(12px)",
-                    WebkitBackdropFilter: "blur(12px)",
-                  }}
-                />
-              </div>
-
-              {/* Feature request */}
-              <div>
-                <p className="text-xs text-white/50 mb-2">Most wanted feature (optional)</p>
-                <select
-                  value={feedbackFeature}
-                  onChange={(e) => setFeedbackFeature(e.target.value)}
-                  className="input"
-                >
-                  <option value="">Pick one...</option>
-                  {FEATURE_REQUESTS.map((f) => (
-                    <option key={f} value={f}>{f}</option>
-                  ))}
-                </select>
-              </div>
-
-              {feedbackError && (
-                <p className="text-sm" style={{ color: "#FCA5A5" }}>{feedbackError}</p>
-              )}
-
-              <button
-                type="button"
-                onClick={handleSendFeedback}
-                disabled={savingFeedback}
-                className="w-full rounded-2xl py-3 text-sm font-semibold text-white transition disabled:opacity-50"
-                style={{ background: "#D97706" }}
-              >
-                {savingFeedback ? "Sending..." : "Send feedback 🚀"}
-              </button>
-            </>
-          )}
-        </div>
-
-        {/* App info */}
-        <div className="card">
-          <p className="label mb-3">About</p>
-          <div className="flex items-center justify-between py-1">
-            <p className="text-sm text-white/60">Version</p>
-            <p className="text-sm font-semibold text-white">{APP_VERSION}</p>
-          </div>
-          <div style={{ height: 1, background: "rgba(255,255,255,0.08)", margin: "8px 0" }} />
-          <div className="flex items-center justify-between py-1">
-            <p className="text-sm text-white/60">Built for</p>
-            <p className="text-sm font-semibold text-white">Southeast Asia · expanding globally</p>
-          </div>
-          <div style={{ height: 1, background: "rgba(255,255,255,0.08)", margin: "8px 0" }} />
-          <div className="flex items-center justify-between py-1">
-            <p className="text-sm text-white/60">Made with</p>
-            <p className="text-sm font-semibold" style={{ color: "#FDE68A" }}>🏊 for swim parents</p>
-          </div>
-          <div style={{ height: 1, background: "rgba(255,255,255,0.08)", margin: "8px 0" }} />
-          <div className="flex items-center justify-between py-1">
-            <p className="text-sm text-white/60">Developed by</p>
-            <p className="text-sm font-semibold text-white">J.O.D <span className="text-white/40 text-xs">Just an Ordinary Dad</span></p>
-          </div>
-        </div>
-
-        {/* Sign out */}
-        <button
-          type="button"
-          onClick={handleLogout}
-          disabled={loggingOut}
-          className="w-full rounded-2xl py-4 text-base font-semibold transition disabled:opacity-50"
-          style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.85)" }}
+      {/* Logo */}
+      <div className="mb-10 text-center">
+        <div
+          className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl text-3xl"
+          style={{ background: "rgba(217,119,6,0.25)", border: "1px solid rgba(253,230,138,0.3)" }}
         >
-          {loggingOut ? "Signing out..." : "Sign out"}
-        </button>
-
-        {/* Delete account */}
-        <div className="rounded-3xl overflow-hidden" style={{ border: "1px solid rgba(239,68,68,0.2)", background: "rgba(239,68,68,0.06)" }}>
-          <button
-            type="button"
-            onClick={() => { setShowDeleteConfirm((v) => !v); setDeleteInput(""); setStatus(""); }}
-            className="w-full flex items-center justify-between px-5 py-4 text-left"
-          >
-            <div>
-              <p className="text-sm font-semibold" style={{ color: "#FCA5A5" }}>Delete account</p>
-              <p className="text-xs text-white/35 mt-0.5">Permanently removes all your data</p>
-            </div>
-            <ChevronIcon open={showDeleteConfirm} danger />
-          </button>
-          {showDeleteConfirm && (
-            <div className="px-5 pb-5 space-y-3 border-t border-red-500/15 pt-4">
-              <p className="text-sm text-white/60 leading-relaxed">
-                This will permanently delete your account and all swimmer data. This cannot be undone. Type <span className="font-bold text-white">DELETE</span> to confirm.
-              </p>
-              <input value={deleteInput} onChange={(e) => setDeleteInput(e.target.value)} placeholder="Type DELETE to confirm" className="input" style={{ borderColor: "rgba(239,68,68,0.3)" }} />
-              {status && <p className="text-sm" style={{ color: "#FCA5A5" }}>{status}</p>}
-              <button
-                type="button"
-                onClick={handleDeleteAccount}
-                disabled={deletingAccount || deleteInput !== "DELETE"}
-                className="w-full rounded-2xl py-3 text-sm font-semibold transition disabled:opacity-40"
-                style={{ background: "rgba(239,68,68,0.25)", border: "1px solid rgba(239,68,68,0.4)", color: "#FCA5A5" }}
-              >
-                {deletingAccount ? "Deleting..." : "Permanently delete account"}
-              </button>
-            </div>
-          )}
+          🏊
         </div>
-
-        <div className="h-4" />
+        <h1 className="text-4xl font-bold tracking-tight text-white">Natrix</h1>
+        <p className="mt-1 text-sm text-white/40">Swim meet results for parents</p>
       </div>
-    </div>
-  );
-}
 
-function LockIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <rect x="3" y="7" width="10" height="8" rx="2" stroke="rgba(255,255,255,0.45)" strokeWidth="1.3" />
-      <path d="M5 7V5a3 3 0 0 1 6 0v2" stroke="rgba(255,255,255,0.45)" strokeWidth="1.3" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function BellIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <path d="M8 2a5 5 0 0 1 5 5v3l1 1H2l1-1V7a5 5 0 0 1 5-5Z" stroke="rgba(255,255,255,0.45)" strokeWidth="1.3" />
-      <path d="M6.5 13a1.5 1.5 0 0 0 3 0" stroke="rgba(255,255,255,0.45)" strokeWidth="1.3" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function CalendarIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <rect x="2" y="4" width="12" height="10" rx="2" stroke="rgba(255,255,255,0.45)" strokeWidth="1.3" />
-      <path d="M5 2v3M11 2v3M2 7h12" stroke="rgba(255,255,255,0.45)" strokeWidth="1.3" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function ChartIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <path d="M2 12 6 7l3 3 5-6" stroke="rgba(255,255,255,0.45)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function ChevronIcon({ open, danger }: { open: boolean; danger?: boolean }) {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"
-      style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s ease" }}>
-      <path d="M4 6l4 4 4-4" stroke={danger ? "rgba(252,165,165,0.6)" : "rgba(255,255,255,0.3)"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function NotifRow({ icon, label, sub, value, onToggle }: { icon: React.ReactNode; label: string; sub: string; value: boolean; onToggle: () => void; }) {
-  return (
-    <div className="flex items-center justify-between gap-3 py-2">
-      <div className="flex items-start gap-3">
-        <div className="mt-0.5">{icon}</div>
+      {/* Glass card */}
+      <div
+        className="w-full max-w-sm rounded-3xl p-6 space-y-5"
+        style={{
+          background: "rgba(255,255,255,0.13)",
+          backdropFilter: "blur(24px) saturate(1.3)",
+          WebkitBackdropFilter: "blur(24px) saturate(1.3)",
+          border: "1px solid rgba(255,255,255,0.24)",
+        }}
+      >
         <div>
-          <p className="text-sm font-medium text-white">{label}</p>
-          <p className="text-xs text-white/40 mt-0.5">{sub}</p>
+          <div
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold mb-3"
+            style={{ background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.25)", color: "#FDE68A" }}
+          >
+            🎉 Beta access
+          </div>
+          <h2 className="text-2xl font-bold text-white">Create account</h2>
+          <p className="mt-1 text-sm text-white/45">You&apos;ll need your invite code to join.</p>
+        </div>
+
+        <form onSubmit={handleSignup} className="space-y-3">
+          <input
+            type="email"
+            placeholder="Email address"
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="input"
+          />
+          <input
+            type="password"
+            placeholder="Password (min 8 characters)"
+            autoComplete="new-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="input"
+          />
+          <input
+            type="password"
+            placeholder="Confirm password"
+            autoComplete="new-password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            className="input"
+          />
+
+          {/* Divider */}
+          <div style={{ height: 1, background: "rgba(255,255,255,0.1)", margin: "4px 0" }} />
+
+          <div>
+            <input
+              type="text"
+              placeholder="Invite code"
+              autoComplete="off"
+              autoCapitalize="characters"
+              value={inviteCode}
+              onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+              className="input"
+              style={{ letterSpacing: "0.1em", fontWeight: 600 }}
+            />
+            <p className="mt-1.5 text-xs text-white/30 px-1">
+              Ask J.O.D for your invite code if you don&apos;t have one.
+            </p>
+          </div>
+
+          {status && (
+            <p
+              className="rounded-2xl px-3 py-2 text-sm"
+              style={
+                isError
+                  ? { background: "rgba(226,75,74,0.1)", border: "1px solid rgba(226,75,74,0.2)", color: "#F09595" }
+                  : { background: "rgba(110,231,183,0.1)", border: "1px solid rgba(110,231,183,0.2)", color: "#6EE7B7" }
+              }
+            >
+              {status}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded-2xl py-3.5 text-base font-bold text-white transition disabled:opacity-50"
+            style={{ background: "#D97706" }}
+          >
+            {loading ? "Creating account..." : "Join Natrix 🏊"}
+          </button>
+        </form>
+
+        <div className="text-center pt-1">
+          <p className="text-sm text-white/40">
+            Already have an account?{" "}
+            <Link href="/login" className="font-semibold transition" style={{ color: "#FDE68A" }}>
+              Sign in
+            </Link>
+          </p>
         </div>
       </div>
-      <button type="button" onClick={onToggle} className="flex-shrink-0 rounded-full transition-all duration-200"
-        style={{ width: 44, height: 26, padding: 3, background: value ? "#D97706" : "rgba(255,255,255,0.12)", border: "none", display: "flex", alignItems: "center", justifyContent: value ? "flex-end" : "flex-start" }}>
-        <span style={{ width: 20, height: 20, borderRadius: "50%", background: "#fff", display: "block", transition: "all 0.2s ease" }} />
-      </button>
+
+      {/* Footer */}
+      <p className="mt-8 text-xs text-white/20">
+        Made with 🏊 by J.O.D — Just an Ordinary Dad
+      </p>
     </div>
   );
 }
@@ -4720,34 +3993,6 @@ export async function saveOCRResultsForSwimmer(
 <svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><g clip-path="url(#a)"><path fill-rule="evenodd" clip-rule="evenodd" d="M10.27 14.1a6.5 6.5 0 0 0 3.67-3.45q-1.24.21-2.7.34-.31 1.83-.97 3.1M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16m.48-1.52a7 7 0 0 1-.96 0H7.5a4 4 0 0 1-.84-1.32q-.38-.89-.63-2.08a40 40 0 0 0 3.92 0q-.25 1.2-.63 2.08a4 4 0 0 1-.84 1.31zm2.94-4.76q1.66-.15 2.95-.43a7 7 0 0 0 0-2.58q-1.3-.27-2.95-.43a18 18 0 0 1 0 3.44m-1.27-3.54a17 17 0 0 1 0 3.64 39 39 0 0 1-4.3 0 17 17 0 0 1 0-3.64 39 39 0 0 1 4.3 0m1.1-1.17q1.45.13 2.69.34a6.5 6.5 0 0 0-3.67-3.44q.65 1.26.98 3.1M8.48 1.5l.01.02q.41.37.84 1.31.38.89.63 2.08a40 40 0 0 0-3.92 0q.25-1.2.63-2.08a4 4 0 0 1 .85-1.32 7 7 0 0 1 .96 0m-2.75.4a6.5 6.5 0 0 0-3.67 3.44 29 29 0 0 1 2.7-.34q.31-1.83.97-3.1M4.58 6.28q-1.66.16-2.95.43a7 7 0 0 0 0 2.58q1.3.27 2.95.43a18 18 0 0 1 0-3.44m.17 4.71q-1.45-.12-2.69-.34a6.5 6.5 0 0 0 3.67 3.44q-.65-1.27-.98-3.1" fill="#666"/></g><defs><clipPath id="a"><path fill="#fff" d="M0 0h16v16H0z"/></clipPath></defs></svg>
 </file>
 
-<file path="public/manifest.webmanifest">
-{
-  "name": "Natrix — Swim Tracker",
-  "short_name": "Natrix",
-  "description": "Swim meet result tracker for parents. Scan, save and track your swimmer's PBs.",
-  "start_url": "/dashboard",
-  "display": "standalone",
-  "orientation": "portrait",
-  "background_color": "#063554",
-  "theme_color": "#063554",
-  "categories": ["sports", "health", "lifestyle"],
-  "icons": [
-    {
-      "src": "/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
-  ]
-}
-</file>
-
 <file path="public/next.svg">
 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 394 80"><path fill="#000" d="M262 0h68.5v12.7h-27.2v66.6h-13.6V12.7H262V0ZM149 0v12.7H94v20.4h44.3v12.6H94v21h55v12.6H80.5V0h68.7zm34.3 0h-17.8l63.8 79.4h17.9l-32-39.7 32-39.6h-17.9l-23 28.6-23-28.6zm18.3 56.7-9-11-27.1 33.7h17.8l18.3-22.7z"/><path fill="#000" d="M81 79.3 17 0H0v79.3h13.6V17l50.2 62.3H81Zm252.6-.4c-1 0-1.8-.4-2.5-1s-1.1-1.6-1.1-2.6.3-1.8 1-2.5 1.6-1 2.6-1 1.8.3 2.5 1a3.4 3.4 0 0 1 .6 4.3 3.7 3.7 0 0 1-3 1.8zm23.2-33.5h6v23.3c0 2.1-.4 4-1.3 5.5a9.1 9.1 0 0 1-3.8 3.5c-1.6.8-3.5 1.3-5.7 1.3-2 0-3.7-.4-5.3-1s-2.8-1.8-3.7-3.2c-.9-1.3-1.4-3-1.4-5h6c.1.8.3 1.6.7 2.2s1 1.2 1.6 1.5c.7.4 1.5.5 2.4.5 1 0 1.8-.2 2.4-.6a4 4 0 0 0 1.6-1.8c.3-.8.5-1.8.5-3V45.5zm30.9 9.1a4.4 4.4 0 0 0-2-3.3 7.5 7.5 0 0 0-4.3-1.1c-1.3 0-2.4.2-3.3.5-.9.4-1.6 1-2 1.6a3.5 3.5 0 0 0-.3 4c.3.5.7.9 1.3 1.2l1.8 1 2 .5 3.2.8c1.3.3 2.5.7 3.7 1.2a13 13 0 0 1 3.2 1.8 8.1 8.1 0 0 1 3 6.5c0 2-.5 3.7-1.5 5.1a10 10 0 0 1-4.4 3.5c-1.8.8-4.1 1.2-6.8 1.2-2.6 0-4.9-.4-6.8-1.2-2-.8-3.4-2-4.5-3.5a10 10 0 0 1-1.7-5.6h6a5 5 0 0 0 3.5 4.6c1 .4 2.2.6 3.4.6 1.3 0 2.5-.2 3.5-.6 1-.4 1.8-1 2.4-1.7a4 4 0 0 0 .8-2.4c0-.9-.2-1.6-.7-2.2a11 11 0 0 0-2.1-1.4l-3.2-1-3.8-1c-2.8-.7-5-1.7-6.6-3.2a7.2 7.2 0 0 1-2.4-5.7 8 8 0 0 1 1.7-5 10 10 0 0 1 4.3-3.5c2-.8 4-1.2 6.4-1.2 2.3 0 4.4.4 6.2 1.2 1.8.8 3.2 2 4.3 3.4 1 1.4 1.5 3 1.5 5h-5.8z"/></svg>
 </file>
@@ -4918,6 +4163,493 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
     "**/*.mts"
   ],
   "exclude": ["node_modules"]
+}
+</file>
+
+<file path="app/settings/page.tsx">
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabaseClient";
+import { replayTutorial } from "@/app/components/TutorialOverlay";
+
+const APP_VERSION = "1.0.0";
+
+type NotifPrefs = {
+  pbAlerts: boolean;
+  meetReminders: boolean;
+  weeklyRecap: boolean;
+};
+
+const FEATURE_REQUESTS = [
+  "AI nutrition guide",
+  "Meet calendar",
+  "Apple Watch support",
+  "Team / club dashboard",
+  "Relay tracking",
+  "Compare with teammates",
+  "Export to PDF / spreadsheet",
+  "Push notifications",
+  "Other",
+];
+
+export default function SettingsPage() {
+  const router = useRouter();
+
+  const [loading, setLoading] = useState(true);
+  const [email, setEmail] = useState("");
+  const [displayName, setDisplayName] = useState("");
+
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordMsg, setPasswordMsg] = useState("");
+  const [savingPassword, setSavingPassword] = useState(false);
+
+  const [notifs, setNotifs] = useState<NotifPrefs>({
+    pbAlerts: true,
+    meetReminders: true,
+    weeklyRecap: false,
+  });
+
+  // Feedback state
+  const [feedbackRating, setFeedbackRating] = useState(0);
+  const [feedbackMessage, setFeedbackMessage] = useState("");
+  const [feedbackFeature, setFeedbackFeature] = useState("");
+  const [savingFeedback, setSavingFeedback] = useState(false);
+  const [feedbackSent, setFeedbackSent] = useState(false);
+  const [feedbackError, setFeedbackError] = useState("");
+
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteInput, setDeleteInput] = useState("");
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [status, setStatus] = useState("");
+
+  useEffect(() => { void loadUser(); }, []);
+
+  async function loadUser() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { router.replace("/login"); return; }
+    setEmail(session.user.email ?? "");
+    const meta = session.user.user_metadata;
+    setDisplayName(meta?.full_name ?? meta?.name ?? "");
+    setLoading(false);
+  }
+
+  async function handleChangePassword() {
+    if (!newPassword) { setPasswordMsg("Please enter a new password."); return; }
+    if (newPassword.length < 8) { setPasswordMsg("Password must be at least 8 characters."); return; }
+    if (newPassword !== confirmPassword) { setPasswordMsg("Passwords don't match."); return; }
+    setSavingPassword(true);
+    setPasswordMsg("");
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) {
+      setPasswordMsg(`Error: ${error.message}`);
+    } else {
+      setPasswordMsg("✓ Password updated successfully.");
+      setNewPassword("");
+      setConfirmPassword("");
+      setTimeout(() => { setShowPasswordForm(false); setPasswordMsg(""); }, 2000);
+    }
+    setSavingPassword(false);
+  }
+
+  async function handleSendFeedback() {
+    if (feedbackRating === 0) { setFeedbackError("Please select a star rating."); return; }
+    if (!feedbackMessage.trim()) { setFeedbackError("Please write something — even a sentence helps!"); return; }
+
+    setSavingFeedback(true);
+    setFeedbackError("");
+
+    const { data: { session } } = await supabase.auth.getSession();
+
+    const { error } = await supabase.from("feedback").insert([{
+      user_id: session?.user?.id ?? null,
+      rating: feedbackRating,
+      message: feedbackMessage.trim(),
+      feature_request: feedbackFeature || null,
+    }]);
+
+    if (error) {
+      setFeedbackError(`Couldn't send feedback: ${error.message}`);
+    } else {
+      setFeedbackSent(true);
+      setFeedbackRating(0);
+      setFeedbackMessage("");
+      setFeedbackFeature("");
+    }
+    setSavingFeedback(false);
+  }
+
+  async function handleLogout() {
+    setLoggingOut(true);
+    await supabase.auth.signOut();
+    router.replace("/login");
+  }
+
+  async function handleDeleteAccount() {
+    if (deleteInput !== "DELETE") { setStatus("Please type DELETE to confirm."); return; }
+    setDeletingAccount(true);
+    setStatus("Deleting account...");
+    await supabase.auth.signOut();
+    router.replace("/login");
+  }
+
+  function toggleNotif(key: keyof NotifPrefs) {
+    setNotifs((prev) => ({ ...prev, [key]: !prev[key] }));
+  }
+
+  if (loading) {
+    return (
+      <div className="shell">
+        <div className="container-app">
+          <p className="muted">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="shell">
+      <div className="container-app space-y-5">
+
+        {/* Header */}
+        <div className="pt-2">
+          <p className="text-[10px] font-medium uppercase tracking-widest" style={{ color: "#BA7517" }}>
+            Natrix
+          </p>
+          <h1 className="mt-1 text-3xl font-bold tracking-tight text-white">Settings</h1>
+        </div>
+
+        {/* Account */}
+        <div className="card space-y-4">
+          <p className="label">Account</p>
+          <div className="flex items-center gap-4">
+            <div
+              className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl text-lg font-bold"
+              style={{ background: "rgba(217,119,6,0.25)", color: "#FDE68A", border: "1px solid rgba(253,230,138,0.2)" }}
+            >
+              {(displayName || email).slice(0, 1).toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              {displayName && <p className="text-base font-semibold text-white truncate">{displayName}</p>}
+              <p className="text-sm text-white/50 truncate">{email}</p>
+            </div>
+          </div>
+
+          {/* Change password */}
+          <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.05)" }}>
+            <button
+              type="button"
+              onClick={() => { setShowPasswordForm((v) => !v); setPasswordMsg(""); }}
+              className="w-full flex items-center justify-between px-4 py-3 text-left"
+            >
+              <div className="flex items-center gap-3">
+                <LockIcon />
+                <span className="text-sm font-medium text-white">Change password</span>
+              </div>
+              <ChevronIcon open={showPasswordForm} />
+            </button>
+            {showPasswordForm && (
+              <div className="px-4 pb-4 space-y-3 border-t border-white/10 pt-3">
+                <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="New password" className="input" />
+                <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm new password" className="input" />
+                {passwordMsg && (
+                  <p className="text-sm" style={{ color: passwordMsg.startsWith("✓") ? "#6EE7B7" : "#FCA5A5" }}>{passwordMsg}</p>
+                )}
+                <button type="button" onClick={handleChangePassword} disabled={savingPassword}
+                  className="w-full rounded-2xl py-3 text-sm font-semibold text-white transition disabled:opacity-50"
+                  style={{ background: "#D97706" }}>
+                  {savingPassword ? "Saving..." : "Update password"}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Notifications */}
+        <div className="card space-y-1">
+          <p className="label mb-3">Notifications</p>
+          <NotifRow icon={<BellIcon />} label="PB alerts" sub="Get notified when a new personal best is saved" value={notifs.pbAlerts} onToggle={() => toggleNotif("pbAlerts")} />
+          <div style={{ height: 1, background: "rgba(255,255,255,0.08)", margin: "4px 0" }} />
+          <NotifRow icon={<CalendarIcon />} label="Meet reminders" sub="Reminders before upcoming meets" value={notifs.meetReminders} onToggle={() => toggleNotif("meetReminders")} />
+          <div style={{ height: 1, background: "rgba(255,255,255,0.08)", margin: "4px 0" }} />
+          <NotifRow icon={<ChartIcon />} label="Weekly recap" sub="Summary of the week's results every Sunday" value={notifs.weeklyRecap} onToggle={() => toggleNotif("weeklyRecap")} />
+        </div>
+
+        {/* Tutorial recap */}
+        <div className="card">
+          <p className="label mb-3">Help</p>
+          <button
+            type="button"
+            onClick={replayTutorial}
+            className="w-full flex items-center justify-between rounded-2xl px-4 py-3 text-left transition"
+            style={{ background: "rgba(217,119,6,0.1)", border: "1px solid rgba(253,230,138,0.2)" }}
+          >
+            <div className="flex items-center gap-3">
+              <span style={{ fontSize: 18 }}>🎓</span>
+              <div>
+                <p className="text-sm font-semibold" style={{ color: "#FDE68A" }}>Replay tutorial</p>
+                <p className="text-xs text-white/40 mt-0.5">Walk through the app step by step again</p>
+              </div>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M6 3l5 5-5 5" stroke="rgba(253,230,138,0.5)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+
+          <div className="mt-4 space-y-2">
+            <p className="text-[9px] uppercase tracking-wider text-white/30 mb-2">Quick reference</p>
+            {[
+              { emoji: "👥", title: "Add a swimmer", desc: "Tap Brood → + button → fill in profile" },
+              { emoji: "📷", title: "Scan a result", desc: "Tap Scan → upload Meet Mobile screenshot" },
+              { emoji: "📈", title: "View progress", desc: "Swimmer profile → Progress tab" },
+              { emoji: "⭐", title: "Check standards", desc: "Tap Standards in bottom nav" },
+            ].map((item) => (
+              <div key={item.title} className="flex items-start gap-3 rounded-2xl px-3 py-2.5"
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>{item.emoji}</span>
+                <div>
+                  <p className="text-sm font-medium text-white">{item.title}</p>
+                  <p className="text-xs text-white/40">{item.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ✅ Feedback */}
+        <div className="card space-y-4">
+          <div>
+            <p className="label">Feedback</p>
+            <p className="text-xs text-white/40 mt-1">Help shape Natrix — every message goes straight to J.O.D.</p>
+          </div>
+
+          {feedbackSent ? (
+            <div className="rounded-2xl py-6 text-center space-y-2"
+              style={{ background: "rgba(217,119,6,0.1)", border: "1px solid rgba(253,230,138,0.2)" }}>
+              <p className="text-2xl">🙏</p>
+              <p className="text-sm font-semibold" style={{ color: "#FDE68A" }}>Thank you!</p>
+              <p className="text-xs text-white/40">Your feedback means the world. We&apos;ll use it to make Natrix better.</p>
+              <button
+                type="button"
+                onClick={() => setFeedbackSent(false)}
+                className="mt-2 text-xs text-white/30 underline"
+              >
+                Send another
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* Star rating */}
+              <div>
+                <p className="text-xs text-white/50 mb-2">How are you finding Natrix?</p>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setFeedbackRating(star)}
+                      className="text-2xl transition-transform active:scale-90"
+                      style={{ opacity: feedbackRating >= star ? 1 : 0.25, filter: feedbackRating >= star ? "none" : "grayscale(1)" }}
+                    >
+                      ⭐
+                    </button>
+                  ))}
+                </div>
+                {feedbackRating > 0 && (
+                  <p className="text-xs mt-1.5" style={{ color: "#FDE68A" }}>
+                    {feedbackRating === 5 ? "Love it! 🏊" : feedbackRating === 4 ? "Really good!" : feedbackRating === 3 ? "It's okay" : feedbackRating === 2 ? "Needs work" : "Not great"}
+                  </p>
+                )}
+              </div>
+
+              {/* Message */}
+              <div>
+                <p className="text-xs text-white/50 mb-2">What would make Natrix better?</p>
+                <textarea
+                  value={feedbackMessage}
+                  onChange={(e) => setFeedbackMessage(e.target.value)}
+                  placeholder="Tell us anything — bugs, ideas, what you love, what's missing..."
+                  rows={3}
+                  className="w-full rounded-[20px] px-4 py-3 text-sm text-white outline-none resize-none placeholder:text-white/35"
+                  style={{
+                    background: "rgba(0,20,50,0.35)",
+                    border: "1px solid rgba(255,255,255,0.2)",
+                    backdropFilter: "blur(12px)",
+                    WebkitBackdropFilter: "blur(12px)",
+                  }}
+                />
+              </div>
+
+              {/* Feature request */}
+              <div>
+                <p className="text-xs text-white/50 mb-2">Most wanted feature (optional)</p>
+                <select
+                  value={feedbackFeature}
+                  onChange={(e) => setFeedbackFeature(e.target.value)}
+                  className="input"
+                >
+                  <option value="">Pick one...</option>
+                  {FEATURE_REQUESTS.map((f) => (
+                    <option key={f} value={f}>{f}</option>
+                  ))}
+                </select>
+              </div>
+
+              {feedbackError && (
+                <p className="text-sm" style={{ color: "#FCA5A5" }}>{feedbackError}</p>
+              )}
+
+              <button
+                type="button"
+                onClick={handleSendFeedback}
+                disabled={savingFeedback}
+                className="w-full rounded-2xl py-3 text-sm font-semibold text-white transition disabled:opacity-50"
+                style={{ background: "#D97706" }}
+              >
+                {savingFeedback ? "Sending..." : "Send feedback 🚀"}
+              </button>
+            </>
+          )}
+        </div>
+
+        {/* App info */}
+        <div className="card">
+          <p className="label mb-3">About</p>
+          <div className="flex items-center justify-between py-1">
+            <p className="text-sm text-white/60">Version</p>
+            <p className="text-sm font-semibold text-white">{APP_VERSION}</p>
+          </div>
+          <div style={{ height: 1, background: "rgba(255,255,255,0.08)", margin: "8px 0" }} />
+          <div className="flex items-center justify-between py-1">
+            <p className="text-sm text-white/60">Built for</p>
+            <p className="text-sm font-semibold text-white">Southeast Asia · expanding globally</p>
+          </div>
+          <div style={{ height: 1, background: "rgba(255,255,255,0.08)", margin: "8px 0" }} />
+          <div className="flex items-center justify-between py-1">
+            <p className="text-sm text-white/60">Made with</p>
+            <p className="text-sm font-semibold" style={{ color: "#FDE68A" }}>🏊 for swim parents</p>
+          </div>
+          <div style={{ height: 1, background: "rgba(255,255,255,0.08)", margin: "8px 0" }} />
+          <div className="flex items-center justify-between py-1">
+            <p className="text-sm text-white/60">Developed by</p>
+            <p className="text-sm font-semibold text-white">J.O.D <span className="text-white/40 text-xs">Just an Ordinary Dad</span></p>
+          </div>
+        </div>
+
+        {/* Sign out */}
+        <button
+          type="button"
+          onClick={handleLogout}
+          disabled={loggingOut}
+          className="w-full rounded-2xl py-4 text-base font-semibold transition disabled:opacity-50"
+          style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.85)" }}
+        >
+          {loggingOut ? "Signing out..." : "Sign out"}
+        </button>
+
+        {/* Delete account */}
+        <div className="rounded-3xl overflow-hidden" style={{ border: "1px solid rgba(239,68,68,0.2)", background: "rgba(239,68,68,0.06)" }}>
+          <button
+            type="button"
+            onClick={() => { setShowDeleteConfirm((v) => !v); setDeleteInput(""); setStatus(""); }}
+            className="w-full flex items-center justify-between px-5 py-4 text-left"
+          >
+            <div>
+              <p className="text-sm font-semibold" style={{ color: "#FCA5A5" }}>Delete account</p>
+              <p className="text-xs text-white/35 mt-0.5">Permanently removes all your data</p>
+            </div>
+            <ChevronIcon open={showDeleteConfirm} danger />
+          </button>
+          {showDeleteConfirm && (
+            <div className="px-5 pb-5 space-y-3 border-t border-red-500/15 pt-4">
+              <p className="text-sm text-white/60 leading-relaxed">
+                This will permanently delete your account and all swimmer data. This cannot be undone. Type <span className="font-bold text-white">DELETE</span> to confirm.
+              </p>
+              <input value={deleteInput} onChange={(e) => setDeleteInput(e.target.value)} placeholder="Type DELETE to confirm" className="input" style={{ borderColor: "rgba(239,68,68,0.3)" }} />
+              {status && <p className="text-sm" style={{ color: "#FCA5A5" }}>{status}</p>}
+              <button
+                type="button"
+                onClick={handleDeleteAccount}
+                disabled={deletingAccount || deleteInput !== "DELETE"}
+                className="w-full rounded-2xl py-3 text-sm font-semibold transition disabled:opacity-40"
+                style={{ background: "rgba(239,68,68,0.25)", border: "1px solid rgba(239,68,68,0.4)", color: "#FCA5A5" }}
+              >
+                {deletingAccount ? "Deleting..." : "Permanently delete account"}
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="h-4" />
+      </div>
+    </div>
+  );
+}
+
+function LockIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <rect x="3" y="7" width="10" height="8" rx="2" stroke="rgba(255,255,255,0.45)" strokeWidth="1.3" />
+      <path d="M5 7V5a3 3 0 0 1 6 0v2" stroke="rgba(255,255,255,0.45)" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function BellIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M8 2a5 5 0 0 1 5 5v3l1 1H2l1-1V7a5 5 0 0 1 5-5Z" stroke="rgba(255,255,255,0.45)" strokeWidth="1.3" />
+      <path d="M6.5 13a1.5 1.5 0 0 0 3 0" stroke="rgba(255,255,255,0.45)" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function CalendarIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <rect x="2" y="4" width="12" height="10" rx="2" stroke="rgba(255,255,255,0.45)" strokeWidth="1.3" />
+      <path d="M5 2v3M11 2v3M2 7h12" stroke="rgba(255,255,255,0.45)" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ChartIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M2 12 6 7l3 3 5-6" stroke="rgba(255,255,255,0.45)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ChevronIcon({ open, danger }: { open: boolean; danger?: boolean }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"
+      style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s ease" }}>
+      <path d="M4 6l4 4 4-4" stroke={danger ? "rgba(252,165,165,0.6)" : "rgba(255,255,255,0.3)"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function NotifRow({ icon, label, sub, value, onToggle }: { icon: React.ReactNode; label: string; sub: string; value: boolean; onToggle: () => void; }) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-2">
+      <div className="flex items-start gap-3">
+        <div className="mt-0.5">{icon}</div>
+        <div>
+          <p className="text-sm font-medium text-white">{label}</p>
+          <p className="text-xs text-white/40 mt-0.5">{sub}</p>
+        </div>
+      </div>
+      <button type="button" onClick={onToggle} className="flex-shrink-0 rounded-full transition-all duration-200"
+        style={{ width: 44, height: 26, padding: 3, background: value ? "#D97706" : "rgba(255,255,255,0.12)", border: "none", display: "flex", alignItems: "center", justifyContent: value ? "flex-end" : "flex-start" }}>
+        <span style={{ width: 20, height: 20, borderRadius: "50%", background: "#fff", display: "block", transition: "all 0.2s ease" }} />
+      </button>
+    </div>
+  );
 }
 </file>
 
@@ -6048,6 +5780,34 @@ export const supabase = createBrowserClient(
 );
 </file>
 
+<file path="public/manifest.webmanifest">
+{
+  "name": "Natrix — Swim Tracker",
+  "short_name": "Natrix",
+  "description": "Swim meet result tracker for parents. Scan, save and track your swimmer's PBs.",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#063554",
+  "theme_color": "#063554",
+  "categories": ["sports", "health", "lifestyle"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
+</file>
+
 <file path="app/components/BottomNav.tsx">
 "use client";
 
@@ -6292,6 +6052,236 @@ export default function ForgotPasswordPage() {
           </>
         )}
       </div>
+    </div>
+  );
+}
+</file>
+
+<file path="app/invite/page.tsx">
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+
+type Platform = "iphone" | "android";
+
+const STEPS = {
+  iphone: [
+    { number: "1", title: "Open in Safari", detail: "This link must be opened in Safari — not Chrome or another browser.", icon: "🧭" },
+    { number: "2", title: "Tap the Share button", detail: "Tap the Share icon at the bottom — a box with an arrow pointing up.", icon: "⬆️" },
+    { number: "3", title: "Add to Home Screen", detail: 'Tap "Add to Home Screen", name it Natrix, and tap Add.', icon: "➕" },
+    { number: "4", title: "Open from your home screen", detail: "Natrix opens full screen like a real app. No browser bar!", icon: "🏊" },
+  ],
+  android: [
+    { number: "1", title: "Open in Chrome", detail: "Open this link in Chrome on your Android phone.", icon: "🌐" },
+    { number: "2", title: "Tap the three dots menu", detail: "Tap the ⋮ menu in the top right corner of Chrome.", icon: "⋮" },
+    { number: "3", title: "Add to Home screen", detail: 'Tap "Add to Home screen" and confirm by tapping Add.', icon: "➕" },
+    { number: "4", title: "Open from your home screen", detail: "Natrix launches full screen. Tap it to get started!", icon: "🏊" },
+  ],
+};
+
+const APP_URL = "https://swimnatrix.vercel.app";
+const INVITE_CODE = "NATRIX2026";
+
+export default function InvitePage() {
+  const [platform, setPlatform] = useState<Platform>("iphone");
+  const [copied, setCopied] = useState(false);
+  const [codeCopied, setCodeCopied] = useState(false);
+  const [showInstall, setShowInstall] = useState(false);
+
+  function copyLink() {
+    navigator.clipboard.writeText(APP_URL).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  function copyCode() {
+    navigator.clipboard.writeText(INVITE_CODE).then(() => {
+      setCodeCopied(true);
+      setTimeout(() => setCodeCopied(false), 2000);
+    });
+  }
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-start px-5 py-10">
+
+      {/* Header */}
+      <div className="text-center mb-6">
+        <div
+          className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-3xl text-4xl"
+          style={{ background: "rgba(217,119,6,0.25)", border: "1px solid rgba(253,230,138,0.3)" }}
+        >
+          🏊
+        </div>
+        <h1 className="text-3xl font-bold tracking-tight text-white">You&apos;re invited!</h1>
+        <p className="mt-2 text-white/50 text-sm max-w-xs mx-auto">
+          Beta access to Natrix — the swim meet tracker for parents.
+        </p>
+      </div>
+
+      {/* Invite code — big and obvious */}
+      <div
+        className="w-full max-w-sm rounded-3xl p-5 mb-4"
+        style={{
+          background: "rgba(217,119,6,0.12)",
+          border: "1px solid rgba(253,230,138,0.3)",
+        }}
+      >
+        <p className="text-xs font-medium uppercase tracking-widest mb-1" style={{ color: "#FDE68A" }}>
+          🔑 Your invite code
+        </p>
+        <p className="text-xs text-white/40 mb-4">You&apos;ll enter this when creating your account.</p>
+        <div
+          className="rounded-2xl px-4 py-4 mb-3 flex items-center justify-between gap-3"
+          style={{ background: "rgba(0,20,50,0.4)", border: "1px solid rgba(253,230,138,0.2)" }}
+        >
+          <p className="text-2xl font-bold tracking-widest" style={{ color: "#FDE68A" }}>{INVITE_CODE}</p>
+          <button
+            type="button"
+            onClick={copyCode}
+            className="rounded-xl px-3 py-1.5 text-xs font-semibold transition flex-shrink-0"
+            style={{
+              background: codeCopied ? "rgba(110,231,183,0.2)" : "rgba(253,230,138,0.15)",
+              border: codeCopied ? "1px solid rgba(110,231,183,0.4)" : "1px solid rgba(253,230,138,0.3)",
+              color: codeCopied ? "#6EE7B7" : "#FDE68A",
+            }}
+          >
+            {codeCopied ? "✓ Copied!" : "Copy"}
+          </button>
+        </div>
+      </div>
+
+      {/* CTA buttons — front and centre */}
+      <div className="w-full max-w-sm space-y-3 mb-6">
+        <Link
+          href="/signup"
+          className="flex items-center justify-center w-full rounded-2xl py-4 text-base font-bold text-white transition"
+          style={{ background: "#D97706" }}
+        >
+          Create your free account →
+        </Link>
+        <Link
+          href="/login"
+          className="flex items-center justify-center w-full rounded-2xl py-3 text-sm font-semibold transition"
+          style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.6)" }}
+        >
+          Already have an account? Sign in
+        </Link>
+      </div>
+
+      {/* What is Natrix */}
+      <div
+        className="w-full max-w-sm rounded-3xl p-5 mb-4 space-y-3"
+        style={{
+          background: "rgba(255,255,255,0.07)",
+          border: "1px solid rgba(255,255,255,0.14)",
+        }}
+      >
+        <p className="text-xs font-medium uppercase tracking-widest text-white/40">What is Natrix?</p>
+        {[
+          { icon: "📷", text: "Scan Meet Mobile screenshots — results save automatically" },
+          { icon: "📈", text: "Track PBs and progress charts for every event" },
+          { icon: "⭐", text: "See how close your swimmer is to qualifying standards" },
+          { icon: "👥", text: "Follow multiple swimmers across different clubs" },
+        ].map((item) => (
+          <div key={item.text} className="flex items-start gap-3">
+            <span className="text-lg flex-shrink-0">{item.icon}</span>
+            <p className="text-sm text-white/70 leading-snug">{item.text}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Install instructions — collapsible */}
+      <div className="w-full max-w-sm mb-6">
+        <button
+          type="button"
+          onClick={() => setShowInstall((v) => !v)}
+          className="w-full rounded-3xl px-5 py-4 flex items-center justify-between transition"
+          style={{
+            background: "rgba(255,255,255,0.07)",
+            border: "1px solid rgba(255,255,255,0.14)",
+          }}
+        >
+          <div className="flex items-center gap-2">
+            <span>📲</span>
+            <p className="text-sm font-semibold text-white">How to install on your phone</p>
+          </div>
+          <p className="text-xs text-white/40">{showInstall ? "Hide ↑" : "Show ↓"}</p>
+        </button>
+
+        {showInstall && (
+          <div
+            className="rounded-3xl mt-2 p-5"
+            style={{
+              background: "rgba(255,255,255,0.07)",
+              border: "1px solid rgba(255,255,255,0.14)",
+            }}
+          >
+            <div className="flex gap-2 mb-5">
+              {(["iphone", "android"] as Platform[]).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setPlatform(p)}
+                  className="flex-1 rounded-2xl py-2.5 text-sm font-semibold transition"
+                  style={
+                    platform === p
+                      ? { background: "#D97706", color: "#fff" }
+                      : { background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.5)" }
+                  }
+                >
+                  {p === "iphone" ? "📱 iPhone" : "🤖 Android"}
+                </button>
+              ))}
+            </div>
+
+            <div className="space-y-4 mb-5">
+              {STEPS[platform].map((step) => (
+                <div key={step.number} className="flex items-start gap-3">
+                  <div
+                    className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-sm font-bold"
+                    style={{ background: "rgba(217,119,6,0.25)", color: "#FDE68A", border: "1px solid rgba(253,230,138,0.2)" }}
+                  >
+                    {step.number}
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-white">{step.title}</p>
+                    <p className="text-xs text-white/45 mt-0.5 leading-relaxed">{step.detail}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div
+              className="rounded-2xl px-4 py-3 mb-3 flex items-center justify-between gap-3"
+              style={{ background: "rgba(0,20,50,0.35)", border: "1px solid rgba(255,255,255,0.15)" }}
+            >
+              <p className="text-sm text-white/60 truncate font-mono">{APP_URL}</p>
+            </div>
+            <button
+              type="button"
+              onClick={copyLink}
+              className="w-full rounded-2xl py-3 text-sm font-bold text-white transition"
+              style={{ background: copied ? "rgba(110,231,183,0.25)" : "#D97706", border: copied ? "1px solid rgba(110,231,183,0.4)" : "none" }}
+            >
+              {copied ? "✓ Copied!" : "Copy app link"}
+            </button>
+            <p className="mt-3 text-xs text-center text-white/30">
+              {platform === "iphone"
+                ? "Open this link in Safari, then follow the steps above"
+                : "Open this link in Chrome, then follow the steps above"}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Footer */}
+      <p className="text-xs text-white/20 text-center">
+        Made with 🏊 by J.O.D — Just an Ordinary Dad<br />
+        Beta v1.0 · Natrix · Singapore
+      </p>
+
     </div>
   );
 }
@@ -7375,578 +7365,6 @@ export default function StandardsPage() {
 }
 </file>
 
-<file path="app/swimmers/[id]/StandardsCompare.tsx">
-"use client";
-
-import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
-import { canonicalEventName, canonicalCourse, eventKey } from "@/lib/events";
-
-type SwimTimeRow = {
-  event: string;
-  course: string;
-  time_ms: number;
-};
-
-type StandardSet = {
-  id: number;
-  name: string;
-  type: string;
-};
-
-type StandardItem = {
-  id: number;
-  standard_set_id: number;
-  event: string;
-  course: string;
-  min_age: number | null;
-  max_age: number | null;
-  gender: string | null;
-  qualifying_time_ms: number;
-};
-
-type Tone = "neutral" | "good" | "warn";
-
-type CompareRow = {
-  key: string;
-  event: string;
-  course: string;
-  pbMs: number | null;
-  targetMs: number;
-  gapMs: number | null;
-  qualified: boolean;
-  hasPb: boolean;
-};
-
-function normalizeEvent(event: string) {
-  return canonicalEventName(event).toLowerCase().replace(/\s+/g, "");
-}
-
-function normalizeCourse(course: string) {
-  return canonicalCourse(course);
-}
-
-function keyOf(event: string, course: string) {
-  return eventKey(event, course);
-}
-
-function formatMs(ms: number | null | undefined) {
-  if (ms == null) return "—";
-
-  const totalSeconds = ms / 1000;
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds - minutes * 60;
-
-  return minutes > 0
-    ? `${minutes}:${seconds.toFixed(2).padStart(5, "0")}`
-    : seconds.toFixed(2);
-}
-
-function gapText(pbMs: number, targetMs: number) {
-  const diff = pbMs - targetMs;
-  const seconds = Math.abs(diff / 1000).toFixed(2);
-
-  if (diff <= 0) return `${seconds}s under`;
-  return `${seconds}s to go`;
-}
-
-function gapTone(pbMs: number, targetMs: number): Tone {
-  const diff = pbMs - targetMs;
-
-  if (diff <= 0) return "good";
-  if (diff <= 1000) return "warn";
-  return "neutral";
-}
-
-function toneStyles(tone: Tone) {
-  switch (tone) {
-    case "good":
-      return {
-        chip: "bg-emerald-50 text-emerald-800 ring-emerald-200",
-        tileRing: "ring-emerald-200",
-        value: "text-emerald-900",
-      };
-    case "warn":
-      return {
-        chip: "bg-amber-50 text-amber-800 ring-amber-200",
-        tileRing: "ring-amber-200",
-        value: "text-amber-900",
-      };
-    default:
-      return {
-        chip: "bg-zinc-50 text-zinc-800 ring-zinc-200",
-        tileRing: "ring-zinc-200",
-        value: "text-zinc-900",
-      };
-  }
-}
-
-function Chip({
-  label,
-  value,
-  tone = "neutral",
-}: {
-  label: string;
-  value: string;
-  tone?: Tone;
-}) {
-  const t = toneStyles(tone);
-
-  return (
-    <div
-      className={[
-        "inline-flex items-center gap-2 rounded-full px-3 py-1.5",
-        "ring-1",
-        t.chip,
-      ].join(" ")}
-    >
-      <span className="text-[11px] font-medium">{label}</span>
-      <span className="text-[11px] font-semibold tabular-nums">{value}</span>
-    </div>
-  );
-}
-
-function Tile({
-  label,
-  value,
-  hint,
-  tone = "neutral",
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-  tone?: Tone;
-}) {
-  const t = toneStyles(tone);
-
-  return (
-    <div className={["rounded-2xl bg-white p-3 ring-1", t.tileRing].join(" ")}>
-      <div className="text-[11px] font-medium text-zinc-600">{label}</div>
-      <div
-        className={[
-          "mt-1 text-lg font-semibold tabular-nums break-words",
-          t.value,
-        ].join(" ")}
-      >
-        {value}
-      </div>
-      {hint ? <div className="mt-1 text-[11px] text-zinc-500">{hint}</div> : null}
-    </div>
-  );
-}
-
-function EventCard({
-  title,
-  subtitle,
-  chips,
-  tiles,
-}: {
-  title: string;
-  subtitle?: string;
-  chips?: Array<{ label: string; value: string; tone?: Tone }>;
-  tiles: Array<{ label: string; value: string; hint?: string; tone?: Tone }>;
-}) {
-  return (
-    <section className="rounded-2xl bg-white p-4 ring-1 ring-zinc-200">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <div className="text-sm font-semibold text-zinc-900">{title}</div>
-          {subtitle ? <div className="mt-0.5 text-xs text-zinc-500">{subtitle}</div> : null}
-        </div>
-
-        {chips?.length ? (
-          <div className="flex flex-wrap gap-2 sm:justify-end">
-            {chips.map((c, i) => (
-              <Chip key={i} label={c.label} value={c.value} tone={c.tone ?? "neutral"} />
-            ))}
-          </div>
-        ) : null}
-      </div>
-
-      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {tiles.map((t, i) => (
-          <Tile
-            key={i}
-            label={t.label}
-            value={t.value}
-            hint={t.hint}
-            tone={t.tone ?? "neutral"}
-          />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-export default function StandardsCompare({
-  swimmerId,
-  swimmerAge,
-  swimmerGender,
-}: {
-  swimmerId: number;
-  swimmerAge: number;
-  swimmerGender?: string | null;
-}) {
-  const [loading, setLoading] = useState(true);
-  const [loadingItems, setLoadingItems] = useState(false);
-
-  const [pbMap, setPbMap] = useState<Map<string, number>>(new Map());
-  const [pbLabelMap, setPbLabelMap] = useState<Map<string, { event: string; course: string }>>(
-    new Map()
-  );
-
-  const [sets, setSets] = useState<StandardSet[]>([]);
-  const [selectedSetId, setSelectedSetId] = useState<number | "">("");
-  const [items, setItems] = useState<StandardItem[]>([]);
-
-  useEffect(() => {
-    if (!swimmerId) return;
-    loadInitialData();
-  }, [swimmerId]);
-
-  useEffect(() => {
-    if (!selectedSetId) {
-      setItems([]);
-      return;
-    }
-    loadItemsForSet(Number(selectedSetId));
-  }, [selectedSetId, swimmerAge, swimmerGender]);
-
-  async function loadInitialData() {
-    setLoading(true);
-
-    const [timesResult, setsResult] = await Promise.all([
-      supabase
-        .from("swim_times")
-        .select("event, course, time_ms")
-        .eq("swimmer_id", swimmerId),
-      supabase
-        .from("standard_sets")
-        .select("id, name, type")
-        .order("created_at", { ascending: false }),
-    ]);
-
-    const { data: times, error: tErr } = timesResult;
-    const { data: setData, error: setErr } = setsResult;
-
-    if (tErr) {
-      alert("Failed to load swim times ❌ " + tErr.message);
-      setLoading(false);
-      return;
-    }
-
-    if (setErr) {
-      alert("Failed to load standard sets ❌ " + setErr.message);
-      setLoading(false);
-      return;
-    }
-
-    const map = new Map<string, number>();
-    const labelMap = new Map<string, { event: string; course: string }>();
-
-    (times as SwimTimeRow[] | null)?.forEach((t) => {
-      const k = keyOf(t.event, t.course);
-      const currentPb = map.get(k);
-
-      if (currentPb == null || t.time_ms < currentPb) {
-        map.set(k, t.time_ms);
-        labelMap.set(k, {
-          event: t.event.trim(),
-          course: normalizeCourse(t.course),
-        });
-      }
-    });
-
-    const loadedSets = (setData as StandardSet[] | null) ?? [];
-
-    setPbMap(map);
-    setPbLabelMap(labelMap);
-    setSets(loadedSets);
-
-    setSelectedSetId((current) => {
-      if (current && loadedSets.some((s) => s.id === current)) return current;
-      return loadedSets.length > 0 ? loadedSets[0].id : "";
-    });
-
-    setLoading(false);
-  }
-
-  async function loadItemsForSet(setId: number) {
-    setLoadingItems(true);
-
-    const { data, error } = await supabase
-      .from("standard_items")
-      .select(
-        "id, standard_set_id, event, course, min_age, max_age, gender, qualifying_time_ms"
-      )
-      .eq("standard_set_id", setId)
-      .order("event", { ascending: true });
-
-    if (error) {
-      alert("Failed to load standard items ❌ " + error.message);
-      setLoadingItems(false);
-      return;
-    }
-
-    const normalizedSwimmerGender = swimmerGender?.trim().toLowerCase() ?? null;
-
-    const filtered =
-      (data as StandardItem[] | null)?.filter((s) => {
-        const minOk = s.min_age == null || swimmerAge >= s.min_age;
-        const maxOk = s.max_age == null || swimmerAge <= s.max_age;
-
-        const genderOk =
-          !s.gender ||
-          !normalizedSwimmerGender ||
-          s.gender.trim().toLowerCase() === normalizedSwimmerGender;
-
-        return minOk && maxOk && genderOk;
-      }) ?? [];
-
-    setItems(filtered);
-    setLoadingItems(false);
-  }
-
-  const rows = useMemo<CompareRow[]>(() => {
-    const bestTargetByKey = new Map<string, StandardItem>();
-
-    for (const item of items) {
-      const key = keyOf(item.event, item.course);
-      const existing = bestTargetByKey.get(key);
-
-      if (!existing || item.qualifying_time_ms < existing.qualifying_time_ms) {
-        bestTargetByKey.set(key, item);
-      }
-    }
-    console.log("PB KEYS", Array.from(pbMap.keys()));
-console.log(
-  "STANDARD KEYS",
-  items.map((item) => ({
-    event: item.event,
-    course: item.course,
-    key: keyOf(item.event, item.course),
-  }))
-);
-
-    return Array.from(bestTargetByKey.entries())
-      .map(([key, item]) => {
-        const pbMs = pbMap.get(key) ?? null;
-        const label = pbLabelMap.get(key);
-
-        return {
-          key,
-          event: label?.event ?? item.event.trim(),
-          course: label?.course ?? normalizeCourse(item.course),
-          pbMs,
-          targetMs: item.qualifying_time_ms,
-          gapMs: pbMs != null ? pbMs - item.qualifying_time_ms : null,
-          qualified: pbMs != null ? pbMs <= item.qualifying_time_ms : false,
-          hasPb: pbMs != null,
-        };
-      })
-      .sort((a, b) => {
-        if (a.gapMs == null && b.gapMs == null) {
-          return a.event.localeCompare(b.event);
-        }
-        if (a.gapMs == null) return 1;
-        if (b.gapMs == null) return -1;
-        return a.gapMs - b.gapMs;
-      });
-  }, [items, pbMap, pbLabelMap]);
-
-  const selectedSet = sets.find((s) => s.id === selectedSetId) ?? null;
-
-  const nextTarget = useMemo(() => {
-    return rows
-      .filter((r) => r.hasPb && !r.qualified && r.gapMs != null)
-      .sort((a, b) => (a.gapMs ?? Infinity) - (b.gapMs ?? Infinity))[0] ?? null;
-  }, [rows]);
-
-  return (
-    <div className="space-y-4">
-      <section className="rounded-2xl bg-white p-4 ring-1 ring-zinc-200">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-zinc-900">Standards Compare</h2>
-            <p className="mt-0.5 text-sm text-zinc-500">
-              See how close this swimmer is to qualifying standards.
-            </p>
-          </div>
-
-          <div className="min-w-[220px]">
-            <select
-              value={selectedSetId}
-              onChange={(e) =>
-                setSelectedSetId(e.target.value ? Number(e.target.value) : "")
-              }
-              className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm"
-            >
-              <option value="">Select a standard set</option>
-              {sets.map((set) => (
-                <option key={set.id} value={set.id}>
-                  {set.name} ({set.type})
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {selectedSet ? (
-          <div className="mt-3">
-            <Chip
-              label="Using"
-              value={`${selectedSet.name} • ${selectedSet.type}`}
-              tone="neutral"
-            />
-          </div>
-        ) : null}
-      </section>
-
-      <section className="rounded-2xl bg-white p-4 ring-1 ring-zinc-200">
-        <h3 className="text-base font-semibold text-zinc-900">Next Target</h3>
-
-        {loading || loadingItems ? (
-          <p className="mt-3 text-sm text-zinc-600">Loading next target…</p>
-        ) : !selectedSet ? (
-          <p className="mt-3 text-sm text-zinc-600">Select a standard set first.</p>
-        ) : nextTarget ? (
-          <div className="mt-3">
-            <EventCard
-              title={nextTarget.event}
-              subtitle={`Course: ${nextTarget.course}`}
-              chips={[
-                {
-                  label: "Closest Gap",
-                  value: gapText(nextTarget.pbMs!, nextTarget.targetMs),
-                  tone: gapTone(nextTarget.pbMs!, nextTarget.targetMs),
-                },
-              ]}
-              tiles={[
-                {
-                  label: "PB",
-                  value: formatMs(nextTarget.pbMs),
-                  hint: "Best recorded time",
-                },
-                {
-                  label: "Target",
-                  value: formatMs(nextTarget.targetMs),
-                  hint: "Standard time",
-                  tone: gapTone(nextTarget.pbMs!, nextTarget.targetMs),
-                },
-                {
-                  label: "Gap",
-                  value: gapText(nextTarget.pbMs!, nextTarget.targetMs),
-                  hint: "How much to drop",
-                  tone: gapTone(nextTarget.pbMs!, nextTarget.targetMs),
-                },
-                {
-                  label: "Status",
-                  value: "Closest target",
-                  hint: "Best next event to chase",
-                  tone: gapTone(nextTarget.pbMs!, nextTarget.targetMs),
-                },
-              ]}
-            />
-          </div>
-        ) : (
-          <div className="mt-3 rounded-2xl bg-zinc-50 p-4 ring-1 ring-zinc-200">
-            <p className="text-sm text-zinc-600">
-              No active next target found. That usually means:
-            </p>
-            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-600">
-              <li>no matching PB exists yet</li>
-              <li>all matching events are already qualified</li>
-              <li>age range or gender does not match this swimmer</li>
-            </ul>
-          </div>
-        )}
-      </section>
-
-      <section className="rounded-2xl bg-white p-4 ring-1 ring-zinc-200">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-zinc-900">
-              {selectedSet?.name ?? "Selected Standards"}
-            </h3>
-            <p className="mt-0.5 text-sm text-zinc-500">Age: {swimmerAge}</p>
-          </div>
-        </div>
-
-        {loading || loadingItems ? (
-          <div className="mt-4 rounded-2xl bg-zinc-50 p-4 ring-1 ring-zinc-200">
-            <p className="text-sm text-zinc-600">Loading comparison…</p>
-          </div>
-        ) : rows.length === 0 ? (
-          <div className="mt-4 rounded-2xl bg-zinc-50 p-4 ring-1 ring-zinc-200">
-            <p className="text-sm text-zinc-600">No matching standards yet.</p>
-          </div>
-        ) : (
-          <div className="mt-4 space-y-4">
-            {rows.map((r) => {
-              const statusValue = r.hasPb
-                ? r.qualified
-                  ? "Qualified ✅"
-                  : "In progress"
-                : "No PB yet";
-
-              const statusTone: Tone = r.hasPb
-                ? r.qualified
-                  ? "good"
-                  : gapTone(r.pbMs!, r.targetMs)
-                : "neutral";
-
-              const chips: Array<{ label: string; value: string; tone?: Tone }> = [];
-
-              if (r.hasPb) {
-                chips.push({
-                  label: "Gap",
-                  value: gapText(r.pbMs!, r.targetMs),
-                  tone: gapTone(r.pbMs!, r.targetMs),
-                });
-              }
-
-              return (
-                <EventCard
-                  key={r.key}
-                  title={r.event}
-                  subtitle={`Course: ${r.course}`}
-                  chips={chips.length ? chips : undefined}
-                  tiles={[
-                    {
-                      label: "PB",
-                      value: formatMs(r.pbMs),
-                      hint: r.hasPb ? "Best recorded time" : "No PB yet",
-                    },
-                    {
-                      label: "Target",
-                      value: formatMs(r.targetMs),
-                      hint: "Standard time",
-                      tone: r.hasPb ? gapTone(r.pbMs!, r.targetMs) : "neutral",
-                    },
-                    {
-                      label: "Gap",
-                      value: r.hasPb ? gapText(r.pbMs!, r.targetMs) : "—",
-                      hint: r.hasPb ? "How far from target" : "Waiting for PB",
-                      tone: r.hasPb ? gapTone(r.pbMs!, r.targetMs) : "neutral",
-                    },
-                    {
-                      label: "Status",
-                      value: statusValue,
-                      hint: "Quick read",
-                      tone: statusTone,
-                    },
-                  ]}
-                />
-              );
-            })}
-          </div>
-        )}
-      </section>
-    </div>
-  );
-}
-</file>
-
 <file path="package.json">
 {
   "name": "swimtrack-sg",
@@ -8216,6 +7634,456 @@ export default function StandardsPage() {
         )}
 
       </div>
+    </div>
+  );
+}
+</file>
+
+<file path="app/swimmers/[id]/StandardsCompare.tsx">
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
+import { canonicalEventName, canonicalCourse, eventKey } from "@/lib/events";
+
+type SwimTimeRow = {
+  event: string;
+  course: string;
+  time_ms: number;
+};
+
+type StandardSet = {
+  id: number;
+  name: string;
+  type: string;
+};
+
+type StandardItem = {
+  id: number;
+  standard_set_id: number;
+  event: string;
+  course: string;
+  min_age: number | null;
+  max_age: number | null;
+  gender: string | null;
+  qualifying_time_ms: number;
+};
+
+type Tone = "neutral" | "good" | "warn";
+
+type CompareRow = {
+  key: string;
+  event: string;
+  course: string;
+  pbMs: number | null;
+  targetMs: number;
+  gapMs: number | null;
+  qualified: boolean;
+  hasPb: boolean;
+};
+
+function keyOf(event: string, course: string) {
+  return eventKey(event, course);
+}
+
+function normalizeEvent(event: string) {
+  return canonicalEventName(event).toLowerCase().replace(/\s+/g, "");
+}
+
+function normalizeCourse(course: string) {
+  return canonicalCourse(course);
+}
+
+function formatMs(ms: number | null | undefined) {
+  if (ms == null) return "—";
+  const totalSeconds = ms / 1000;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds - minutes * 60;
+  return minutes > 0
+    ? `${minutes}:${seconds.toFixed(2).padStart(5, "0")}`
+    : seconds.toFixed(2);
+}
+
+function gapText(pbMs: number, targetMs: number) {
+  const diff = pbMs - targetMs;
+  const seconds = Math.abs(diff / 1000).toFixed(2);
+  if (diff <= 0) return `${seconds}s under ✅`;
+  return `${seconds}s to go`;
+}
+
+function gapTone(pbMs: number, targetMs: number): Tone {
+  const diff = pbMs - targetMs;
+  if (diff <= 0) return "good";
+  if (diff <= 1000) return "warn";
+  return "neutral";
+}
+
+function toneColor(tone: Tone): string {
+  switch (tone) {
+    case "good": return "#6EE7B7";
+    case "warn": return "#FCD34D";
+    default: return "rgba(255,255,255,0.5)";
+  }
+}
+
+function toneBg(tone: Tone): string {
+  switch (tone) {
+    case "good": return "rgba(110,231,183,0.12)";
+    case "warn": return "rgba(252,211,77,0.12)";
+    default: return "rgba(255,255,255,0.06)";
+  }
+}
+
+function toneBorder(tone: Tone): string {
+  switch (tone) {
+    case "good": return "rgba(110,231,183,0.25)";
+    case "warn": return "rgba(252,211,77,0.25)";
+    default: return "rgba(255,255,255,0.12)";
+  }
+}
+
+export default function StandardsCompare({
+  swimmerId,
+  swimmerAge,
+  swimmerGender,
+}: {
+  swimmerId: number;
+  swimmerAge: number;
+  swimmerGender?: string | null;
+}) {
+  const [loading, setLoading] = useState(true);
+  const [loadingItems, setLoadingItems] = useState(false);
+
+  const [pbMap, setPbMap] = useState<Map<string, number>>(new Map());
+  const [pbLabelMap, setPbLabelMap] = useState<Map<string, { event: string; course: string }>>(new Map());
+
+  const [sets, setSets] = useState<StandardSet[]>([]);
+  const [selectedSetId, setSelectedSetId] = useState<number | "">("");
+  const [items, setItems] = useState<StandardItem[]>([]);
+
+  useEffect(() => {
+    if (!swimmerId) return;
+    loadInitialData();
+  }, [swimmerId]);
+
+  useEffect(() => {
+    if (!selectedSetId) { setItems([]); return; }
+    loadItemsForSet(Number(selectedSetId));
+  }, [selectedSetId, swimmerAge, swimmerGender]);
+
+  async function loadInitialData() {
+    setLoading(true);
+
+    const [timesResult, setsResult] = await Promise.all([
+      supabase.from("swim_times").select("event, course, time_ms").eq("swimmer_id", swimmerId),
+      supabase.from("standard_sets").select("id, name, type").order("created_at", { ascending: false }),
+    ]);
+
+    const { data: times, error: tErr } = timesResult;
+    const { data: setData, error: setErr } = setsResult;
+
+    if (tErr || setErr) { setLoading(false); return; }
+
+    const map = new Map<string, number>();
+    const labelMap = new Map<string, { event: string; course: string }>();
+
+    (times as SwimTimeRow[] | null)?.forEach((t) => {
+      const k = keyOf(t.event, t.course);
+      const currentPb = map.get(k);
+      if (currentPb == null || t.time_ms < currentPb) {
+        map.set(k, t.time_ms);
+        labelMap.set(k, { event: t.event.trim(), course: normalizeCourse(t.course) });
+      }
+    });
+
+    const loadedSets = (setData as StandardSet[] | null) ?? [];
+
+    setPbMap(map);
+    setPbLabelMap(labelMap);
+    setSets(loadedSets);
+
+    setSelectedSetId((current) => {
+      if (current && loadedSets.some((s) => s.id === current)) return current;
+      return loadedSets.length > 0 ? loadedSets[0].id : "";
+    });
+
+    setLoading(false);
+  }
+
+  async function loadItemsForSet(setId: number) {
+    setLoadingItems(true);
+
+    const { data, error } = await supabase
+      .from("standard_items")
+      .select("id, standard_set_id, event, course, min_age, max_age, gender, qualifying_time_ms")
+      .eq("standard_set_id", setId)
+      .order("event", { ascending: true });
+
+    if (error) { setLoadingItems(false); return; }
+
+    const normalizedSwimmerGender = swimmerGender?.trim().toLowerCase() ?? null;
+
+    const filtered = (data as StandardItem[] | null)?.filter((s) => {
+      const minOk = s.min_age == null || swimmerAge >= s.min_age;
+      const maxOk = s.max_age == null || swimmerAge <= s.max_age;
+      const genderOk =
+        !s.gender ||
+        !normalizedSwimmerGender ||
+        s.gender.trim().toLowerCase() === normalizedSwimmerGender;
+      return minOk && maxOk && genderOk;
+    }) ?? [];
+
+    setItems(filtered);
+    setLoadingItems(false);
+  }
+
+  const rows = useMemo<CompareRow[]>(() => {
+    const bestTargetByKey = new Map<string, StandardItem>();
+
+    for (const item of items) {
+      const key = keyOf(item.event, item.course);
+      const existing = bestTargetByKey.get(key);
+      if (!existing || item.qualifying_time_ms < existing.qualifying_time_ms) {
+        bestTargetByKey.set(key, item);
+      }
+    }
+
+    return Array.from(bestTargetByKey.entries())
+      .map(([key, item]) => {
+        const pbMs = pbMap.get(key) ?? null;
+        const label = pbLabelMap.get(key);
+        return {
+          key,
+          event: label?.event ?? item.event.trim(),
+          course: label?.course ?? normalizeCourse(item.course),
+          pbMs,
+          targetMs: item.qualifying_time_ms,
+          gapMs: pbMs != null ? pbMs - item.qualifying_time_ms : null,
+          qualified: pbMs != null ? pbMs <= item.qualifying_time_ms : false,
+          hasPb: pbMs != null,
+        };
+      })
+      .sort((a, b) => {
+        if (a.gapMs == null && b.gapMs == null) return a.event.localeCompare(b.event);
+        if (a.gapMs == null) return 1;
+        if (b.gapMs == null) return -1;
+        return a.gapMs - b.gapMs;
+      });
+  }, [items, pbMap, pbLabelMap]);
+
+  const selectedSet = sets.find((s) => s.id === selectedSetId) ?? null;
+
+  const nextTarget = useMemo(() => {
+    return rows
+      .filter((r) => r.hasPb && !r.qualified && r.gapMs != null)
+      .sort((a, b) => (a.gapMs ?? Infinity) - (b.gapMs ?? Infinity))[0] ?? null;
+  }, [rows]);
+
+  const qualifiedCount = rows.filter((r) => r.qualified).length;
+  const inProgressCount = rows.filter((r) => r.hasPb && !r.qualified).length;
+
+  if (loading) {
+    return (
+      <div className="py-10 text-center">
+        <p className="text-sm text-white/40">Loading standards...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+
+      {/* Set selector */}
+      <div
+        className="rounded-3xl p-4 space-y-3"
+        style={{
+          background: "rgba(255,255,255,0.07)",
+          border: "1px solid rgba(255,255,255,0.12)",
+        }}
+      >
+        <p className="text-[10px] font-medium uppercase tracking-widest text-white/40">Standard set</p>
+        <select
+          value={selectedSetId}
+          onChange={(e) => setSelectedSetId(e.target.value ? Number(e.target.value) : "")}
+          className="input"
+        >
+          <option value="">Select a standard set...</option>
+          {sets.map((set) => (
+            <option key={set.id} value={set.id}>
+              {set.name} · {set.type === "UPGRADING" ? "Upgrading" : "Important Meet"}
+            </option>
+          ))}
+        </select>
+
+        {selectedSet && rows.length > 0 && (
+          <div className="flex gap-2 flex-wrap">
+            <span
+              className="rounded-full px-3 py-1 text-xs font-semibold"
+              style={{ background: "rgba(110,231,183,0.12)", color: "#6EE7B7", border: "1px solid rgba(110,231,183,0.25)" }}
+            >
+              ✅ {qualifiedCount} qualified
+            </span>
+            <span
+              className="rounded-full px-3 py-1 text-xs font-semibold"
+              style={{ background: "rgba(252,211,77,0.12)", color: "#FCD34D", border: "1px solid rgba(252,211,77,0.25)" }}
+            >
+              🎯 {inProgressCount} in progress
+            </span>
+            <span
+              className="rounded-full px-3 py-1 text-xs font-semibold"
+              style={{ background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.4)", border: "1px solid rgba(255,255,255,0.12)" }}
+            >
+              {rows.length} events total
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Next target card */}
+      {selectedSet && (
+        <div
+          className="rounded-3xl p-4 space-y-3"
+          style={{
+            background: "rgba(217,119,6,0.1)",
+            border: "1px solid rgba(253,230,138,0.2)",
+          }}
+        >
+          <p className="text-[10px] font-medium uppercase tracking-widest" style={{ color: "#FDE68A" }}>
+            🎯 Next target
+          </p>
+
+          {loadingItems ? (
+            <p className="text-sm text-white/40">Loading...</p>
+          ) : !nextTarget ? (
+            <p className="text-sm text-white/50">
+              {rows.length === 0
+                ? "No matching standards for this swimmer's age."
+                : qualifiedCount === rows.length
+                ? "All standards qualified! 🏆"
+                : "No active target found — add some results first."}
+            </p>
+          ) : (
+            <>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-lg font-bold text-white">{canonicalEventName(nextTarget.event)}</p>
+                  <p className="text-xs text-white/40">{nextTarget.course}</p>
+                </div>
+                <span
+                  className="rounded-full px-3 py-1 text-xs font-semibold flex-shrink-0"
+                  style={{ background: "rgba(252,211,77,0.15)", color: "#FCD34D", border: "1px solid rgba(252,211,77,0.3)" }}
+                >
+                  {gapText(nextTarget.pbMs!, nextTarget.targetMs)}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { label: "Your PB", value: formatMs(nextTarget.pbMs) },
+                  { label: "Target", value: formatMs(nextTarget.targetMs) },
+                  { label: "Gap", value: `${Math.abs((nextTarget.gapMs ?? 0) / 1000).toFixed(2)}s` },
+                ].map((tile) => (
+                  <div
+                    key={tile.label}
+                    className="rounded-2xl p-3 text-center"
+                    style={{ background: "rgba(0,20,50,0.3)", border: "1px solid rgba(255,255,255,0.08)" }}
+                  >
+                    <p className="text-[10px] text-white/40 uppercase tracking-wider">{tile.label}</p>
+                    <p className="mt-1 text-base font-bold text-white tabular-nums">{tile.value}</p>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* All events list */}
+      {selectedSet && !loadingItems && rows.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-[10px] font-medium uppercase tracking-widest text-white/40 px-1">All events</p>
+          {rows.map((r) => {
+            const tone = r.hasPb ? gapTone(r.pbMs!, r.targetMs) : "neutral";
+            const isQualified = r.qualified;
+
+            return (
+              <div
+                key={r.key}
+                className="rounded-2xl p-4"
+                style={{
+                  background: isQualified ? "rgba(110,231,183,0.07)" : "rgba(255,255,255,0.05)",
+                  border: `1px solid ${isQualified ? "rgba(110,231,183,0.2)" : "rgba(255,255,255,0.1)"}`,
+                }}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-white truncate">{canonicalEventName(r.event)}</p>
+                    <p className="text-xs text-white/35 mt-0.5">{r.course}</p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    {isQualified ? (
+                      <span className="text-sm font-semibold" style={{ color: "#6EE7B7" }}>Qualified ✅</span>
+                    ) : r.hasPb ? (
+                      <span className="text-sm font-semibold" style={{ color: toneColor(tone) }}>
+                        {gapText(r.pbMs!, r.targetMs)}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-white/30">No PB yet</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <div
+                    className="rounded-xl p-2.5"
+                    style={{ background: "rgba(0,20,50,0.3)", border: "1px solid rgba(255,255,255,0.07)" }}
+                  >
+                    <p className="text-[10px] text-white/35 uppercase tracking-wider">Your PB</p>
+                    <p className="mt-0.5 text-sm font-bold text-white tabular-nums">{formatMs(r.pbMs)}</p>
+                  </div>
+                  <div
+                    className="rounded-xl p-2.5"
+                    style={{
+                      background: toneBg(r.hasPb ? tone : "neutral"),
+                      border: `1px solid ${toneBorder(r.hasPb ? tone : "neutral")}`,
+                    }}
+                  >
+                    <p className="text-[10px] text-white/35 uppercase tracking-wider">Target</p>
+                    <p className="mt-0.5 text-sm font-bold tabular-nums" style={{ color: r.hasPb ? toneColor(tone) : "rgba(255,255,255,0.5)" }}>
+                      {formatMs(r.targetMs)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Empty state */}
+      {selectedSet && !loadingItems && rows.length === 0 && (
+        <div
+          className="rounded-3xl p-8 text-center"
+          style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+        >
+          <p className="text-base font-semibold text-white">No matching standards</p>
+          <p className="mt-1 text-sm text-white/40">
+            This may be due to age range, gender, or no items added to this set yet.
+          </p>
+        </div>
+      )}
+
+      {!selectedSet && !loading && (
+        <div
+          className="rounded-3xl p-8 text-center"
+          style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+        >
+          <p className="text-base font-semibold text-white">No standard sets yet</p>
+          <p className="mt-1 text-sm text-white/40">
+            Go to Standards in the bottom nav to create your first set.
+          </p>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -9243,82 +9111,6 @@ nav.fixed {
 }
 </file>
 
-<file path="app/layout.tsx">
-import type { Metadata, Viewport } from "next";
-import "./globals.css";
-import BottomNav from "@/app/components/BottomNav";
-import TutorialOverlay from "@/app/components/TutorialOverlay";
-
-export const metadata: Metadata = {
-  title: "Natrix — Swim Tracker",
-  description: "Swim meet result tracker for parents. Scan, save and track your swimmer's PBs.",
-  manifest: "/manifest.webmanifest",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "black-translucent",
-    title: "Natrix",
-  },
-  icons: {
-    apple: [
-      { url: "/icon-192.png", sizes: "192x192" },
-      { url: "/icon-512.png", sizes: "512x512" },
-    ],
-  },
-  openGraph: {
-    title: "Natrix — Swim Tracker",
-    description: "Scan Meet Mobile results and track your swimmer's PBs. Built for swim parents.",
-    type: "website",
-  },
-};
-
-export const viewport: Viewport = {
-  themeColor: "#063554",
-  width: "device-width",
-  initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
-  viewportFit: "cover",
-};
-
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  return (
-    <html lang="en">
-      <head>
-        {/* ✅ PWA — iPhone full screen, no browser bar */}
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="Natrix" />
-        <meta name="mobile-web-app-capable" content="yes" />
-
-        {/* App icons for iOS home screen */}
-        <link rel="apple-touch-icon" href="/icon-192.png" />
-        <link rel="apple-touch-icon" sizes="512x512" href="/icon-512.png" />
-
-        {/* Splash screen colour matches water background */}
-        <meta name="msapplication-TileColor" content="#063554" />
-      </head>
-      <body>
-        {/* Water ripple overlay — sits behind all content */}
-        <div className="water-ripple" aria-hidden="true" />
-
-        <div className="min-h-screen pb-24" style={{ position: "relative", zIndex: 1 }}>
-          {children}
-        </div>
-
-        <BottomNav />
-
-        {/* Tutorial — shows on first login, replay from Settings */}
-        <TutorialOverlay />
-      </body>
-    </html>
-  );
-}
-</file>
-
 <file path="app/swimmers/[id]/page.tsx">
 "use client";
 
@@ -10104,6 +9896,82 @@ export default function SwimmerProfilePage() {
         )}
       </div>
     </div>
+  );
+}
+</file>
+
+<file path="app/layout.tsx">
+import type { Metadata, Viewport } from "next";
+import "./globals.css";
+import BottomNav from "@/app/components/BottomNav";
+import TutorialOverlay from "@/app/components/TutorialOverlay";
+
+export const metadata: Metadata = {
+  title: "Natrix — Swim Tracker",
+  description: "Swim meet result tracker for parents. Scan, save and track your swimmer's PBs.",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Natrix",
+  },
+  icons: {
+    apple: [
+      { url: "/icon-192.png", sizes: "192x192" },
+      { url: "/icon-512.png", sizes: "512x512" },
+    ],
+  },
+  openGraph: {
+    title: "Natrix — Swim Tracker",
+    description: "Scan Meet Mobile results and track your swimmer's PBs. Built for swim parents.",
+    type: "website",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#063554",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
+};
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en">
+      <head>
+        {/* ✅ PWA — iPhone full screen, no browser bar */}
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="Natrix" />
+        <meta name="mobile-web-app-capable" content="yes" />
+
+        {/* App icons for iOS home screen */}
+        <link rel="apple-touch-icon" href="/icon-192.png" />
+        <link rel="apple-touch-icon" sizes="512x512" href="/icon-512.png" />
+
+        {/* Splash screen colour matches water background */}
+        <meta name="msapplication-TileColor" content="#063554" />
+      </head>
+      <body>
+        {/* Water ripple overlay — sits behind all content */}
+        <div className="water-ripple" aria-hidden="true" />
+
+        <div className="min-h-screen pb-24" style={{ position: "relative", zIndex: 1 }}>
+          {children}
+        </div>
+
+        <BottomNav />
+
+        {/* Tutorial — shows on first login, replay from Settings */}
+        <TutorialOverlay />
+      </body>
+    </html>
   );
 }
 </file>

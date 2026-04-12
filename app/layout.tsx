@@ -51,6 +51,7 @@ export default function RootLayout({
         {/* App icons for iOS home screen */}
         <link rel="apple-touch-icon" href="/icon-192.png" />
         <link rel="apple-touch-icon" sizes="512x512" href="/icon-512.png" />
+<link rel="icon" type="image/svg+xml" href="/natrix-favicon.svg" />
 
         {/* Splash screen colour matches water background */}
         <meta name="msapplication-TileColor" content="#063554" />

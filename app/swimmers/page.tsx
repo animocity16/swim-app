@@ -67,22 +67,28 @@ export default function SwimmersPage() {
   const [groupType, setGroupType] = useState<"primary" | "following">("primary");
 
   useEffect(() => {
-    let mounted = true;
-    async function initPage() {
-      const { data, error } = await supabase.auth.getSession();
-      if (!mounted) return;
-      if (error || !data.session) { router.replace("/login"); return; }
-      setAuthChecked(true);
-      await fetchSwimmers();
+  let mounted = true;
+  async function initPage() {
+    // ✅ Retry once to handle post-signup race condition
+    let session = (await supabase.auth.getSession()).data.session;
+    if (!session) {
+      await new Promise(r => setTimeout(r, 800));
+      session = (await supabase.auth.getSession()).data.session;
     }
-    void initPage();
+    if (!mounted) return;
+    if (!session) { router.replace("/login"); return; }
+    setAuthChecked(true);
+    await fetchSwimmers();
+  }
+  void initPage();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) router.replace("/login");
-    });
+  // ✅ Only redirect on explicit sign out
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+    if (event === "SIGNED_OUT") router.replace("/login");
+  });
 
-    return () => { mounted = false; subscription.unsubscribe(); };
-  }, [router]);
+  return () => { mounted = false; subscription.unsubscribe(); };
+}, [router]);
 
   async function fetchSwimmers() {
     setLoading(true);
