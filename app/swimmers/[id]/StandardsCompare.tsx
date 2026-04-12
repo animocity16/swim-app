@@ -40,6 +40,10 @@ type CompareRow = {
   hasPb: boolean;
 };
 
+function keyOf(event: string, course: string) {
+  return eventKey(event, course);
+}
+
 function normalizeEvent(event: string) {
   return canonicalEventName(event).toLowerCase().replace(/\s+/g, "");
 }
@@ -48,17 +52,11 @@ function normalizeCourse(course: string) {
   return canonicalCourse(course);
 }
 
-function keyOf(event: string, course: string) {
-  return eventKey(event, course);
-}
-
 function formatMs(ms: number | null | undefined) {
   if (ms == null) return "—";
-
   const totalSeconds = ms / 1000;
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds - minutes * 60;
-
   return minutes > 0
     ? `${minutes}:${seconds.toFixed(2).padStart(5, "0")}`
     : seconds.toFixed(2);
@@ -67,137 +65,39 @@ function formatMs(ms: number | null | undefined) {
 function gapText(pbMs: number, targetMs: number) {
   const diff = pbMs - targetMs;
   const seconds = Math.abs(diff / 1000).toFixed(2);
-
-  if (diff <= 0) return `${seconds}s under`;
+  if (diff <= 0) return `${seconds}s under ✅`;
   return `${seconds}s to go`;
 }
 
 function gapTone(pbMs: number, targetMs: number): Tone {
   const diff = pbMs - targetMs;
-
   if (diff <= 0) return "good";
   if (diff <= 1000) return "warn";
   return "neutral";
 }
 
-function toneStyles(tone: Tone) {
+function toneColor(tone: Tone): string {
   switch (tone) {
-    case "good":
-      return {
-        chip: "bg-emerald-50 text-emerald-800 ring-emerald-200",
-        tileRing: "ring-emerald-200",
-        value: "text-emerald-900",
-      };
-    case "warn":
-      return {
-        chip: "bg-amber-50 text-amber-800 ring-amber-200",
-        tileRing: "ring-amber-200",
-        value: "text-amber-900",
-      };
-    default:
-      return {
-        chip: "bg-zinc-50 text-zinc-800 ring-zinc-200",
-        tileRing: "ring-zinc-200",
-        value: "text-zinc-900",
-      };
+    case "good": return "#6EE7B7";
+    case "warn": return "#FCD34D";
+    default: return "rgba(255,255,255,0.5)";
   }
 }
 
-function Chip({
-  label,
-  value,
-  tone = "neutral",
-}: {
-  label: string;
-  value: string;
-  tone?: Tone;
-}) {
-  const t = toneStyles(tone);
-
-  return (
-    <div
-      className={[
-        "inline-flex items-center gap-2 rounded-full px-3 py-1.5",
-        "ring-1",
-        t.chip,
-      ].join(" ")}
-    >
-      <span className="text-[11px] font-medium">{label}</span>
-      <span className="text-[11px] font-semibold tabular-nums">{value}</span>
-    </div>
-  );
+function toneBg(tone: Tone): string {
+  switch (tone) {
+    case "good": return "rgba(110,231,183,0.12)";
+    case "warn": return "rgba(252,211,77,0.12)";
+    default: return "rgba(255,255,255,0.06)";
+  }
 }
 
-function Tile({
-  label,
-  value,
-  hint,
-  tone = "neutral",
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-  tone?: Tone;
-}) {
-  const t = toneStyles(tone);
-
-  return (
-    <div className={["rounded-2xl bg-white p-3 ring-1", t.tileRing].join(" ")}>
-      <div className="text-[11px] font-medium text-zinc-600">{label}</div>
-      <div
-        className={[
-          "mt-1 text-lg font-semibold tabular-nums break-words",
-          t.value,
-        ].join(" ")}
-      >
-        {value}
-      </div>
-      {hint ? <div className="mt-1 text-[11px] text-zinc-500">{hint}</div> : null}
-    </div>
-  );
-}
-
-function EventCard({
-  title,
-  subtitle,
-  chips,
-  tiles,
-}: {
-  title: string;
-  subtitle?: string;
-  chips?: Array<{ label: string; value: string; tone?: Tone }>;
-  tiles: Array<{ label: string; value: string; hint?: string; tone?: Tone }>;
-}) {
-  return (
-    <section className="rounded-2xl bg-white p-4 ring-1 ring-zinc-200">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <div className="text-sm font-semibold text-zinc-900">{title}</div>
-          {subtitle ? <div className="mt-0.5 text-xs text-zinc-500">{subtitle}</div> : null}
-        </div>
-
-        {chips?.length ? (
-          <div className="flex flex-wrap gap-2 sm:justify-end">
-            {chips.map((c, i) => (
-              <Chip key={i} label={c.label} value={c.value} tone={c.tone ?? "neutral"} />
-            ))}
-          </div>
-        ) : null}
-      </div>
-
-      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {tiles.map((t, i) => (
-          <Tile
-            key={i}
-            label={t.label}
-            value={t.value}
-            hint={t.hint}
-            tone={t.tone ?? "neutral"}
-          />
-        ))}
-      </div>
-    </section>
-  );
+function toneBorder(tone: Tone): string {
+  switch (tone) {
+    case "good": return "rgba(110,231,183,0.25)";
+    case "warn": return "rgba(252,211,77,0.25)";
+    default: return "rgba(255,255,255,0.12)";
+  }
 }
 
 export default function StandardsCompare({
@@ -213,9 +113,7 @@ export default function StandardsCompare({
   const [loadingItems, setLoadingItems] = useState(false);
 
   const [pbMap, setPbMap] = useState<Map<string, number>>(new Map());
-  const [pbLabelMap, setPbLabelMap] = useState<Map<string, { event: string; course: string }>>(
-    new Map()
-  );
+  const [pbLabelMap, setPbLabelMap] = useState<Map<string, { event: string; course: string }>>(new Map());
 
   const [sets, setSets] = useState<StandardSet[]>([]);
   const [selectedSetId, setSelectedSetId] = useState<number | "">("");
@@ -227,10 +125,7 @@ export default function StandardsCompare({
   }, [swimmerId]);
 
   useEffect(() => {
-    if (!selectedSetId) {
-      setItems([]);
-      return;
-    }
+    if (!selectedSetId) { setItems([]); return; }
     loadItemsForSet(Number(selectedSetId));
   }, [selectedSetId, swimmerAge, swimmerGender]);
 
@@ -238,30 +133,14 @@ export default function StandardsCompare({
     setLoading(true);
 
     const [timesResult, setsResult] = await Promise.all([
-      supabase
-        .from("swim_times")
-        .select("event, course, time_ms")
-        .eq("swimmer_id", swimmerId),
-      supabase
-        .from("standard_sets")
-        .select("id, name, type")
-        .order("created_at", { ascending: false }),
+      supabase.from("swim_times").select("event, course, time_ms").eq("swimmer_id", swimmerId),
+      supabase.from("standard_sets").select("id, name, type").order("created_at", { ascending: false }),
     ]);
 
     const { data: times, error: tErr } = timesResult;
     const { data: setData, error: setErr } = setsResult;
 
-    if (tErr) {
-      alert("Failed to load swim times ❌ " + tErr.message);
-      setLoading(false);
-      return;
-    }
-
-    if (setErr) {
-      alert("Failed to load standard sets ❌ " + setErr.message);
-      setLoading(false);
-      return;
-    }
+    if (tErr || setErr) { setLoading(false); return; }
 
     const map = new Map<string, number>();
     const labelMap = new Map<string, { event: string; course: string }>();
@@ -269,13 +148,9 @@ export default function StandardsCompare({
     (times as SwimTimeRow[] | null)?.forEach((t) => {
       const k = keyOf(t.event, t.course);
       const currentPb = map.get(k);
-
       if (currentPb == null || t.time_ms < currentPb) {
         map.set(k, t.time_ms);
-        labelMap.set(k, {
-          event: t.event.trim(),
-          course: normalizeCourse(t.course),
-        });
+        labelMap.set(k, { event: t.event.trim(), course: normalizeCourse(t.course) });
       }
     });
 
@@ -298,32 +173,23 @@ export default function StandardsCompare({
 
     const { data, error } = await supabase
       .from("standard_items")
-      .select(
-        "id, standard_set_id, event, course, min_age, max_age, gender, qualifying_time_ms"
-      )
+      .select("id, standard_set_id, event, course, min_age, max_age, gender, qualifying_time_ms")
       .eq("standard_set_id", setId)
       .order("event", { ascending: true });
 
-    if (error) {
-      alert("Failed to load standard items ❌ " + error.message);
-      setLoadingItems(false);
-      return;
-    }
+    if (error) { setLoadingItems(false); return; }
 
     const normalizedSwimmerGender = swimmerGender?.trim().toLowerCase() ?? null;
 
-    const filtered =
-      (data as StandardItem[] | null)?.filter((s) => {
-        const minOk = s.min_age == null || swimmerAge >= s.min_age;
-        const maxOk = s.max_age == null || swimmerAge <= s.max_age;
-
-        const genderOk =
-          !s.gender ||
-          !normalizedSwimmerGender ||
-          s.gender.trim().toLowerCase() === normalizedSwimmerGender;
-
-        return minOk && maxOk && genderOk;
-      }) ?? [];
+    const filtered = (data as StandardItem[] | null)?.filter((s) => {
+      const minOk = s.min_age == null || swimmerAge >= s.min_age;
+      const maxOk = s.max_age == null || swimmerAge <= s.max_age;
+      const genderOk =
+        !s.gender ||
+        !normalizedSwimmerGender ||
+        s.gender.trim().toLowerCase() === normalizedSwimmerGender;
+      return minOk && maxOk && genderOk;
+    }) ?? [];
 
     setItems(filtered);
     setLoadingItems(false);
@@ -335,26 +201,15 @@ export default function StandardsCompare({
     for (const item of items) {
       const key = keyOf(item.event, item.course);
       const existing = bestTargetByKey.get(key);
-
       if (!existing || item.qualifying_time_ms < existing.qualifying_time_ms) {
         bestTargetByKey.set(key, item);
       }
     }
-    console.log("PB KEYS", Array.from(pbMap.keys()));
-console.log(
-  "STANDARD KEYS",
-  items.map((item) => ({
-    event: item.event,
-    course: item.course,
-    key: keyOf(item.event, item.course),
-  }))
-);
 
     return Array.from(bestTargetByKey.entries())
       .map(([key, item]) => {
         const pbMs = pbMap.get(key) ?? null;
         const label = pbLabelMap.get(key);
-
         return {
           key,
           event: label?.event ?? item.event.trim(),
@@ -367,9 +222,7 @@ console.log(
         };
       })
       .sort((a, b) => {
-        if (a.gapMs == null && b.gapMs == null) {
-          return a.event.localeCompare(b.event);
-        }
+        if (a.gapMs == null && b.gapMs == null) return a.event.localeCompare(b.event);
         if (a.gapMs == null) return 1;
         if (b.gapMs == null) return -1;
         return a.gapMs - b.gapMs;
@@ -384,186 +237,211 @@ console.log(
       .sort((a, b) => (a.gapMs ?? Infinity) - (b.gapMs ?? Infinity))[0] ?? null;
   }, [rows]);
 
+  const qualifiedCount = rows.filter((r) => r.qualified).length;
+  const inProgressCount = rows.filter((r) => r.hasPb && !r.qualified).length;
+
+  if (loading) {
+    return (
+      <div className="py-10 text-center">
+        <p className="text-sm text-white/40">Loading standards...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
-      <section className="rounded-2xl bg-white p-4 ring-1 ring-zinc-200">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-zinc-900">Standards Compare</h2>
-            <p className="mt-0.5 text-sm text-zinc-500">
-              See how close this swimmer is to qualifying standards.
-            </p>
-          </div>
 
-          <div className="min-w-[220px]">
-            <select
-              value={selectedSetId}
-              onChange={(e) =>
-                setSelectedSetId(e.target.value ? Number(e.target.value) : "")
-              }
-              className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm"
+      {/* Set selector */}
+      <div
+        className="rounded-3xl p-4 space-y-3"
+        style={{
+          background: "rgba(255,255,255,0.07)",
+          border: "1px solid rgba(255,255,255,0.12)",
+        }}
+      >
+        <p className="text-[10px] font-medium uppercase tracking-widest text-white/40">Standard set</p>
+        <select
+          value={selectedSetId}
+          onChange={(e) => setSelectedSetId(e.target.value ? Number(e.target.value) : "")}
+          className="input"
+        >
+          <option value="">Select a standard set...</option>
+          {sets.map((set) => (
+            <option key={set.id} value={set.id}>
+              {set.name} · {set.type === "UPGRADING" ? "Upgrading" : "Important Meet"}
+            </option>
+          ))}
+        </select>
+
+        {selectedSet && rows.length > 0 && (
+          <div className="flex gap-2 flex-wrap">
+            <span
+              className="rounded-full px-3 py-1 text-xs font-semibold"
+              style={{ background: "rgba(110,231,183,0.12)", color: "#6EE7B7", border: "1px solid rgba(110,231,183,0.25)" }}
             >
-              <option value="">Select a standard set</option>
-              {sets.map((set) => (
-                <option key={set.id} value={set.id}>
-                  {set.name} ({set.type})
-                </option>
-              ))}
-            </select>
+              ✅ {qualifiedCount} qualified
+            </span>
+            <span
+              className="rounded-full px-3 py-1 text-xs font-semibold"
+              style={{ background: "rgba(252,211,77,0.12)", color: "#FCD34D", border: "1px solid rgba(252,211,77,0.25)" }}
+            >
+              🎯 {inProgressCount} in progress
+            </span>
+            <span
+              className="rounded-full px-3 py-1 text-xs font-semibold"
+              style={{ background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.4)", border: "1px solid rgba(255,255,255,0.12)" }}
+            >
+              {rows.length} events total
+            </span>
           </div>
-        </div>
+        )}
+      </div>
 
-        {selectedSet ? (
-          <div className="mt-3">
-            <Chip
-              label="Using"
-              value={`${selectedSet.name} • ${selectedSet.type}`}
-              tone="neutral"
-            />
-          </div>
-        ) : null}
-      </section>
+      {/* Next target card */}
+      {selectedSet && (
+        <div
+          className="rounded-3xl p-4 space-y-3"
+          style={{
+            background: "rgba(217,119,6,0.1)",
+            border: "1px solid rgba(253,230,138,0.2)",
+          }}
+        >
+          <p className="text-[10px] font-medium uppercase tracking-widest" style={{ color: "#FDE68A" }}>
+            🎯 Next target
+          </p>
 
-      <section className="rounded-2xl bg-white p-4 ring-1 ring-zinc-200">
-        <h3 className="text-base font-semibold text-zinc-900">Next Target</h3>
-
-        {loading || loadingItems ? (
-          <p className="mt-3 text-sm text-zinc-600">Loading next target…</p>
-        ) : !selectedSet ? (
-          <p className="mt-3 text-sm text-zinc-600">Select a standard set first.</p>
-        ) : nextTarget ? (
-          <div className="mt-3">
-            <EventCard
-              title={nextTarget.event}
-              subtitle={`Course: ${nextTarget.course}`}
-              chips={[
-                {
-                  label: "Closest Gap",
-                  value: gapText(nextTarget.pbMs!, nextTarget.targetMs),
-                  tone: gapTone(nextTarget.pbMs!, nextTarget.targetMs),
-                },
-              ]}
-              tiles={[
-                {
-                  label: "PB",
-                  value: formatMs(nextTarget.pbMs),
-                  hint: "Best recorded time",
-                },
-                {
-                  label: "Target",
-                  value: formatMs(nextTarget.targetMs),
-                  hint: "Standard time",
-                  tone: gapTone(nextTarget.pbMs!, nextTarget.targetMs),
-                },
-                {
-                  label: "Gap",
-                  value: gapText(nextTarget.pbMs!, nextTarget.targetMs),
-                  hint: "How much to drop",
-                  tone: gapTone(nextTarget.pbMs!, nextTarget.targetMs),
-                },
-                {
-                  label: "Status",
-                  value: "Closest target",
-                  hint: "Best next event to chase",
-                  tone: gapTone(nextTarget.pbMs!, nextTarget.targetMs),
-                },
-              ]}
-            />
-          </div>
-        ) : (
-          <div className="mt-3 rounded-2xl bg-zinc-50 p-4 ring-1 ring-zinc-200">
-            <p className="text-sm text-zinc-600">
-              No active next target found. That usually means:
+          {loadingItems ? (
+            <p className="text-sm text-white/40">Loading...</p>
+          ) : !nextTarget ? (
+            <p className="text-sm text-white/50">
+              {rows.length === 0
+                ? "No matching standards for this swimmer's age."
+                : qualifiedCount === rows.length
+                ? "All standards qualified! 🏆"
+                : "No active target found — add some results first."}
             </p>
-            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-600">
-              <li>no matching PB exists yet</li>
-              <li>all matching events are already qualified</li>
-              <li>age range or gender does not match this swimmer</li>
-            </ul>
-          </div>
-        )}
-      </section>
-
-      <section className="rounded-2xl bg-white p-4 ring-1 ring-zinc-200">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-zinc-900">
-              {selectedSet?.name ?? "Selected Standards"}
-            </h3>
-            <p className="mt-0.5 text-sm text-zinc-500">Age: {swimmerAge}</p>
-          </div>
+          ) : (
+            <>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-lg font-bold text-white">{canonicalEventName(nextTarget.event)}</p>
+                  <p className="text-xs text-white/40">{nextTarget.course}</p>
+                </div>
+                <span
+                  className="rounded-full px-3 py-1 text-xs font-semibold flex-shrink-0"
+                  style={{ background: "rgba(252,211,77,0.15)", color: "#FCD34D", border: "1px solid rgba(252,211,77,0.3)" }}
+                >
+                  {gapText(nextTarget.pbMs!, nextTarget.targetMs)}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { label: "Your PB", value: formatMs(nextTarget.pbMs) },
+                  { label: "Target", value: formatMs(nextTarget.targetMs) },
+                  { label: "Gap", value: `${Math.abs((nextTarget.gapMs ?? 0) / 1000).toFixed(2)}s` },
+                ].map((tile) => (
+                  <div
+                    key={tile.label}
+                    className="rounded-2xl p-3 text-center"
+                    style={{ background: "rgba(0,20,50,0.3)", border: "1px solid rgba(255,255,255,0.08)" }}
+                  >
+                    <p className="text-[10px] text-white/40 uppercase tracking-wider">{tile.label}</p>
+                    <p className="mt-1 text-base font-bold text-white tabular-nums">{tile.value}</p>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
+      )}
 
-        {loading || loadingItems ? (
-          <div className="mt-4 rounded-2xl bg-zinc-50 p-4 ring-1 ring-zinc-200">
-            <p className="text-sm text-zinc-600">Loading comparison…</p>
-          </div>
-        ) : rows.length === 0 ? (
-          <div className="mt-4 rounded-2xl bg-zinc-50 p-4 ring-1 ring-zinc-200">
-            <p className="text-sm text-zinc-600">No matching standards yet.</p>
-          </div>
-        ) : (
-          <div className="mt-4 space-y-4">
-            {rows.map((r) => {
-              const statusValue = r.hasPb
-                ? r.qualified
-                  ? "Qualified ✅"
-                  : "In progress"
-                : "No PB yet";
+      {/* All events list */}
+      {selectedSet && !loadingItems && rows.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-[10px] font-medium uppercase tracking-widest text-white/40 px-1">All events</p>
+          {rows.map((r) => {
+            const tone = r.hasPb ? gapTone(r.pbMs!, r.targetMs) : "neutral";
+            const isQualified = r.qualified;
 
-              const statusTone: Tone = r.hasPb
-                ? r.qualified
-                  ? "good"
-                  : gapTone(r.pbMs!, r.targetMs)
-                : "neutral";
+            return (
+              <div
+                key={r.key}
+                className="rounded-2xl p-4"
+                style={{
+                  background: isQualified ? "rgba(110,231,183,0.07)" : "rgba(255,255,255,0.05)",
+                  border: `1px solid ${isQualified ? "rgba(110,231,183,0.2)" : "rgba(255,255,255,0.1)"}`,
+                }}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-white truncate">{canonicalEventName(r.event)}</p>
+                    <p className="text-xs text-white/35 mt-0.5">{r.course}</p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    {isQualified ? (
+                      <span className="text-sm font-semibold" style={{ color: "#6EE7B7" }}>Qualified ✅</span>
+                    ) : r.hasPb ? (
+                      <span className="text-sm font-semibold" style={{ color: toneColor(tone) }}>
+                        {gapText(r.pbMs!, r.targetMs)}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-white/30">No PB yet</span>
+                    )}
+                  </div>
+                </div>
 
-              const chips: Array<{ label: string; value: string; tone?: Tone }> = [];
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <div
+                    className="rounded-xl p-2.5"
+                    style={{ background: "rgba(0,20,50,0.3)", border: "1px solid rgba(255,255,255,0.07)" }}
+                  >
+                    <p className="text-[10px] text-white/35 uppercase tracking-wider">Your PB</p>
+                    <p className="mt-0.5 text-sm font-bold text-white tabular-nums">{formatMs(r.pbMs)}</p>
+                  </div>
+                  <div
+                    className="rounded-xl p-2.5"
+                    style={{
+                      background: toneBg(r.hasPb ? tone : "neutral"),
+                      border: `1px solid ${toneBorder(r.hasPb ? tone : "neutral")}`,
+                    }}
+                  >
+                    <p className="text-[10px] text-white/35 uppercase tracking-wider">Target</p>
+                    <p className="mt-0.5 text-sm font-bold tabular-nums" style={{ color: r.hasPb ? toneColor(tone) : "rgba(255,255,255,0.5)" }}>
+                      {formatMs(r.targetMs)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
-              if (r.hasPb) {
-                chips.push({
-                  label: "Gap",
-                  value: gapText(r.pbMs!, r.targetMs),
-                  tone: gapTone(r.pbMs!, r.targetMs),
-                });
-              }
+      {/* Empty state */}
+      {selectedSet && !loadingItems && rows.length === 0 && (
+        <div
+          className="rounded-3xl p-8 text-center"
+          style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+        >
+          <p className="text-base font-semibold text-white">No matching standards</p>
+          <p className="mt-1 text-sm text-white/40">
+            This may be due to age range, gender, or no items added to this set yet.
+          </p>
+        </div>
+      )}
 
-              return (
-                <EventCard
-                  key={r.key}
-                  title={r.event}
-                  subtitle={`Course: ${r.course}`}
-                  chips={chips.length ? chips : undefined}
-                  tiles={[
-                    {
-                      label: "PB",
-                      value: formatMs(r.pbMs),
-                      hint: r.hasPb ? "Best recorded time" : "No PB yet",
-                    },
-                    {
-                      label: "Target",
-                      value: formatMs(r.targetMs),
-                      hint: "Standard time",
-                      tone: r.hasPb ? gapTone(r.pbMs!, r.targetMs) : "neutral",
-                    },
-                    {
-                      label: "Gap",
-                      value: r.hasPb ? gapText(r.pbMs!, r.targetMs) : "—",
-                      hint: r.hasPb ? "How far from target" : "Waiting for PB",
-                      tone: r.hasPb ? gapTone(r.pbMs!, r.targetMs) : "neutral",
-                    },
-                    {
-                      label: "Status",
-                      value: statusValue,
-                      hint: "Quick read",
-                      tone: statusTone,
-                    },
-                  ]}
-                />
-              );
-            })}
-          </div>
-        )}
-      </section>
+      {!selectedSet && !loading && (
+        <div
+          className="rounded-3xl p-8 text-center"
+          style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+        >
+          <p className="text-base font-semibold text-white">No standard sets yet</p>
+          <p className="mt-1 text-sm text-white/40">
+            Go to Standards in the bottom nav to create your first set.
+          </p>
+        </div>
+      )}
+
     </div>
   );
 }

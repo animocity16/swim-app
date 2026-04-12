@@ -13,6 +13,18 @@ type NotifPrefs = {
   weeklyRecap: boolean;
 };
 
+const FEATURE_REQUESTS = [
+  "AI nutrition guide",
+  "Meet calendar",
+  "Apple Watch support",
+  "Team / club dashboard",
+  "Relay tracking",
+  "Compare with teammates",
+  "Export to PDF / spreadsheet",
+  "Push notifications",
+  "Other",
+];
+
 export default function SettingsPage() {
   const router = useRouter();
 
@@ -31,6 +43,14 @@ export default function SettingsPage() {
     meetReminders: true,
     weeklyRecap: false,
   });
+
+  // Feedback state
+  const [feedbackRating, setFeedbackRating] = useState(0);
+  const [feedbackMessage, setFeedbackMessage] = useState("");
+  const [feedbackFeature, setFeedbackFeature] = useState("");
+  const [savingFeedback, setSavingFeedback] = useState(false);
+  const [feedbackSent, setFeedbackSent] = useState(false);
+  const [feedbackError, setFeedbackError] = useState("");
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteInput, setDeleteInput] = useState("");
@@ -65,6 +85,33 @@ export default function SettingsPage() {
       setTimeout(() => { setShowPasswordForm(false); setPasswordMsg(""); }, 2000);
     }
     setSavingPassword(false);
+  }
+
+  async function handleSendFeedback() {
+    if (feedbackRating === 0) { setFeedbackError("Please select a star rating."); return; }
+    if (!feedbackMessage.trim()) { setFeedbackError("Please write something — even a sentence helps!"); return; }
+
+    setSavingFeedback(true);
+    setFeedbackError("");
+
+    const { data: { session } } = await supabase.auth.getSession();
+
+    const { error } = await supabase.from("feedback").insert([{
+      user_id: session?.user?.id ?? null,
+      rating: feedbackRating,
+      message: feedbackMessage.trim(),
+      feature_request: feedbackFeature || null,
+    }]);
+
+    if (error) {
+      setFeedbackError(`Couldn't send feedback: ${error.message}`);
+    } else {
+      setFeedbackSent(true);
+      setFeedbackRating(0);
+      setFeedbackMessage("");
+      setFeedbackFeature("");
+    }
+    setSavingFeedback(false);
   }
 
   async function handleLogout() {
@@ -163,7 +210,7 @@ export default function SettingsPage() {
           <NotifRow icon={<ChartIcon />} label="Weekly recap" sub="Summary of the week's results every Sunday" value={notifs.weeklyRecap} onToggle={() => toggleNotif("weeklyRecap")} />
         </div>
 
-        {/* ✅ Tutorial recap */}
+        {/* Tutorial recap */}
         <div className="card">
           <p className="label mb-3">Help</p>
           <button
@@ -184,7 +231,6 @@ export default function SettingsPage() {
             </svg>
           </button>
 
-          {/* Quick reference cards */}
           <div className="mt-4 space-y-2">
             <p className="text-[9px] uppercase tracking-wider text-white/30 mb-2">Quick reference</p>
             {[
@@ -205,6 +251,102 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        {/* ✅ Feedback */}
+        <div className="card space-y-4">
+          <div>
+            <p className="label">Feedback</p>
+            <p className="text-xs text-white/40 mt-1">Help shape Natrix — every message goes straight to J.O.D.</p>
+          </div>
+
+          {feedbackSent ? (
+            <div className="rounded-2xl py-6 text-center space-y-2"
+              style={{ background: "rgba(217,119,6,0.1)", border: "1px solid rgba(253,230,138,0.2)" }}>
+              <p className="text-2xl">🙏</p>
+              <p className="text-sm font-semibold" style={{ color: "#FDE68A" }}>Thank you!</p>
+              <p className="text-xs text-white/40">Your feedback means the world. We&apos;ll use it to make Natrix better.</p>
+              <button
+                type="button"
+                onClick={() => setFeedbackSent(false)}
+                className="mt-2 text-xs text-white/30 underline"
+              >
+                Send another
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* Star rating */}
+              <div>
+                <p className="text-xs text-white/50 mb-2">How are you finding Natrix?</p>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setFeedbackRating(star)}
+                      className="text-2xl transition-transform active:scale-90"
+                      style={{ opacity: feedbackRating >= star ? 1 : 0.25, filter: feedbackRating >= star ? "none" : "grayscale(1)" }}
+                    >
+                      ⭐
+                    </button>
+                  ))}
+                </div>
+                {feedbackRating > 0 && (
+                  <p className="text-xs mt-1.5" style={{ color: "#FDE68A" }}>
+                    {feedbackRating === 5 ? "Love it! 🏊" : feedbackRating === 4 ? "Really good!" : feedbackRating === 3 ? "It's okay" : feedbackRating === 2 ? "Needs work" : "Not great"}
+                  </p>
+                )}
+              </div>
+
+              {/* Message */}
+              <div>
+                <p className="text-xs text-white/50 mb-2">What would make Natrix better?</p>
+                <textarea
+                  value={feedbackMessage}
+                  onChange={(e) => setFeedbackMessage(e.target.value)}
+                  placeholder="Tell us anything — bugs, ideas, what you love, what's missing..."
+                  rows={3}
+                  className="w-full rounded-[20px] px-4 py-3 text-sm text-white outline-none resize-none placeholder:text-white/35"
+                  style={{
+                    background: "rgba(0,20,50,0.35)",
+                    border: "1px solid rgba(255,255,255,0.2)",
+                    backdropFilter: "blur(12px)",
+                    WebkitBackdropFilter: "blur(12px)",
+                  }}
+                />
+              </div>
+
+              {/* Feature request */}
+              <div>
+                <p className="text-xs text-white/50 mb-2">Most wanted feature (optional)</p>
+                <select
+                  value={feedbackFeature}
+                  onChange={(e) => setFeedbackFeature(e.target.value)}
+                  className="input"
+                >
+                  <option value="">Pick one...</option>
+                  {FEATURE_REQUESTS.map((f) => (
+                    <option key={f} value={f}>{f}</option>
+                  ))}
+                </select>
+              </div>
+
+              {feedbackError && (
+                <p className="text-sm" style={{ color: "#FCA5A5" }}>{feedbackError}</p>
+              )}
+
+              <button
+                type="button"
+                onClick={handleSendFeedback}
+                disabled={savingFeedback}
+                className="w-full rounded-2xl py-3 text-sm font-semibold text-white transition disabled:opacity-50"
+                style={{ background: "#D97706" }}
+              >
+                {savingFeedback ? "Sending..." : "Send feedback 🚀"}
+              </button>
+            </>
+          )}
+        </div>
+
         {/* App info */}
         <div className="card">
           <p className="label mb-3">About</p>
@@ -222,12 +364,12 @@ export default function SettingsPage() {
             <p className="text-sm text-white/60">Made with</p>
             <p className="text-sm font-semibold" style={{ color: "#FDE68A" }}>🏊 for swim parents</p>
           </div>
+          <div style={{ height: 1, background: "rgba(255,255,255,0.08)", margin: "8px 0" }} />
+          <div className="flex items-center justify-between py-1">
+            <p className="text-sm text-white/60">Developed by</p>
+            <p className="text-sm font-semibold text-white">J.O.D <span className="text-white/40 text-xs">Just an Ordinary Dad</span></p>
+          </div>
         </div>
-        <div style={{ height: 1, background: "rgba(255,255,255,0.08)", margin: "8px 0" }} />
-<div className="flex items-center justify-between py-1">
-  <p className="text-sm text-white/60">Developed by</p>
-  <p className="text-sm font-semibold text-white">J.O.D <span className="text-white/40 text-xs">Just an Ordinary Dad</span></p>
-</div>
 
         {/* Sign out */}
         <button
