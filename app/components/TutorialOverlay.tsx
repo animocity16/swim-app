@@ -77,12 +77,12 @@ export default function TutorialOverlay() {
   pathname.startsWith(p)
 );
   useEffect(() => {
-    setMounted(true);
-    const done = localStorage.getItem(TUTORIAL_KEY);
-    if (!done && !hidden) {
-      setTimeout(() => setActive(true), 900);
-    }
-  }, []);
+  setMounted(true);
+  const done = localStorage.getItem(TUTORIAL_KEY);
+  if (!done && !hidden) {
+    setTimeout(() => setActive(true), 900);
+  }
+}, [hidden]);
 
   useEffect(() => {
     function handleReplay() {
