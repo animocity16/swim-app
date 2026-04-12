@@ -226,7 +226,7 @@ export default function StandardsDetailPage() {
               onChange={(e) => setTimeStr(e.target.value)}
               placeholder="Qualifying time (e.g. 1:23.45 or 28.90)"
               className="input"
-              inputMode="decimal"
+              inputMode="text"
             />
 
             <div className="grid grid-cols-2 gap-3">
