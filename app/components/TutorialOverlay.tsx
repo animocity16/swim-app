@@ -73,10 +73,9 @@ export default function TutorialOverlay() {
   const [spotlight, setSpotlight] = useState<SpotlightRect | null>(null);
   const frameRef = useRef<number | null>(null);
 
-  const hidden = ["/login", "/forgot-password", "/reset-password"].some((p) =>
-    pathname.startsWith(p)
-  );
-
+  const hidden = ["/login", "/forgot-password", "/reset-password", "/invite", "/signup"].some((p) =>
+  pathname.startsWith(p)
+);
   useEffect(() => {
     setMounted(true);
     const done = localStorage.getItem(TUTORIAL_KEY);
