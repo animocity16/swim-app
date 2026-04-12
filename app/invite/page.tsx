@@ -16,7 +16,7 @@ const STEPS = {
     {
       number: "2",
       title: "Tap the Share button",
-      detail: 'Tap the Share icon at the bottom of Safari — it looks like a box with an arrow pointing up.',
+      detail: "Tap the Share icon at the bottom of Safari — it looks like a box with an arrow pointing up.",
       icon: "⬆️",
     },
     {
@@ -59,17 +59,26 @@ const STEPS = {
     },
   ],
 };
+
 const APP_URL = "https://swimnatrix.vercel.app";
- // ← update this to your actual Vercel URL
+const INVITE_CODE = "NATRIX2026";
 
 export default function InvitePage() {
   const [platform, setPlatform] = useState<Platform>("iphone");
   const [copied, setCopied] = useState(false);
+  const [codeCopied, setCodeCopied] = useState(false);
 
   function copyLink() {
     navigator.clipboard.writeText(APP_URL).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  function copyCode() {
+    navigator.clipboard.writeText(INVITE_CODE).then(() => {
+      setCodeCopied(true);
+      setTimeout(() => setCodeCopied(false), 2000);
     });
   }
 
@@ -84,9 +93,9 @@ export default function InvitePage() {
         >
           🏊
         </div>
-        <h1 className="text-3xl font-bold tracking-tight text-white">You're invited!</h1>
+        <h1 className="text-3xl font-bold tracking-tight text-white">You&apos;re invited!</h1>
         <p className="mt-2 text-white/50 text-sm max-w-xs mx-auto">
-          You've been invited to beta test Natrix — the swim meet tracker built for parents like you.
+          You&apos;ve been invited to beta test Natrix — the swim meet tracker built for parents like you.
         </p>
       </div>
 
@@ -120,6 +129,39 @@ export default function InvitePage() {
             <p className="text-sm text-white/70 leading-snug">{item.text}</p>
           </div>
         ))}
+      </div>
+
+      {/* ✅ Invite code */}
+      <div
+        className="w-full max-w-sm rounded-3xl p-5 mb-5"
+        style={{
+          background: "rgba(217,119,6,0.1)",
+          border: "1px solid rgba(253,230,138,0.25)",
+        }}
+      >
+        <p className="text-xs font-medium uppercase tracking-widest mb-1" style={{ color: "#FDE68A" }}>
+          🔑 Your invite code
+        </p>
+        <p className="text-xs text-white/40 mb-4">You&apos;ll need this when creating your account.</p>
+        <div
+          className="rounded-2xl px-4 py-4 mb-3 flex items-center justify-between gap-3"
+          style={{ background: "rgba(0,20,50,0.4)", border: "1px solid rgba(253,230,138,0.2)" }}
+        >
+          <p className="text-2xl font-bold tracking-widest" style={{ color: "#FDE68A" }}>{INVITE_CODE}</p>
+          <button
+            type="button"
+            onClick={copyCode}
+            className="rounded-xl px-3 py-1.5 text-xs font-semibold transition flex-shrink-0"
+            style={{
+              background: codeCopied ? "rgba(110,231,183,0.2)" : "rgba(253,230,138,0.15)",
+              border: codeCopied ? "1px solid rgba(110,231,183,0.4)" : "1px solid rgba(253,230,138,0.3)",
+              color: codeCopied ? "#6EE7B7" : "#FDE68A",
+            }}
+          >
+            {codeCopied ? "✓ Copied!" : "Copy"}
+          </button>
+        </div>
+        <p className="text-xs text-white/35 text-center">Keep this code safe — it&apos;s your beta pass 🎟️</p>
       </div>
 
       {/* Install instructions */}
