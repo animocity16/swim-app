@@ -5,8 +5,54 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
-// ✅ Change this to whatever invite code you want to share with beta testers
 const BETA_INVITE_CODE = "NATRIX2026";
+
+function EyeIcon({ show }: { show: boolean }) {
+  return show ? (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+      <path d="M1 9C1 9 4 3 9 3s8 6 8 6-3 6-8 6-8-6-8-6Z" stroke="rgba(255,255,255,0.4)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+      <circle cx="9" cy="9" r="2.5" stroke="rgba(255,255,255,0.4)" strokeWidth="1.4"/>
+    </svg>
+  ) : (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+      <path d="M1 1l16 16M7.5 7.6A2.5 2.5 0 0 0 11.4 11M5.2 5.3C3.3 6.5 2 8 2 9c0 0 3 5.5 7 5.5a7 7 0 0 0 3.5-1M9 3.5C13 3.5 16 9 16 9a13 13 0 0 1-1.5 2" stroke="rgba(255,255,255,0.4)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+
+function PasswordInput({
+  placeholder,
+  value,
+  onChange,
+  autoComplete,
+}: {
+  placeholder: string;
+  value: string;
+  onChange: (v: string) => void;
+  autoComplete?: string;
+}) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="relative">
+      <input
+        type={show ? "text" : "password"}
+        placeholder={placeholder}
+        autoComplete={autoComplete}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="input pr-12"
+      />
+      <button
+        type="button"
+        onClick={() => setShow((v) => !v)}
+        className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center justify-center"
+        tabIndex={-1}
+      >
+        <EyeIcon show={show} />
+      </button>
+    </div>
+  );
+}
 
 export default function SignupPage() {
   const router = useRouter();
@@ -22,13 +68,11 @@ export default function SignupPage() {
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
 
-    // Validate all fields
     if (!email.trim()) { setStatus("Please enter your email."); setIsError(true); return; }
     if (!password) { setStatus("Please enter a password."); setIsError(true); return; }
     if (password.length < 8) { setStatus("Password must be at least 8 characters."); setIsError(true); return; }
     if (password !== confirmPassword) { setStatus("Passwords don't match."); setIsError(true); return; }
 
-    // ✅ Invite code check
     if (inviteCode.trim().toUpperCase() !== BETA_INVITE_CODE) {
       setStatus("Invalid invite code. Please check your invite and try again.");
       setIsError(true);
@@ -51,14 +95,12 @@ export default function SignupPage() {
       return;
     }
 
-    // ✅ Sign them in immediately after signup
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
     });
 
     if (signInError) {
-      // Signup worked but auto-login failed — send to login
       router.replace("/login");
       return;
     }
@@ -111,21 +153,19 @@ export default function SignupPage() {
             onChange={(e) => setEmail(e.target.value)}
             className="input"
           />
-          <input
-            type="password"
+
+          <PasswordInput
             placeholder="Password (min 8 characters)"
-            autoComplete="new-password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="input"
-          />
-          <input
-            type="password"
-            placeholder="Confirm password"
+            onChange={setPassword}
             autoComplete="new-password"
+          />
+
+          <PasswordInput
+            placeholder="Confirm password"
             value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            className="input"
+            onChange={setConfirmPassword}
+            autoComplete="new-password"
           />
 
           {/* Divider */}
