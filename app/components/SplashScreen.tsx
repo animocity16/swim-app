@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabaseClient";
 
 const SPLASH_KEY = "natrix_splash_shown";
-const PARALLAX_STRENGTH = 80;
 
 function isVideo(url: string) {
   return /\.(mp4|mov|webm)(\?|$)/i.test(url);
@@ -16,10 +15,6 @@ export default function SplashScreen() {
   const [fadingOut, setFadingOut] = useState(false);
   const [gone, setGone] = useState(false);
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
-  const [dismissed, setDismissed] = useState(false);
-  const [tiltX, setTiltX] = useState(0);
-  const [tiltY, setTiltY] = useState(0);
-  const gyroActive = useRef(false);
 
   useEffect(() => {
     const alreadyShown = sessionStorage.getItem(SPLASH_KEY);
@@ -27,53 +22,6 @@ export default function SplashScreen() {
     sessionStorage.setItem(SPLASH_KEY, "1");
     void loadThenShow();
   }, []);
-
-  // Mouse parallax for desktop testing
-  useEffect(() => {
-    if (!ready || gone) return;
-
-    function handleMouseMove(e: MouseEvent) {
-      if (gyroActive.current) return;
-      const x = (e.clientX / window.innerWidth - 0.5) * 2;
-      const y = (e.clientY / window.innerHeight - 0.5) * 2;
-      setTiltX(x);
-      setTiltY(y);
-    }
-
-    window.addEventListener("mousemove", handleMouseMove);
-    return () => window.removeEventListener("mousemove", handleMouseMove);
-  }, [ready, gone]);
-
-  // iOS gyroscope — request permission on first tap then activate
-  async function requestGyro() {
-    try {
-      // @ts-ignore — DeviceOrientationEvent.requestPermission is iOS only
-      if (typeof DeviceOrientationEvent?.requestPermission === "function") {
-        // @ts-ignore
-        const permission = await DeviceOrientationEvent.requestPermission();
-        if (permission === "granted") {
-          activateGyro();
-        }
-      } else {
-        // Android / non-iOS — no permission needed
-        activateGyro();
-      }
-    } catch {
-      // permission failed silently — mouse fallback still works
-    }
-  }
-
-  function activateGyro() {
-    gyroActive.current = true;
-    window.addEventListener("deviceorientation", handleOrientation);
-  }
-
-  function handleOrientation(e: DeviceOrientationEvent) {
-    const x = Math.max(-20, Math.min(20, e.gamma ?? 0)) / 20;
-    const y = Math.max(-20, Math.min(20, (e.beta ?? 0) - 30)) / 20;
-    setTiltX(x);
-    setTiltY(y);
-  }
 
   async function loadThenShow() {
     try {
@@ -96,38 +44,15 @@ export default function SplashScreen() {
     setReady(true);
   }
 
-  function handleTap() {
-    if (dismissed) return;
-    setDismissed(true);
-
-    // ✅ Request gyro permission on first tap — iOS requires user gesture
-    void requestGyro();
-
-    // Small delay then dismiss so gyro has a moment
-    setTimeout(() => {
-      setFadingOut(true);
-      setTimeout(() => {
-        setGone(true);
-        window.removeEventListener("deviceorientation", handleOrientation);
-      }, 700);
-    }, 800);
+  function handleEnter() {
+    setFadingOut(true);
+    setTimeout(() => setGone(true), 700);
   }
 
   if (!ready || gone) return null;
 
   const showVideo = mediaUrl && isVideo(mediaUrl);
   const showImage = mediaUrl && !isVideo(mediaUrl);
-
-  const photoStyle: React.CSSProperties = showImage ? {
-    position: "absolute",
-    inset: 0,
-    width: "100%",
-    height: "100%",
-    objectFit: "cover",
-    transform: `scale(1.12) translate(${tiltX * PARALLAX_STRENGTH}px, ${tiltY * PARALLAX_STRENGTH}px)`,
-    transition: "transform 0.12s ease-out",
-    willChange: "transform",
-  } : {};
 
   const content = (
     <>
@@ -149,20 +74,29 @@ export default function SplashScreen() {
           50%  { opacity: 0.25; transform: scale(1.05); }
           100% { opacity: 0.15; transform: scale(1); }
         }
+
+        /* ✅ Cinematic drift — slow, smooth, no permissions */
+        @keyframes natrix-drift {
+          0%   { transform: scale(1.12) translate(0px, 0px); }
+          25%  { transform: scale(1.12) translate(-12px, -6px); }
+          50%  { transform: scale(1.12) translate(8px, -10px); }
+          75%  { transform: scale(1.12) translate(12px, 4px); }
+          100% { transform: scale(1.12) translate(0px, 0px); }
+        }
+
         .splash-drop    { animation: natrix-drop  0.55s cubic-bezier(0.34,1.56,0.64,1) 0.15s both; }
         .splash-title   { animation: natrix-title 0.75s ease-out 0.45s both; }
         .splash-sub     { animation: natrix-sub   0.75s ease-out 0.85s both; }
         .splash-hint    { animation: natrix-sub   0.75s ease-out 1.1s both; }
         .splash-shimmer { animation: natrix-shimmer 3s ease-in-out infinite; }
+        .splash-drift   { animation: natrix-drift 12s ease-in-out infinite; }
       `}</style>
 
       <div
-        onClick={handleTap}
         style={{
           position: "fixed",
           top: 0, left: 0, right: 0, bottom: 0,
           zIndex: 999999,
-          cursor: "pointer",
           opacity: fadingOut ? 0 : 1,
           transition: fadingOut ? "opacity 0.65s ease" : "none",
           overflow: "hidden",
@@ -178,7 +112,20 @@ export default function SplashScreen() {
           </video>
         )}
 
-        {showImage && <img src={mediaUrl} alt="" style={photoStyle} />}
+        {/* ✅ Photo with cinematic drift animation */}
+        {showImage && (
+          <img
+            src={mediaUrl}
+            alt=""
+            className="splash-drift"
+            style={{
+              position: "absolute", inset: 0,
+              width: "100%", height: "100%",
+              objectFit: "cover",
+            }}
+          />
+        )}
+
         {!mediaUrl && <DefaultBackground />}
 
         {/* Dark overlay */}
@@ -193,7 +140,7 @@ export default function SplashScreen() {
           background: "radial-gradient(ellipse at 50% 40%, rgba(14,165,233,0.18) 0%, transparent 65%)",
         }} />
 
-        {/* Content — fixed, doesn't move with parallax */}
+        {/* Content — stays perfectly still while photo drifts */}
         <div style={{
           position: "absolute", inset: 0,
           display: "flex", flexDirection: "column",
@@ -221,17 +168,22 @@ export default function SplashScreen() {
             Track Every Stroke
           </div>
 
-          <div className="splash-hint" style={{
-            marginTop: "48px", padding: "14px 40px",
-            borderRadius: "100px",
-            border: "1px solid rgba(255,255,255,0.25)",
-            background: "rgba(255,255,255,0.1)",
-            fontSize: "13px", letterSpacing: "0.2em",
-            textTransform: "uppercase", color: "rgba(255,255,255,0.85)",
-            fontWeight: 600, backdropFilter: "blur(8px)",
-          }}>
+          <button
+            onClick={handleEnter}
+            className="splash-hint"
+            style={{
+              marginTop: "48px", padding: "14px 40px",
+              borderRadius: "100px",
+              border: "1px solid rgba(255,255,255,0.25)",
+              background: "rgba(255,255,255,0.1)",
+              fontSize: "13px", letterSpacing: "0.2em",
+              textTransform: "uppercase", color: "rgba(255,255,255,0.85)",
+              fontWeight: 600, backdropFilter: "blur(8px)",
+              cursor: "pointer",
+            }}
+          >
             Tap to Enter
-          </div>
+          </button>
         </div>
       </div>
     </>
