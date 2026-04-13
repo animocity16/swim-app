@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { replayTutorial } from "@/app/components/TutorialOverlay";
+import SplashMediaUpload from "@/app/components/SplashMediaUpload";
 
 const APP_VERSION = "1.0.0";
 
@@ -44,7 +45,6 @@ export default function SettingsPage() {
     weeklyRecap: false,
   });
 
-  // Feedback state
   const [feedbackRating, setFeedbackRating] = useState(0);
   const [feedbackMessage, setFeedbackMessage] = useState("");
   const [feedbackFeature, setFeedbackFeature] = useState("");
@@ -90,19 +90,15 @@ export default function SettingsPage() {
   async function handleSendFeedback() {
     if (feedbackRating === 0) { setFeedbackError("Please select a star rating."); return; }
     if (!feedbackMessage.trim()) { setFeedbackError("Please write something — even a sentence helps!"); return; }
-
     setSavingFeedback(true);
     setFeedbackError("");
-
     const { data: { session } } = await supabase.auth.getSession();
-
     const { error } = await supabase.from("feedback").insert([{
       user_id: session?.user?.id ?? null,
       rating: feedbackRating,
       message: feedbackMessage.trim(),
       feature_request: feedbackFeature || null,
     }]);
-
     if (error) {
       setFeedbackError(`Couldn't send feedback: ${error.message}`);
     } else {
@@ -210,7 +206,10 @@ export default function SettingsPage() {
           <NotifRow icon={<ChartIcon />} label="Weekly recap" sub="Summary of the week's results every Sunday" value={notifs.weeklyRecap} onToggle={() => toggleNotif("weeklyRecap")} />
         </div>
 
-        {/* Tutorial recap */}
+        {/* ✅ Splash Screen — personalise opening moment */}
+        <SplashMediaUpload />
+
+        {/* Help */}
         <div className="card">
           <p className="label mb-3">Help</p>
           <button
@@ -251,7 +250,7 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* ✅ Feedback */}
+        {/* Feedback */}
         <div className="card space-y-4">
           <div>
             <p className="label">Feedback</p>
@@ -264,28 +263,19 @@ export default function SettingsPage() {
               <p className="text-2xl">🙏</p>
               <p className="text-sm font-semibold" style={{ color: "#FDE68A" }}>Thank you!</p>
               <p className="text-xs text-white/40">Your feedback means the world. We&apos;ll use it to make Natrix better.</p>
-              <button
-                type="button"
-                onClick={() => setFeedbackSent(false)}
-                className="mt-2 text-xs text-white/30 underline"
-              >
+              <button type="button" onClick={() => setFeedbackSent(false)} className="mt-2 text-xs text-white/30 underline">
                 Send another
               </button>
             </div>
           ) : (
             <>
-              {/* Star rating */}
               <div>
                 <p className="text-xs text-white/50 mb-2">How are you finding Natrix?</p>
                 <div className="flex gap-2">
                   {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      key={star}
-                      type="button"
-                      onClick={() => setFeedbackRating(star)}
+                    <button key={star} type="button" onClick={() => setFeedbackRating(star)}
                       className="text-2xl transition-transform active:scale-90"
-                      style={{ opacity: feedbackRating >= star ? 1 : 0.25, filter: feedbackRating >= star ? "none" : "grayscale(1)" }}
-                    >
+                      style={{ opacity: feedbackRating >= star ? 1 : 0.25, filter: feedbackRating >= star ? "none" : "grayscale(1)" }}>
                       ⭐
                     </button>
                   ))}
@@ -297,7 +287,6 @@ export default function SettingsPage() {
                 )}
               </div>
 
-              {/* Message */}
               <div>
                 <p className="text-xs text-white/50 mb-2">What would make Natrix better?</p>
                 <textarea
@@ -315,39 +304,26 @@ export default function SettingsPage() {
                 />
               </div>
 
-              {/* Feature request */}
               <div>
                 <p className="text-xs text-white/50 mb-2">Most wanted feature (optional)</p>
-                <select
-                  value={feedbackFeature}
-                  onChange={(e) => setFeedbackFeature(e.target.value)}
-                  className="input"
-                >
+                <select value={feedbackFeature} onChange={(e) => setFeedbackFeature(e.target.value)} className="input">
                   <option value="">Pick one...</option>
-                  {FEATURE_REQUESTS.map((f) => (
-                    <option key={f} value={f}>{f}</option>
-                  ))}
+                  {FEATURE_REQUESTS.map((f) => (<option key={f} value={f}>{f}</option>))}
                 </select>
               </div>
 
-              {feedbackError && (
-                <p className="text-sm" style={{ color: "#FCA5A5" }}>{feedbackError}</p>
-              )}
+              {feedbackError && <p className="text-sm" style={{ color: "#FCA5A5" }}>{feedbackError}</p>}
 
-              <button
-                type="button"
-                onClick={handleSendFeedback}
-                disabled={savingFeedback}
+              <button type="button" onClick={handleSendFeedback} disabled={savingFeedback}
                 className="w-full rounded-2xl py-3 text-sm font-semibold text-white transition disabled:opacity-50"
-                style={{ background: "#D97706" }}
-              >
+                style={{ background: "#D97706" }}>
                 {savingFeedback ? "Sending..." : "Send feedback 🚀"}
               </button>
             </>
           )}
         </div>
 
-        {/* App info */}
+        {/* About */}
         <div className="card">
           <p className="label mb-3">About</p>
           <div className="flex items-center justify-between py-1">
@@ -372,23 +348,17 @@ export default function SettingsPage() {
         </div>
 
         {/* Sign out */}
-        <button
-          type="button"
-          onClick={handleLogout}
-          disabled={loggingOut}
+        <button type="button" onClick={handleLogout} disabled={loggingOut}
           className="w-full rounded-2xl py-4 text-base font-semibold transition disabled:opacity-50"
-          style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.85)" }}
-        >
+          style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.85)" }}>
           {loggingOut ? "Signing out..." : "Sign out"}
         </button>
 
         {/* Delete account */}
         <div className="rounded-3xl overflow-hidden" style={{ border: "1px solid rgba(239,68,68,0.2)", background: "rgba(239,68,68,0.06)" }}>
-          <button
-            type="button"
+          <button type="button"
             onClick={() => { setShowDeleteConfirm((v) => !v); setDeleteInput(""); setStatus(""); }}
-            className="w-full flex items-center justify-between px-5 py-4 text-left"
-          >
+            className="w-full flex items-center justify-between px-5 py-4 text-left">
             <div>
               <p className="text-sm font-semibold" style={{ color: "#FCA5A5" }}>Delete account</p>
               <p className="text-xs text-white/35 mt-0.5">Permanently removes all your data</p>
@@ -400,15 +370,14 @@ export default function SettingsPage() {
               <p className="text-sm text-white/60 leading-relaxed">
                 This will permanently delete your account and all swimmer data. This cannot be undone. Type <span className="font-bold text-white">DELETE</span> to confirm.
               </p>
-              <input value={deleteInput} onChange={(e) => setDeleteInput(e.target.value)} placeholder="Type DELETE to confirm" className="input" style={{ borderColor: "rgba(239,68,68,0.3)" }} />
+              <input value={deleteInput} onChange={(e) => setDeleteInput(e.target.value)}
+                placeholder="Type DELETE to confirm" className="input"
+                style={{ borderColor: "rgba(239,68,68,0.3)" }} />
               {status && <p className="text-sm" style={{ color: "#FCA5A5" }}>{status}</p>}
-              <button
-                type="button"
-                onClick={handleDeleteAccount}
+              <button type="button" onClick={handleDeleteAccount}
                 disabled={deletingAccount || deleteInput !== "DELETE"}
                 className="w-full rounded-2xl py-3 text-sm font-semibold transition disabled:opacity-40"
-                style={{ background: "rgba(239,68,68,0.25)", border: "1px solid rgba(239,68,68,0.4)", color: "#FCA5A5" }}
-              >
+                style={{ background: "rgba(239,68,68,0.25)", border: "1px solid rgba(239,68,68,0.4)", color: "#FCA5A5" }}>
                 {deletingAccount ? "Deleting..." : "Permanently delete account"}
               </button>
             </div>

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import BottomNav from "@/app/components/BottomNav";
 import TutorialOverlay from "@/app/components/TutorialOverlay";
+import SplashScreen from "@/app/components/SplashScreen";
 
 export const metadata: Metadata = {
   title: "Natrix — Swim Tracker",
@@ -42,7 +43,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        {/* ✅ PWA — iPhone full screen, no browser bar */}
+        {/* PWA — iPhone full screen, no browser bar */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="Natrix" />
@@ -51,12 +52,23 @@ export default function RootLayout({
         {/* App icons for iOS home screen */}
         <link rel="apple-touch-icon" href="/icon-192.png" />
         <link rel="apple-touch-icon" sizes="512x512" href="/icon-512.png" />
-<link rel="icon" type="image/svg+xml" href="/natrix-favicon.svg" />
+        <link rel="icon" type="image/svg+xml" href="/natrix-favicon.svg" />
 
         {/* Splash screen colour matches water background */}
         <meta name="msapplication-TileColor" content="#063554" />
+
+        {/* Bebas Neue — splash screen hero font */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap"
+          rel="stylesheet"
+        />
       </head>
       <body>
+        {/* Splash screen — cold launch only, skipped when returning from background */}
+        <SplashScreen />
+
         {/* Water ripple overlay — sits behind all content */}
         <div className="water-ripple" aria-hidden="true" />
 
