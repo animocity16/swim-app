@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabaseClient";
 
 const SPLASH_KEY = "natrix_splash_shown";
-const PARALLAX_STRENGTH = 18; // px — how far the photo shifts on tilt
+const PARALLAX_STRENGTH = 20;
 
 function isVideo(url: string) {
   return /\.(mp4|mov|webm)(\?|$)/i.test(url);
@@ -17,11 +17,9 @@ export default function SplashScreen() {
   const [gone, setGone] = useState(false);
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState(false);
-
-  // Parallax state
   const [tiltX, setTiltX] = useState(0);
   const [tiltY, setTiltY] = useState(0);
-  const gyroRef = useRef(false);
+  const gyroActive = useRef(false);
 
   useEffect(() => {
     const alreadyShown = sessionStorage.getItem(SPLASH_KEY);
@@ -30,43 +28,57 @@ export default function SplashScreen() {
     void loadThenShow();
   }, []);
 
-  // Gyroscope parallax — only for photos, not videos
+  // Mouse parallax for desktop testing
   useEffect(() => {
-    if (!ready || gone || !mediaUrl || isVideo(mediaUrl)) return;
+    if (!ready || gone) return;
 
-    function handleOrientation(e: DeviceOrientationEvent) {
-      gyroRef.current = true;
-      // gamma = left/right tilt (-90 to 90)
-      // beta  = front/back tilt (-180 to 180)
-      const x = Math.max(-20, Math.min(20, e.gamma ?? 0));
-      const y = Math.max(-20, Math.min(20, (e.beta ?? 0) - 30)); // offset for natural hold angle
-      setTiltX(x / 20); // normalize to -1 to 1
-      setTiltY(y / 20);
-    }
-
-    // Mouse parallax fallback for desktop testing
     function handleMouseMove(e: MouseEvent) {
-      if (gyroRef.current) return; // gyro takes priority on phone
-      const x = (e.clientX / window.innerWidth - 0.5) * 2;  // -1 to 1
+      if (gyroActive.current) return;
+      const x = (e.clientX / window.innerWidth - 0.5) * 2;
       const y = (e.clientY / window.innerHeight - 0.5) * 2;
       setTiltX(x);
       setTiltY(y);
     }
 
-    window.addEventListener("deviceorientation", handleOrientation);
     window.addEventListener("mousemove", handleMouseMove);
+    return () => window.removeEventListener("mousemove", handleMouseMove);
+  }, [ready, gone]);
 
-    return () => {
-      window.removeEventListener("deviceorientation", handleOrientation);
-      window.removeEventListener("mousemove", handleMouseMove);
-    };
-  }, [ready, gone, mediaUrl]);
+  // iOS gyroscope — request permission on first tap then activate
+  async function requestGyro() {
+    try {
+      // @ts-ignore — DeviceOrientationEvent.requestPermission is iOS only
+      if (typeof DeviceOrientationEvent?.requestPermission === "function") {
+        // @ts-ignore
+        const permission = await DeviceOrientationEvent.requestPermission();
+        if (permission === "granted") {
+          activateGyro();
+        }
+      } else {
+        // Android / non-iOS — no permission needed
+        activateGyro();
+      }
+    } catch {
+      // permission failed silently — mouse fallback still works
+    }
+  }
+
+  function activateGyro() {
+    gyroActive.current = true;
+    window.addEventListener("deviceorientation", handleOrientation);
+  }
+
+  function handleOrientation(e: DeviceOrientationEvent) {
+    const x = Math.max(-20, Math.min(20, e.gamma ?? 0)) / 20;
+    const y = Math.max(-20, Math.min(20, (e.beta ?? 0) - 30)) / 20;
+    setTiltX(x);
+    setTiltY(y);
+  }
 
   async function loadThenShow() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       const url = user?.user_metadata?.splash_image_url as string | undefined;
-
       if (url && !isVideo(url)) {
         await new Promise<void>((resolve) => {
           const img = new Image();
@@ -87,8 +99,18 @@ export default function SplashScreen() {
   function handleTap() {
     if (dismissed) return;
     setDismissed(true);
-    setFadingOut(true);
-    setTimeout(() => setGone(true), 700);
+
+    // ✅ Request gyro permission on first tap — iOS requires user gesture
+    void requestGyro();
+
+    // Small delay then dismiss so gyro has a moment
+    setTimeout(() => {
+      setFadingOut(true);
+      setTimeout(() => {
+        setGone(true);
+        window.removeEventListener("deviceorientation", handleOrientation);
+      }, 700);
+    }, 800);
   }
 
   if (!ready || gone) return null;
@@ -96,7 +118,6 @@ export default function SplashScreen() {
   const showVideo = mediaUrl && isVideo(mediaUrl);
   const showImage = mediaUrl && !isVideo(mediaUrl);
 
-  // Photo parallax transform — extra scale so edges don't show when tilting
   const photoStyle: React.CSSProperties = showImage ? {
     position: "absolute",
     inset: 0,
@@ -104,7 +125,7 @@ export default function SplashScreen() {
     height: "100%",
     objectFit: "cover",
     transform: `scale(1.12) translate(${tiltX * PARALLAX_STRENGTH}px, ${tiltY * PARALLAX_STRENGTH}px)`,
-    transition: "transform 0.15s ease-out",
+    transition: "transform 0.12s ease-out",
     willChange: "transform",
   } : {};
 
@@ -147,7 +168,7 @@ export default function SplashScreen() {
           overflow: "hidden",
         }}
       >
-        {/* ── Background ── */}
+        {/* Background */}
         {showVideo && (
           <video autoPlay muted loop playsInline style={{
             position: "absolute", inset: 0,
@@ -157,10 +178,7 @@ export default function SplashScreen() {
           </video>
         )}
 
-        {showImage && (
-          <img src={mediaUrl} alt="" style={photoStyle} />
-        )}
-
+        {showImage && <img src={mediaUrl} alt="" style={photoStyle} />}
         {!mediaUrl && <DefaultBackground />}
 
         {/* Dark overlay */}
@@ -169,13 +187,13 @@ export default function SplashScreen() {
           background: "linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.45) 50%, rgba(0,0,0,0.72) 100%)",
         }} />
 
-        {/* Shimmer glow */}
+        {/* Shimmer */}
         <div className="splash-shimmer" style={{
           position: "absolute", inset: 0,
           background: "radial-gradient(ellipse at 50% 40%, rgba(14,165,233,0.18) 0%, transparent 65%)",
         }} />
 
-        {/* ── Content — stays fixed while photo moves ── */}
+        {/* Content — fixed, doesn't move with parallax */}
         <div style={{
           position: "absolute", inset: 0,
           display: "flex", flexDirection: "column",
