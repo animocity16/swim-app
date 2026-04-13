@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabaseClient";
 
 const SPLASH_KEY = "natrix_splash_shown";
-const PARALLAX_STRENGTH = 20;
+const PARALLAX_STRENGTH = 80;
 
 function isVideo(url: string) {
   return /\.(mp4|mov|webm)(\?|$)/i.test(url);
