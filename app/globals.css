@@ -6,8 +6,22 @@
    ============================================================ */
 
 :root {
-  --background: #063554;
   --foreground: #ffffff;
+
+  /* ── Theme background variables ──────────────────────────────
+     These are overridden at runtime by ThemeProvider.tsx.
+     Defaults = Ocean (the original blue).
+  ─────────────────────────────────────────────────────────── */
+  --theme-bg:     #063554;
+  --theme-dark:   #073E6A;
+  --theme-mid:    #084A73;
+  --theme-light:  #0D6E9A;
+  --theme-light2: #0E7A9E;
+  --theme-light3: #0A5580;
+  --theme-nav-bg: rgba(6,53,84,0.80);
+
+  /* Kept for backwards compat — mirrors --theme-bg */
+  --background: var(--theme-bg);
 
   /* Amber accent palette */
   --amber:        #D97706;
@@ -15,9 +29,9 @@
   --amber-glow:   rgba(217,119,6,0.35);
 
   /* Glass surfaces */
-  --glass-bg:         rgba(255,255,255,0.13);
-  --glass-bg-hover:   rgba(255,255,255,0.18);
-  --glass-border:     rgba(255,255,255,0.24);
+  --glass-bg:           rgba(255,255,255,0.13);
+  --glass-bg-hover:     rgba(255,255,255,0.18);
+  --glass-border:       rgba(255,255,255,0.24);
   --glass-border-hover: rgba(255,255,255,0.38);
 
   /* Text */
@@ -55,13 +69,15 @@ button, input, select, textarea {
 
 /* ============================================================
    WATER BACKGROUND — CSS animated pool caustics
-   No JS needed. GPU-accelerated on iOS Safari.
+   Uses CSS variables so ThemeProvider can change colours.
+   GPU-accelerated on iOS Safari.
    ============================================================ */
 
 body {
-  background-color: #063554;
+  background-color: var(--theme-bg);
   position: relative;
   isolation: isolate;
+  transition: background-color 0.6s ease;
 }
 
 /* Layer 1 — Deep water base gradient */
@@ -71,13 +87,14 @@ body::before {
   inset: 0;
   z-index: -2;
   background:
-    radial-gradient(ellipse 60% 50% at 15% 25%, #0D6E9A 0%, transparent 65%),
-    radial-gradient(ellipse 50% 60% at 85% 55%, #073E6A 0%, transparent 60%),
-    radial-gradient(ellipse 70% 40% at 50% 85%, #0A5580 0%, transparent 65%),
-    radial-gradient(ellipse 40% 30% at 70% 15%, #0E7A9E 0%, transparent 55%),
-    linear-gradient(160deg, #063554 0%, #084A73 40%, #063554 100%);
+    radial-gradient(ellipse 60% 50% at 15% 25%, var(--theme-light)  0%, transparent 65%),
+    radial-gradient(ellipse 50% 60% at 85% 55%, var(--theme-dark)   0%, transparent 60%),
+    radial-gradient(ellipse 70% 40% at 50% 85%, var(--theme-light3) 0%, transparent 65%),
+    radial-gradient(ellipse 40% 30% at 70% 15%, var(--theme-light2) 0%, transparent 55%),
+    linear-gradient(160deg, var(--theme-bg) 0%, var(--theme-mid) 40%, var(--theme-bg) 100%);
   animation: waterDepth 25s ease-in-out infinite alternate;
   pointer-events: none;
+  transition: background 0.6s ease;
 }
 
 /* Layer 2 — Caustic light shimmer (pool light refraction) */
@@ -88,25 +105,25 @@ body::after {
   z-index: -1;
   background:
     radial-gradient(ellipse 220px 110px at 25% 35%, rgba(140,210,255,0.12) 0%, transparent 70%),
-    radial-gradient(ellipse 180px 90px at 75% 25%, rgba(255,200,80,0.08) 0%, transparent 65%),
+    radial-gradient(ellipse 180px  90px at 75% 25%, rgba(255,200, 80,0.08) 0%, transparent 65%),
     radial-gradient(ellipse 200px 100px at 60% 65%, rgba(120,200,240,0.10) 0%, transparent 70%),
-    radial-gradient(ellipse 150px 80px at 30% 75%, rgba(255,180,40,0.06) 0%, transparent 60%),
+    radial-gradient(ellipse 150px  80px at 30% 75%, rgba(255,180, 40,0.06) 0%, transparent 60%),
     radial-gradient(ellipse 250px 120px at 80% 80%, rgba(100,190,230,0.09) 0%, transparent 70%);
   animation: causticLight 18s ease-in-out infinite alternate-reverse;
   pointer-events: none;
 }
 
 @keyframes waterDepth {
-  0%   { transform: translate(0px, 0px) scale(1); }
+  0%   { transform: translate(0px,   0px)  scale(1);    }
   25%  { transform: translate(18px, -12px) scale(1.03); }
   50%  { transform: translate(-14px, 20px) scale(0.98); }
-  75%  { transform: translate(10px, -8px) scale(1.02); }
-  100% { transform: translate(-8px, 15px) scale(1.01); }
+  75%  { transform: translate(10px,  -8px) scale(1.02); }
+  100% { transform: translate(-8px,  15px) scale(1.01); }
 }
 
 @keyframes causticLight {
-  0%   { transform: translate(0px, 0px); opacity: 0.7; }
-  30%  { transform: translate(-28px, 18px); opacity: 1; }
+  0%   { transform: translate(0px,   0px); opacity: 0.7;  }
+  30%  { transform: translate(-28px, 18px); opacity: 1;   }
   60%  { transform: translate(22px, -15px); opacity: 0.75; }
   100% { transform: translate(-12px, 25px); opacity: 0.85; }
 }
@@ -185,7 +202,7 @@ body::after {
   /* Input — dark glass */
   .input {
     @apply w-full h-14 rounded-[20px] px-4 text-white outline-none placeholder:text-white/35;
-    background: rgba(0,20,50,0.35);
+    background: rgba(0,0,0,0.25);
     border: 1px solid rgba(255,255,255,0.2);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
@@ -204,7 +221,7 @@ body::after {
   }
 
   select.input option {
-    background: #063554;
+    background: var(--theme-bg);
     color: white;
   }
 
@@ -316,7 +333,6 @@ body::after {
 
 /* ============================================================
    GLOBAL TAILWIND OVERRIDES
-   Ensures inline Tailwind classes also get glass treatment
    ============================================================ */
 
 /* Any element using bg-white/5 or similar gets glass treatment */
@@ -326,12 +342,13 @@ body::after {
   -webkit-backdrop-filter: blur(20px) saturate(1.2);
 }
 
-/* Bottom nav glass */
+/* Bottom nav glass — uses theme variable for base colour */
 nav.fixed {
   backdrop-filter: blur(30px) saturate(1.5);
   -webkit-backdrop-filter: blur(30px) saturate(1.5);
-  background: rgba(6,53,84,0.75) !important;
+  background: var(--theme-nav-bg) !important;
   border-top-color: rgba(255,255,255,0.15) !important;
+  transition: background 0.6s ease;
 }
 
 /* Modal overlay */
@@ -347,4 +364,41 @@ nav.fixed {
   backdrop-filter: blur(30px);
   -webkit-backdrop-filter: blur(30px);
   border-color: rgba(255,255,255,0.2) !important;
+}
+
+/* ============================================================
+   ONBOARDING — story walkthrough screens
+   ============================================================ */
+
+.onb-screen {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 2rem 0;
+}
+
+.onb-btn-primary {
+  background: #D97706;
+  border: none;
+  border-radius: 16px;
+  padding: 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.onb-btn-primary:hover { opacity: 0.9; }
+
+.onb-btn-secondary {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 16px;
+  padding: 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.6);
+  cursor: pointer;
 }

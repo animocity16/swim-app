@@ -60,7 +60,7 @@ const NAV_ITEMS = [
   },
 ];
 
-const HIDDEN_ON = ["/login", "/signup", "/forgot-password", "/reset-password", "/invite", "/auth"];
+const HIDDEN_ON = ["/login", "/signup", "/forgot-password", "/reset-password", "/invite", "/auth", "/onboarding"];
 
 export default function BottomNav() {
   const pathname = usePathname();

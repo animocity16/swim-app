@@ -479,8 +479,10 @@ export default function SwimmerProfilePage() {
 
         {/* ── Tab: Times ────────────────────────────────────────────────── */}
         {!isEditingProfile && activeTab === "swimTimes" && (
-          <section className="card"><SwimTimesSection swimmerId={Number(swimmer.id)} /></section>
-        )}
+  <section className="card">
+    <SwimTimesSection swimmerId={Number(swimmer.id)} swimmerAge={swimmer.age} swimmerName={swimmer.name} />
+  </section>
+)}
 
         {/* ── Tab: Progress ─────────────────────────────────────────────── */}
         {!isEditingProfile && activeTab === "progress" && (

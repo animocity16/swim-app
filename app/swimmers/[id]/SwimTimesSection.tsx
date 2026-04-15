@@ -3,10 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { canonicalCourse, canonicalEventName, eventKey } from "@/lib/events";
+import ShareCardModal, { type ShareResult } from "@/app/components/ShareCardModal";
 
 type Props = {
   swimmerId: number;
   swimmerAge?: number | null;
+  swimmerName?: string;
 };
 
 type SwimTimeRow = {
@@ -141,20 +143,28 @@ function getMeetPresets(swimmerAge?: number | null): string[] {
 
   const ageSpecific =
     swimmerAge != null && swimmerAge <= 12
-      ? [
-          `ETC ${currentYear}`,
-          `${ordinal(jicNumber)} JIC ${currentYear}`,
-        ]
-      : [
-          `${ordinal(snscNumber)} SNSC ${currentYear}`,
-        ];
+      ? [`ETC ${currentYear}`, `${ordinal(jicNumber)} JIC ${currentYear}`]
+      : [`${ordinal(snscNumber)} SNSC ${currentYear}`];
 
   return [...base, ...ageSpecific, "Club Time Trial", "Time Trial"];
 }
 
+// ─── Share icon ───────────────────────────────────────────────────────────────
+
+function ShareIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 15 15" fill="none">
+      <path
+        d="M10 2L13 5M13 5L10 8M13 5H6C4.34 5 3 6.34 3 8V13"
+        stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function SwimTimesSection({ swimmerId, swimmerAge }: Props) {
+export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = "Swimmer" }: Props) {
   const [rows, setRows] = useState<SwimTimeRow[]>([]);
   const [splitsMap, setSplitsMap] = useState<Record<number, SwimSplitRow[]>>({});
   const [loading, setLoading] = useState(true);
@@ -172,6 +182,9 @@ export default function SwimTimesSection({ swimmerId, swimmerAge }: Props) {
   const [expandedSplits, setExpandedSplits] = useState<Record<number, boolean>>({});
   const [editingTime, setEditingTime] = useState<EditingTime | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
+
+  // Share card
+  const [shareResult, setShareResult] = useState<ShareResult | null>(null);
 
   const meetPresets = useMemo(() => getMeetPresets(swimmerAge), [swimmerAge]);
 
@@ -294,264 +307,290 @@ export default function SwimTimesSection({ swimmerId, swimmerAge }: Props) {
   if (loading) return <div className="py-4 text-center text-sm text-white/40">Loading times…</div>;
 
   return (
-    <div className="space-y-4">
+    <>
+      <div className="space-y-4">
 
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">
-          {rows.length} result{rows.length === 1 ? "" : "s"} · {strokeGroups.reduce((n, g) => n + g.events.length, 0)} events
-        </p>
-        <button
-          type="button"
-          onClick={() => setShowAddForm((v) => !v)}
-          className="rounded-2xl border px-3 py-1.5 text-xs font-semibold transition"
-          style={{
-            background: showAddForm ? "rgba(217,119,6,0.2)" : "rgba(255,255,255,0.05)",
-            border: "1px solid rgba(255,255,255,0.12)",
-            color: showAddForm ? "#FDE68A" : "rgba(255,255,255,0.5)",
-          }}
-        >
-          {showAddForm ? "Cancel" : "+ Add time"}
-        </button>
-      </div>
-
-      {/* Add time form */}
-      {showAddForm && (
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-3">
-          <select value={newEvent} onChange={(e) => setNewEvent(e.target.value)} className="input">
-            <option value="">Select event…</option>
-            {EVENTS.map((e) => <option key={e} value={e}>{e}</option>)}
-          </select>
-          <div className="grid grid-cols-2 gap-2">
-            <select value={newCourse} onChange={(e) => setNewCourse(e.target.value)} className="input">
-              <option value="LCM">LCM</option>
-              <option value="SCM">SCM</option>
-              <option value="SCY">SCY</option>
-            </select>
-            <input value={newTime} onChange={(e) => setNewTime(e.target.value)}
-              placeholder="35.04 or 1:12.33" className="input" />
-          </div>
-          <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} className="input" />
-
-          {/* Meet name presets */}
-          <div>
-            <p className="text-[10px] text-white/30 mb-2 uppercase tracking-wider">Meet name</p>
-            <div className="flex flex-wrap gap-1.5 mb-2">
-              {meetPresets.map((preset) => (
-                <button
-                  key={preset}
-                  type="button"
-                  onClick={() => setNewMeetName(preset)}
-                  className="rounded-full px-2.5 py-1 text-[10px] font-medium transition"
-                  style={newMeetName === preset
-                    ? { background: "rgba(217,119,6,0.25)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
-                    : { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.45)" }}
-                >
-                  {preset}
-                </button>
-              ))}
-            </div>
-            <input value={newMeetName} onChange={(e) => setNewMeetName(e.target.value)}
-              placeholder="Or type a meet name…" className="input" />
-          </div>
-
-          {addStatus && <p className="text-xs text-white/50">{addStatus}</p>}
-          <button type="button" onClick={handleAddTime} disabled={saving}
-            className="w-full rounded-2xl py-3 text-sm font-semibold text-white transition disabled:opacity-50"
-            style={{ background: "#D97706" }}>
-            {saving ? "Saving…" : "Add time"}
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">
+            {rows.length} result{rows.length === 1 ? "" : "s"} · {strokeGroups.reduce((n, g) => n + g.events.length, 0)} events
+          </p>
+          <button
+            type="button"
+            onClick={() => setShowAddForm((v) => !v)}
+            className="rounded-2xl border px-3 py-1.5 text-xs font-semibold transition"
+            style={{
+              background: showAddForm ? "rgba(217,119,6,0.2)" : "rgba(255,255,255,0.05)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              color: showAddForm ? "#FDE68A" : "rgba(255,255,255,0.5)",
+            }}
+          >
+            {showAddForm ? "Cancel" : "+ Add time"}
           </button>
         </div>
-      )}
 
-      {/* Empty state */}
-      {strokeGroups.length === 0 && (
-        <div className="rounded-2xl border border-white/10 bg-white/5 py-8 text-center">
-          <p className="text-sm text-white/40">No times yet — add one above or import from Settings.</p>
-        </div>
-      )}
+        {/* Add time form */}
+        {showAddForm && (
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-3">
+            <select value={newEvent} onChange={(e) => setNewEvent(e.target.value)} className="input">
+              <option value="">Select event…</option>
+              {EVENTS.map((e) => <option key={e} value={e}>{e}</option>)}
+            </select>
+            <div className="grid grid-cols-2 gap-2">
+              <select value={newCourse} onChange={(e) => setNewCourse(e.target.value)} className="input">
+                <option value="LCM">LCM</option>
+                <option value="SCM">SCM</option>
+                <option value="SCY">SCY</option>
+              </select>
+              <input value={newTime} onChange={(e) => setNewTime(e.target.value)}
+                placeholder="35.04 or 1:12.33" className="input" />
+            </div>
+            <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} className="input" />
 
-      {/* Stroke groups */}
-      {strokeGroups.map((sg) => (
-        <div key={sg.key} className="rounded-2xl overflow-hidden"
-          style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)" }}>
+            <div>
+              <p className="text-[10px] text-white/30 mb-2 uppercase tracking-wider">Meet name</p>
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {meetPresets.map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setNewMeetName(preset)}
+                    className="rounded-full px-2.5 py-1 text-[10px] font-medium transition"
+                    style={newMeetName === preset
+                      ? { background: "rgba(217,119,6,0.25)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
+                      : { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.45)" }}
+                  >
+                    {preset}
+                  </button>
+                ))}
+              </div>
+              <input value={newMeetName} onChange={(e) => setNewMeetName(e.target.value)}
+                placeholder="Or type a meet name…" className="input" />
+            </div>
 
-          {/* Stroke header */}
-          <div className="px-4 pt-3 pb-2 flex items-center gap-2">
-            <div className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ background: sg.color }} />
-            <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: sg.color }}>
-              {sg.label}
-            </p>
-            <p className="text-[10px] text-white/25 ml-1">
-              {sg.events.length} event{sg.events.length === 1 ? "" : "s"}
-            </p>
+            {addStatus && <p className="text-xs text-white/50">{addStatus}</p>}
+            <button type="button" onClick={handleAddTime} disabled={saving}
+              className="w-full rounded-2xl py-3 text-sm font-semibold text-white transition disabled:opacity-50"
+              style={{ background: "#D97706" }}>
+              {saving ? "Saving…" : "Add time"}
+            </button>
           </div>
+        )}
 
-          {/* Event rows */}
-          {sg.events.map((eg) => {
-            const isOpen = !!expandedEvents[eg.key];
-            return (
-              <div key={eg.key} style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+        {/* Empty state */}
+        {strokeGroups.length === 0 && (
+          <div className="rounded-2xl border border-white/10 bg-white/5 py-8 text-center">
+            <p className="text-sm text-white/40">No times yet — add one above or import from Settings.</p>
+          </div>
+        )}
 
-                {/* PB row */}
-                <button
-                  type="button"
-                  onClick={() => toggleEvent(eg.key)}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-white/5"
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-baseline gap-1.5">
-                      <span className="text-sm font-semibold text-white">{eg.shortEvent}</span>
-                      <span className="text-[10px] text-white/30">{eg.course}</span>
-                    </div>
+        {/* Stroke groups */}
+        {strokeGroups.map((sg) => (
+          <div key={sg.key} className="rounded-2xl overflow-hidden"
+            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)" }}>
+
+            {/* Stroke header */}
+            <div className="px-4 pt-3 pb-2 flex items-center gap-2">
+              <div className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ background: sg.color }} />
+              <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: sg.color }}>
+                {sg.label}
+              </p>
+              <p className="text-[10px] text-white/25 ml-1">
+                {sg.events.length} event{sg.events.length === 1 ? "" : "s"}
+              </p>
+            </div>
+
+            {/* Event rows */}
+            {sg.events.map((eg) => {
+              const isOpen = !!expandedEvents[eg.key];
+              return (
+                <div key={eg.key} style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+
+                  {/* PB row — expand button + share button side by side */}
+                  <div className="flex items-center gap-1 pr-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleEvent(eg.key)}
+                      className="flex flex-1 items-center gap-3 px-4 py-3 text-left transition hover:bg-white/5"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="text-sm font-semibold text-white">{eg.shortEvent}</span>
+                          <span className="text-[10px] text-white/30">{eg.course}</span>
+                        </div>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className="text-sm font-bold" style={{ color: "#FDE68A" }}>{formatMs(eg.pb.time_ms)}</p>
+                        {eg.pb.swam_at && (
+                          <p className="text-[10px] text-white/30 mt-0.5">{formatDate(eg.pb.swam_at)}</p>
+                        )}
+                      </div>
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
+                        className="flex-shrink-0 text-white/20 transition-transform"
+                        style={{ transform: isOpen ? "rotate(90deg)" : "rotate(0deg)" }}>
+                        <path d="M5 3L9 7L5 11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+
+                    {/* Share button */}
+                    <button
+                      type="button"
+                      onClick={() => setShareResult({
+                        swimmerName,
+                        event: eg.event,
+                        course: eg.course,
+                        timeMs: eg.pb.time_ms,
+                        meetName: eg.pb.meet_name,
+                        swamAt: eg.pb.swam_at,
+                        isPB: true,
+                        strokeColor: sg.color,
+                      })}
+                      className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl transition"
+                      style={{ background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.45)" }}
+                      title="Share result"
+                    >
+                      <ShareIcon />
+                    </button>
                   </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="text-sm font-bold" style={{ color: "#FDE68A" }}>{formatMs(eg.pb.time_ms)}</p>
-                    {eg.pb.swam_at && (
-                      <p className="text-[10px] text-white/30 mt-0.5">{formatDate(eg.pb.swam_at)}</p>
-                    )}
-                  </div>
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
-                    className="flex-shrink-0 text-white/20 transition-transform"
-                    style={{ transform: isOpen ? "rotate(90deg)" : "rotate(0deg)" }}>
-                    <path d="M5 3L9 7L5 11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </button>
 
-                {/* Expanded history */}
-                {isOpen && (
-                  <div style={{ background: "rgba(0,0,0,0.2)", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-                    {eg.times.map((time, tIdx) => {
-                      const isPB = time.id === eg.pb.id;
-                      const splits = (splitsMap[time.id] || []).filter((s) => s.split_time_ms && s.split_time_ms > 0);
-                      const showSplits = !!expandedSplits[time.id];
-                      const isEditing = editingTime?.id === time.id;
-                      const isLastTime = tIdx === eg.times.length - 1;
+                  {/* Expanded history */}
+                  {isOpen && (
+                    <div style={{ background: "rgba(0,0,0,0.2)", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                      {eg.times.map((time, tIdx) => {
+                        const isPB = time.id === eg.pb.id;
+                        const splits = (splitsMap[time.id] || []).filter((s) => s.split_time_ms && s.split_time_ms > 0);
+                        const showSplits = !!expandedSplits[time.id];
+                        const isEditing = editingTime?.id === time.id;
+                        const isLastTime = tIdx === eg.times.length - 1;
 
-                      return (
-                        <div key={time.id}
-                          style={{ borderBottom: isLastTime ? "none" : "1px solid rgba(255,255,255,0.04)", padding: "10px 16px" }}>
+                        return (
+                          <div key={time.id}
+                            style={{ borderBottom: isLastTime ? "none" : "1px solid rgba(255,255,255,0.04)", padding: "10px 16px" }}>
 
-                          {isEditing ? (
-                            /* ── Edit form ── */
-                            <div className="space-y-2">
-                              <p className="text-[10px] font-medium uppercase tracking-wider text-white/30">Meet name</p>
-
-                              {/* Meet name presets */}
-                              <div className="flex flex-wrap gap-1.5">
-                                {meetPresets.map((preset) => (
-                                  <button
-                                    key={preset}
-                                    type="button"
-                                    onClick={() => setEditingTime((p) => p ? { ...p, meetName: preset } : p)}
-                                    className="rounded-full px-2.5 py-1 text-[10px] font-medium transition"
-                                    style={editingTime?.meetName === preset
-                                      ? { background: "rgba(217,119,6,0.25)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
-                                      : { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.45)" }}
-                                  >
-                                    {preset}
+                            {isEditing ? (
+                              <div className="space-y-2">
+                                <p className="text-[10px] font-medium uppercase tracking-wider text-white/30">Meet name</p>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {meetPresets.map((preset) => (
+                                    <button
+                                      key={preset}
+                                      type="button"
+                                      onClick={() => setEditingTime((p) => p ? { ...p, meetName: preset } : p)}
+                                      className="rounded-full px-2.5 py-1 text-[10px] font-medium transition"
+                                      style={editingTime?.meetName === preset
+                                        ? { background: "rgba(217,119,6,0.25)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
+                                        : { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.45)" }}
+                                    >
+                                      {preset}
+                                    </button>
+                                  ))}
+                                </div>
+                                <input
+                                  value={editingTime?.meetName ?? ""}
+                                  onChange={(e) => setEditingTime((p) => p ? { ...p, meetName: e.target.value } : p)}
+                                  placeholder="Or type a meet name…"
+                                  className="input"
+                                />
+                                <input
+                                  type="date"
+                                  value={editingTime?.swamAt ?? ""}
+                                  onChange={(e) => setEditingTime((p) => p ? { ...p, swamAt: e.target.value } : p)}
+                                  className="input"
+                                />
+                                <div className="flex gap-2">
+                                  <button type="button" onClick={handleSaveEdit} disabled={savingEdit}
+                                    className="flex-1 rounded-xl py-2 text-xs font-semibold text-white disabled:opacity-50"
+                                    style={{ background: "#D97706" }}>
+                                    {savingEdit ? "Saving…" : "Save"}
                                   </button>
-                                ))}
+                                  <button type="button" onClick={() => setEditingTime(null)}
+                                    className="flex-1 rounded-xl border border-white/10 bg-white/5 py-2 text-xs font-semibold text-white/50">
+                                    Cancel
+                                  </button>
+                                </div>
                               </div>
-
-                              <input
-                                value={editingTime?.meetName ?? ""}
-                                onChange={(e) => setEditingTime((p) => p ? { ...p, meetName: e.target.value } : p)}
-                                placeholder="Or type a meet name…"
-                                className="input"
-                              />
-                              <input
-                                type="date"
-                                value={editingTime?.swamAt ?? ""}
-                                onChange={(e) => setEditingTime((p) => p ? { ...p, swamAt: e.target.value } : p)}
-                                className="input"
-                              />
-                              <div className="flex gap-2">
-                                <button type="button" onClick={handleSaveEdit} disabled={savingEdit}
-                                  className="flex-1 rounded-xl py-2 text-xs font-semibold text-white disabled:opacity-50"
-                                  style={{ background: "#D97706" }}>
-                                  {savingEdit ? "Saving…" : "Save"}
-                                </button>
-                                <button type="button" onClick={() => setEditingTime(null)}
-                                  className="flex-1 rounded-xl border border-white/10 bg-white/5 py-2 text-xs font-semibold text-white/50">
-                                  Cancel
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            /* ── Normal display ── */
-                            <div className="flex items-center gap-3">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-sm font-bold" style={{ color: isPB ? "#FDE68A" : "white" }}>
-                                    {formatMs(time.time_ms)}
-                                  </span>
-                                  {isPB && (
-                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                                      style={{ background: "rgba(253,230,138,0.15)", color: "#FDE68A", border: "1px solid rgba(253,230,138,0.25)" }}>
-                                      PB
+                            ) : (
+                              <div className="flex items-center gap-3">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm font-bold" style={{ color: isPB ? "#FDE68A" : "white" }}>
+                                      {formatMs(time.time_ms)}
                                     </span>
+                                    {isPB && (
+                                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                                        style={{ background: "rgba(253,230,138,0.15)", color: "#FDE68A", border: "1px solid rgba(253,230,138,0.25)" }}>
+                                        PB
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[11px] text-white/35 mt-0.5">
+                                    {time.meet_name || "—"}
+                                    {time.swam_at ? ` · ${formatDate(time.swam_at)}` : ""}
+                                  </p>
+                                  {splits.length > 0 && (
+                                    <button type="button"
+                                      onClick={() => setExpandedSplits((p) => ({ ...p, [time.id]: !p[time.id] }))}
+                                      className="mt-1 text-[10px] font-medium transition"
+                                      style={{ color: "#FDE68A" }}>
+                                      {showSplits ? "Hide splits" : `Show ${splits.length} splits`}
+                                    </button>
                                   )}
                                 </div>
-                                <p className="text-[11px] text-white/35 mt-0.5">
-                                  {time.meet_name || "—"}
-                                  {time.swam_at ? ` · ${formatDate(time.swam_at)}` : ""}
-                                </p>
-                                {splits.length > 0 && (
+                                <div className="flex gap-1.5 flex-shrink-0">
                                   <button type="button"
-                                    onClick={() => setExpandedSplits((p) => ({ ...p, [time.id]: !p[time.id] }))}
-                                    className="mt-1 text-[10px] font-medium transition"
-                                    style={{ color: "#FDE68A" }}>
-                                    {showSplits ? "Hide splits" : `Show ${splits.length} splits`}
+                                    onClick={() => setEditingTime({ id: time.id, meetName: time.meet_name ?? "", swamAt: time.swam_at ?? "" })}
+                                    className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-[11px] text-white/50 transition hover:bg-white/10">
+                                    Edit
                                   </button>
-                                )}
+                                  <button type="button" onClick={() => void handleDelete(time.id)}
+                                    className="rounded-lg border border-red-500/20 bg-red-500/10 px-2.5 py-1.5 text-[11px] text-red-300 transition hover:bg-red-500/20">
+                                    Del
+                                  </button>
+                                </div>
                               </div>
-                              <div className="flex gap-1.5 flex-shrink-0">
-                                <button type="button"
-                                  onClick={() => setEditingTime({ id: time.id, meetName: time.meet_name ?? "", swamAt: time.swam_at ?? "" })}
-                                  className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-[11px] text-white/50 transition hover:bg-white/10">
-                                  Edit
-                                </button>
-                                <button type="button" onClick={() => void handleDelete(time.id)}
-                                  className="rounded-lg border border-red-500/20 bg-red-500/10 px-2.5 py-1.5 text-[11px] text-red-300 transition hover:bg-red-500/20">
-                                  Del
-                                </button>
-                              </div>
-                            </div>
-                          )}
+                            )}
 
-                          {/* Splits */}
-                          {!isEditing && showSplits && splits.length > 0 && (
-                            <div className="mt-2 rounded-xl overflow-hidden"
-                              style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                              {splits
-                                .sort((a, b) => (a.split_order ?? 0) - (b.split_order ?? 0))
-                                .map((split) => (
-                                  <div key={split.id} className="flex items-center justify-between px-3 py-2"
-                                    style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                                    <p className="text-xs text-white/60">{split.split_label || "Split"}</p>
-                                    <div className="text-right">
-                                      <p className="text-xs font-semibold" style={{ color: "#FDE68A" }}>
-                                        {formatMs(split.split_time_ms)}
-                                      </p>
-                                      {split.cumulative_time_ms != null && (
-                                        <p className="text-[10px] text-white/30">{formatMs(split.cumulative_time_ms)} cum.</p>
-                                      )}
+                            {/* Splits */}
+                            {!isEditing && showSplits && splits.length > 0 && (
+                              <div className="mt-2 rounded-xl overflow-hidden"
+                                style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                                {splits
+                                  .sort((a, b) => (a.split_order ?? 0) - (b.split_order ?? 0))
+                                  .map((split) => (
+                                    <div key={split.id} className="flex items-center justify-between px-3 py-2"
+                                      style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                                      <p className="text-xs text-white/60">{split.split_label || "Split"}</p>
+                                      <div className="text-right">
+                                        <p className="text-xs font-semibold" style={{ color: "#FDE68A" }}>
+                                          {formatMs(split.split_time_ms)}
+                                        </p>
+                                        {split.cumulative_time_ms != null && (
+                                          <p className="text-[10px] text-white/30">{formatMs(split.cumulative_time_ms)} cum.</p>
+                                        )}
+                                      </div>
                                     </div>
-                                  </div>
-                                ))}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      ))}
-    </div>
+                                  ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+
+      {/* Share card modal */}
+      {shareResult && (
+        <ShareCardModal
+          result={shareResult}
+          onClose={() => setShareResult(null)}
+        />
+      )}
+    </>
   );
 }

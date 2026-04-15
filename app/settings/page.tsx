@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { replayTutorial } from "@/app/components/TutorialOverlay";
 import SplashMediaUpload from "@/app/components/SplashMediaUpload";
+import { applyTheme } from "@/app/components/ThemeProvider";
 import Link from "next/link";
 
 const APP_VERSION = "1.0.0";
@@ -21,6 +22,17 @@ const FEATURE_REQUESTS = [
   "Other",
 ];
 
+// ─── Theme options — must match ThemeProvider.tsx ─────────────────────────────
+
+const THEMES = [
+  { id: "ocean",    label: "Ocean",    from: "#062840", to: "#0F4C75", accent: "#38BDF8" },
+  { id: "midnight", label: "Midnight", from: "#0D0D1A", to: "#1A1A3E", accent: "#A78BFA" },
+  { id: "forest",   label: "Forest",   from: "#051A10", to: "#0A3020", accent: "#34D399" },
+  { id: "sunset",   label: "Sunset",   from: "#C2390A", to: "#F59E0B", accent: "#FED7AA" },
+  { id: "cosmos",   label: "Cosmos",   from: "#0D0820", to: "#1E1040", accent: "#F472B6" },
+  { id: "slate",    label: "Slate",    from: "#0D1117", to: "#1C2333", accent: "#94A3B8" },
+];
+
 export default function SettingsPage() {
   const router = useRouter();
 
@@ -33,6 +45,11 @@ export default function SettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordMsg, setPasswordMsg] = useState("");
   const [savingPassword, setSavingPassword] = useState(false);
+
+  // Theme
+  const [activeTheme, setActiveTheme] = useState("ocean");
+  const [savingTheme, setSavingTheme] = useState(false);
+  const [themeSaved, setThemeSaved] = useState(false);
 
   const [feedbackRating, setFeedbackRating] = useState(0);
   const [feedbackMessage, setFeedbackMessage] = useState("");
@@ -62,7 +79,21 @@ export default function SettingsPage() {
     setEmail(session.user.email ?? "");
     const meta = session.user.user_metadata;
     setDisplayName(meta?.full_name ?? meta?.name ?? "");
+    setActiveTheme(meta?.app_theme ?? "ocean");
     setLoading(false);
+  }
+
+  async function handleSelectTheme(themeId: string) {
+    setActiveTheme(themeId);
+    // Apply instantly — user sees the change live
+    applyTheme(themeId);
+
+    setSavingTheme(true);
+    setThemeSaved(false);
+    await supabase.auth.updateUser({ data: { app_theme: themeId } });
+    setSavingTheme(false);
+    setThemeSaved(true);
+    setTimeout(() => setThemeSaved(false), 2000);
   }
 
   async function handleChangePassword() {
@@ -172,11 +203,10 @@ export default function SettingsPage() {
           </h1>
         </div>
 
-        {/* ── Account ───────────────────────────────────────────────────────── */}
+        {/* ── Account ─────────────────────────────────────────────────────── */}
         <div className="card space-y-4">
           <p className="label">Account</p>
 
-          {/* Avatar + email */}
           <div className="flex items-center gap-4">
             <div
               className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl text-lg font-bold"
@@ -264,10 +294,76 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* ── Splash screen ─────────────────────────────────────────────────── */}
+        {/* ── App Theme ───────────────────────────────────────────────────── */}
+        <div className="card space-y-4">
+          <div>
+            <p className="label">App Theme</p>
+            <p className="mt-1 text-xs text-white/40">
+              Changes the background colour throughout the app.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            {THEMES.map((theme) => {
+              const isActive = activeTheme === theme.id;
+              return (
+                <button
+                  key={theme.id}
+                  type="button"
+                  onClick={() => void handleSelectTheme(theme.id)}
+                  disabled={savingTheme}
+                  className="relative overflow-hidden rounded-2xl transition disabled:opacity-60"
+                  style={{
+                    aspectRatio: "1",
+                    background: `linear-gradient(135deg, ${theme.from}, ${theme.to})`,
+                    border: isActive
+                      ? `2px solid ${theme.accent}`
+                      : "1px solid rgba(255,255,255,0.12)",
+                  }}
+                >
+                  {isActive && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div
+                        className="flex h-7 w-7 items-center justify-center rounded-full"
+                        style={{ background: theme.accent }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                          <path
+                            d="M2 7l3.5 3.5L12 4"
+                            stroke="#000"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </div>
+                    </div>
+                  )}
+                  <div className="absolute bottom-0 inset-x-0 p-2">
+                    <p className="text-center text-[10px] font-semibold text-white/80">
+                      {theme.label}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Save feedback */}
+          {themeSaved && (
+            <p className="text-center text-xs" style={{ color: "#6EE7B7" }}>
+              ✓ Theme saved
+            </p>
+          )}
+          {savingTheme && (
+            <p className="text-center text-xs text-white/30">Saving...</p>
+          )}
+        </div>
+
+        {/* ── Splash screen ───────────────────────────────────────────────── */}
         <SplashMediaUpload />
 
-        {/* ── Help ──────────────────────────────────────────────────────────── */}
+        {/* ── Help ────────────────────────────────────────────────────────── */}
         <div className="card">
           <p className="label mb-3">Help</p>
 
@@ -283,10 +379,7 @@ export default function SettingsPage() {
             <div className="flex items-center gap-3">
               <span style={{ fontSize: 18 }}>🎓</span>
               <div>
-                <p
-                  className="text-sm font-semibold"
-                  style={{ color: "#FDE68A" }}
-                >
+                <p className="text-sm font-semibold" style={{ color: "#FDE68A" }}>
                   Replay tutorial
                 </p>
                 <p className="mt-0.5 text-xs text-white/40">
@@ -306,54 +399,38 @@ export default function SettingsPage() {
           </button>
 
           {/* Import Data */}
-<button
-  type="button"
-  onClick={() => router.push("/import")}
-  className="flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left transition mt-3"
-  style={{
-    background: "rgba(255,255,255,0.05)",
-    border: "1px solid rgba(255,255,255,0.12)",
-  }}
->
-  <div className="flex items-center gap-3">
-    <span style={{ fontSize: 18 }}>📥</span>
-    <div>
-      <p className="text-sm font-semibold text-white">Import swimmer data</p>
-      <p className="mt-0.5 text-xs text-white/40">
-        Download template · upload your existing times
-      </p>
-    </div>
-  </div>
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-    <path d="M6 3l5 5-5 5" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-</button>
+          <button
+            type="button"
+            onClick={() => router.push("/import")}
+            className="flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left transition mt-3"
+            style={{
+              background: "rgba(255,255,255,0.05)",
+              border: "1px solid rgba(255,255,255,0.12)",
+            }}
+          >
+            <div className="flex items-center gap-3">
+              <span style={{ fontSize: 18 }}>📥</span>
+              <div>
+                <p className="text-sm font-semibold text-white">Import swimmer data</p>
+                <p className="mt-0.5 text-xs text-white/40">
+                  Download template · upload your existing times
+                </p>
+              </div>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M6 3l5 5-5 5" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
 
           <div className="mt-4 space-y-2">
             <p className="mb-2 text-[9px] uppercase tracking-wider text-white/30">
               Quick reference
             </p>
             {[
-              {
-                emoji: "👥",
-                title: "Add a swimmer",
-                desc: "Tap Brood → + button → fill in profile",
-              },
-              {
-                emoji: "📷",
-                title: "Scan a result",
-                desc: "Tap Scan → upload Meet Mobile screenshot",
-              },
-              {
-                emoji: "📈",
-                title: "View progress",
-                desc: "Swimmer profile → Progress tab",
-              },
-              {
-                emoji: "⭐",
-                title: "Check standards",
-                desc: "Swimmer profile → Standards tab",
-              },
+              { emoji: "👥", title: "Add a swimmer", desc: "Tap Brood → + button → fill in profile" },
+              { emoji: "📷", title: "Scan a result", desc: "Tap Scan → upload Meet Mobile screenshot" },
+              { emoji: "📈", title: "View progress", desc: "Swimmer profile → Progress tab" },
+              { emoji: "⭐", title: "Check standards", desc: "Swimmer profile → Standards tab" },
             ].map((item) => (
               <div
                 key={item.title}
@@ -363,9 +440,7 @@ export default function SettingsPage() {
                   border: "1px solid rgba(255,255,255,0.08)",
                 }}
               >
-                <span
-                  style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}
-                >
+                <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>
                   {item.emoji}
                 </span>
                 <div>
@@ -377,7 +452,7 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* ── Feedback ──────────────────────────────────────────────────────── */}
+        {/* ── Feedback ────────────────────────────────────────────────────── */}
         <div className="card space-y-4">
           <div>
             <p className="label">Feedback</p>
@@ -395,15 +470,11 @@ export default function SettingsPage() {
               }}
             >
               <p className="text-2xl">🙏</p>
-              <p
-                className="text-sm font-semibold"
-                style={{ color: "#FDE68A" }}
-              >
+              <p className="text-sm font-semibold" style={{ color: "#FDE68A" }}>
                 Thank you!
               </p>
               <p className="text-xs text-white/40">
-                Your feedback means the world. We&apos;ll use it to make Natrix
-                better.
+                Your feedback means the world. We&apos;ll use it to make Natrix better.
               </p>
               <button
                 type="button"
@@ -415,11 +486,8 @@ export default function SettingsPage() {
             </div>
           ) : (
             <>
-              {/* Star rating */}
               <div>
-                <p className="mb-2 text-xs text-white/50">
-                  How are you finding Natrix?
-                </p>
+                <p className="mb-2 text-xs text-white/50">How are you finding Natrix?</p>
                 <div className="flex gap-2">
                   {[1, 2, 3, 4, 5].map((star) => (
                     <button
@@ -429,8 +497,7 @@ export default function SettingsPage() {
                       className="text-2xl transition-transform active:scale-90"
                       style={{
                         opacity: feedbackRating >= star ? 1 : 0.25,
-                        filter:
-                          feedbackRating >= star ? "none" : "grayscale(1)",
+                        filter: feedbackRating >= star ? "none" : "grayscale(1)",
                       }}
                     >
                       ⭐
@@ -439,24 +506,13 @@ export default function SettingsPage() {
                 </div>
                 {feedbackRating > 0 && (
                   <p className="mt-1.5 text-xs" style={{ color: "#FDE68A" }}>
-                    {feedbackRating === 5
-                      ? "Love it! 🏊"
-                      : feedbackRating === 4
-                      ? "Really good!"
-                      : feedbackRating === 3
-                      ? "It's okay"
-                      : feedbackRating === 2
-                      ? "Needs work"
-                      : "Not great"}
+                    {feedbackRating === 5 ? "Love it! 🏊" : feedbackRating === 4 ? "Really good!" : feedbackRating === 3 ? "It's okay" : feedbackRating === 2 ? "Needs work" : "Not great"}
                   </p>
                 )}
               </div>
 
-              {/* Message */}
               <div>
-                <p className="mb-2 text-xs text-white/50">
-                  What would make Natrix better?
-                </p>
+                <p className="mb-2 text-xs text-white/50">What would make Natrix better?</p>
                 <textarea
                   value={feedbackMessage}
                   onChange={(e) => setFeedbackMessage(e.target.value)}
@@ -472,11 +528,8 @@ export default function SettingsPage() {
                 />
               </div>
 
-              {/* Feature request */}
               <div>
-                <p className="mb-2 text-xs text-white/50">
-                  Most wanted feature (optional)
-                </p>
+                <p className="mb-2 text-xs text-white/50">Most wanted feature (optional)</p>
                 <select
                   value={feedbackFeature}
                   onChange={(e) => setFeedbackFeature(e.target.value)}
@@ -484,17 +537,13 @@ export default function SettingsPage() {
                 >
                   <option value="">Pick one...</option>
                   {FEATURE_REQUESTS.map((f) => (
-                    <option key={f} value={f}>
-                      {f}
-                    </option>
+                    <option key={f} value={f}>{f}</option>
                   ))}
                 </select>
               </div>
 
               {feedbackError && (
-                <p className="text-sm" style={{ color: "#FCA5A5" }}>
-                  {feedbackError}
-                </p>
+                <p className="text-sm" style={{ color: "#FCA5A5" }}>{feedbackError}</p>
               )}
 
               <button
@@ -510,54 +559,37 @@ export default function SettingsPage() {
           )}
         </div>
 
-        {/* ── About ─────────────────────────────────────────────────────────── */}
+        {/* ── About ───────────────────────────────────────────────────────── */}
         <div className="card">
           <p className="label mb-3">About</p>
           {[
             { label: "Version", value: APP_VERSION, color: undefined },
-            {
-              label: "Built for",
-              value: "Southeast Asia · expanding globally",
-              color: undefined,
-            },
+            { label: "Built for", value: "Southeast Asia · expanding globally", color: undefined },
             { label: "Made with", value: "🏊 for swim parents", color: "#FDE68A" },
-            {
-              label: "Developed by",
-              value: "J.O.D — Just an Ordinary Dad",
-              color: undefined,
-            },
+            { label: "Developed by", value: "J.O.D — Just an Ordinary Dad", color: undefined },
           ].map((row, i, arr) => (
             <div key={row.label}>
               <div className="flex items-center justify-between py-2">
                 <p className="text-sm text-white/60">{row.label}</p>
-                <p
-                  className="text-sm font-semibold text-white"
-                  style={row.color ? { color: row.color } : undefined}
-                >
+                <p className="text-sm font-semibold text-white" style={row.color ? { color: row.color } : undefined}>
                   {row.value}
                 </p>
               </div>
               {i < arr.length - 1 && (
-                <div
-                  style={{
-                    height: 1,
-                    background: "rgba(255,255,255,0.08)",
-                    margin: "0",
-                  }}
-                />
+                <div style={{ height: 1, background: "rgba(255,255,255,0.08)" }} />
               )}
             </div>
           ))}
         </div>
 
-<Link
-  href="/privacy"
-  className="block w-full rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-sm text-white/50 transition hover:bg-white/10"
->
-  Privacy Policy
-</Link>
+        <Link
+          href="/privacy"
+          className="block w-full rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-sm text-white/50 transition hover:bg-white/10"
+        >
+          Privacy Policy
+        </Link>
 
-        {/* ── Sign out ──────────────────────────────────────────────────────── */}
+        {/* ── Sign out ────────────────────────────────────────────────────── */}
         <button
           type="button"
           onClick={handleLogout}
@@ -572,7 +604,7 @@ export default function SettingsPage() {
           {loggingOut ? "Signing out..." : "Sign out"}
         </button>
 
-        {/* ── Delete account ────────────────────────────────────────────────── */}
+        {/* ── Delete account ───────────────────────────────────────────────── */}
         <div
           className="overflow-hidden rounded-3xl"
           style={{
@@ -602,8 +634,7 @@ export default function SettingsPage() {
           {showDeleteConfirm && (
             <div className="space-y-3 border-t border-red-500/15 px-5 pb-5 pt-4">
               <p className="text-sm leading-relaxed text-white/60">
-                This will permanently delete your account and all swimmer data.
-                This cannot be undone. Type{" "}
+                This will permanently delete your account and all swimmer data. This cannot be undone. Type{" "}
                 <span className="font-bold text-white">DELETE</span> to confirm.
               </p>
               <input
@@ -614,9 +645,7 @@ export default function SettingsPage() {
                 style={{ borderColor: "rgba(239,68,68,0.3)" }}
               />
               {deleteStatus && (
-                <p className="text-sm" style={{ color: "#FCA5A5" }}>
-                  {deleteStatus}
-                </p>
+                <p className="text-sm" style={{ color: "#FCA5A5" }}>{deleteStatus}</p>
               )}
               <button
                 type="button"
@@ -629,9 +658,7 @@ export default function SettingsPage() {
                   color: "#FCA5A5",
                 }}
               >
-                {deletingAccount
-                  ? "Deleting..."
-                  : "Permanently delete account"}
+                {deletingAccount ? "Deleting..." : "Permanently delete account"}
               </button>
             </div>
           )}
@@ -648,42 +675,17 @@ export default function SettingsPage() {
 function LockIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <rect
-        x="3"
-        y="7"
-        width="10"
-        height="8"
-        rx="2"
-        stroke="rgba(255,255,255,0.45)"
-        strokeWidth="1.3"
-      />
-      <path
-        d="M5 7V5a3 3 0 0 1 6 0v2"
-        stroke="rgba(255,255,255,0.45)"
-        strokeWidth="1.3"
-        strokeLinecap="round"
-      />
+      <rect x="3" y="7" width="10" height="8" rx="2" stroke="rgba(255,255,255,0.45)" strokeWidth="1.3" />
+      <path d="M5 7V5a3 3 0 0 1 6 0v2" stroke="rgba(255,255,255,0.45)" strokeWidth="1.3" strokeLinecap="round" />
     </svg>
   );
 }
 
-function ChevronIcon({
-  open,
-  danger,
-}: {
-  open: boolean;
-  danger?: boolean;
-}) {
+function ChevronIcon({ open, danger }: { open: boolean; danger?: boolean }) {
   return (
     <svg
-      width="16"
-      height="16"
-      viewBox="0 0 16 16"
-      fill="none"
-      style={{
-        transform: open ? "rotate(180deg)" : "rotate(0deg)",
-        transition: "transform 0.2s ease",
-      }}
+      width="16" height="16" viewBox="0 0 16 16" fill="none"
+      style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s ease" }}
     >
       <path
         d="M4 6l4 4 4-4"

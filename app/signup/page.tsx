@@ -57,6 +57,7 @@ function PasswordInput({
 export default function SignupPage() {
   const router = useRouter();
 
+  const [firstName, setFirstName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -68,6 +69,7 @@ export default function SignupPage() {
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
 
+    if (!firstName.trim()) { setStatus("Please enter your first name."); setIsError(true); return; }
     if (!email.trim()) { setStatus("Please enter your email."); setIsError(true); return; }
     if (!password) { setStatus("Please enter a password."); setIsError(true); return; }
     if (password.length < 8) { setStatus("Password must be at least 8 characters."); setIsError(true); return; }
@@ -83,9 +85,16 @@ export default function SignupPage() {
     setStatus("");
     setIsError(false);
 
+    const cleanName = firstName.trim().charAt(0).toUpperCase() + firstName.trim().slice(1);
+
     const { error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
+      options: {
+        data: {
+          full_name: cleanName,
+        },
+      },
     });
 
     if (error) {
@@ -105,7 +114,8 @@ export default function SignupPage() {
       return;
     }
 
-    router.replace("/swimmers");
+    // Send new users through the story onboarding flow
+    router.replace("/onboarding");
   }
 
   return (
@@ -145,6 +155,17 @@ export default function SignupPage() {
         </div>
 
         <form onSubmit={handleSignup} className="space-y-3">
+          {/* First name — used in onboarding greeting */}
+          <input
+            type="text"
+            placeholder="Your first name"
+            autoComplete="given-name"
+            autoCapitalize="words"
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            className="input"
+          />
+
           <input
             type="email"
             placeholder="Email address"
