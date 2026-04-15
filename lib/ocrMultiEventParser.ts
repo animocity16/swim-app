@@ -220,7 +220,7 @@ function extractMeetName(rawText: string): string | null {
     if (line.length < 5 || line.length > 100) continue;
     if (/\b(am|pm)\b/i.test(line)) continue;
     if (/^\d+$/.test(line)) continue;
-    if (/place|lane|heat|finals|entry|seed|status|dropped|completed/i.test(line)) continue;
+    if (/place|lane|heat|finals|entry|seed|status|dropped|completed|summary|split|total|result/i.test(line)) continue;
     const words = line.split(/\s+/).filter(Boolean);
     if (words.length < 2) continue;
     // Skip event description lines like "102 Girls 9-10 100 Meter Back"
