@@ -56,6 +56,16 @@ function timeToMs(timeStr: string): number | null {
   return isNaN(ms) ? null : ms;
 }
 
+function getStrokeColor(event: string): string {
+  const e = event.toLowerCase();
+  if (e.includes("breast")) return "#34D399";
+  if (e.includes("back")) return "#A78BFA";
+  if (e.includes("fly") || e.includes("butterfly")) return "#FB923C";
+  if (e.includes("free")) return "#38BDF8";
+  if (e.includes("im")) return "#F472B6";
+  return "#FDE68A";
+}
+
 export default function StandardsDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -66,13 +76,15 @@ export default function StandardsDetailPage() {
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("");
 
-  // Add form state
+  // ── Set-level gender — set once, applies to all items ──
+  const [setGender, setSetGender] = useState<"Male" | "Female" | "">("");
+
+  // ── Add form state ──
   const [event, setEvent] = useState(EVENTS[0]);
   const [course, setCourse] = useState("LCM");
   const [timeStr, setTimeStr] = useState("");
   const [minAge, setMinAge] = useState("");
   const [maxAge, setMaxAge] = useState("");
-  const [gender, setGender] = useState("");
   const [adding, setAdding] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
 
@@ -102,13 +114,22 @@ export default function StandardsDetailPage() {
       .eq("standard_set_id", setId)
       .order("event", { ascending: true });
 
-    setItems((itemsData as StandardItem[]) || []);
+    const loadedItems = (itemsData as StandardItem[]) || [];
+    setItems(loadedItems);
+
+    // Auto-detect gender from existing items
+    const detectedGender = loadedItems.find((i) => i.gender)?.gender;
+    if (detectedGender === "Male" || detectedGender === "Female") {
+      setSetGender(detectedGender);
+    }
+
     setLoading(false);
   }
 
   async function addItem() {
     const ms = timeToMs(timeStr);
     if (!ms || ms <= 0) { setStatus("Please enter a valid time (e.g. 1:23.45 or 28.90)"); return; }
+    if (!setGender) { setStatus("Please set the gender for this standard set first."); return; }
 
     setAdding(true);
     setStatus("");
@@ -124,24 +145,20 @@ export default function StandardsDetailPage() {
       qualifying_time_ms: ms,
       min_age: minAge ? Number(minAge) : null,
       max_age: maxAge ? Number(maxAge) : null,
-      gender: gender || null,
+      gender: setGender || null,
     });
 
     if (error) { setStatus(`Error: ${error.message}`); setAdding(false); return; }
 
-    setTimeStr(""); setMinAge(""); setMaxAge(""); setGender("");
+    setTimeStr(""); setMinAge(""); setMaxAge("");
     setStatus("Standard added!");
-    setShowAddForm(false);
     await loadPage();
     setAdding(false);
   }
 
   async function deleteItem(itemId: number) {
-    const confirmed = window.confirm("Remove this standard?");
-    if (!confirmed) return;
-
-    const { error } = await supabase.from("standard_items").delete().eq("id", itemId);
-    if (error) { setStatus(`Error: ${error.message}`); return; }
+    if (!window.confirm("Remove this standard?")) return;
+    await supabase.from("standard_items").delete().eq("id", itemId);
     await loadPage();
   }
 
@@ -157,7 +174,7 @@ export default function StandardsDetailPage() {
 
   if (!set) return null;
 
-  // Group items by stroke
+  // Group by stroke
   const grouped = items.reduce((acc, item) => {
     const stroke = item.event.split(" ").slice(1).join(" ") || item.event;
     if (!acc[stroke]) acc[stroke] = [];
@@ -177,23 +194,31 @@ export default function StandardsDetailPage() {
             className="mb-3 flex items-center gap-1.5 text-sm text-white/40 hover:text-white/70 transition"
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M10 3L5 8L10 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M10 3L5 8L10 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             Standards
           </button>
           <div className="flex items-start justify-between gap-3">
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-white">{set.name}</h1>
-              <span
-                className="mt-2 inline-flex rounded-full px-3 py-1 text-xs font-semibold"
-                style={{
-                  background: set.type === "UPGRADING" ? "rgba(217,119,6,0.2)" : "rgba(99,130,201,0.2)",
-                  color: set.type === "UPGRADING" ? "#FDE68A" : "#93C5FD",
-                  border: `1px solid ${set.type === "UPGRADING" ? "rgba(253,230,138,0.25)" : "rgba(147,197,253,0.25)"}`,
-                }}
-              >
-                {set.type === "UPGRADING" ? "Upgrading" : "Important Meet"}
-              </span>
+              <div className="mt-2 flex items-center gap-2 flex-wrap">
+                <span
+                  className="inline-flex rounded-full px-3 py-1 text-xs font-semibold"
+                  style={{
+                    background: set.type === "UPGRADING" ? "rgba(217,119,6,0.2)" : "rgba(99,130,201,0.2)",
+                    color: set.type === "UPGRADING" ? "#FDE68A" : "#93C5FD",
+                    border: `1px solid ${set.type === "UPGRADING" ? "rgba(253,230,138,0.25)" : "rgba(147,197,253,0.25)"}`,
+                  }}
+                >
+                  {set.type === "UPGRADING" ? "Upgrading" : "Important Meet"}
+                </span>
+                {setGender && (
+                  <span className="inline-flex rounded-full px-3 py-1 text-xs font-semibold"
+                    style={{ background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.6)", border: "1px solid rgba(255,255,255,0.12)" }}>
+                    {setGender === "Male" ? "♂ Male" : "♀ Female"}
+                  </span>
+                )}
+              </div>
             </div>
             <button
               type="button"
@@ -205,13 +230,62 @@ export default function StandardsDetailPage() {
           </div>
         </div>
 
-        {/* Add form */}
+        {/* ── Gender picker — shown once at top level ─────────────────── */}
+        {!setGender && (
+          <div className="rounded-3xl p-5 space-y-3"
+            style={{ background: "rgba(217,119,6,0.08)", border: "1px solid rgba(253,230,138,0.2)" }}>
+            <p className="text-sm font-semibold text-white">Set the gender for this standard</p>
+            <p className="text-xs text-white/45">
+              This applies to all times in this set — you won't need to select it again for each event.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {(["Male", "Female"] as const).map((g) => (
+                <button
+                  key={g}
+                  type="button"
+                  onClick={() => setSetGender(g)}
+                  className="rounded-2xl border py-3 text-sm font-semibold transition"
+                  style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.6)" }}
+                >
+                  {g === "Male" ? "♂ Male" : "♀ Female"}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Change gender button — shown after gender is set */}
+        {setGender && items.length === 0 && (
+          <div className="flex gap-2">
+            {(["Male", "Female"] as const).map((g) => (
+              <button
+                key={g}
+                type="button"
+                onClick={() => setSetGender(g)}
+                className="rounded-2xl border px-4 py-2 text-sm font-medium transition"
+                style={setGender === g
+                  ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
+                  : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.4)" }}
+              >
+                {g === "Male" ? "♂ Male" : "♀ Female"}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* ── Add form ─────────────────────────────────────────────────── */}
         {showAddForm && (
-          <div
-            className="rounded-3xl p-5 space-y-3"
-            style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.14)" }}
-          >
-            <p className="text-xs font-medium uppercase tracking-widest text-white/40">Add standard time</p>
+          <div className="rounded-3xl p-5 space-y-3"
+            style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.14)" }}>
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium uppercase tracking-widest text-white/40">Add standard time</p>
+              {setGender && (
+                <span className="text-xs font-medium px-2.5 py-1 rounded-full"
+                  style={{ background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.5)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                  {setGender === "Male" ? "♂ Male" : "♀ Female"}
+                </span>
+              )}
+            </div>
 
             <select value={event} onChange={(e) => setEvent(e.target.value)} className="input">
               {EVENTS.map((ev) => <option key={ev} value={ev}>{ev}</option>)}
@@ -246,14 +320,12 @@ export default function StandardsDetailPage() {
               />
             </div>
 
-            <select value={gender} onChange={(e) => setGender(e.target.value)} className="input">
-              <option value="">Any gender</option>
-              <option value="Male">Male</option>
-              <option value="Female">Female</option>
-            </select>
+            {!setGender && (
+              <p className="text-xs text-amber-300/70">⚠ Set the gender above before adding standards.</p>
+            )}
 
             {status && (
-              <p className="text-sm" style={{ color: status.startsWith("Error") ? "#F09595" : "#6EE7B7" }}>
+              <p className="text-sm" style={{ color: status.startsWith("Error") || status.startsWith("Please") ? "#F09595" : "#6EE7B7" }}>
                 {status}
               </p>
             )}
@@ -261,56 +333,50 @@ export default function StandardsDetailPage() {
             <button
               type="button"
               onClick={addItem}
-              disabled={adding || !timeStr.trim()}
+              disabled={adding || !timeStr.trim() || !setGender}
               className="w-full rounded-2xl py-3 text-sm font-semibold text-white transition disabled:opacity-40"
               style={{ background: "#D97706" }}
             >
-              {adding ? "Adding..." : "Add standard"}
+              {adding ? "Adding..." : `Add ${setGender ? `${setGender} ` : ""}standard`}
             </button>
           </div>
         )}
 
-        {/* Items list */}
+        {/* ── Items list ───────────────────────────────────────────────── */}
         {items.length === 0 ? (
-          <div
-            className="rounded-3xl p-8 text-center"
-            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
-          >
+          <div className="rounded-3xl p-8 text-center"
+            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}>
             <p className="text-base font-semibold text-white">No standards yet</p>
             <p className="mt-1 text-sm text-white/40">Tap + to add your first qualifying time.</p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             <p className="text-[10px] font-medium uppercase tracking-widest text-white/30 px-1">
               {items.length} standard{items.length === 1 ? "" : "s"}
             </p>
-            {Object.entries(grouped).map(([stroke, strokeItems]) => (
-              <div key={stroke}>
-                <p className="text-xs font-medium uppercase tracking-widest text-white/30 mb-2 px-1">{stroke}</p>
-                <div className="space-y-2">
+            {Object.entries(grouped).map(([stroke, strokeItems]) => {
+              const color = getStrokeColor(strokeItems[0].event);
+              return (
+                <div key={stroke} className="rounded-2xl overflow-hidden"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)" }}>
+                  <div className="px-4 pt-3 pb-2 flex items-center gap-2">
+                    <div className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />
+                    <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color }}>{stroke}</p>
+                  </div>
                   {strokeItems
-                    .sort((a, b) => {
-                      const distA = Number(a.event.match(/\d+/)?.[0] ?? 0);
-                      const distB = Number(b.event.match(/\d+/)?.[0] ?? 0);
-                      return distA - distB;
-                    })
-                    .map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex items-center justify-between gap-3 rounded-2xl p-4"
-                        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
-                      >
+                    .sort((a, b) => Number(a.event.match(/\d+/)?.[0] ?? 0) - Number(b.event.match(/\d+/)?.[0] ?? 0))
+                    .map((item, i) => (
+                      <div key={item.id}
+                        className="flex items-center justify-between gap-3 px-4 py-3"
+                        style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
                         <div className="min-w-0">
                           <p className="text-sm font-semibold text-white">{item.event}</p>
-                          <div className="mt-0.5 flex items-center gap-2 flex-wrap">
-                            <span className="text-xs text-white/40">{item.course}</span>
+                          <div className="mt-0.5 flex items-center gap-2">
+                            <span className="text-xs text-white/35">{item.course}</span>
                             {(item.min_age || item.max_age) && (
-                              <span className="text-xs text-white/30">
+                              <span className="text-xs text-white/25">
                                 Age {item.min_age ?? "?"}-{item.max_age ?? "?"}
                               </span>
-                            )}
-                            {item.gender && (
-                              <span className="text-xs text-white/30 capitalize">{item.gender}</span>
                             )}
                           </div>
                         </div>
@@ -329,8 +395,8 @@ export default function StandardsDetailPage() {
                       </div>
                     ))}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 

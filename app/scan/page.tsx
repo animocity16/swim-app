@@ -13,6 +13,9 @@ import {
   type EventResultRow,
 } from "@/lib/ocrEventResultsParser";
 import { canonicalCourse, canonicalEventName } from "@/lib/events";
+import DetectedOCRResultCard from "@/app/components/DetectedOCRResultCard";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type Swimmer = {
   id: number;
@@ -25,6 +28,8 @@ type Swimmer = {
 type Step = "idle" | "scanning" | "done";
 type ScanMode = "single" | "event_results" | "400im" | null;
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
 function fuzzyMatchSwimmer(ocrName: string, swimmers: Swimmer[]): Swimmer | null {
   const clean = ocrName.trim().toLowerCase();
   const ocrWords = clean.split(/\s+/);
@@ -32,10 +37,7 @@ function fuzzyMatchSwimmer(ocrName: string, swimmers: Swimmer[]): Swimmer | null
   const exact = swimmers.find((s) => s.name.toLowerCase() === clean);
   if (exact) return exact;
 
-  const bySubstring = swimmers.find((s) => {
-    const profileName = s.name.toLowerCase();
-    return clean.includes(profileName);
-  });
+  const bySubstring = swimmers.find((s) => clean.includes(s.name.toLowerCase()));
   if (bySubstring) return bySubstring;
 
   const byFirstName = swimmers.find((s) => {
@@ -88,6 +90,47 @@ function avatarColor(index: number) {
   return AVATAR_COLORS[index % AVATAR_COLORS.length];
 }
 
+// ─── Slot button ──────────────────────────────────────────────────────────────
+
+function SlotButton({
+  label, hint, preview, inputRef, required, onChange,
+}: {
+  label: string;
+  hint: string;
+  preview: string | null;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  required?: boolean;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+}) {
+  return (
+    <div
+      onClick={() => inputRef.current?.click()}
+      className="relative flex min-h-[140px] cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-white/20 bg-black/30 p-3 text-center transition hover:border-amber-400/50 hover:bg-white/5"
+    >
+      <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={onChange} />
+      {required && !preview && (
+        <span
+          className="absolute right-2 top-2 rounded-full px-2 py-0.5 text-[9px] uppercase tracking-wider"
+          style={{ background: "rgba(186,117,23,0.2)", color: "#EF9F27" }}
+        >
+          Required
+        </span>
+      )}
+      {preview ? (
+        <img src={preview} alt={label} className="max-h-44 rounded-xl object-contain" />
+      ) : (
+        <>
+          <span className="text-2xl text-white/20">📷</span>
+          <p className="mt-1 text-xs font-semibold text-white/55">{label}</p>
+          <p className="mt-0.5 text-[10px] text-white/30">{hint}</p>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export default function ScanPage() {
   const router = useRouter();
   const [swimmers, setSwimmers] = useState<Swimmer[]>([]);
@@ -103,6 +146,7 @@ export default function ScanPage() {
   const [message, setMessage] = useState("");
   const [rawText, setRawText] = useState("");
   const [scanMode, setScanMode] = useState<ScanMode>(null);
+  const [showInfo, setShowInfo] = useState(false);
 
   const [detectedEvent, setDetectedEvent] = useState<string | null>(null);
   const [detectedTime, setDetectedTime] = useState<string | null>(null);
@@ -123,7 +167,7 @@ export default function ScanPage() {
   async function loadSwimmers() {
     let session = (await supabase.auth.getSession()).data.session;
     if (!session) {
-      await new Promise(r => setTimeout(r, 800));
+      await new Promise((r) => setTimeout(r, 800));
       session = (await supabase.auth.getSession()).data.session;
     }
     if (!session) { router.replace("/login"); return; }
@@ -158,6 +202,7 @@ export default function ScanPage() {
     setShowPicker(false); setSingleSaved(false);
     setEventRows([]); setSelectedRows(new Set());
     setSavingSelected(false); setSavedNames([]);
+    setShowInfo(false);
     if (ref1.current) ref1.current.value = "";
     if (ref2.current) ref2.current.value = "";
   }
@@ -190,14 +235,12 @@ export default function ScanPage() {
     setMatchedSwimmer(swimmer);
   }
 
-  // ✅ Save selected event results rows — now with meet_type detection
   async function handleSaveSelected() {
     if (selectedRows.size === 0) return;
     setSavingSelected(true);
     const saved: string[] = [];
     const errors: string[] = [];
 
-    // ✅ Detect meet type from raw OCR text + first row's club code
     const firstClub = eventRows[0]?.club ?? null;
     const meetType = detectMeetType(rawText, firstClub);
 
@@ -206,10 +249,7 @@ export default function ScanPage() {
       if (!row) continue;
 
       const matched = fuzzyMatchSwimmer(row.name, swimmers);
-      if (!matched) {
-        errors.push(`${row.name}: no matching swimmer profile`);
-        continue;
-      }
+      if (!matched) { errors.push(`${row.name}: no matching swimmer profile`); continue; }
 
       const eventName = canonicalEventName(row.event ?? "");
       const courseName = canonicalCourse(row.course ?? "LCM");
@@ -221,10 +261,7 @@ export default function ScanPage() {
         .eq("event", eventName).eq("course", courseName)
         .eq("time_ms", row.timeMs).limit(1);
 
-      if (existing && existing.length > 0) {
-        errors.push(`${row.name}: already saved`);
-        continue;
-      }
+      if (existing && existing.length > 0) { errors.push(`${row.name}: already saved`); continue; }
 
       const { error } = await supabase.from("swim_times").insert({
         swimmer_id: matched.id,
@@ -234,7 +271,7 @@ export default function ScanPage() {
         place: row.place ?? null,
         meet_name: row.meetName ?? null,
         swam_at: row.swamAt ?? null,
-        meet_type: meetType, // ✅ Tag with NSG / SNAG / CLUB
+        meet_type: meetType,
       });
 
       error ? errors.push(`${row.name}: ${error.message}`) : saved.push(row.name);
@@ -343,17 +380,44 @@ export default function ScanPage() {
     <div className="shell">
       <div className="container-app space-y-5">
 
-        {/* Header */}
-        <div className="pt-2">
-          <p className="text-[10px] font-medium uppercase tracking-widest" style={{ color: "#BA7517" }}>
-            SwimScan
-          </p>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight text-white">
-            Scan result
-          </h1>
+        {/* ── Header ────────────────────────────────────────────────────────── */}
+        <div className="flex items-start justify-between pt-2">
+          <div>
+            <p className="text-[10px] font-medium uppercase tracking-widest" style={{ color: "#BA7517" }}>
+              SwimScan
+            </p>
+            <h1 className="mt-1 text-3xl font-bold tracking-tight text-white">
+              Scan result
+            </h1>
+          </div>
+
+          {/* ⓘ Info toggle */}
+          {step === "idle" && primarySwimmers.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowInfo((v) => !v)}
+              className="mt-2 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/5 text-sm text-white/40 transition hover:bg-white/10 hover:text-white/70"
+              aria-label="How scanning works"
+            >
+              ⓘ
+            </button>
+          )}
         </div>
 
-        {/* No swimmers state */}
+        {/* ── Collapsible info panel ────────────────────────────────────────── */}
+        {showInfo && step === "idle" && (
+          <div
+            className="rounded-2xl p-4 space-y-2 text-sm text-white/55"
+            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+          >
+            <p className="font-medium text-white/70">Two scan modes — auto detected:</p>
+            <p>📋 <span className="text-white/70">Swim detail</span> — single result with splits, name matched automatically</p>
+            <p>📊 <span className="text-white/70">Event results</span> — full rankings, pre-ticks your swimmers</p>
+            <p className="pt-1 text-white/35 text-xs">Screen 2 is optional — use it for split pages that continue onto a second screenshot.</p>
+          </div>
+        )}
+
+        {/* ── No swimmers state ─────────────────────────────────────────────── */}
         {primarySwimmers.length === 0 && (
           <div className="rounded-3xl border border-white/10 bg-white/5 p-8 text-center">
             <p className="text-base font-semibold text-white">No swimmers added yet</p>
@@ -369,18 +433,9 @@ export default function ScanPage() {
           </div>
         )}
 
-        {/* IDLE — upload UI */}
+        {/* ── IDLE — upload UI ──────────────────────────────────────────────── */}
         {step === "idle" && primarySwimmers.length > 0 && (
           <div className="space-y-4">
-            <div
-              className="rounded-2xl p-3 text-sm text-white/50 space-y-1"
-              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
-            >
-              <p className="font-medium text-white/70">Two scan modes — auto detected:</p>
-              <p>📋 Swim detail — single result with splits, name matched automatically</p>
-              <p>📊 Event results — full rankings, pre-ticks your swimmers</p>
-            </div>
-
             <div className="grid grid-cols-2 gap-3">
               <SlotButton
                 label="Screen 1" hint="Required" preview={preview1}
@@ -406,7 +461,7 @@ export default function ScanPage() {
           </div>
         )}
 
-        {/* SCANNING */}
+        {/* ── SCANNING ─────────────────────────────────────────────────────── */}
         {step === "scanning" && (
           <div className="space-y-4 pt-8">
             <p className="text-center text-lg font-semibold text-white">
@@ -422,7 +477,7 @@ export default function ScanPage() {
           </div>
         )}
 
-        {/* DONE */}
+        {/* ── DONE ─────────────────────────────────────────────────────────── */}
         {step === "done" && (
           <div className="space-y-4">
 
@@ -439,7 +494,7 @@ export default function ScanPage() {
               </div>
             )}
 
-            {/* SINGLE SWIM — auto matched and saved */}
+            {/* SINGLE — auto matched and saved */}
             {scanMode !== "event_results" && matchedSwimmer && singleSaved && (
               <div
                 className="rounded-2xl p-4 space-y-1"
@@ -452,7 +507,7 @@ export default function ScanPage() {
               </div>
             )}
 
-            {/* SINGLE SWIM — no match, show picker */}
+            {/* SINGLE — no match, show swimmer picker */}
             {scanMode !== "event_results" && showPicker && (
               <div className="space-y-3">
                 {(detectedEvent || detectedTime) && (
@@ -461,7 +516,7 @@ export default function ScanPage() {
                     style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
                   >
                     {detectedEvent && <p className="text-sm text-white/60">{detectedEvent}</p>}
-                    {detectedTime && <p className="text-2xl font-bold text-white mt-1">{detectedTime}</p>}
+                    {detectedTime && <p className="mt-1 text-2xl font-bold text-white">{detectedTime}</p>}
                   </div>
                 )}
                 <p className="text-sm text-white/50">Who should this be saved to?</p>
@@ -500,7 +555,7 @@ export default function ScanPage() {
                     <p className="text-sm font-semibold text-white">
                       {eventRows[0]?.event ?? "Event"} results
                     </p>
-                    <p className="text-xs text-white/40 mt-0.5">
+                    <p className="mt-0.5 text-xs text-white/40">
                       {eventRows.length} swimmers · tick who to save
                     </p>
                   </div>
@@ -544,7 +599,7 @@ export default function ScanPage() {
                     >
                       <div className="flex items-center gap-3">
                         <div
-                          className="w-5 h-5 rounded-md flex-shrink-0 flex items-center justify-center"
+                          className="h-5 w-5 flex-shrink-0 rounded-md flex items-center justify-center"
                           style={
                             isSelected || alreadySaved
                               ? { background: "#D97706", border: "1px solid #D97706" }
@@ -553,20 +608,18 @@ export default function ScanPage() {
                         >
                           {(isSelected || alreadySaved) && (
                             <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                              <path d="M2 5L4 7L8 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                              <path d="M2 5L4 7L8 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                             </svg>
                           )}
                         </div>
                         <span className="text-xs text-white/30 w-8 flex-shrink-0">#{row.place}</span>
-                        <div className="flex-1 min-w-0">
+                        <div className="min-w-0 flex-1">
                           <p
-                            className="text-sm font-semibold truncate"
+                            className="truncate text-sm font-semibold"
                             style={{ color: hasProfile ? "#EF9F27" : "white" }}
                           >
                             {row.name}
-                            {hasProfile && (
-                              <span className="ml-2 text-[10px] opacity-60">in app</span>
-                            )}
+                            {hasProfile && <span className="ml-2 text-[10px] opacity-60">in app</span>}
                           </p>
                           {row.club && (
                             <p className="text-xs text-white/30">
@@ -574,7 +627,7 @@ export default function ScanPage() {
                             </p>
                           )}
                         </div>
-                        <p className="text-sm font-semibold text-white flex-shrink-0">{row.timeStr}</p>
+                        <p className="flex-shrink-0 text-sm font-semibold text-white">{row.timeStr}</p>
                       </div>
                     </button>
                   );
@@ -599,50 +652,15 @@ export default function ScanPage() {
             <button
               type="button"
               onClick={reset}
-              className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 text-sm font-semibold text-white/60 transition hover:bg-white/10"
+              className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 text-sm font-semibold text-white/70 transition hover:bg-white/10"
             >
               Scan another
             </button>
           </div>
         )}
-      </div>
-    </div>
-  );
-}
 
-function SlotButton({
-  label, hint, preview, inputRef, required, onChange,
-}: {
-  label: string;
-  hint: string;
-  preview: string | null;
-  inputRef: React.RefObject<HTMLInputElement | null>;
-  required?: boolean;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-}) {
-  return (
-    <div
-      onClick={() => inputRef.current?.click()}
-      className="relative flex min-h-[130px] cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-white/15 bg-white/[0.03] p-3 text-center transition hover:border-amber-400/50 hover:bg-white/5"
-    >
-      <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={onChange} />
-      {required && !preview && (
-        <span
-          className="absolute right-2 top-2 rounded-full px-2 py-0.5 text-[9px] uppercase tracking-wider"
-          style={{ background: "rgba(186,117,23,0.2)", color: "#EF9F27" }}
-        >
-          Required
-        </span>
-      )}
-      {preview ? (
-        <img src={preview} alt={label} className="max-h-40 rounded-xl object-contain" />
-      ) : (
-        <>
-          <span className="text-2xl text-white/15">📷</span>
-          <p className="mt-1 text-xs font-semibold text-white/40">{label}</p>
-          <p className="mt-0.5 text-[10px] text-white/20">{hint}</p>
-        </>
-      )}
+        <div className="h-4" />
+      </div>
     </div>
   );
 }

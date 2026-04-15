@@ -37,12 +37,13 @@ const NAV_ITEMS = [
     ),
   },
   {
-    href: "/standards",
-    label: "Standards",
-    tutorial: "standards",
+    href: "/compare",
+    label: "Compare",
+    tutorial: "compare",
     icon: (active: boolean) => (
       <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-        <path d="M11 2L13.5 8.5H20L14.5 12.5L16.5 19L11 15L5.5 19L7.5 12.5L2 8.5H8.5L11 2Z" stroke={active ? "#FDE68A" : "rgba(255,255,255,0.5)"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        <path d="M7 5H3v12h4V5zM19 5h-4v12h4V5z" stroke={active ? "#FDE68A" : "rgba(255,255,255,0.5)"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M11 8v6M9 11l2-2 2 2" stroke={active ? "#FDE68A" : "rgba(255,255,255,0.5)"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     ),
   },
@@ -59,7 +60,7 @@ const NAV_ITEMS = [
   },
 ];
 
-const HIDDEN_ON = ["/login", "/forgot-password", "/reset-password"];
+const HIDDEN_ON = ["/login", "/signup", "/forgot-password", "/reset-password", "/invite", "/auth"];
 
 export default function BottomNav() {
   const pathname = usePathname();
@@ -85,10 +86,9 @@ export default function BottomNav() {
         }}
       >
         {NAV_ITEMS.map((item) => {
-          const active =
-            item.href === "/dashboard"
-              ? pathname === "/dashboard"
-              : pathname.startsWith(item.href);
+          const active = item.href === "/dashboard"
+            ? pathname === "/dashboard"
+            : pathname.startsWith(item.href);
 
           return (
             <Link
@@ -109,7 +109,13 @@ export default function BottomNav() {
               }}
             >
               {item.icon(active)}
-              <span style={{ fontSize: "10px", fontWeight: active ? 600 : 400, letterSpacing: "0.02em", color: active ? "#FDE68A" : "rgba(255,255,255,0.45)", transition: "color 0.15s ease" }}>
+              <span style={{
+                fontSize: "10px",
+                fontWeight: active ? 600 : 400,
+                letterSpacing: "0.02em",
+                color: active ? "#FDE68A" : "rgba(255,255,255,0.45)",
+                transition: "color 0.15s ease",
+              }}>
                 {item.label}
               </span>
             </Link>

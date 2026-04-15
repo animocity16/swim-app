@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
 type StandardSet = {
@@ -20,6 +21,7 @@ function formatCreatedAt(value?: string | null) {
 }
 
 export default function StandardsPage() {
+  const router = useRouter();
   const [sets, setSets] = useState<StandardSet[]>([]);
   const [name, setName] = useState("");
   const [type, setType] = useState<"UPGRADING" | "IMPORTANT_MEET">("UPGRADING");
@@ -32,19 +34,15 @@ export default function StandardsPage() {
     try {
       setLoading(true);
       setStatus("Loading standards...");
-
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError) { setStatus("Could not check login."); setSets([]); return; }
       if (!user) { setStatus("You must be logged in."); setSets([]); return; }
-
       const { data, error } = await supabase
         .from("standard_sets")
         .select("id, name, type, created_at, user_id")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
-
       if (error) { setStatus(`Error loading sets: ${error.message}`); setSets([]); return; }
-
       setSets((data as StandardSet[]) || []);
       setStatus("Ready");
     } catch {
@@ -58,18 +56,14 @@ export default function StandardsPage() {
   async function addSet() {
     const trimmedName = name.trim();
     if (!trimmedName) { setStatus("Please enter a set name."); return; }
-
     try {
       setLoading(true);
       setStatus("Adding standards set...");
-
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError) { setStatus("Could not check login."); return; }
       if (!user) { setStatus("You must be logged in."); return; }
-
       const { error } = await supabase.from("standard_sets").insert([{ name: trimmedName, type, user_id: user.id }]);
       if (error) { setStatus(`Error adding set: ${error.message}`); return; }
-
       setName("");
       setType("UPGRADING");
       setStatus("Standards set added.");
@@ -84,27 +78,16 @@ export default function StandardsPage() {
   async function deleteSet(setId: number, setName: string) {
     const confirmed = window.confirm(`Delete "${setName}" and all its standard items?`);
     if (!confirmed) return;
-
     try {
       setLoading(true);
       setStatus(`Deleting "${setName}"...`);
-
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError) { setStatus("Could not check login."); return; }
       if (!user) { setStatus("You must be logged in."); return; }
-
-      const { error: childError } = await supabase
-        .from("standard_items").delete()
-        .eq("standard_set_id", setId).eq("user_id", user.id);
-
+      const { error: childError } = await supabase.from("standard_items").delete().eq("standard_set_id", setId).eq("user_id", user.id);
       if (childError) { setStatus(`Error deleting standard items: ${childError.message}`); return; }
-
-      const { error: setError } = await supabase
-        .from("standard_sets").delete()
-        .eq("id", setId).eq("user_id", user.id);
-
+      const { error: setError } = await supabase.from("standard_sets").delete().eq("id", setId).eq("user_id", user.id);
       if (setError) { setStatus(`Error deleting set: ${setError.message}`); return; }
-
       setStatus(`Deleted "${setName}".`);
       await loadSets();
     } catch {
@@ -120,6 +103,16 @@ export default function StandardsPage() {
 
         {/* Header */}
         <div className="pt-2">
+          <button
+            type="button"
+            onClick={() => router.push("/swimmers")}
+            className="mb-3 inline-flex items-center gap-1.5 text-sm text-white/40 transition hover:text-white/70"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M10 3L5 8L10 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Back
+          </button>
           <p className="text-[10px] font-medium uppercase tracking-widest" style={{ color: "#BA7517" }}>
             Natrix
           </p>
@@ -195,9 +188,7 @@ export default function StandardsPage() {
                         <span
                           className="rounded-full px-3 py-1 text-xs font-semibold"
                           style={{
-                            background: setItem.type === "UPGRADING"
-                              ? "rgba(217,119,6,0.2)"
-                              : "rgba(99,130,201,0.2)",
+                            background: setItem.type === "UPGRADING" ? "rgba(217,119,6,0.2)" : "rgba(99,130,201,0.2)",
                             color: setItem.type === "UPGRADING" ? "#FDE68A" : "#93C5FD",
                             border: `1px solid ${setItem.type === "UPGRADING" ? "rgba(253,230,138,0.25)" : "rgba(147,197,253,0.25)"}`,
                           }}
@@ -233,6 +224,7 @@ export default function StandardsPage() {
           </div>
         )}
 
+        <div className="h-4" />
       </div>
     </div>
   );

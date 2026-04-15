@@ -46,6 +46,7 @@ export default function SwimScan({ swimmerId, swimmerName, clubHint }: Props) {
   const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState("");
   const [rawText, setRawText] = useState("");
+  const [showInfo, setShowInfo] = useState(false);
 
   const [results, setResults] = useState<ParsedSwimResult[]>([]);
   const [result400IM, setResult400IM] = useState<ReturnType<typeof parse400IMSplitsFromOCR> | null>(null);
@@ -77,6 +78,7 @@ export default function SwimScan({ swimmerId, swimmerName, clubHint }: Props) {
     setResults([]); setResult400IM(null);
     setScanMode(null); setEventRows([]);
     setSelectedRows(new Set()); setSavingSelected(false); setSavedNames([]);
+    setShowInfo(false);
     if (ref1.current) ref1.current.value = "";
     if (ref2.current) ref2.current.value = "";
   }
@@ -208,8 +210,10 @@ export default function SwimScan({ swimmerId, swimmerName, clubHint }: Props) {
         const currentNameLower = swimmerName.toLowerCase().trim();
         const preSelected = new Set<number>();
         parsed.results.forEach((row, index) => {
-          if (row.name.toLowerCase().includes(currentNameLower) ||
-              currentNameLower.includes(row.name.toLowerCase().split(" ")[0])) {
+          if (
+            row.name.toLowerCase().includes(currentNameLower) ||
+            currentNameLower.includes(row.name.toLowerCase().split(" ")[0])
+          ) {
             preSelected.add(index);
           }
         });
@@ -250,6 +254,7 @@ export default function SwimScan({ swimmerId, swimmerName, clubHint }: Props) {
   return (
     <div className="rounded-3xl border border-white/10 bg-white/5 p-6 space-y-5">
 
+      {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
           <h3 className="text-2xl font-bold text-white">SwimScan</h3>
@@ -257,33 +262,59 @@ export default function SwimScan({ swimmerId, swimmerName, clubHint }: Props) {
             Scan race results for {swimmerName}{clubHint ? ` (${clubHint})` : ""}.
           </p>
         </div>
-        <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white/60">
-          {swimmerName}
-        </div>
+
+        {/* ⓘ Info toggle — replaces the always-visible explainer block */}
+        <button
+          type="button"
+          onClick={() => setShowInfo((v) => !v)}
+          className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/5 text-sm text-white/40 transition hover:bg-white/10 hover:text-white/70"
+          aria-label="How scanning works"
+        >
+          ⓘ
+        </button>
       </div>
 
-      {/* IDLE — upload UI */}
+      {/* Collapsible info panel */}
+      {showInfo && (
+        <div
+          className="rounded-2xl p-4 space-y-2 text-sm text-white/55"
+          style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+        >
+          <p className="font-medium text-white/70">Two scan modes — auto detected:</p>
+          <p>📋 <span className="text-white/70">Swim detail</span> — single result with splits, saves automatically</p>
+          <p>📊 <span className="text-white/70">Event results</span> — full rankings, tick who to save</p>
+          <p className="pt-1 text-white/35 text-xs">Screen 2 is optional — use it for split pages that continue onto a second screenshot.</p>
+        </div>
+      )}
+
+      {/* ── IDLE — upload UI ──────────────────────────────────────────────── */}
       {step === "idle" && (
         <>
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-white/50 space-y-1">
-            <p className="font-medium text-white/70">Two scan modes supported:</p>
-            <p>📋 <span className="text-white/70">Swim detail</span> — single swimmer result with splits</p>
-            <p>📊 <span className="text-white/70">Event results</span> — full rankings list, pick who to save</p>
-          </div>
-
           <div className="grid grid-cols-2 gap-3">
-            <ScreenSlot label="Screen 1" hint="Swim detail or event results" preview={preview1} inputRef={ref1} required onChange={(e) => handleFile(e, setFile1, setPreview1)} />
-            <ScreenSlot label="Screen 2" hint="Remaining splits (optional)" preview={preview2} inputRef={ref2} onChange={(e) => handleFile(e, setFile2, setPreview2)} />
+            <ScreenSlot
+              label="Screen 1"
+              hint="Swim detail or event results"
+              preview={preview1}
+              inputRef={ref1}
+              required
+              onChange={(e) => handleFile(e, setFile1, setPreview1)}
+            />
+            <ScreenSlot
+              label="Screen 2"
+              hint="Splits continued (optional)"
+              preview={preview2}
+              inputRef={ref2}
+              onChange={(e) => handleFile(e, setFile2, setPreview2)}
+            />
           </div>
 
           {message && <p className="text-sm text-red-300">{message}</p>}
 
-          {/* ✅ Fixed: was bg-blue-500 */}
           <button
             type="button"
             onClick={handleScan}
             disabled={!file1}
-            className="mt-2 w-full rounded-2xl px-4 py-4 text-lg font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-40"
+            className="w-full rounded-2xl px-4 py-4 text-lg font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-40"
             style={{ background: file1 ? "#D97706" : "rgba(255,255,255,0.1)" }}
           >
             Scan and save
@@ -291,18 +322,20 @@ export default function SwimScan({ swimmerId, swimmerName, clubHint }: Props) {
         </>
       )}
 
-      {/* SCANNING */}
+      {/* ── SCANNING ─────────────────────────────────────────────────────── */}
       {step === "scanning" && (
         <div className="space-y-3">
           <p className="text-sm text-white/60">Scanning… {Math.round(progress)}%</p>
           <div className="h-2 overflow-hidden rounded-full bg-white/10">
-            {/* ✅ Fixed: was bg-blue-400 */}
-            <div className="h-full rounded-full transition-all duration-200" style={{ width: `${progress}%`, background: "#D97706" }} />
+            <div
+              className="h-full rounded-full transition-all duration-200"
+              style={{ width: `${progress}%`, background: "#D97706" }}
+            />
           </div>
         </div>
       )}
 
-      {/* DONE */}
+      {/* ── DONE ─────────────────────────────────────────────────────────── */}
       {step === "done" && (
         <>
           {message && (
@@ -326,8 +359,8 @@ export default function SwimScan({ swimmerId, swimmerName, clubHint }: Props) {
                   <p className="text-sm font-semibold text-white">
                     {eventRows[0]?.event ?? "Event"} results detected
                   </p>
-                  <p className="text-xs text-white/45 mt-0.5">
-                    {eventRows.length} swimmers found · tick who to save to {swimmerName}&apos;s profile
+                  <p className="mt-0.5 text-xs text-white/45">
+                    {eventRows.length} swimmers · tick who to save to {swimmerName}&apos;s profile
                   </p>
                 </div>
                 <div className="flex gap-2">
@@ -358,9 +391,8 @@ export default function SwimScan({ swimmerId, swimmerName, clubHint }: Props) {
                       }
                     >
                       <div className="flex items-center gap-3">
-                        {/* ✅ Fixed: was emerald/blue checkbox */}
                         <div
-                          className="w-5 h-5 rounded-md flex-shrink-0 flex items-center justify-center"
+                          className="h-5 w-5 flex-shrink-0 rounded-md flex items-center justify-center"
                           style={
                             isSelected || alreadySaved
                               ? { background: "#D97706", border: "1px solid #D97706" }
@@ -369,7 +401,7 @@ export default function SwimScan({ swimmerId, swimmerName, clubHint }: Props) {
                         >
                           {(isSelected || alreadySaved) && (
                             <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                              <path d="M2 5L4 7L8 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                              <path d="M2 5L4 7L8 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                             </svg>
                           )}
                         </div>
@@ -378,9 +410,8 @@ export default function SwimScan({ swimmerId, swimmerName, clubHint }: Props) {
                           <span className="text-xs text-white/40">#{row.place}</span>
                         </div>
 
-                        <div className="flex-1 min-w-0">
-                          {/* ✅ Fixed: was text-emerald-300 */}
-                          <p className="text-sm font-semibold truncate" style={{ color: isCurrentSwimmer ? "#FDE68A" : "white" }}>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold" style={{ color: isCurrentSwimmer ? "#FDE68A" : "white" }}>
                             {row.name}
                             {isCurrentSwimmer && <span className="ml-2 text-[10px] opacity-60">your swimmer</span>}
                           </p>
@@ -389,9 +420,8 @@ export default function SwimScan({ swimmerId, swimmerName, clubHint }: Props) {
                           )}
                         </div>
 
-                        <div className="text-right flex-shrink-0">
+                        <div className="flex-shrink-0 text-right">
                           <p className="text-sm font-semibold text-white">{row.timeStr}</p>
-                          {/* ✅ Fixed: was text-emerald-400 */}
                           {alreadySaved && <p className="text-[10px]" style={{ color: "#FDE68A" }}>Saved</p>}
                         </div>
                       </div>
@@ -401,7 +431,6 @@ export default function SwimScan({ swimmerId, swimmerName, clubHint }: Props) {
               </div>
 
               {selectedRows.size > 0 && (
-                /* ✅ Fixed: was bg-emerald-500 */
                 <button
                   type="button"
                   onClick={handleSaveSelected}
@@ -409,7 +438,9 @@ export default function SwimScan({ swimmerId, swimmerName, clubHint }: Props) {
                   className="w-full rounded-2xl px-4 py-4 text-lg font-bold text-white transition disabled:opacity-50"
                   style={{ background: "#D97706" }}
                 >
-                  {savingSelected ? "Saving..." : `Save ${selectedRows.size} selected swimmer${selectedRows.size === 1 ? "" : "s"}`}
+                  {savingSelected
+                    ? "Saving..."
+                    : `Save ${selectedRows.size} selected swimmer${selectedRows.size === 1 ? "" : "s"}`}
                 </button>
               )}
             </div>
@@ -419,7 +450,6 @@ export default function SwimScan({ swimmerId, swimmerName, clubHint }: Props) {
           {scanMode === "single" && (
             <>
               {result400IM && <Result400IMCard result={result400IM} />}
-
               {results.length > 0 && (
                 <div className="space-y-4">
                   <p className="text-xs uppercase tracking-widest text-white/40">Detected results</p>
@@ -436,8 +466,6 @@ export default function SwimScan({ swimmerId, swimmerName, clubHint }: Props) {
             </>
           )}
 
-          {/* ✅ Raw OCR debug block REMOVED */}
-
           <button
             type="button"
             onClick={reset}
@@ -451,6 +479,8 @@ export default function SwimScan({ swimmerId, swimmerName, clubHint }: Props) {
   );
 }
 
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
 function ScreenSlot({
   label, hint, preview, inputRef, required, onChange,
 }: {
@@ -462,14 +492,12 @@ function ScreenSlot({
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }) {
   return (
-    /* ✅ Fixed: was hover:border-blue-400/60 */
     <div
       onClick={() => inputRef.current?.click()}
       className="relative flex min-h-[140px] cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-white/20 bg-black/30 p-3 text-center transition hover:border-amber-400/50 hover:bg-white/5"
     >
       <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={onChange} />
       {required && !preview && (
-        /* ✅ Fixed: was bg-blue-500/20 text-blue-300 */
         <span
           className="absolute right-2 top-2 rounded-full px-2 py-0.5 text-[9px] uppercase tracking-wider"
           style={{ background: "rgba(186,117,23,0.2)", color: "#EF9F27" }}
@@ -527,7 +555,6 @@ function DetectedResultBlock({
           {firstHalf != null && <p className="mt-3 text-sm text-white/70">First 100: {formatTime(firstHalf)}</p>}
           {secondHalf != null && <p className="mt-1 text-sm text-white/70">Second 100: {formatTime(secondHalf)}</p>}
           {firstHalf != null && secondHalf != null && (
-            /* ✅ Kept green here — semantic colour (negative split = good = green makes sense) */
             <p className="mt-2 text-sm font-medium" style={{ color: secondHalf < firstHalf ? "#6EE7B7" : secondHalf > firstHalf ? "#FCA5A5" : "#FDE68A" }}>
               {secondHalf < firstHalf ? "🔥 Negative split" : secondHalf > firstHalf ? "🏁 Positive split" : "Even split"}
             </p>
