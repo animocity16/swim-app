@@ -4,7 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { canonicalCourse, canonicalEventName, eventKey } from "@/lib/events";
 
-type Props = { swimmerId: number };
+type Props = {
+  swimmerId: number;
+  swimmerAge?: number | null;
+};
 
 type SwimTimeRow = {
   id: number;
@@ -114,9 +117,44 @@ const EVENTS = [
   "200 IM", "400 IM",
 ];
 
+// ─── Dynamic meet presets ─────────────────────────────────────────────────────
+
+function getMeetPresets(swimmerAge?: number | null): string[] {
+  const currentYear = new Date().getFullYear();
+  const snagNumber = 56 + (currentYear - 2026);
+  const snscNumber = 21 + (currentYear - 2026);
+  const jicNumber = 39 + (currentYear - 2026);
+
+  const ordinal = (n: number) => {
+    const s = ["th", "st", "nd", "rd"];
+    const v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  };
+
+  const base = [
+    "Swim Series 1",
+    "Swim Series 2",
+    `${ordinal(snagNumber)} SNAG ${currentYear}`,
+    `NSG ${currentYear}`,
+    `Pesta Sukan ${currentYear}`,
+  ];
+
+  const ageSpecific =
+    swimmerAge != null && swimmerAge <= 12
+      ? [
+          `ETC ${currentYear}`,
+          `${ordinal(jicNumber)} JIC ${currentYear}`,
+        ]
+      : [
+          `${ordinal(snscNumber)} SNSC ${currentYear}`,
+        ];
+
+  return [...base, ...ageSpecific, "Club Time Trial", "Time Trial"];
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function SwimTimesSection({ swimmerId }: Props) {
+export default function SwimTimesSection({ swimmerId, swimmerAge }: Props) {
   const [rows, setRows] = useState<SwimTimeRow[]>([]);
   const [splitsMap, setSplitsMap] = useState<Record<number, SwimSplitRow[]>>({});
   const [loading, setLoading] = useState(true);
@@ -134,6 +172,8 @@ export default function SwimTimesSection({ swimmerId }: Props) {
   const [expandedSplits, setExpandedSplits] = useState<Record<number, boolean>>({});
   const [editingTime, setEditingTime] = useState<EditingTime | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
+
+  const meetPresets = useMemo(() => getMeetPresets(swimmerAge), [swimmerAge]);
 
   useEffect(() => { void loadTimes(); }, [swimmerId]);
 
@@ -153,7 +193,8 @@ export default function SwimTimesSection({ swimmerId }: Props) {
 
       if (timeRows.length > 0) {
         const { data: splitData } = await supabase
-          .from("swim_splits").select("*").in("swim_time_id", timeRows.map((r) => r.id));
+          .from("swim_splits").select("*")
+          .in("swim_time_id", timeRows.map((r) => r.id));
         const map: Record<number, SwimSplitRow[]> = {};
         for (const s of (splitData as SwimSplitRow[]) || []) {
           if (!map[s.swim_time_id]) map[s.swim_time_id] = [];
@@ -219,8 +260,7 @@ export default function SwimTimesSection({ swimmerId }: Props) {
     }
 
     const eventGroups: EventGroup[] = Array.from(grouped.entries()).map(([key, times]) => {
-      const sorted = [...times].sort((a, b) => a.time_ms - b.time_ms);
-      const pb = sorted[0];
+      const pb = [...times].sort((a, b) => a.time_ms - b.time_ms)[0];
       const byDate = [...times].sort((a, b) =>
         new Date(b.swam_at || "").getTime() - new Date(a.swam_at || "").getTime()
       );
@@ -265,7 +305,11 @@ export default function SwimTimesSection({ swimmerId }: Props) {
           type="button"
           onClick={() => setShowAddForm((v) => !v)}
           className="rounded-2xl border px-3 py-1.5 text-xs font-semibold transition"
-          style={{ background: showAddForm ? "rgba(217,119,6,0.2)" : "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: showAddForm ? "#FDE68A" : "rgba(255,255,255,0.5)" }}
+          style={{
+            background: showAddForm ? "rgba(217,119,6,0.2)" : "rgba(255,255,255,0.05)",
+            border: "1px solid rgba(255,255,255,0.12)",
+            color: showAddForm ? "#FDE68A" : "rgba(255,255,255,0.5)",
+          }}
         >
           {showAddForm ? "Cancel" : "+ Add time"}
         </button>
@@ -284,10 +328,33 @@ export default function SwimTimesSection({ swimmerId }: Props) {
               <option value="SCM">SCM</option>
               <option value="SCY">SCY</option>
             </select>
-            <input value={newTime} onChange={(e) => setNewTime(e.target.value)} placeholder="35.04 or 1:12.33" className="input" />
+            <input value={newTime} onChange={(e) => setNewTime(e.target.value)}
+              placeholder="35.04 or 1:12.33" className="input" />
           </div>
           <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} className="input" />
-          <input value={newMeetName} onChange={(e) => setNewMeetName(e.target.value)} placeholder="Meet name (optional)" className="input" />
+
+          {/* Meet name presets */}
+          <div>
+            <p className="text-[10px] text-white/30 mb-2 uppercase tracking-wider">Meet name</p>
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {meetPresets.map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => setNewMeetName(preset)}
+                  className="rounded-full px-2.5 py-1 text-[10px] font-medium transition"
+                  style={newMeetName === preset
+                    ? { background: "rgba(217,119,6,0.25)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
+                    : { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.45)" }}
+                >
+                  {preset}
+                </button>
+              ))}
+            </div>
+            <input value={newMeetName} onChange={(e) => setNewMeetName(e.target.value)}
+              placeholder="Or type a meet name…" className="input" />
+          </div>
+
           {addStatus && <p className="text-xs text-white/50">{addStatus}</p>}
           <button type="button" onClick={handleAddTime} disabled={saving}
             className="w-full rounded-2xl py-3 text-sm font-semibold text-white transition disabled:opacity-50"
@@ -300,7 +367,7 @@ export default function SwimTimesSection({ swimmerId }: Props) {
       {/* Empty state */}
       {strokeGroups.length === 0 && (
         <div className="rounded-2xl border border-white/10 bg-white/5 py-8 text-center">
-          <p className="text-sm text-white/40">No times yet — add one above or import from the Settings page.</p>
+          <p className="text-sm text-white/40">No times yet — add one above or import from Settings.</p>
         </div>
       )}
 
@@ -315,18 +382,18 @@ export default function SwimTimesSection({ swimmerId }: Props) {
             <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: sg.color }}>
               {sg.label}
             </p>
-            <p className="text-[10px] text-white/25 ml-1">{sg.events.length} event{sg.events.length === 1 ? "" : "s"}</p>
+            <p className="text-[10px] text-white/25 ml-1">
+              {sg.events.length} event{sg.events.length === 1 ? "" : "s"}
+            </p>
           </div>
 
           {/* Event rows */}
-          {sg.events.map((eg, evIdx) => {
+          {sg.events.map((eg) => {
             const isOpen = !!expandedEvents[eg.key];
-            const isLast = evIdx === sg.events.length - 1;
             return (
-              <div key={eg.key}
-                style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+              <div key={eg.key} style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
 
-                {/* PB row — tap to expand */}
+                {/* PB row */}
                 <button
                   type="button"
                   onClick={() => toggleEvent(eg.key)}
@@ -366,13 +433,39 @@ export default function SwimTimesSection({ swimmerId }: Props) {
                           style={{ borderBottom: isLastTime ? "none" : "1px solid rgba(255,255,255,0.04)", padding: "10px 16px" }}>
 
                           {isEditing ? (
+                            /* ── Edit form ── */
                             <div className="space-y-2">
-                              <input value={editingTime.meetName}
+                              <p className="text-[10px] font-medium uppercase tracking-wider text-white/30">Meet name</p>
+
+                              {/* Meet name presets */}
+                              <div className="flex flex-wrap gap-1.5">
+                                {meetPresets.map((preset) => (
+                                  <button
+                                    key={preset}
+                                    type="button"
+                                    onClick={() => setEditingTime((p) => p ? { ...p, meetName: preset } : p)}
+                                    className="rounded-full px-2.5 py-1 text-[10px] font-medium transition"
+                                    style={editingTime?.meetName === preset
+                                      ? { background: "rgba(217,119,6,0.25)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
+                                      : { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.45)" }}
+                                  >
+                                    {preset}
+                                  </button>
+                                ))}
+                              </div>
+
+                              <input
+                                value={editingTime?.meetName ?? ""}
                                 onChange={(e) => setEditingTime((p) => p ? { ...p, meetName: e.target.value } : p)}
-                                placeholder="Meet name" className="input" />
-                              <input type="date" value={editingTime.swamAt}
+                                placeholder="Or type a meet name…"
+                                className="input"
+                              />
+                              <input
+                                type="date"
+                                value={editingTime?.swamAt ?? ""}
                                 onChange={(e) => setEditingTime((p) => p ? { ...p, swamAt: e.target.value } : p)}
-                                className="input" />
+                                className="input"
+                              />
                               <div className="flex gap-2">
                                 <button type="button" onClick={handleSaveEdit} disabled={savingEdit}
                                   className="flex-1 rounded-xl py-2 text-xs font-semibold text-white disabled:opacity-50"
@@ -386,6 +479,7 @@ export default function SwimTimesSection({ swimmerId }: Props) {
                               </div>
                             </div>
                           ) : (
+                            /* ── Normal display ── */
                             <div className="flex items-center gap-3">
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
@@ -404,14 +498,17 @@ export default function SwimTimesSection({ swimmerId }: Props) {
                                   {time.swam_at ? ` · ${formatDate(time.swam_at)}` : ""}
                                 </p>
                                 {splits.length > 0 && (
-                                  <button type="button" onClick={() => setExpandedSplits((p) => ({ ...p, [time.id]: !p[time.id] }))}
-                                    className="mt-1 text-[10px] font-medium transition" style={{ color: "#FDE68A" }}>
+                                  <button type="button"
+                                    onClick={() => setExpandedSplits((p) => ({ ...p, [time.id]: !p[time.id] }))}
+                                    className="mt-1 text-[10px] font-medium transition"
+                                    style={{ color: "#FDE68A" }}>
                                     {showSplits ? "Hide splits" : `Show ${splits.length} splits`}
                                   </button>
                                 )}
                               </div>
                               <div className="flex gap-1.5 flex-shrink-0">
-                                <button type="button" onClick={() => setEditingTime({ id: time.id, meetName: time.meet_name ?? "", swamAt: time.swam_at ?? "" })}
+                                <button type="button"
+                                  onClick={() => setEditingTime({ id: time.id, meetName: time.meet_name ?? "", swamAt: time.swam_at ?? "" })}
                                   className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-[11px] text-white/50 transition hover:bg-white/10">
                                   Edit
                                 </button>
@@ -425,7 +522,8 @@ export default function SwimTimesSection({ swimmerId }: Props) {
 
                           {/* Splits */}
                           {!isEditing && showSplits && splits.length > 0 && (
-                            <div className="mt-2 rounded-xl overflow-hidden" style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                            <div className="mt-2 rounded-xl overflow-hidden"
+                              style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.06)" }}>
                               {splits
                                 .sort((a, b) => (a.split_order ?? 0) - (b.split_order ?? 0))
                                 .map((split) => (
@@ -433,7 +531,9 @@ export default function SwimTimesSection({ swimmerId }: Props) {
                                     style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
                                     <p className="text-xs text-white/60">{split.split_label || "Split"}</p>
                                     <div className="text-right">
-                                      <p className="text-xs font-semibold" style={{ color: "#FDE68A" }}>{formatMs(split.split_time_ms)}</p>
+                                      <p className="text-xs font-semibold" style={{ color: "#FDE68A" }}>
+                                        {formatMs(split.split_time_ms)}
+                                      </p>
                                       {split.cumulative_time_ms != null && (
                                         <p className="text-[10px] text-white/30">{formatMs(split.cumulative_time_ms)} cum.</p>
                                       )}
