@@ -95,10 +95,19 @@ function fourDigitToMs(raw: string): number | null {
 }
 
 function extractPlace(line: string): number | null {
-  const placeMatch = line.match(/place[:\s|]*([0-9]{1,3})/i);
-  if (!placeMatch) return null;
-  const parsed = parseInt(placeMatch[1], 10);
-  return Number.isNaN(parsed) ? null : parsed;
+  // "PLACE 6", "place: 6", "place|6"
+  const placeMatch = line.match(/place[:\s|]*([0-9]{1,3})/i);
+  if (placeMatch) {
+    const parsed = parseInt(placeMatch[1], 10);
+    if (!Number.isNaN(parsed) && parsed >= 1 && parsed <= 999) return parsed;
+  }
+  // "Finals 6 37.70" — place number before time on finals line
+  const finalsMatch = line.match(/finals\s+(\d{1,3})\s+[\d:.]+/i);
+  if (finalsMatch) {
+    const parsed = parseInt(finalsMatch[1], 10);
+    if (!Number.isNaN(parsed) && parsed >= 1 && parsed <= 999) return parsed;
+  }
+  return null;
 }
 
 function detectDistance(text: string, allowed: number[] = EVENT_DISTANCES): number | null {
@@ -364,9 +373,19 @@ function parseSingleSplitScreen(rawText: string, lines: string[], options: Parse
   if (!bestEvent) return [];
 
   let place: number | null = null;
-  for (const line of lines) {
+  for (let li = 0; li < lines.length; li++) {
+    const line = lines[li];
     const maybePlace = extractPlace(line);
     if (maybePlace != null) { place = maybePlace; break; }
+    // "PLACE FINALS ENTRY" header → next line has "6 37.70 38.74"
+    if (/^PLACE\s+FINALS/i.test(line) || /^PLACE\s+SEMI/i.test(line)) {
+      const nextLine = lines[li + 1] ?? "";
+      const m = nextLine.match(/^(\d{1,3})/);
+      if (m) {
+        const p = parseInt(m[1], 10);
+        if (!isNaN(p) && p >= 1 && p <= 999) { place = p; break; }
+      }
+    }
   }
 
   let splits: ParsedSplit[] = [];

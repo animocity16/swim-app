@@ -195,6 +195,33 @@ function startsWithPlace(line: string): boolean {
 }
 
 export function parseEventResultsOCR(rawText: string): ParsedEventResults {
+  const lines = rawText.replace(/\r/g, "\n").split("\n").map((l) => l.trim()).filter(Boolean);
+
+  // Try NSG card format (standalone PLACE lines)
+  const standalonePlaceLines = lines.filter((l) => /^(?:PLACE|PACE)$/i.test(l));
+  const numberedPlaceLines = lines.filter((l) => /^(?:PLACE|PACE)\s+\d{1,3}$/i.test(l));
+  if (standalonePlaceLines.length >= 2 || numberedPlaceLines.length >= 2) {
+    const nsgResult = parseNSGCardFormat(rawText);
+    if (nsgResult.results.length > 0) return nsgResult;
+  }
+
+  // Try Name+Time format (OCR drops PLACE labels entirely — most common NSG/event page)
+  const timeAtEndRe = /\s(\d{1,2}:\d{2}\.\d{2}|\d{2}\.\d{2})$/;
+  const clubLineRe = /[A-Z]{2,6}\s*\|?\s*\d{1,2}\s*TIME$/i;
+  let nameTimePairs = 0;
+  for (let i = 0; i < lines.length - 1; i++) {
+    if (timeAtEndRe.test(lines[i]) && clubLineRe.test(lines[i + 1])) nameTimePairs++;
+  }
+  if (nameTimePairs >= 2) {
+    const ntResult = parseNameTimeFormat(rawText);
+    if (ntResult.results.length > 0) return ntResult;
+  }
+
+  // Fall through to classic inline PLACE format
+  return parseInlineEventResultsOCR(rawText);
+}
+
+function parseInlineEventResultsOCR(rawText: string): ParsedEventResults {
   const lines = rawText
     .replace(/\r/g, "\n")
     .split("\n")
@@ -295,6 +322,219 @@ export function parseEventResultsOCR(rawText: string): ParsedEventResults {
 // ✅ Detect event results page — also handles "PACE" (OCR dropped L from PLACE)
 export function isEventResultsPage(rawText: string): boolean {
   const lines = rawText.split("\n").map((l) => l.trim());
-  const placeLines = lines.filter((l) => /^(?:PLACE|PACE)\s+[A-Za-z]/i.test(l));
-  return placeLines.length >= 2;
+
+  // Format 1: "PLACE Swimmer Name 36.39" — classic Meet Mobile event rankings
+  const inlinePlaceLines = lines.filter((l) => /^(?:PLACE|PACE)\s+[A-Za-z]/i.test(l));
+  if (inlinePlaceLines.length >= 2) return true;
+
+  // Format 2: NSG card layout — "PLACE" on its own line
+  const standalonePlaceLines = lines.filter((l) => /^(?:PLACE|PACE)$/i.test(l));
+  if (standalonePlaceLines.length >= 2) return true;
+
+  // Format 3: "PLACE 1", "PLACE 2" etc
+  const numberedPlaceLines = lines.filter((l) => /^(?:PLACE|PACE)\s+\d{1,3}$/i.test(l));
+  if (numberedPlaceLines.length >= 2) return true;
+
+  // Format 4: NSG card where OCR drops PLACE labels entirely
+  // Produces: "Swimmer Name 36.39" then "CLUB | age TIME" on next line
+  // Detect by counting "Name Time" + "CLUB TIME" line pairs
+  const timeAtEndRe = /\s(\d{1,2}:\d{2}\.\d{2}|\d{2}\.\d{2})$/;
+  const clubLineRe = /[A-Z]{2,6}\s*\|?\s*\d{1,2}\s*TIME$/i;
+  let nameTimePairs = 0;
+  for (let i = 0; i < lines.length - 1; i++) {
+    if (timeAtEndRe.test(lines[i]) && clubLineRe.test(lines[i + 1])) {
+      nameTimePairs++;
+    }
+  }
+  if (nameTimePairs >= 2) return true;
+
+  return false;
+}
+
+// Parse NSG format where OCR drops PLACE labels:
+// "Swimmer Name 36.39"
+// "MGS | 10 TIME"
+// "Dropped: – 0.11"  (optional)
+function parseNameTimeFormat(rawText: string): ParsedEventResults {
+  const lines = rawText
+    .replace(/\r/g, "\n")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  const course = detectCourse(rawText);
+  const swamAt = extractMeetDate(rawText);
+  const meetName = extractMeetName(lines);
+  const event = extractEventName(lines);
+
+  const results: EventResultRow[] = [];
+  const timeAtEndRe = /\s(\d{1,2}:\d{2}\.\d{2}|\d{2}\.\d{2})$/;
+  const clubLineRe = /^([A-Za-z]{2,6})\s*\|?\s*(\d{1,2})\s*TIME$/i;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const timeMatch = line.match(timeAtEndRe);
+    if (!timeMatch) continue;
+
+    const nextLine = lines[i + 1] ?? "";
+    const clubMatch = nextLine.match(clubLineRe);
+    // Must have a club/TIME line right after to confirm this is a swimmer row
+    if (!clubMatch) continue;
+
+    const timeStr = timeMatch[1];
+    const timeMs = timeToMs(timeStr);
+    if (timeMs <= 0 || timeMs > 1_800_000) continue;
+
+    // Name is everything before the time
+    const name = line.slice(0, line.lastIndexOf(timeMatch[0])).trim();
+    if (!name || name.length < 3) continue;
+    // Skip non-name lines (event headers, meet info etc)
+    if (/^\d|finals|results|completed|heats|swimmers|unofficial|am|pm/i.test(name)) continue;
+
+    const club = clubMatch[1]?.trim() ?? null;
+    const age = clubMatch[2] ? parseInt(clubMatch[2], 10) : null;
+
+    results.push({
+      place: results.length + 1,
+      name,
+      club,
+      age,
+      timeStr,
+      timeMs,
+      event,
+      course,
+      swamAt,
+      meetName,
+    });
+
+    i++; // skip the club line
+  }
+
+  return { event, course, swamAt, meetName, results };
+}
+
+// Parse the NSG card-style EVENT DETAILS page
+// OCR format per swimmer card:
+//   PLACE
+//   1
+//   Mikaela Yuet Xun Loh         (name — may be on same line as club info)
+//   MGS | 10
+//   36.39
+//   TIME
+//   Dropped: - 0.11              (optional)
+function parseNSGCardFormat(rawText: string): ParsedEventResults {
+  const lines = rawText
+    .replace(/\r/g, "\n")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  const course = detectCourse(rawText);
+  const swamAt = extractMeetDate(rawText);
+  const meetName = extractMeetName(lines);
+  const event = extractEventName(lines);
+
+  const results: EventResultRow[] = [];
+  const timeRe = /^(\d{1,2}:\d{2}\.\d{2}|\d{2}\.\d{2}|\d{4,5})$/;
+
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+
+    // Detect start of a swimmer card: standalone "PLACE" or "PLACE 1" etc.
+    const isPlaceStandalone = /^(?:PLACE|PACE)$/i.test(line);
+    const isPlaceNumbered = /^(?:PLACE|PACE)\s+\d{1,3}$/i.test(line);
+
+    if (!isPlaceStandalone && !isPlaceNumbered) { i++; continue; }
+
+    // Extract place number
+    let place: number | null = null;
+    let nameIdx = i + 1;
+
+    if (isPlaceNumbered) {
+      const m = line.match(/\d{1,3}/);
+      if (m) place = parseInt(m[0], 10);
+      nameIdx = i + 1;
+    } else {
+      // Standalone PLACE — next line should be the number
+      const nextLine = lines[i + 1] ?? "";
+      if (/^\d{1,3}$/.test(nextLine.trim())) {
+        place = parseInt(nextLine.trim(), 10);
+        nameIdx = i + 2;
+      } else {
+        nameIdx = i + 1;
+      }
+    }
+
+    // Next lines: name, club/age, time
+    let name = "";
+    let club: string | null = null;
+    let age: number | null = null;
+    let timeStr: string | null = null;
+    let timeMs = 0;
+
+    for (let j = nameIdx; j < Math.min(nameIdx + 6, lines.length); j++) {
+      const l = lines[j];
+
+      // Stop at next PLACE card
+      if (/^(?:PLACE|PACE)/i.test(l)) break;
+      // Skip star/arrow/dropped lines
+      if (/dropped|improvement|★|▷/i.test(l)) continue;
+      // Skip TIME label
+      if (/^TIME$/i.test(l)) continue;
+      // Skip status
+      if (/completed|finals|unofficial|heats|swimmers/i.test(l)) continue;
+
+      // Time detection
+      const timeMatch = l.match(/^(\d{1,2}:\d{2}\.\d{2}|\d{2}\.\d{2}|\d{4,5})$/);
+      if (timeMatch && !timeStr) {
+        const repaired = repairTime(timeMatch[1]);
+        if (repaired) { timeStr = repaired; timeMs = timeToMs(repaired); }
+        continue;
+      }
+
+      // Club/age line: "MGS | 10" or "SSC | 9"
+      const clubAgeMatch = l.match(/^([A-Z]{2,6})\s*[|]\s*(\d{1,2})$/i);
+      if (clubAgeMatch) {
+        club = clubAgeMatch[1].trim();
+        age = parseInt(clubAgeMatch[2], 10);
+        continue;
+      }
+
+      // Name — first non-control line after place that's not a time/club
+      if (!name && l.length >= 3 && /[A-Za-z]/.test(l) && !/^\d+$/.test(l)) {
+        name = l.trim();
+      }
+    }
+
+    if (name && timeStr && timeMs > 0 && timeMs < 1_800_000) {
+      results.push({
+        place: place ?? results.length + 1,
+        name,
+        club,
+        age,
+        timeStr,
+        timeMs,
+        event,
+        course,
+        swamAt,
+        meetName,
+      });
+    }
+
+    i++;
+  }
+
+  results.sort((a, b) => a.place - b.place);
+
+  // Deduplicate
+  const seen = new Set<string>();
+  const deduped = results.filter((r) => {
+    const key = r.name.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  return { event, course, swamAt, meetName, results: deduped };
 }

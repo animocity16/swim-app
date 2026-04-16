@@ -71,6 +71,7 @@ type EditProfileForm = {
   school: string;
   status: string;
   gender: string;
+  groupType: string;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -139,6 +140,7 @@ function createEditForm(swimmer: Swimmer | null): EditProfileForm {
     school: swimmer?.school ?? "",
     status: swimmer?.status ?? "Active",
     gender: swimmer?.gender ?? "",
+    groupType: swimmer?.group_type ?? "primary",
   };
 }
 
@@ -272,6 +274,7 @@ export default function SwimmerProfilePage() {
         school: editForm.school.trim() || null,
         status: editForm.status.trim() || "Active",
         gender: editForm.gender || null,
+        group_type: editForm.groupType || "primary",
       }).eq("id", Number(swimmer.id)).eq("user_id", user.id).select();
       if (error) { setStatus(`Error: ${error.message}`); return; }
       if (!data || data.length === 0) { setStatus("⚠️ No rows updated."); return; }
@@ -467,6 +470,25 @@ export default function SwimmerProfilePage() {
             <div className="grid grid-cols-2 gap-3">
               <div><FieldLabel>Club</FieldLabel><input value={editForm.club} onChange={(e) => setEditForm((p) => ({ ...p, club: e.target.value }))} className="input" placeholder="Swim club" /></div>
               <div><FieldLabel>School</FieldLabel><input value={editForm.school} onChange={(e) => setEditForm((p) => ({ ...p, school: e.target.value }))} className="input" placeholder="School" /></div>
+            </div>
+            {/* My Swimmer vs Following toggle */}
+            <div>
+              <FieldLabel>Type</FieldLabel>
+              <div className="grid grid-cols-2 gap-2 mt-1">
+                {(["primary", "following"] as const).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setEditForm((p) => ({ ...p, groupType: t }))}
+                    className="rounded-2xl py-3 text-sm font-semibold transition"
+                    style={editForm.groupType === t
+                      ? { background: "rgba(217,119,6,0.25)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
+                      : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}
+                  >
+                    {t === "primary" ? "👤 My swimmer" : "👁 Following"}
+                  </button>
+                ))}
+              </div>
             </div>
             <div><FieldLabel>Status</FieldLabel><input value={editForm.status} onChange={(e) => setEditForm((p) => ({ ...p, status: e.target.value }))} className="input" placeholder="Active" /></div>
             {status && <p className="text-sm" style={{ color: status.startsWith("Error") ? "#F09595" : "#6EE7B7" }}>{status}</p>}

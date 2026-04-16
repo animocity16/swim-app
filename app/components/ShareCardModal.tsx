@@ -13,6 +13,7 @@ export type ShareResult = {
   swamAt?: string | null;
   isPB?: boolean;
   strokeColor?: string;
+  place?: number | null;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -170,20 +171,74 @@ function drawShareCard(canvas: HTMLCanvasElement, result: ShareResult) {
   ctx.fillText(formatMs(result.timeMs), CX, cardY + 470);
   ctx.shadowBlur = 0;
 
-  // PB badge — just below time
+  // PB badge + place badge — just below time
+  let badgeRowY = cardY + 496;
+
   if (result.isPB) {
-    const badgeW = 230, badgeH = 50;
+    // If we also have a place, show both side by side
+    if (result.place != null) {
+      const ordinal = result.place === 1 ? "st" : result.place === 2 ? "nd" : result.place === 3 ? "rd" : "th";
+      const placeLabel = `${result.place}${ordinal} Place`;
+      const pbW = 210, placeW = 190, badgeH = 50, gap = 16;
+      const totalW = pbW + placeW + gap;
+      const startX = CX - totalW / 2;
+
+      // PB badge
+      const pbGrad = ctx.createLinearGradient(startX, 0, startX + pbW, 0);
+      pbGrad.addColorStop(0, "#B45309");
+      pbGrad.addColorStop(1, "#D97706");
+      ctx.fillStyle = pbGrad;
+      rrect(ctx, startX, badgeRowY, pbW, badgeH, 25);
+      ctx.fill();
+      ctx.fillStyle = "#FDE68A";
+      ctx.font = "bold 20px -apple-system, 'Helvetica Neue', Arial, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("PERSONAL BEST", startX + pbW / 2, badgeRowY + 33);
+
+      // Place badge
+      const placeX = startX + pbW + gap;
+      ctx.fillStyle = "rgba(99,179,237,0.2)";
+      rrect(ctx, placeX, badgeRowY, placeW, badgeH, 25);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(99,179,237,0.4)";
+      ctx.lineWidth = 1;
+      rrect(ctx, placeX, badgeRowY, placeW, badgeH, 25);
+      ctx.stroke();
+      ctx.fillStyle = "#90CDF4";
+      ctx.font = "bold 20px -apple-system, 'Helvetica Neue', Arial, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(placeLabel, placeX + placeW / 2, badgeRowY + 33);
+    } else {
+      // Just PB badge centred
+      const badgeW = 230, badgeH = 50;
+      const badgeX = CX - badgeW / 2;
+      const badgeGrad = ctx.createLinearGradient(badgeX, 0, badgeX + badgeW, 0);
+      badgeGrad.addColorStop(0, "#B45309");
+      badgeGrad.addColorStop(1, "#D97706");
+      ctx.fillStyle = badgeGrad;
+      rrect(ctx, badgeX, badgeRowY, badgeW, badgeH, 25);
+      ctx.fill();
+      ctx.fillStyle = "#FDE68A";
+      ctx.font = "bold 22px -apple-system, 'Helvetica Neue', Arial, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("PERSONAL BEST", CX, badgeRowY + 33);
+    }
+  } else if (result.place != null) {
+    // No PB but has a place — show place badge only
+    const ordinal = result.place === 1 ? "st" : result.place === 2 ? "nd" : result.place === 3 ? "rd" : "th";
+    const badgeW = 200, badgeH = 50;
     const badgeX = CX - badgeW / 2;
-    const badgeGrad = ctx.createLinearGradient(badgeX, 0, badgeX + badgeW, 0);
-    badgeGrad.addColorStop(0, "#B45309");
-    badgeGrad.addColorStop(1, "#D97706");
-    ctx.fillStyle = badgeGrad;
-    rrect(ctx, badgeX, cardY + 496, badgeW, badgeH, 25);
+    ctx.fillStyle = "rgba(99,179,237,0.2)";
+    rrect(ctx, badgeX, badgeRowY, badgeW, badgeH, 25);
     ctx.fill();
-    ctx.fillStyle = "#FDE68A";
+    ctx.strokeStyle = "rgba(99,179,237,0.4)";
+    ctx.lineWidth = 1;
+    rrect(ctx, badgeX, badgeRowY, badgeW, badgeH, 25);
+    ctx.stroke();
+    ctx.fillStyle = "#90CDF4";
     ctx.font = "bold 22px -apple-system, 'Helvetica Neue', Arial, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("PERSONAL BEST", CX, cardY + 529);
+    ctx.fillText(`${result.place}${ordinal} Place`, CX, badgeRowY + 33);
   }
 
   // Divider — lower section

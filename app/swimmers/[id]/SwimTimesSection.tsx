@@ -20,6 +20,7 @@ type SwimTimeRow = {
   swam_at?: string | null;
   meet_name?: string | null;
   created_at?: string | null;
+  place?: number | null;
 };
 
 type SwimSplitRow = {
@@ -195,7 +196,7 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
     try {
       const { data: timesData } = await supabase
         .from("swim_times")
-        .select("id, swimmer_id, event, course, time_ms, swam_at, meet_name, created_at")
+        .select("id, swimmer_id, event, course, time_ms, swam_at, meet_name, created_at, place")
         .eq("swimmer_id", swimmerId)
         .order("swam_at", { ascending: false });
 
@@ -444,6 +445,7 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
                         swamAt: eg.pb.swam_at,
                         isPB: true,
                         strokeColor: sg.color,
+                        place: eg.pb.place ?? null,
                       })}
                       className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl transition"
                       style={{ background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.45)" }}
@@ -522,6 +524,18 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
                                         PB
                                       </span>
                                     )}
+                                  {time.place != null && (
+                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                                      style={{ background: "rgba(99,179,237,0.15)", color: "#90CDF4", border: "1px solid rgba(99,179,237,0.25)" }}>
+                                      {time.place}{time.place === 1 ? "st" : time.place === 2 ? "nd" : time.place === 3 ? "rd" : "th"}
+                                    </span>
+                                  )}
+                                  {time.place != null && (
+                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                                      style={{ background: "rgba(99,179,237,0.15)", color: "#90CDF4", border: "1px solid rgba(99,179,237,0.25)" }}>
+                                      {time.place}{time.place === 1 ? "st" : time.place === 2 ? "nd" : time.place === 3 ? "rd" : "th"}
+                                    </span>
+                                  )}
                                   </div>
                                   <p className="text-[11px] text-white/35 mt-0.5">
                                     {time.meet_name || "—"}

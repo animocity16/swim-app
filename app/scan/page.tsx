@@ -22,6 +22,7 @@ type Swimmer = {
   name: string;
   age: number;
   swim_club?: string | null;
+  school?: string | null;
   group_type?: string | null;
 };
 
@@ -158,6 +159,10 @@ export default function ScanPage() {
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
   const [savingSelected, setSavingSelected] = useState(false);
   const [savedNames, setSavedNames] = useState<string[]>([]);
+  // "mine" = primary swimmer, "follow" = competitor to follow
+  const [rowTypes, setRowTypes] = useState<Record<number, "mine" | "follow">>({});
+  const [addingNewSwimmer, setAddingNewSwimmer] = useState<{name: string; club: string | null; age: number | null; rowIndex: number} | null>(null);
+  const [newSwimmerSaving, setNewSwimmerSaving] = useState(false);
 
   const ref1 = useRef<HTMLInputElement | null>(null);
   const ref2 = useRef<HTMLInputElement | null>(null);
@@ -201,7 +206,7 @@ export default function ScanPage() {
     setDetectedTime(null); setMatchedSwimmer(null);
     setShowPicker(false); setSingleSaved(false);
     setEventRows([]); setSelectedRows(new Set());
-    setSavingSelected(false); setSavedNames([]);
+    setSavingSelected(false); setSavedNames([]); setRowTypes({});
     setShowInfo(false);
     if (ref1.current) ref1.current.value = "";
     if (ref2.current) ref2.current.value = "";
@@ -249,7 +254,59 @@ export default function ScanPage() {
       if (!row) continue;
 
       const matched = fuzzyMatchSwimmer(row.name, swimmers);
-      if (!matched) { errors.push(`${row.name}: no matching swimmer profile`); continue; }
+      if (!matched) {
+        // Auto-create the swimmer from OCR data
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) { errors.push(`${row.name}: not logged in`); continue; }
+
+        // Look up school code in sg_schools — NSG uses school codes not club codes
+        let schoolName: string | null = null;
+        let clubName: string | null = null;
+        if (row.club) {
+          const { data: schoolRow } = await supabase
+            .from("sg_schools")
+            .select("full_name")
+            .eq("code", row.club.trim().toUpperCase())
+            .maybeSingle();
+          if (schoolRow) {
+            schoolName = schoolRow.full_name;
+          } else {
+            clubName = row.club; // not a school code — treat as swim club
+          }
+        }
+
+        const { data: newSwimmer, error: createErr } = await supabase
+          .from("swimmers")
+          .insert({
+            user_id: user.id,
+            name: row.name.trim(),
+            age: row.age ?? null,
+            swim_club: clubName,
+            school: schoolName,
+            group_type: rowTypes[index] === "mine" ? "primary" : "following",
+            status: "Active",
+          })
+          .select().single();
+        if (createErr || !newSwimmer) { errors.push(`${row.name}: couldn't create profile`); continue; }
+        // Reload swimmers list so they appear going forward
+        await loadSwimmers();
+        // Use the newly created swimmer
+        const eventName2 = canonicalEventName(row.event ?? "");
+        const courseName2 = canonicalCourse(row.course ?? "LCM");
+        if (!eventName2) { errors.push(`${row.name}: no event`); continue; }
+        await supabase.from("swim_times").insert({
+          swimmer_id: newSwimmer.id,
+          event: eventName2,
+          course: courseName2,
+          time_ms: row.timeMs,
+          place: row.place ?? null,
+          meet_name: row.meetName ?? null,
+          swam_at: row.swamAt ?? null,
+          meet_type: meetType,
+        });
+        saved.push(`${row.name} (added)`);
+        continue;
+      }
 
       const eventName = canonicalEventName(row.event ?? "");
       const courseName = canonicalCourse(row.course ?? "LCM");
@@ -263,6 +320,15 @@ export default function ScanPage() {
 
       if (existing && existing.length > 0) { errors.push(`${row.name}: already saved`); continue; }
 
+      // NSG: fill school from sg_schools if not already set on this swimmer
+      if (row.club && meetType === "NSG" && !matched.school) {
+        const { data: schoolRow } = await supabase
+          .from("sg_schools").select("full_name")
+          .eq("code", row.club.trim().toUpperCase()).maybeSingle();
+        if (schoolRow) {
+          await supabase.from("swimmers").update({ school: schoolRow.full_name }).eq("id", matched.id);
+        }
+      }
       const { error } = await supabase.from("swim_times").insert({
         swimmer_id: matched.id,
         event: eventName,
@@ -293,7 +359,7 @@ export default function ScanPage() {
     setProgress(0); setMessage(""); setRawText("");
     setScanMode(null); setDetectedEvent(null);
     setDetectedTime(null); setMatchedSwimmer(null); setShowPicker(false);
-    setSingleSaved(false); setEventRows([]); setSelectedRows(new Set()); setSavedNames([]);
+    setSingleSaved(false); setEventRows([]); setSelectedRows(new Set()); setSavedNames([]); setRowTypes({});
 
     try {
       const files = [file1, file2].filter(Boolean) as File[];
@@ -481,6 +547,14 @@ export default function ScanPage() {
         {step === "done" && (
           <div className="space-y-4">
 
+            {/* ── Raw OCR debug — remove before release ── */}
+            {rawText && (
+              <details className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                <summary className="cursor-pointer text-xs text-white/30 select-none">🔍 Raw OCR text (debug)</summary>
+                <pre className="mt-2 text-[10px] text-white/40 whitespace-pre-wrap break-all max-h-48 overflow-y-auto">{rawText}</pre>
+              </details>
+            )}
+
             {message && (
               <div
                 className="rounded-2xl border p-3 text-sm"
@@ -581,14 +655,13 @@ export default function ScanPage() {
                   const isSelected = selectedRows.has(index);
                   const alreadySaved = savedNames.includes(row.name);
                   const hasProfile = !!fuzzyMatchSwimmer(row.name, swimmers);
+                  const rowType = rowTypes[index] ?? "follow";
+                  const isNew = !hasProfile && !alreadySaved;
 
                   return (
-                    <button
+                    <div
                       key={index}
-                      type="button"
-                      onClick={() => !alreadySaved && toggleRow(index)}
-                      disabled={alreadySaved}
-                      className="w-full rounded-2xl border p-3 text-left transition"
+                      className="rounded-2xl border overflow-hidden transition"
                       style={
                         alreadySaved
                           ? { background: "rgba(186,117,23,0.08)", border: "1px solid rgba(186,117,23,0.2)", opacity: 0.6 }
@@ -597,7 +670,13 @@ export default function ScanPage() {
                           : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }
                       }
                     >
-                      <div className="flex items-center gap-3">
+                      {/* ── Tap row to select ── */}
+                      <button
+                        type="button"
+                        onClick={() => !alreadySaved && toggleRow(index)}
+                        disabled={alreadySaved}
+                        className="flex w-full items-center gap-3 p-3 text-left"
+                      >
                         <div
                           className="h-5 w-5 flex-shrink-0 rounded-md flex items-center justify-center"
                           style={
@@ -614,12 +693,15 @@ export default function ScanPage() {
                         </div>
                         <span className="text-xs text-white/30 w-8 flex-shrink-0">#{row.place}</span>
                         <div className="min-w-0 flex-1">
-                          <p
-                            className="truncate text-sm font-semibold"
-                            style={{ color: hasProfile ? "#EF9F27" : "white" }}
-                          >
+                          <p className="truncate text-sm font-semibold" style={{ color: hasProfile ? "#EF9F27" : "white" }}>
                             {row.name}
                             {hasProfile && <span className="ml-2 text-[10px] opacity-60">in app</span>}
+                            {!hasProfile && (
+                              <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                                style={{ background: "rgba(52,211,153,0.15)", color: "#34D399", border: "1px solid rgba(52,211,153,0.3)" }}>
+                                NEW
+                              </span>
+                            )}
                           </p>
                           {row.club && (
                             <p className="text-xs text-white/30">
@@ -628,8 +710,35 @@ export default function ScanPage() {
                           )}
                         </div>
                         <p className="flex-shrink-0 text-sm font-semibold text-white">{row.timeStr}</p>
-                      </div>
-                    </button>
+                      </button>
+
+                      {/* ── Mine / Follow toggle for new swimmers ── */}
+                      {isNew && isSelected && (
+                        <div className="flex" style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                          <button
+                            type="button"
+                            onClick={() => setRowTypes((p) => ({ ...p, [index]: "mine" }))}
+                            className="flex-1 py-2 text-xs font-semibold transition"
+                            style={rowType === "mine"
+                              ? { background: "rgba(217,119,6,0.25)", color: "#FDE68A" }
+                              : { color: "rgba(255,255,255,0.35)" }}
+                          >
+                            👤 My swimmer
+                          </button>
+                          <div style={{ width: 1, background: "rgba(255,255,255,0.08)" }} />
+                          <button
+                            type="button"
+                            onClick={() => setRowTypes((p) => ({ ...p, [index]: "follow" }))}
+                            className="flex-1 py-2 text-xs font-semibold transition"
+                            style={rowType === "follow"
+                              ? { background: "rgba(99,179,237,0.2)", color: "#90CDF4" }
+                              : { color: "rgba(255,255,255,0.35)" }}
+                          >
+                            👁 Following
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
 
