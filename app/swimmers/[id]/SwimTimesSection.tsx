@@ -422,9 +422,17 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
                       </div>
                       <div className="text-right flex-shrink-0">
                         <p className="text-sm font-bold" style={{ color: "#FDE68A" }}>{formatMs(eg.pb.time_ms)}</p>
-                        {eg.pb.swam_at && (
-                          <p className="text-[10px] text-white/30 mt-0.5">{formatDate(eg.pb.swam_at)}</p>
-                        )}
+                        <div className="flex items-center justify-end gap-1 mt-0.5">
+                          {eg.pb.place != null && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                              style={{ background: "rgba(99,179,237,0.15)", color: "#90CDF4", border: "1px solid rgba(99,179,237,0.25)" }}>
+                              {eg.pb.place}{eg.pb.place === 1 ? "st" : eg.pb.place === 2 ? "nd" : eg.pb.place === 3 ? "rd" : "th"}
+                            </span>
+                          )}
+                          {eg.pb.swam_at && (
+                            <p className="text-[10px] text-white/30">{formatDate(eg.pb.swam_at)}</p>
+                          )}
+                        </div>
                       </div>
                       <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
                         className="flex-shrink-0 text-white/20 transition-transform"
@@ -524,18 +532,8 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
                                         PB
                                       </span>
                                     )}
-                                  {time.place != null && (
-                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                                      style={{ background: "rgba(99,179,237,0.15)", color: "#90CDF4", border: "1px solid rgba(99,179,237,0.25)" }}>
-                                      {time.place}{time.place === 1 ? "st" : time.place === 2 ? "nd" : time.place === 3 ? "rd" : "th"}
-                                    </span>
-                                  )}
-                                  {time.place != null && (
-                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                                      style={{ background: "rgba(99,179,237,0.15)", color: "#90CDF4", border: "1px solid rgba(99,179,237,0.25)" }}>
-                                      {time.place}{time.place === 1 ? "st" : time.place === 2 ? "nd" : time.place === 3 ? "rd" : "th"}
-                                    </span>
-                                  )}
+
+
                                   </div>
                                   <p className="text-[11px] text-white/35 mt-0.5">
                                     {time.meet_name || "—"}

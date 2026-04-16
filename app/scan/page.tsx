@@ -547,14 +547,6 @@ export default function ScanPage() {
         {step === "done" && (
           <div className="space-y-4">
 
-            {/* ── Raw OCR debug — remove before release ── */}
-            {rawText && (
-              <details className="rounded-2xl border border-white/10 bg-white/5 p-3">
-                <summary className="cursor-pointer text-xs text-white/30 select-none">🔍 Raw OCR text (debug)</summary>
-                <pre className="mt-2 text-[10px] text-white/40 whitespace-pre-wrap break-all max-h-48 overflow-y-auto">{rawText}</pre>
-              </details>
-            )}
-
             {message && (
               <div
                 className="rounded-2xl border p-3 text-sm"

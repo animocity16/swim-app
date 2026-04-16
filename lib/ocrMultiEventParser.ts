@@ -30,7 +30,7 @@ type ParseOptions = {
 };
 
 const EVENT_DISTANCES = [50, 100, 200, 400, 800, 1500];
-const SPLIT_DISTANCES = [50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600, 650, 700, 750, 800, 1500];
+const SPLIT_DISTANCES = [25, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600, 650, 700, 750, 800, 1500];
 
 function normalizeText(value: string) {
   return value
@@ -94,7 +94,7 @@ function fourDigitToMs(raw: string): number | null {
   return Math.round(sec * 1000);
 }
 
-function extractPlace(line: string): number | null {
+function extractPlace(line: string, nextLine: string = ""): number | null {
   // "PLACE 6", "place: 6", "place|6"
   const placeMatch = line.match(/place[:\s|]*([0-9]{1,3})/i);
   if (placeMatch) {
@@ -106,6 +106,14 @@ function extractPlace(line: string): number | null {
   if (finalsMatch) {
     const parsed = parseInt(finalsMatch[1], 10);
     if (!Number.isNaN(parsed) && parsed >= 1 && parsed <= 999) return parsed;
+  }
+  // "PLACE FINALS ENTRY" on one line, "1 36.39 36.50" on next
+  if (/^PLACE\s+(FINALS|SEMI|ENTRY)/i.test(line) && nextLine) {
+    const m = nextLine.match(/^(\d{1,3})\s/);
+    if (m) {
+      const p = parseInt(m[1], 10);
+      if (!isNaN(p) && p >= 1 && p <= 999) return p;
+    }
   }
   return null;
 }
@@ -201,6 +209,16 @@ function extractMeetName(rawText: string): string | null {
     .map((l) => l.trim())
     .filter(Boolean);
 
+  // Strategy 0: NSG meet name — OCR garbles "EVENT" as "EUS" or similar
+  // Look for lines containing NSG/SPSSC/JR keywords directly
+  for (const line of lines.slice(0, 10)) {
+    if (/\bNSG\b/i.test(line) || /\bSPSSC\b/i.test(line)) {
+      // Strip leading garbled chars (EUS, &, etc.) before the real meet name
+      const cleaned = line.replace(/^[^A-Z0-9]*(?:EUS|EVENT)?\s*/i, "").trim();
+      if (cleaned.length >= 4) return cleaned;
+    }
+  }
+
   // Strategy 1: "EVENT [meet name]"
   for (const line of lines) {
     const eventMatch = line.match(/^EVENT\s+(.+)$/i);
@@ -209,6 +227,8 @@ function extractMeetName(rawText: string): string | null {
       if (/^\d+$/.test(candidate)) continue;
       if (detectStroke(candidate) !== null && detectDistance(candidate) !== null) continue;
       if (candidate.length < 4) continue;
+      // Block known non-meet-name keywords
+      if (/^(summary|details|results|splits|total|completed|entry|finals|heat|lane|status|dropped|seed)$/i.test(candidate)) continue;
       return candidate;
     }
   }
@@ -375,17 +395,9 @@ function parseSingleSplitScreen(rawText: string, lines: string[], options: Parse
   let place: number | null = null;
   for (let li = 0; li < lines.length; li++) {
     const line = lines[li];
-    const maybePlace = extractPlace(line);
+    const nextLineStr = li + 1 < lines.length ? lines[li + 1] : "";
+    const maybePlace = extractPlace(line, nextLineStr);
     if (maybePlace != null) { place = maybePlace; break; }
-    // "PLACE FINALS ENTRY" header → next line has "6 37.70 38.74"
-    if (/^PLACE\s+FINALS/i.test(line) || /^PLACE\s+SEMI/i.test(line)) {
-      const nextLine = lines[li + 1] ?? "";
-      const m = nextLine.match(/^(\d{1,3})/);
-      if (m) {
-        const p = parseInt(m[1], 10);
-        if (!isNaN(p) && p >= 1 && p <= 999) { place = p; break; }
-      }
-    }
   }
 
   let splits: ParsedSplit[] = [];
@@ -508,7 +520,7 @@ function parseNormalEventBlocks(rawText: string, lines: string[], options: Parse
       const nextCourse = detectCourse(next);
       if (nextCourse !== "UNKNOWN") foundCourse = nextCourse;
 
-      const maybePlace = extractPlace(next);
+      const maybePlace = extractPlace(next, j + 1 < lines.length ? lines[j + 1] : "");
       if (maybePlace != null) foundPlace = maybePlace;
 
       if (j > i + 1 && looksLikeNormalEventLine(next)) {
