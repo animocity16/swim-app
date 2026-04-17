@@ -275,6 +275,9 @@ export default function ScanPage() {
           }
         }
 
+        // ✅ FIX: Removed status: "Active" — that column does not exist in the schema
+        // and was silently causing all NEW swimmer profile creation to fail.
+        // ✅ FIX: Surface the actual Supabase error message so we can debug if it fails again.
         const { data: newSwimmer, error: createErr } = await supabase
           .from("swimmers")
           .insert({
@@ -284,13 +287,16 @@ export default function ScanPage() {
             swim_club: clubName,
             school: schoolName,
             group_type: rowTypes[index] === "mine" ? "primary" : "following",
-            status: "Active",
           })
           .select().single();
-        if (createErr || !newSwimmer) { errors.push(`${row.name}: couldn't create profile`); continue; }
+        if (createErr || !newSwimmer) {
+          errors.push(`${row.name}: couldn't create profile${createErr ? ` (${createErr.message})` : ""}`);
+          continue;
+        }
+
         // Reload swimmers list so they appear going forward
         await loadSwimmers();
-        // Use the newly created swimmer
+        // Save their swim time
         const eventName2 = canonicalEventName(row.event ?? "");
         const courseName2 = canonicalCourse(row.course ?? "LCM");
         if (!eventName2) { errors.push(`${row.name}: no event`); continue; }
