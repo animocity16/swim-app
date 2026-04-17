@@ -42,14 +42,10 @@ export type ParsedEventResults = {
 // ✅ Repair common OCR time manglings
 function repairTime(raw: string): string | null {
   const s = raw.trim();
-  // Already correct
   if (/^\d{1,2}:\d{2}\.\d{2}$/.test(s)) return s;
   if (/^\d{2}\.\d{2}$/.test(s)) return s;
-  // "1:2512" → "1:25.12"
   if (/^\d{1}:\d{4}$/.test(s)) return `${s[0]}:${s.slice(2, 4)}.${s.slice(4)}`;
-  // "12466" → "1:24.66"
   if (/^\d{5}$/.test(s)) return `${s[0]}:${s.slice(1, 3)}.${s.slice(3)}`;
-  // "4278" or "3953" or "4315" → "42.78" / "39.53" / "43.15"
   if (/^\d{4}$/.test(s)) return `${s.slice(0, 2)}.${s.slice(2)}`;
   return null;
 }
@@ -129,48 +125,82 @@ function extractMeetName(lines: string[]): string | null {
   return null;
 }
 
-// ✅ Extract place number — handles all real OCR variants:
-//   "4 CSC..."     → 4   (plain number)
-//   "(9) TLSC..."  → 9   (bracketed)
-//   "4A aAas..."   → 4   (number + letter suffix e.g. "4A")
-//   "6G spasio..." → 6   (number + letter suffix e.g. "6G")
-//   "/ ssclio..."  → 7   ("/" misread as 7 — treat as no match, handled separately)
-//   "10 SSC..."    → 10  (two digit)
-function extractPlaceFromLine(line: string): number | null {
-  const s = line.trim();
-
-  // Bracketed: "(9)" or "(10)"
-  const bracketMatch = s.match(/^\((\d{1,3})\)/);
-  if (bracketMatch) {
-    const n = parseInt(bracketMatch[1], 10);
-    return isNaN(n) ? null : n;
+// ✅ Extract age group from the event header or section header.
+// Used as a fallback when individual club/age lines can't be parsed cleanly.
+//
+// Handles:
+//   "10 Year Olds"              → 10
+//   "Girls 9-10 50 Meter Free"  → 10 (upper bound of range)
+//   "Boys 11-12 100 Backstroke" → 12
+function extractAgeGroupFromText(rawText: string): number | null {
+  // "10 Year Olds" — Meet Mobile section header (most reliable)
+  const yearOldsMatch = rawText.match(/\b(\d{1,2})\s+[Yy]ear\s+[Oo]lds?\b/);
+  if (yearOldsMatch) {
+    const age = parseInt(yearOldsMatch[1], 10);
+    if (age >= 6 && age <= 18) return age;
   }
 
-  // Number optionally followed by a letter: "4A", "6G", "10", "4"
-  const plainMatch = s.match(/^(\d{1,3})[A-Za-z]?\s/);
-  if (plainMatch) {
-    const n = parseInt(plainMatch[1], 10);
-    return isNaN(n) || n < 1 || n > 999 ? null : n;
+  // "Girls 9-10" or "Boys 11-12" in event title
+  const ageRangeMatch = rawText.match(/(?:Girls|Boys|Women|Men)\s+(\d{1,2})-(\d{1,2})/i);
+  if (ageRangeMatch) {
+    const upper = parseInt(ageRangeMatch[2], 10);
+    if (upper >= 6 && upper <= 18) return upper;
+  }
+
+  // Single age: "Girls 10 50 Meter Free"
+  const singleAgeMatch = rawText.match(
+    /(?:Girls|Boys|Women|Men)\s+(\d{1,2})\s+(?:\d+\s+)?(?:Meter|Yard|Free|Back|Breast|Fly|IM)/i
+  );
+  if (singleAgeMatch) {
+    const age = parseInt(singleAgeMatch[1], 10);
+    if (age >= 6 && age <= 18) return age;
   }
 
   return null;
 }
 
-// ✅ Extract club and age from the place line
-// Handles: "4 CSC | 10 TIME", "(9) TLSC | 10 TIME", "4A aAas|10 TIME", "/ ssclio TIVE"
+// ✅ Apply age-group fallback to swimmers where age is null.
+function applyAgeGroupFallback(results: EventResultRow[], rawText: string): EventResultRow[] {
+  if (!results.some((r) => r.age === null)) return results;
+  const fallbackAge = extractAgeGroupFromText(rawText);
+  if (fallbackAge === null) return results;
+  return results.map((r) => (r.age === null ? { ...r, age: fallbackAge } : r));
+}
+
+// ✅ Extract place number — handles all real OCR variants
+function extractPlaceFromLine(line: string): number | null {
+  const s = line.trim();
+  const bracketMatch = s.match(/^\((\d{1,3})\)/);
+  if (bracketMatch) {
+    const n = parseInt(bracketMatch[1], 10);
+    return isNaN(n) ? null : n;
+  }
+  const plainMatch = s.match(/^(\d{1,3})[A-Za-z]?\s/);
+  if (plainMatch) {
+    const n = parseInt(plainMatch[1], 10);
+    return isNaN(n) || n < 1 || n > 999 ? null : n;
+  }
+  return null;
+}
+
+// ✅ Extract club and age from the place/club line.
 //
-// KEY FIX: The previous regex T?I?V?E? only stripped the trailing 'E' from "TIME",
-// leaving "TIM" in the club name. Now uses explicit word-boundary match for all TIME variants.
-// Also strips OCR artifacts where "CSC | 10" is read as "csclio" (merging "|10").
+// KEY FIXES applied here:
+//   1. Proper TIME stripping — old regex only stripped trailing 'E', leaving 'TIM'
+//   2. OCR garble detection: "CSC | 10" often reads as "csclio":
+//        l = "|" (pipe), i = "1", o = "0"  → suffix "lio" = age 10
+//        suffix "lo" = likely age 10
+//        suffix "io" = likely age 10
+//   3. "AcEl" pattern: "ACE | 1[0]" where final 0 dropped by OCR → age ambiguous
 function extractClubAge(line: string): { club: string | null; age: number | null } {
   let rest = line
     .replace(/^\(\d{1,3}\)\s*/, "")          // remove "(9) "
     .replace(/^\d{1,3}[A-Za-z]?\s+/, "")     // remove "4 " or "4A "
-    .replace(/^\/\s*/, "")                    // remove leading "/" (OCR misread of 7)
-    .replace(/\s*\b(?:TIME|TIVE|TIIME|TIM)\b\s*$/i, "") // ✅ strip all TIME/TIVE/TIM variants
+    .replace(/^\/\s*/, "")                    // remove leading "/"
+    .replace(/\s*\b(?:TIME|TIVE|TIIME|TIM)\b\s*$/i, "") // ✅ strip all TIME variants
     .trim();
 
-  // Strategy 1: Separator-based age extraction — "CSC | 10" or "TLSC | 10"
+  // Strategy 1: Clean separator — "CSC | 10" or "TLSC | 10"
   const ageMatch = rest.match(/[\[|,\s]+(\d{1,2})\s*$/);
   if (ageMatch) {
     const age = parseInt(ageMatch[1], 10);
@@ -179,29 +209,40 @@ function extractClubAge(line: string): { club: string | null; age: number | null
     return { club, age: isNaN(age) ? null : age };
   }
 
-  // Strategy 2: All-alpha rest with no separator — likely OCR garble of "CLUB | 10"
-  // OCR commonly reads "CSC | 10" as "csclio", "csclo", "csc|o", "APSCio" etc.
-  // The trailing "lio", "lo", "io", "clo" are artifacts of "|10" being merged.
-  let club = rest.replace(/[^A-Za-z\s\-]/g, "").trim() || null;
-  if (club && club.length > 5 && !/\s/.test(club)) {
-    // Strip known trailing OCR artifacts of "| 10"
-    const degarbled = club.replace(/(?:c?lio|clo|slo|lo|io)$/i, "").trim();
-    if (degarbled.length >= 2) {
-      club = degarbled.toUpperCase();
+  // Strategy 2: All-alpha string — check for OCR garble of "| 10"
+  // "csclio" → l=|, i=1, o=0 → age=10, club="CSC"
+  // "aqlio"  → age=10, club="AQ" (J dropped by OCR)
+  // "APSCio" → age=10, club="APSC"
+  const onlyAlpha = /^[A-Za-z]+$/.test(rest);
+  if (onlyAlpha && rest.length >= 4) {
+    // "lio" suffix — most reliable (pipe + 1 + 0)
+    const lioMatch = rest.match(/^([A-Za-z]{2,6}?)(lio)$/i);
+    if (lioMatch && lioMatch[1].length >= 2) {
+      return { club: lioMatch[1].toUpperCase(), age: 10 };
+    }
+    // "lo" suffix
+    const loMatch = rest.match(/^([A-Za-z]{2,6}?)(lo)$/i);
+    if (loMatch && loMatch[1].length >= 2) {
+      return { club: loMatch[1].toUpperCase(), age: 10 };
+    }
+    // "io" suffix
+    const ioMatch = rest.match(/^([A-Za-z]{3,6}?)(io)$/i);
+    if (ioMatch && ioMatch[1].length >= 2) {
+      return { club: ioMatch[1].toUpperCase(), age: 10 };
+    }
+    // "El" or "el" suffix — e.g. "AcEl" from "ACE | 1[0]" where 0 was cut off
+    const elMatch = rest.match(/^([A-Za-z]{2,5})([Ee][Ll]|[Ll][Ee])$/);
+    if (elMatch && elMatch[1].length >= 2) {
+      return { club: elMatch[1].toUpperCase(), age: null }; // age ambiguous — fallback will apply
     }
   }
 
+  // Strategy 3: Return whatever's left as the club name
+  const club = rest.replace(/[^A-Za-z\s\-]/g, "").trim() || null;
   return { club, age: null };
 }
 
-// ✅ Check if a line is a PLACE line — also handles "PACE" (OCR dropped the L)
-function isPlaceLine(line: string): boolean {
-  return /^P[LA]?A?C?E?\s+[A-Za-z]/i.test(line) && /^PA?C?E?\s+[A-Za-z]/i.test(line);
-}
-
-// More reliable check
 function startsWithPlace(line: string): boolean {
-  // Matches "PLACE", "PACE" (missing L), at start of line followed by a name character
   return /^(?:PLACE|PACE)\s+[A-Za-z]/i.test(line);
 }
 
@@ -213,11 +254,13 @@ export function parseEventResultsOCR(rawText: string): ParsedEventResults {
   const numberedPlaceLines = lines.filter((l) => /^(?:PLACE|PACE)\s+\d{1,3}$/i.test(l));
   if (standalonePlaceLines.length >= 2 || numberedPlaceLines.length >= 2) {
     const nsgResult = parseNSGCardFormat(rawText);
-    if (nsgResult.results.length > 0) return nsgResult;
+    if (nsgResult.results.length > 0) {
+      nsgResult.results = applyAgeGroupFallback(nsgResult.results, rawText);
+      return nsgResult;
+    }
   }
 
-  // Try Name+Time format (OCR drops PLACE labels entirely — most common NSG/event page)
-  // ✅ Updated clubLineRe to handle OCR garble where "|10" is merged into the club code
+  // Try Name+Time format
   const timeAtEndRe = /\s(\d{1,2}:\d{2}\.\d{2}|\d{2}\.\d{2})$/;
   const clubLineRe = /[A-Z]{2,8}\s*(?:lio|lo|io|clo)?\s*(?:\|?\s*\d{1,2})?\s*(?:TIME|TIVE|TIM)?\s*$/i;
   let nameTimePairs = 0;
@@ -226,11 +269,16 @@ export function parseEventResultsOCR(rawText: string): ParsedEventResults {
   }
   if (nameTimePairs >= 2) {
     const ntResult = parseNameTimeFormat(rawText);
-    if (ntResult.results.length > 0) return ntResult;
+    if (ntResult.results.length > 0) {
+      ntResult.results = applyAgeGroupFallback(ntResult.results, rawText);
+      return ntResult;
+    }
   }
 
-  // Fall through to classic inline PLACE format
-  return parseInlineEventResultsOCR(rawText);
+  // Inline PLACE format
+  const inlineResult = parseInlineEventResultsOCR(rawText);
+  inlineResult.results = applyAgeGroupFallback(inlineResult.results, rawText);
+  return inlineResult;
 }
 
 function parseInlineEventResultsOCR(rawText: string): ParsedEventResults {
@@ -244,80 +292,54 @@ function parseInlineEventResultsOCR(rawText: string): ParsedEventResults {
   const swamAt = extractMeetDate(rawText);
   const meetName = extractMeetName(lines);
   const event = extractEventName(lines);
-
   const results: EventResultRow[] = [];
-
-  // Time pattern at end of line — handles normal and mangled formats
-  // ✅ Also handles pipe-separated: "Tessa Ng | 43.85"
   const timeAtEndRe = /[\s|]*(\d{1}:\d{4}|\d{1,2}:\d{2}\.\d{2}|\d{2}\.\d{2}|\d{4,5})$/;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-
-    // ✅ Match "PLACE" or "PACE" (OCR sometimes drops the L)
     if (!startsWithPlace(line)) continue;
 
-    // Everything after "PLACE " or "PACE "
     const afterPlace = line.replace(/^(?:PLACE|PACE)\s+/i, "").trim();
-
-    // Find time at end of line
     const timeMatch = afterPlace.match(timeAtEndRe);
     if (!timeMatch) continue;
 
-    const rawTimeStr = timeMatch[1];
-    const timeStr = repairTime(rawTimeStr);
+    const timeStr = repairTime(timeMatch[1]);
     if (!timeStr) continue;
-
     const timeMs = timeToMs(timeStr);
     if (timeMs <= 0 || timeMs > 1_800_000) continue;
 
-    // Name is everything before the time (and optional pipe separator)
     const nameRaw = afterPlace.slice(0, afterPlace.search(timeAtEndRe)).trim();
-    // Clean trailing pipe or spaces from name
     const name = nameRaw.replace(/[\s|]+$/, "").trim();
     if (!name || name.length < 2) continue;
 
-    // Look at next 1-2 lines for place number and club
     let place: number | null = null;
     let club: string | null = null;
     let age: number | null = null;
 
     for (let j = i + 1; j <= Math.min(i + 2, lines.length - 1); j++) {
       const next = lines[j];
-
-      // Skip dropped/improvement/star lines
       if (/dropped|improvement|\*|\[>/i.test(next)) continue;
-      // Skip if it's another PLACE/PACE line
       if (startsWithPlace(next)) break;
-
-      // ✅ Handle "/" as a mangled place number line (OCR read "7" as "/")
       if (/^\/\s+/.test(next)) {
         place = results.length + 1;
-        const clubAge = extractClubAge(next);
-        club = clubAge.club;
-        age = clubAge.age;
+        const ca = extractClubAge(next);
+        club = ca.club; age = ca.age;
         break;
       }
-
       const p = extractPlaceFromLine(next);
       if (p !== null) {
         place = p;
-        const clubAge = extractClubAge(next);
-        club = clubAge.club;
-        age = clubAge.age;
+        const ca = extractClubAge(next);
+        club = ca.club; age = ca.age;
         break;
       }
     }
 
-    if (place === null) place = results.length + 1; // infer from position
-
+    if (place === null) place = results.length + 1;
     results.push({ place, name, club, age, timeStr, timeMs, event, course, swamAt, meetName });
   }
 
-  // Sort by place
   results.sort((a, b) => a.place - b.place);
-
-  // Deduplicate by name
   const seen = new Set<string>();
   const deduped = results.filter((r) => {
     const key = r.name.toLowerCase();
@@ -325,163 +347,97 @@ function parseInlineEventResultsOCR(rawText: string): ParsedEventResults {
     seen.add(key);
     return true;
   });
-
   return { event, course, swamAt, meetName, results: deduped };
 }
 
-// ✅ Detect event results page — also handles "PACE" (OCR dropped L from PLACE)
 export function isEventResultsPage(rawText: string): boolean {
   const lines = rawText.split("\n").map((l) => l.trim());
+  if (lines.filter((l) => /^(?:PLACE|PACE)\s+[A-Za-z]/i.test(l)).length >= 2) return true;
+  if (lines.filter((l) => /^(?:PLACE|PACE)$/i.test(l)).length >= 2) return true;
+  if (lines.filter((l) => /^(?:PLACE|PACE)\s+\d{1,3}$/i.test(l)).length >= 2) return true;
 
-  // Format 1: "PLACE Swimmer Name 36.39" — classic Meet Mobile event rankings
-  const inlinePlaceLines = lines.filter((l) => /^(?:PLACE|PACE)\s+[A-Za-z]/i.test(l));
-  if (inlinePlaceLines.length >= 2) return true;
-
-  // Format 2: NSG card layout — "PLACE" on its own line
-  const standalonePlaceLines = lines.filter((l) => /^(?:PLACE|PACE)$/i.test(l));
-  if (standalonePlaceLines.length >= 2) return true;
-
-  // Format 3: "PLACE 1", "PLACE 2" etc
-  const numberedPlaceLines = lines.filter((l) => /^(?:PLACE|PACE)\s+\d{1,3}$/i.test(l));
-  if (numberedPlaceLines.length >= 2) return true;
-
-  // Format 4: NSG card where OCR drops PLACE labels entirely
-  // Produces: "Swimmer Name 36.39" then "CLUB | age TIME" on next line
-  // ✅ Updated to handle OCR garble ("csclio TIME", "APSC TIM" etc)
   const timeAtEndRe = /\s(\d{1,2}:\d{2}\.\d{2}|\d{2}\.\d{2})$/;
   const clubLineRe = /[A-Z]{2,8}\s*(?:lio|lo|io|clo)?\s*(?:\|?\s*\d{1,2})?\s*(?:TIME|TIVE|TIM)?\s*$/i;
-  let nameTimePairs = 0;
+  let pairs = 0;
   for (let i = 0; i < lines.length - 1; i++) {
-    if (timeAtEndRe.test(lines[i]) && clubLineRe.test(lines[i + 1])) {
-      nameTimePairs++;
-    }
+    if (timeAtEndRe.test(lines[i]) && clubLineRe.test(lines[i + 1])) pairs++;
   }
-  if (nameTimePairs >= 2) return true;
-
-  return false;
+  return pairs >= 2;
 }
 
-// Parse NSG format where OCR drops PLACE labels:
-// "Swimmer Name 36.39"
-// "MGS | 10 TIME"
-// "Dropped: – 0.11"  (optional)
 function parseNameTimeFormat(rawText: string): ParsedEventResults {
-  const lines = rawText
-    .replace(/\r/g, "\n")
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
-
+  const lines = rawText.replace(/\r/g, "\n").split("\n").map((l) => l.trim()).filter(Boolean);
   const course = detectCourse(rawText);
   const swamAt = extractMeetDate(rawText);
   const meetName = extractMeetName(lines);
   const event = extractEventName(lines);
-
   const results: EventResultRow[] = [];
   const timeAtEndRe = /\s(\d{1,2}:\d{2}\.\d{2}|\d{2}\.\d{2})$/;
-  // ✅ Updated to handle OCR garble: "csclio TIME", "APSC TIM", "CSC | 10 TIME"
   const clubLineRe = /^([A-Za-z]{2,8})\s*(?:\|?\s*(\d{1,2}))?\s*(?:TIME|TIVE|TIM)?\s*$/i;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const timeMatch = line.match(timeAtEndRe);
     if (!timeMatch) continue;
-
     const nextLine = lines[i + 1] ?? "";
     const clubMatch = nextLine.match(clubLineRe);
-    // Must have a club/TIME line right after to confirm this is a swimmer row
     if (!clubMatch) continue;
 
     const timeStr = timeMatch[1];
     const timeMs = timeToMs(timeStr);
     if (timeMs <= 0 || timeMs > 1_800_000) continue;
 
-    // Name is everything before the time
     const name = line.slice(0, line.lastIndexOf(timeMatch[0])).trim();
     if (!name || name.length < 3) continue;
-    // Skip non-name lines (event headers, meet info etc)
     if (/^\d|finals|results|completed|heats|swimmers|unofficial|am|pm/i.test(name)) continue;
 
-    // ✅ Extract club — handle garbled "|10" merges
-    let club = clubMatch[1]?.trim() ?? null;
-    if (club && club.length > 5 && !/\s/.test(club)) {
-      const degarbled = club.replace(/(?:c?lio|clo|slo|lo|io)$/i, "").trim();
-      if (degarbled.length >= 2) club = degarbled.toUpperCase();
+    // Use extractClubAge for consistency — handles garble patterns
+    const ca = extractClubAge(nextLine);
+    let club = ca.club;
+    let age = ca.age;
+
+    // Fallback to clean regex match if extractClubAge got confused
+    if (!age && clubMatch[2]) {
+      club = clubMatch[1].trim().toUpperCase();
+      age = parseInt(clubMatch[2], 10);
     }
-    const age = clubMatch[2] ? parseInt(clubMatch[2], 10) : null;
 
-    results.push({
-      place: results.length + 1,
-      name,
-      club,
-      age,
-      timeStr,
-      timeMs,
-      event,
-      course,
-      swamAt,
-      meetName,
-    });
-
-    i++; // skip the club line
+    results.push({ place: results.length + 1, name, club, age, timeStr, timeMs, event, course, swamAt, meetName });
+    i++;
   }
 
   return { event, course, swamAt, meetName, results };
 }
 
-// Parse the NSG card-style EVENT DETAILS page
-// OCR format per swimmer card:
-//   PLACE
-//   1
-//   Mikaela Yuet Xun Loh         (name — may be on same line as club info)
-//   MGS | 10
-//   36.39
-//   TIME
-//   Dropped: - 0.11              (optional)
 function parseNSGCardFormat(rawText: string): ParsedEventResults {
-  const lines = rawText
-    .replace(/\r/g, "\n")
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
-
+  const lines = rawText.replace(/\r/g, "\n").split("\n").map((l) => l.trim()).filter(Boolean);
   const course = detectCourse(rawText);
   const swamAt = extractMeetDate(rawText);
   const meetName = extractMeetName(lines);
   const event = extractEventName(lines);
-
   const results: EventResultRow[] = [];
 
   let i = 0;
   while (i < lines.length) {
     const line = lines[i];
-
-    // Detect start of a swimmer card: standalone "PLACE" or "PLACE 1" etc.
     const isPlaceStandalone = /^(?:PLACE|PACE)$/i.test(line);
     const isPlaceNumbered = /^(?:PLACE|PACE)\s+\d{1,3}$/i.test(line);
-
     if (!isPlaceStandalone && !isPlaceNumbered) { i++; continue; }
 
-    // Extract place number
     let place: number | null = null;
     let nameIdx = i + 1;
 
     if (isPlaceNumbered) {
       const m = line.match(/\d{1,3}/);
       if (m) place = parseInt(m[0], 10);
-      nameIdx = i + 1;
     } else {
-      // Standalone PLACE — next line should be the number
       const nextLine = lines[i + 1] ?? "";
       if (/^\d{1,3}$/.test(nextLine.trim())) {
         place = parseInt(nextLine.trim(), 10);
         nameIdx = i + 2;
-      } else {
-        nameIdx = i + 1;
       }
     }
 
-    // Next lines: name, club/age, time
     let name = "";
     let club: string | null = null;
     let age: number | null = null;
@@ -490,17 +446,11 @@ function parseNSGCardFormat(rawText: string): ParsedEventResults {
 
     for (let j = nameIdx; j < Math.min(nameIdx + 6, lines.length); j++) {
       const l = lines[j];
-
-      // Stop at next PLACE card
       if (/^(?:PLACE|PACE)/i.test(l)) break;
-      // Skip star/arrow/dropped lines
       if (/dropped|improvement|★|▷/i.test(l)) continue;
-      // Skip TIME label
       if (/^(?:TIME|TIVE|TIM)$/i.test(l)) continue;
-      // Skip status
       if (/completed|finals|unofficial|heats|swimmers/i.test(l)) continue;
 
-      // Time detection
       const timeMatch = l.match(/^(\d{1,2}:\d{2}\.\d{2}|\d{2}\.\d{2}|\d{4,5})$/);
       if (timeMatch && !timeStr) {
         const repaired = repairTime(timeMatch[1]);
@@ -508,7 +458,6 @@ function parseNSGCardFormat(rawText: string): ParsedEventResults {
         continue;
       }
 
-      // Club/age line: "MGS | 10" or "SSC | 9"
       const clubAgeMatch = l.match(/^([A-Z]{2,6})\s*[|]\s*(\d{1,2})$/i);
       if (clubAgeMatch) {
         club = clubAgeMatch[1].trim().toUpperCase();
@@ -516,33 +465,19 @@ function parseNSGCardFormat(rawText: string): ParsedEventResults {
         continue;
       }
 
-      // Name — first non-control line after place that's not a time/club
       if (!name && l.length >= 3 && /[A-Za-z]/.test(l) && !/^\d+$/.test(l)) {
         name = l.trim();
       }
     }
 
     if (name && timeStr && timeMs > 0 && timeMs < 1_800_000) {
-      results.push({
-        place: place ?? results.length + 1,
-        name,
-        club,
-        age,
-        timeStr,
-        timeMs,
-        event,
-        course,
-        swamAt,
-        meetName,
-      });
+      results.push({ place: place ?? results.length + 1, name, club, age, timeStr, timeMs, event, course, swamAt, meetName });
     }
 
     i++;
   }
 
   results.sort((a, b) => a.place - b.place);
-
-  // Deduplicate
   const seen = new Set<string>();
   const deduped = results.filter((r) => {
     const key = r.name.toLowerCase();
