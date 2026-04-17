@@ -3,6 +3,7 @@ import "./globals.css";
 import BottomNav from "@/app/components/BottomNav";
 import TutorialOverlay from "@/app/components/TutorialOverlay";
 import SplashScreen from "@/app/components/SplashScreen";
+import ThemeProvider from "@/app/components/ThemeProvider";
 
 export const metadata: Metadata = {
   title: "Natrix — Swim Tracker",
@@ -66,6 +67,9 @@ export default function RootLayout({
         />
       </head>
       <body>
+        {/* ✅ ThemeProvider — loads saved theme from Supabase on every app open */}
+        <ThemeProvider />
+
         {/* Splash screen — cold launch only, skipped when returning from background */}
         <SplashScreen />
 

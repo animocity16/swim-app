@@ -77,7 +77,6 @@ const THEMES: Record<string, ThemeVars> = {
 export function applyTheme(themeId: string) {
   const theme = THEMES[themeId] ?? THEMES.ocean;
 
-  // Set CSS vars for any components that use them
   const root = document.documentElement;
   root.style.setProperty("--theme-bg",     theme.bg);
   root.style.setProperty("--theme-dark",   theme.dark);
@@ -87,7 +86,6 @@ export function applyTheme(themeId: string) {
   root.style.setProperty("--theme-light3", theme.light3);
   root.style.setProperty("--theme-nav-bg", theme.navBg);
 
-  // Inject a <style> tag — this overrides everything in globals.css
   let styleEl = document.getElementById("natrix-theme");
   if (!styleEl) {
     styleEl = document.createElement("style");
@@ -122,10 +120,13 @@ export default function ThemeProvider() {
   useEffect(() => {
     void loadTheme();
 
+    // Also respond to auth events (login, logout, token refresh)
+    // Only apply theme when session is non-null — avoid resetting to ocean on logout
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
-        const themeId = session?.user?.user_metadata?.app_theme ?? "ocean";
-        applyTheme(themeId);
+        if (session?.user?.user_metadata?.app_theme) {
+          applyTheme(session.user.user_metadata.app_theme);
+        }
       }
     );
 
@@ -133,8 +134,11 @@ export default function ThemeProvider() {
   }, []);
 
   async function loadTheme() {
-    const { data: { user } } = await supabase.auth.getUser();
-    const themeId = user?.user_metadata?.app_theme ?? "ocean";
+    // ✅ Use getSession() — reads from local cache, no network call required.
+    // This is instant on app open, works on slow connections, and is more reliable
+    // than getUser() which requires a round-trip to Supabase's auth server.
+    const { data: { session } } = await supabase.auth.getSession();
+    const themeId = session?.user?.user_metadata?.app_theme ?? "ocean";
     applyTheme(themeId);
   }
 
