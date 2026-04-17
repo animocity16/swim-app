@@ -72,10 +72,16 @@ const THEMES: Record<string, ThemeVars> = {
   },
 };
 
-// ─── Public helper — injects a <style> tag so changes are guaranteed ──────────
+// ─── localStorage key ─────────────────────────────────────────────────────────
+const THEME_KEY = "natrix_theme";
+
+// ─── Public helper ─────────────────────────────────────────────────────────────
 
 export function applyTheme(themeId: string) {
   const theme = THEMES[themeId] ?? THEMES.ocean;
+
+  // ✅ Always write to localStorage so the next app open is instant (no flash)
+  try { localStorage.setItem(THEME_KEY, themeId); } catch {}
 
   const root = document.documentElement;
   root.style.setProperty("--theme-bg",     theme.bg);
@@ -118,14 +124,25 @@ export function applyTheme(themeId: string) {
 
 export default function ThemeProvider() {
   useEffect(() => {
-    void loadTheme();
+    // ✅ Step 1: Read from localStorage INSTANTLY — synchronous, no network, no flash.
+    // This fires on the very first paint before any async call can resolve.
+    try {
+      const cached = localStorage.getItem(THEME_KEY);
+      if (cached && THEMES[cached]) {
+        applyTheme(cached);
+      }
+    } catch {}
 
-    // Also respond to auth events (login, logout, token refresh)
-    // Only apply theme when session is non-null — avoid resetting to ocean on logout
+    // ✅ Step 2: Verify with Supabase in background.
+    // If the server has a different value (e.g. changed on another device), sync it.
+    void loadThemeFromSupabase();
+
+    // ✅ Step 3: Keep in sync on login/logout/token refresh.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
-        if (session?.user?.user_metadata?.app_theme) {
-          applyTheme(session.user.user_metadata.app_theme);
+        const themeId = session?.user?.user_metadata?.app_theme;
+        if (themeId && THEMES[themeId]) {
+          applyTheme(themeId);
         }
       }
     );
@@ -133,13 +150,16 @@ export default function ThemeProvider() {
     return () => subscription.unsubscribe();
   }, []);
 
-  async function loadTheme() {
-    // ✅ Use getSession() — reads from local cache, no network call required.
-    // This is instant on app open, works on slow connections, and is more reliable
-    // than getUser() which requires a round-trip to Supabase's auth server.
-    const { data: { session } } = await supabase.auth.getSession();
-    const themeId = session?.user?.user_metadata?.app_theme ?? "ocean";
-    applyTheme(themeId);
+  async function loadThemeFromSupabase() {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const themeId = session?.user?.user_metadata?.app_theme;
+      if (themeId && THEMES[themeId]) {
+        applyTheme(themeId); // also updates localStorage for next open
+      }
+    } catch {
+      // Offline or network error — localStorage backup already applied, all good
+    }
   }
 
   return null;
