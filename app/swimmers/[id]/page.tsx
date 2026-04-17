@@ -448,7 +448,7 @@ export default function SwimmerProfilePage() {
                 <input value={editForm.name} onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))} className="input text-lg font-semibold" placeholder="Full name" />
               </div>
               <div>
-                <FieldLabel>Age</FieldLabel>
+                <FieldLabel>Race Age</FieldLabel>
                 <input value={editForm.age} onChange={(e) => setEditForm((p) => ({ ...p, age: e.target.value }))} className="input text-center text-lg font-semibold" inputMode="numeric" placeholder="—" />
               </div>
             </div>

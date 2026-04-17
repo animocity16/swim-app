@@ -223,7 +223,7 @@ export default function SwimmersPage() {
           <div className="rounded-3xl border border-white/10 bg-white/5 p-5 space-y-3">
             <h2 className="text-lg font-semibold text-white">Add swimmer</h2>
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" className="input" />
-            <input value={age} onChange={(e) => setAge(e.target.value)} placeholder="Age" inputMode="numeric" className="input" />
+            <input value={age} onChange={(e) => setAge(e.target.value)} placeholder="Race Age" inputMode="numeric" className="input" />
 
             <div className="grid grid-cols-2 gap-2">
               {(["Male", "Female"] as const).map((g) => (
