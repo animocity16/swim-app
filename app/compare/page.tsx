@@ -12,6 +12,7 @@ type Swimmer = {
   name: string;
   age: number;
   swim_club?: string | null;
+  school?: string | null;
   group_type?: string | null;
   gender?: string | null;
 };
@@ -24,6 +25,7 @@ type SwimTimeRow = {
 };
 
 type EventKey = string;
+type FilterMode = "all" | "club" | "school";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -63,10 +65,6 @@ function shortName(name: string): string {
   return `${parts[0]} ${parts[parts.length - 1][0]}.`;
 }
 
-function getInitialFirst(name: string): string {
-  return name.trim().split(" ")[0];
-}
-
 const AVATAR_COLORS = [
   { bg: "#92400E", text: "#FDE68A" },
   { bg: "#1E3A5F", text: "#93C5FD" },
@@ -97,12 +95,12 @@ function getEventDistance(event: string): number {
   return match ? Number(match[0]) : 9999;
 }
 
-const RANK_STYLES: Record<number, { bg: string; border: string; numColor: string; label: string }> = {
-  1: { bg: "rgba(234,179,8,0.15)",  border: "rgba(234,179,8,0.4)",   numColor: "#FDE68A", label: "1st" },
-  2: { bg: "rgba(148,163,184,0.12)", border: "rgba(148,163,184,0.3)", numColor: "#CBD5E1", label: "2nd" },
-  3: { bg: "rgba(180,100,50,0.15)", border: "rgba(180,100,50,0.35)",  numColor: "#FDBA74", label: "3rd" },
-  4: { bg: "rgba(255,255,255,0.05)", border: "rgba(255,255,255,0.1)", numColor: "rgba(255,255,255,0.4)", label: "4th" },
-  5: { bg: "rgba(255,255,255,0.03)", border: "rgba(255,255,255,0.08)", numColor: "rgba(255,255,255,0.3)", label: "5th" },
+const RANK_STYLES: Record<number, { bg: string; border: string; numColor: string }> = {
+  1: { bg: "rgba(234,179,8,0.15)",   border: "rgba(234,179,8,0.4)",    numColor: "#FDE68A" },
+  2: { bg: "rgba(148,163,184,0.12)", border: "rgba(148,163,184,0.3)",  numColor: "#CBD5E1" },
+  3: { bg: "rgba(180,100,50,0.15)",  border: "rgba(180,100,50,0.35)",  numColor: "#FDBA74" },
+  4: { bg: "rgba(255,255,255,0.05)", border: "rgba(255,255,255,0.1)",  numColor: "rgba(255,255,255,0.4)" },
+  5: { bg: "rgba(255,255,255,0.03)", border: "rgba(255,255,255,0.08)", numColor: "rgba(255,255,255,0.3)" },
 };
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -118,6 +116,10 @@ export default function ComparePage() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [timesMap, setTimesMap] = useState<Map<number, SwimTimeRow[]>>(new Map());
 
+  const [filterMode, setFilterMode] = useState<FilterMode>("all");
+  const [selectedClub, setSelectedClub] = useState<string | null>(null);
+  const [selectedSchool, setSelectedSchool] = useState<string | null>(null);
+
   useEffect(() => { void init(); }, []);
 
   async function init() {
@@ -126,7 +128,7 @@ export default function ComparePage() {
 
     const { data } = await supabase
       .from("swimmers")
-      .select("id, name, age, swim_club, group_type, gender")
+      .select("id, name, age, swim_club, school, group_type, gender")
       .order("group_type", { ascending: false })
       .order("name", { ascending: true });
 
@@ -155,9 +157,7 @@ export default function ComparePage() {
 
   async function toggleSelected(id: number) {
     if (id === mySwimmerId) return;
-
     const isSelected = selectedIds.has(id);
-
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (isSelected) { next.delete(id); return next; }
@@ -165,7 +165,6 @@ export default function ComparePage() {
       next.add(id);
       return next;
     });
-
     if (!isSelected && !timesMap.has(id)) {
       setLoadingTimes(true);
       const updated = await loadTimesForSwimmer(id, timesMap);
@@ -177,6 +176,9 @@ export default function ComparePage() {
   async function handleMySwimmerChange(id: number) {
     setMySwimmerId(id);
     setSelectedIds(new Set());
+    setFilterMode("all");
+    setSelectedClub(null);
+    setSelectedSchool(null);
     if (!timesMap.has(id)) {
       setLoadingTimes(true);
       const updated = await loadTimesForSwimmer(id, timesMap);
@@ -184,6 +186,50 @@ export default function ComparePage() {
       setLoadingTimes(false);
     }
   }
+
+  function handleFilterMode(mode: FilterMode) {
+    setFilterMode(mode);
+    setSelectedClub(null);
+    setSelectedSchool(null);
+  }
+
+  // ─── Derived data ──────────────────────────────────────────────────────────
+
+  const primarySwimmers = allSwimmers.filter((s) => s.group_type === "primary");
+  const followingSwimmers = allSwimmers.filter((s) => s.group_type === "following");
+  const mySwimmer = allSwimmers.find((s) => s.id === mySwimmerId) ?? null;
+  const selectedSwimmers = allSwimmers.filter((s) => selectedIds.has(s.id));
+
+  // All unique clubs from following list
+  const clubOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const s of followingSwimmers) {
+      if (s.swim_club?.trim()) set.add(s.swim_club.trim());
+    }
+    return Array.from(set).sort();
+  }, [followingSwimmers]);
+
+  // All unique schools from following list
+  const schoolOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const s of followingSwimmers) {
+      if (s.school?.trim()) set.add(s.school.trim());
+    }
+    return Array.from(set).sort();
+  }, [followingSwimmers]);
+
+  // Filtered swimmer list based on mode + selected pill
+  const filteredFollowing = useMemo(() => {
+    if (filterMode === "club" && selectedClub) {
+      return followingSwimmers.filter((s) => s.swim_club?.trim() === selectedClub);
+    }
+    if (filterMode === "school" && selectedSchool) {
+      return followingSwimmers.filter((s) => s.school?.trim() === selectedSchool);
+    }
+    return followingSwimmers;
+  }, [followingSwimmers, filterMode, selectedClub, selectedSchool]);
+
+  // ─── PB maps ───────────────────────────────────────────────────────────────
 
   const myPBMap = useMemo(() => {
     if (!mySwimmerId) return new Map<EventKey, number>();
@@ -230,12 +276,6 @@ export default function ComparePage() {
     return STROKE_ORDER.filter((s) => grouped.has(s)).map((s) => ({ stroke: s, events: grouped.get(s)! }));
   }, [sharedEvents]);
 
-  const primarySwimmers = allSwimmers.filter((s) => s.group_type === "primary");
-  const followingSwimmers = allSwimmers.filter((s) => s.group_type === "following");
-  const mySwimmer = allSwimmers.find((s) => s.id === mySwimmerId) ?? null;
-  const selectedSwimmers = allSwimmers.filter((s) => selectedIds.has(s.id));
-
-  // All swimmers in comparison (my swimmer + selected)
   const allCompared = useMemo(() => {
     if (!mySwimmerId || !mySwimmer) return [];
     return [
@@ -249,9 +289,15 @@ export default function ComparePage() {
     ];
   }, [mySwimmerId, mySwimmer, myPBMap, selectedSwimmers, selectedPBMaps, primarySwimmers.length]);
 
+  // ─── Render ────────────────────────────────────────────────────────────────
+
   if (loading) {
     return <div className="shell"><div className="container-app"><p className="muted">Loading...</p></div></div>;
   }
+
+  const pillBase = "px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider transition";
+  const pillActive = { background: "rgba(217,119,6,0.2)", color: "#FDE68A" };
+  const pillInactive = { background: "transparent", color: "rgba(255,255,255,0.35)" };
 
   return (
     <div className="shell">
@@ -296,18 +342,69 @@ export default function ComparePage() {
             <div className="flex-1 h-px bg-white/10" />
           </div>
 
-          {/* Following swimmer list */}
+          {/* Compare against header + mode toggle */}
           <div>
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-3">
               <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">Compare against</p>
-              <p className="text-[10px] text-white/30">{selectedIds.size}/{MAX_COMPARE} selected</p>
+              <div className="flex items-center gap-2">
+                <p className="text-[10px] text-white/28">{selectedIds.size}/{MAX_COMPARE}</p>
+                <div className="flex rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.12)" }}>
+                  {(["all", "club", "school"] as FilterMode[]).map((mode) => (
+                    <button key={mode} type="button"
+                      onClick={() => handleFilterMode(mode)}
+                      className={pillBase}
+                      style={filterMode === mode ? pillActive : pillInactive}>
+                      {mode === "all" ? "All" : mode === "club" ? "Club" : "School"}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
+            {/* Club directory pills */}
+            {filterMode === "club" && (
+              <div className="flex flex-wrap gap-2 mb-3">
+                {clubOptions.length === 0 ? (
+                  <p className="text-xs text-white/35">No clubs found — make sure club names are filled in for your following swimmers.</p>
+                ) : clubOptions.map((club) => (
+                  <button key={club} type="button"
+                    onClick={() => setSelectedClub((prev) => prev === club ? null : club)}
+                    className="rounded-2xl border px-3 py-1.5 text-xs font-medium transition"
+                    style={selectedClub === club
+                      ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
+                      : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.5)" }}>
+                    {club}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* School directory pills */}
+            {filterMode === "school" && (
+              <div className="flex flex-wrap gap-2 mb-3">
+                {schoolOptions.length === 0 ? (
+                  <p className="text-xs text-white/35">No schools found — make sure school names are filled in for your following swimmers.</p>
+                ) : schoolOptions.map((school) => (
+                  <button key={school} type="button"
+                    onClick={() => setSelectedSchool((prev) => prev === school ? null : school)}
+                    className="rounded-2xl border px-3 py-1.5 text-xs font-medium transition"
+                    style={selectedSchool === school
+                      ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
+                      : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.5)" }}>
+                    {school}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Swimmer list */}
             {followingSwimmers.length === 0 ? (
               <p className="text-sm text-white/40">No following swimmers yet — add some in Brood.</p>
+            ) : filteredFollowing.length === 0 ? (
+              <p className="text-sm text-white/40">No swimmers match this filter.</p>
             ) : (
               <div className="space-y-2">
-                {followingSwimmers.map((s, i) => {
+                {filteredFollowing.map((s, i) => {
                   const selected = selectedIds.has(s.id);
                   const disabled = !selected && selectedIds.size >= MAX_COMPARE;
                   const colors = avatarColor(primarySwimmers.length + i);
@@ -333,7 +430,11 @@ export default function ComparePage() {
                         style={{ background: colors.bg, color: colors.text }}>{getInitials(s.name)}</div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-white/85">{s.name}</p>
-                        <p className="text-xs text-white/35">Age {s.age}{s.swim_club ? ` · ${s.swim_club}` : ""}</p>
+                        <p className="text-xs text-white/35">
+                          Age {s.age}
+                          {s.swim_club ? ` · ${s.swim_club}` : ""}
+                          {s.school && filterMode !== "school" ? ` · ${s.school}` : ""}
+                        </p>
                       </div>
                     </button>
                   );
@@ -377,7 +478,6 @@ export default function ComparePage() {
                     <p className="px-4 pt-3 pb-1 text-[10px] font-medium uppercase tracking-widest text-white/30">{stroke}</p>
 
                     {events.map((ev, evIdx) => {
-                      // Build ranked list for this event
                       const ranked = allCompared
                         .map((entry) => ({
                           swimmer: entry.swimmer,
@@ -388,16 +488,13 @@ export default function ComparePage() {
                         .filter((e) => e.ms != null)
                         .sort((a, b) => (a.ms ?? Infinity) - (b.ms ?? Infinity));
 
-                      // Add rank position
                       const rankedWithPos = ranked.map((entry, idx) => ({ ...entry, rank: idx + 1 }));
-
                       const isLastEvent = evIdx === events.length - 1;
 
                       return (
                         <div key={ev.key}
                           style={{ borderBottom: isLastEvent ? "none" : "1px solid rgba(255,255,255,0.05)", padding: "12px 16px" }}>
 
-                          {/* Event label */}
                           <p className="text-xs font-medium text-white/45 mb-3">
                             {canonicalEventName(ev.event)
                               .replace("Freestyle", "Free").replace("Backstroke", "Back")
@@ -405,7 +502,6 @@ export default function ComparePage() {
                             <span className="ml-1 text-white/25">{canonicalCourse(ev.course)}</span>
                           </p>
 
-                          {/* Ranked rows */}
                           <div className="space-y-2">
                             {rankedWithPos.map((entry) => {
                               const style = RANK_STYLES[entry.rank] ?? RANK_STYLES[5];
@@ -414,20 +510,14 @@ export default function ComparePage() {
                                 <div key={entry.swimmer.id}
                                   className="flex items-center gap-3 rounded-2xl px-3 py-2.5"
                                   style={{ background: style.bg, border: `1px solid ${style.border}` }}>
-
-                                  {/* Rank number */}
                                   <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold"
                                     style={{ background: "rgba(0,0,0,0.2)", color: style.numColor }}>
                                     {entry.rank}
                                   </div>
-
-                                  {/* Avatar */}
                                   <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-[10px] font-bold"
                                     style={{ background: entry.isMine ? "#D97706" : colors.bg, color: entry.isMine ? "white" : colors.text }}>
                                     {getInitials(entry.swimmer.name)}
                                   </div>
-
-                                  {/* Name */}
                                   <p className="flex-1 min-w-0 truncate text-sm font-medium"
                                     style={{ color: entry.rank === 1 ? "white" : "rgba(255,255,255,0.7)" }}>
                                     {shortName(entry.swimmer.name)}
@@ -435,14 +525,10 @@ export default function ComparePage() {
                                       <span className="ml-1.5 text-[10px] font-normal" style={{ color: "#D97706" }}>you</span>
                                     )}
                                   </p>
-
-                                  {/* Time */}
                                   <p className="text-sm font-bold flex-shrink-0"
                                     style={{ color: entry.rank === 1 ? style.numColor : "rgba(255,255,255,0.75)" }}>
                                     {formatMs(entry.ms)}
                                   </p>
-
-                                  {/* Gap from 1st */}
                                   {entry.rank > 1 && rankedWithPos[0]?.ms != null && entry.ms != null && (
                                     <p className="text-[10px] flex-shrink-0" style={{ color: "rgba(255,255,255,0.3)" }}>
                                       +{formatMs(entry.ms - rankedWithPos[0].ms)}
