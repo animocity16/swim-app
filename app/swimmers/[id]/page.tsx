@@ -1,14 +1,16 @@
 "use client";
 
+
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import SwimTimesSection from "./SwimTimesSection";
 import ProgressTab from "./ProgressTab";
 import { canonicalCourse, canonicalEventName, eventKey } from "@/lib/events";
 import { seedETCStandard, etcStandardExists } from "@/lib/emergingTalentsStandards";
 import { seedSNAGStandard, snagStandardExists, getSNAGQualifyingTime } from "@/lib/snagStandards";
+
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -165,6 +167,7 @@ function StatPill({ label, value, accent = false }: { label: string; value: Reac
 
 export default function SwimmerProfilePage() {
   const params = useParams();
+const router = useRouter();
   const searchParams = useSearchParams();
   const swimmerId = Number(params?.id);
 
@@ -385,12 +388,16 @@ export default function SwimmerProfilePage() {
 
         {/* Back nav */}
         <div className="pt-2">
-          <Link href="/swimmers" className="inline-flex items-center gap-1.5 text-sm text-white/40 transition hover:text-white/70">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M10 3L5 8L10 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            Swimmers
-          </Link>
+          <button
+  type="button"
+  onClick={() => router.push("/swimmers")}
+  className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm text-white/40 transition hover:text-white/70 -ml-3"
+>
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <path d="M10 3L5 8L10 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+  Swimmers
+</button>
         </div>
 
         {/* ── Profile header ─────────────────────────────────────────────── */}

@@ -14,35 +14,43 @@ export default function ResetPasswordPage() {
   const [status, setStatus] = useState("");
   const [isError, setIsError] = useState(false);
   const [done, setDone] = useState(false);
+  const [sessionReady, setSessionReady] = useState(false);
 
   useEffect(() => {
-    async function handleRecovery() {
-      try {
-        const hash = window.location.hash;
-        if (hash) {
-          const params = new URLSearchParams(hash.substring(1));
-          const access_token = params.get("access_token");
-          const refresh_token = params.get("refresh_token");
-          const type = params.get("type");
-
-          if (type === "recovery" && access_token && refresh_token) {
-            const { error } = await supabase.auth.setSession({ access_token, refresh_token });
-            if (error) { setStatus(`Recovery link error: ${error.message}`); setIsError(true); setChecking(false); return; }
-            setChecking(false);
-            return;
-          }
+    // ✅ Handle PKCE code in URL query params
+    const code = new URLSearchParams(window.location.search).get("code");
+    if (code) {
+      supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
+        if (error) {
+          setStatus("Reset link is invalid or expired.");
+          setIsError(true);
+        } else {
+          setSessionReady(true);
         }
+        setChecking(false);
+      });
+      return;
+    }
 
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) { setStatus("Invalid or expired reset link."); setIsError(true); }
-      } catch {
-        setStatus("Something went wrong while checking the reset link.");
-        setIsError(true);
-      } finally {
+    // ✅ Handle implicit flow (hash tokens) or already-established session
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") {
+        setSessionReady(true);
         setChecking(false);
       }
-    }
-    handleRecovery();
+    });
+
+    // Fallback timeout — if no event fires in 3s, show invalid link
+    const timeout = setTimeout(() => {
+      setStatus("Reset link is invalid or expired.");
+      setIsError(true);
+      setChecking(false);
+    }, 3000);
+
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timeout);
+    };
   }, []);
 
   async function handleUpdatePassword(e: React.FormEvent) {
@@ -104,7 +112,7 @@ export default function ResetPasswordPage() {
             <h2 className="text-xl font-bold text-white">Password updated!</h2>
             <p className="text-sm text-white/50">Redirecting you to sign in...</p>
           </div>
-        ) : isError && !password ? (
+        ) : isError && !sessionReady ? (
           <div className="text-center py-4 space-y-3">
             <div className="text-4xl">⚠️</div>
             <h2 className="text-xl font-bold text-white">Invalid link</h2>

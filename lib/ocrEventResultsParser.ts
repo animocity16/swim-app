@@ -125,29 +125,17 @@ function extractMeetName(lines: string[]): string | null {
   return null;
 }
 
-// ✅ Extract age group from the event header or section header.
-// Used as a fallback when individual club/age lines can't be parsed cleanly.
-//
-// Handles:
-//   "10 Year Olds"              → 10
-//   "Girls 9-10 50 Meter Free"  → 10 (upper bound of range)
-//   "Boys 11-12 100 Backstroke" → 12
 function extractAgeGroupFromText(rawText: string): number | null {
-  // "10 Year Olds" — Meet Mobile section header (most reliable)
   const yearOldsMatch = rawText.match(/\b(\d{1,2})\s+[Yy]ear\s+[Oo]lds?\b/);
   if (yearOldsMatch) {
     const age = parseInt(yearOldsMatch[1], 10);
     if (age >= 6 && age <= 18) return age;
   }
-
-  // "Girls 9-10" or "Boys 11-12" in event title
   const ageRangeMatch = rawText.match(/(?:Girls|Boys|Women|Men)\s+(\d{1,2})-(\d{1,2})/i);
   if (ageRangeMatch) {
     const upper = parseInt(ageRangeMatch[2], 10);
     if (upper >= 6 && upper <= 18) return upper;
   }
-
-  // Single age: "Girls 10 50 Meter Free"
   const singleAgeMatch = rawText.match(
     /(?:Girls|Boys|Women|Men)\s+(\d{1,2})\s+(?:\d+\s+)?(?:Meter|Yard|Free|Back|Breast|Fly|IM)/i
   );
@@ -155,11 +143,9 @@ function extractAgeGroupFromText(rawText: string): number | null {
     const age = parseInt(singleAgeMatch[1], 10);
     if (age >= 6 && age <= 18) return age;
   }
-
   return null;
 }
 
-// ✅ Apply age-group fallback to swimmers where age is null.
 function applyAgeGroupFallback(results: EventResultRow[], rawText: string): EventResultRow[] {
   if (!results.some((r) => r.age === null)) return results;
   const fallbackAge = extractAgeGroupFromText(rawText);
@@ -167,7 +153,6 @@ function applyAgeGroupFallback(results: EventResultRow[], rawText: string): Even
   return results.map((r) => (r.age === null ? { ...r, age: fallbackAge } : r));
 }
 
-// ✅ Extract place number — handles all real OCR variants
 function extractPlaceFromLine(line: string): number | null {
   const s = line.trim();
   const bracketMatch = s.match(/^\((\d{1,3})\)/);
@@ -183,24 +168,14 @@ function extractPlaceFromLine(line: string): number | null {
   return null;
 }
 
-// ✅ Extract club and age from the place/club line.
-//
-// KEY FIXES applied here:
-//   1. Proper TIME stripping — old regex only stripped trailing 'E', leaving 'TIM'
-//   2. OCR garble detection: "CSC | 10" often reads as "csclio":
-//        l = "|" (pipe), i = "1", o = "0"  → suffix "lio" = age 10
-//        suffix "lo" = likely age 10
-//        suffix "io" = likely age 10
-//   3. "AcEl" pattern: "ACE | 1[0]" where final 0 dropped by OCR → age ambiguous
 function extractClubAge(line: string): { club: string | null; age: number | null } {
   let rest = line
-    .replace(/^\(\d{1,3}\)\s*/, "")          // remove "(9) "
-    .replace(/^\d{1,3}[A-Za-z]?\s+/, "")     // remove "4 " or "4A "
-    .replace(/^\/\s*/, "")                    // remove leading "/"
-    .replace(/\s*\b(?:TIME|TIVE|TIIME|TIM)\b\s*$/i, "") // ✅ strip all TIME variants
+    .replace(/^\(\d{1,3}\)\s*/, "")
+    .replace(/^\d{1,3}[A-Za-z]?\s+/, "")
+    .replace(/^\/\s*/, "")
+    .replace(/\s*\b(?:TIME|TIVE|TIIME|TIM)\b\s*$/i, "")
     .trim();
 
-  // Strategy 1: Clean separator — "CSC | 10" or "TLSC | 10"
   const ageMatch = rest.match(/[\[|,\s]+(\d{1,2})\s*$/);
   if (ageMatch) {
     const age = parseInt(ageMatch[1], 10);
@@ -209,35 +184,18 @@ function extractClubAge(line: string): { club: string | null; age: number | null
     return { club, age: isNaN(age) ? null : age };
   }
 
-  // Strategy 2: All-alpha string — check for OCR garble of "| 10"
-  // "csclio" → l=|, i=1, o=0 → age=10, club="CSC"
-  // "aqlio"  → age=10, club="AQ" (J dropped by OCR)
-  // "APSCio" → age=10, club="APSC"
   const onlyAlpha = /^[A-Za-z]+$/.test(rest);
   if (onlyAlpha && rest.length >= 4) {
-    // "lio" suffix — most reliable (pipe + 1 + 0)
     const lioMatch = rest.match(/^([A-Za-z]{2,6}?)(lio)$/i);
-    if (lioMatch && lioMatch[1].length >= 2) {
-      return { club: lioMatch[1].toUpperCase(), age: 10 };
-    }
-    // "lo" suffix
+    if (lioMatch && lioMatch[1].length >= 2) return { club: lioMatch[1].toUpperCase(), age: 10 };
     const loMatch = rest.match(/^([A-Za-z]{2,6}?)(lo)$/i);
-    if (loMatch && loMatch[1].length >= 2) {
-      return { club: loMatch[1].toUpperCase(), age: 10 };
-    }
-    // "io" suffix
+    if (loMatch && loMatch[1].length >= 2) return { club: loMatch[1].toUpperCase(), age: 10 };
     const ioMatch = rest.match(/^([A-Za-z]{3,6}?)(io)$/i);
-    if (ioMatch && ioMatch[1].length >= 2) {
-      return { club: ioMatch[1].toUpperCase(), age: 10 };
-    }
-    // "El" or "el" suffix — e.g. "AcEl" from "ACE | 1[0]" where 0 was cut off
+    if (ioMatch && ioMatch[1].length >= 2) return { club: ioMatch[1].toUpperCase(), age: 10 };
     const elMatch = rest.match(/^([A-Za-z]{2,5})([Ee][Ll]|[Ll][Ee])$/);
-    if (elMatch && elMatch[1].length >= 2) {
-      return { club: elMatch[1].toUpperCase(), age: null }; // age ambiguous — fallback will apply
-    }
+    if (elMatch && elMatch[1].length >= 2) return { club: elMatch[1].toUpperCase(), age: null };
   }
 
-  // Strategy 3: Return whatever's left as the club name
   const club = rest.replace(/[^A-Za-z\s\-]/g, "").trim() || null;
   return { club, age: null };
 }
@@ -249,7 +207,6 @@ function startsWithPlace(line: string): boolean {
 export function parseEventResultsOCR(rawText: string): ParsedEventResults {
   const lines = rawText.replace(/\r/g, "\n").split("\n").map((l) => l.trim()).filter(Boolean);
 
-  // Try NSG card format (standalone PLACE lines)
   const standalonePlaceLines = lines.filter((l) => /^(?:PLACE|PACE)$/i.test(l));
   const numberedPlaceLines = lines.filter((l) => /^(?:PLACE|PACE)\s+\d{1,3}$/i.test(l));
   if (standalonePlaceLines.length >= 2 || numberedPlaceLines.length >= 2) {
@@ -260,7 +217,6 @@ export function parseEventResultsOCR(rawText: string): ParsedEventResults {
     }
   }
 
-  // Try Name+Time format
   const timeAtEndRe = /\s(\d{1,2}:\d{2}\.\d{2}|\d{2}\.\d{2})$/;
   const clubLineRe = /[A-Z]{2,8}\s*(?:lio|lo|io|clo)?\s*(?:\|?\s*\d{1,2})?\s*(?:TIME|TIVE|TIM)?\s*$/i;
   let nameTimePairs = 0;
@@ -275,7 +231,6 @@ export function parseEventResultsOCR(rawText: string): ParsedEventResults {
     }
   }
 
-  // Inline PLACE format
   const inlineResult = parseInlineEventResultsOCR(rawText);
   inlineResult.results = applyAgeGroupFallback(inlineResult.results, rawText);
   return inlineResult;
@@ -350,36 +305,49 @@ function parseInlineEventResultsOCR(rawText: string): ParsedEventResults {
   return { event, course, swamAt, meetName, results: deduped };
 }
 
-// ✅ Detect whether the OCR text is a multi-swimmer event results page.
+// ✅ Detect whether OCR text is a multi-swimmer event results page.
 //
-// GUARD: Meet Mobile's single-swimmer "Swim Detail" screen contains unique
-// column labels (FINALS, ENTRY, STATUS, DROPPED, HEAT PLACE, LANE, SPLITS)
-// that can fool the PLACE-counting heuristics. We detect and reject those
-// screens first before falling through to the multi-swimmer checks.
+// CRITICAL: The Meet Mobile single-swimmer "Swim Detail" screen contains
+// column labels (FINALS, ENTRY, STATUS, DROPPED, SPLITS, EVENT SUMMARY)
+// that can fool the PLACE-counting heuristics into thinking it's a results list.
+//
+// We collapse ALL whitespace before matching because Tesseract often splits
+// a single UI label across multiple lines — e.g. "SWIM DETAIL" → "SWIM\nDETAIL"
+// which makes a plain .includes("SWIM DETAIL") check silently fail.
 export function isEventResultsPage(rawText: string): boolean {
-  const upper = rawText.toUpperCase();
+  // Collapse all whitespace into single spaces for reliable multi-word matching
+  const flat = rawText.replace(/\s+/g, " ").toUpperCase();
 
-  // ── Guard 1: "SWIM DETAIL" header is the strongest signal of a single result ──
-  if (upper.includes("SWIM DETAIL")) return false;
+  // ── Guard 1: "SWIM DETAIL" — the screen title, strongest single signal ──
+  if (flat.includes("SWIM DETAIL")) return false;
 
-  // ── Guard 2: Detail page column headers — unique combination ──
-  // "PLACE FINALS ENTRY" and "STATUS DROPPED" only appear on the detail screen
-  const hasFinalsEntry = upper.includes("FINALS") && upper.includes("ENTRY");
-  const hasStatusDropped = upper.includes("STATUS") && upper.includes("DROPPED");
+  // ── Guard 2: "EVENT SUMMARY" — button at bottom of every detail screen ──
+  if (flat.includes("EVENT SUMMARY")) return false;
+
+  // ── Guard 3: "Completed" status + SPLITS — only on detail screens ──
+  if (flat.includes("COMPLETED") && flat.includes("SPLITS")) return false;
+
+  // ── Guard 4: Detail-screen column header combo ──
+  // "PLACE FINALS ENTRY" and "STATUS DROPPED" never appear on results lists
+  const hasFinalsEntry = flat.includes("FINALS") && flat.includes("ENTRY");
+  const hasStatusDropped = flat.includes("STATUS") && flat.includes("DROPPED");
   if (hasFinalsEntry && hasStatusDropped) return false;
 
-  // ── Guard 3: "HEAT PLACE" + "LANE" + "SPLITS" → detail screen layout ──
+  // ── Guard 5: FINALS + ENTRY + SPLITS ──
+  if (hasFinalsEntry && flat.includes("SPLITS")) return false;
+
+  // ── Guard 6: HEAT PLACE + LANE + SPLITS — detail screen grid labels ──
+  if (flat.includes("HEAT PLACE") && flat.includes("LANE") && flat.includes("SPLITS")) return false;
+
+  // ── Guard 7: Looser fallback — HEAT + LANE + SPLITS + TOTAL ──
   if (
-    upper.includes("HEAT PLACE") &&
-    upper.includes("LANE") &&
-    upper.includes("SPLITS")
+    flat.includes("HEAT") &&
+    flat.includes("LANE") &&
+    flat.includes("SPLITS") &&
+    flat.includes("TOTAL")
   ) return false;
 
-  // ── Guard 4: "FINALS" + "ENTRY" alone (summary card without STATUS row) ──
-  // Only appears on the detail screen, not on event results lists
-  if (hasFinalsEntry && upper.includes("SPLITS")) return false;
-
-  // ── Multi-swimmer detection ──
+  // ── Multi-swimmer detection (unchanged) ──
   const lines = rawText.split("\n").map((l) => l.trim());
   if (lines.filter((l) => /^(?:PLACE|PACE)\s+[A-Za-z]/i.test(l)).length >= 2) return true;
   if (lines.filter((l) => /^(?:PLACE|PACE)$/i.test(l)).length >= 2) return true;
@@ -420,12 +388,10 @@ function parseNameTimeFormat(rawText: string): ParsedEventResults {
     if (!name || name.length < 3) continue;
     if (/^\d|finals|results|completed|heats|swimmers|unofficial|am|pm/i.test(name)) continue;
 
-    // Use extractClubAge for consistency — handles garble patterns
     const ca = extractClubAge(nextLine);
     let club = ca.club;
     let age = ca.age;
 
-    // Fallback to clean regex match if extractClubAge got confused
     if (!age && clubMatch[2]) {
       club = clubMatch[1].trim().toUpperCase();
       age = parseInt(clubMatch[2], 10);
