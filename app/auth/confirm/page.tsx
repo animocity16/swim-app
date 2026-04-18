@@ -9,10 +9,25 @@ export default function AuthConfirmPage() {
 
   useEffect(() => {
     async function handleAuth() {
-      const hash = window.location.hash;
       const search = window.location.search;
+      const hash = window.location.hash;
 
-      // ✅ Check hash params (implicit flow) — e.g. #access_token=...&type=recovery
+      if (search) {
+        const params = new URLSearchParams(search);
+        const type = params.get("type");
+        const code = params.get("code");
+
+        if (type === "recovery") {
+          router.replace("/reset-password" + search);
+          return;
+        }
+
+        if (code) {
+          router.replace("/reset-password" + search);
+          return;
+        }
+      }
+
       if (hash) {
         const hashParams = new URLSearchParams(hash.substring(1));
         if (hashParams.get("type") === "recovery") {
@@ -21,16 +36,6 @@ export default function AuthConfirmPage() {
         }
       }
 
-      // ✅ Check query params (PKCE flow) — e.g. ?type=recovery&token_hash=...
-      if (search) {
-        const queryParams = new URLSearchParams(search);
-        if (queryParams.get("type") === "recovery") {
-          router.replace("/reset-password" + search + hash);
-          return;
-        }
-      }
-
-      // Normal login confirmation — go to app
       await supabase.auth.getSession();
       router.replace("/swimmers");
     }
