@@ -5,7 +5,7 @@ export const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
   {
     auth: {
-      flowType: "pkce",
+      flowType: "implicit",
       detectSessionInUrl: true,
       persistSession: true,
     },

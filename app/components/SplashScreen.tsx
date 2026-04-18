@@ -17,6 +17,7 @@ export default function SplashScreen() {
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
 
   useEffect(() => {
+    if (window.location.pathname === "/reset-password") return;
     const alreadyShown = sessionStorage.getItem(SPLASH_KEY);
     if (alreadyShown) return;
     sessionStorage.setItem(SPLASH_KEY, "1");
