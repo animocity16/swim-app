@@ -18,7 +18,8 @@ export default function LoginPage() {
     async function checkSession() {
       const { data: { session }, error } = await supabase.auth.getSession();
       if (error) { setCheckingSession(false); return; }
-      if (session) { router.replace("/dashboard"); return; }
+      const isResetting = window.location.pathname === "/reset-password";
+if (session && !isResetting) { router.replace("/dashboard"); return; }
       setCheckingSession(false);
     }
     checkSession();
