@@ -350,7 +350,36 @@ function parseInlineEventResultsOCR(rawText: string): ParsedEventResults {
   return { event, course, swamAt, meetName, results: deduped };
 }
 
+// ✅ Detect whether the OCR text is a multi-swimmer event results page.
+//
+// GUARD: Meet Mobile's single-swimmer "Swim Detail" screen contains unique
+// column labels (FINALS, ENTRY, STATUS, DROPPED, HEAT PLACE, LANE, SPLITS)
+// that can fool the PLACE-counting heuristics. We detect and reject those
+// screens first before falling through to the multi-swimmer checks.
 export function isEventResultsPage(rawText: string): boolean {
+  const upper = rawText.toUpperCase();
+
+  // ── Guard 1: "SWIM DETAIL" header is the strongest signal of a single result ──
+  if (upper.includes("SWIM DETAIL")) return false;
+
+  // ── Guard 2: Detail page column headers — unique combination ──
+  // "PLACE FINALS ENTRY" and "STATUS DROPPED" only appear on the detail screen
+  const hasFinalsEntry = upper.includes("FINALS") && upper.includes("ENTRY");
+  const hasStatusDropped = upper.includes("STATUS") && upper.includes("DROPPED");
+  if (hasFinalsEntry && hasStatusDropped) return false;
+
+  // ── Guard 3: "HEAT PLACE" + "LANE" + "SPLITS" → detail screen layout ──
+  if (
+    upper.includes("HEAT PLACE") &&
+    upper.includes("LANE") &&
+    upper.includes("SPLITS")
+  ) return false;
+
+  // ── Guard 4: "FINALS" + "ENTRY" alone (summary card without STATUS row) ──
+  // Only appears on the detail screen, not on event results lists
+  if (hasFinalsEntry && upper.includes("SPLITS")) return false;
+
+  // ── Multi-swimmer detection ──
   const lines = rawText.split("\n").map((l) => l.trim());
   if (lines.filter((l) => /^(?:PLACE|PACE)\s+[A-Za-z]/i.test(l)).length >= 2) return true;
   if (lines.filter((l) => /^(?:PLACE|PACE)$/i.test(l)).length >= 2) return true;
