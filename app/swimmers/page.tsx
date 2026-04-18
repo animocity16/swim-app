@@ -108,14 +108,6 @@ export default function SwimmersPage() {
     else {
       const rows = (data as Swimmer[]) || [];
       setSwimmers(rows);
-      // Auto-expand all groups on first load
-      const following = rows.filter((s) => s.group_type === "following");
-      const groups: Record<string, boolean> = {};
-      following.forEach((s) => {
-        const key = (groupBy === "club" ? s.swim_club : s.school) || "Other";
-        groups[key] = false;
-      });
-      setExpandedGroups(groups);
     }
     setLoading(false);
   }
@@ -166,7 +158,7 @@ export default function SwimmersPage() {
   }
 
   function toggleGroup(groupName: string) {
-    setExpandedGroups((prev) => ({ ...prev, [groupName]: prev[groupName] === true ? false : false }));
+    setExpandedGroups((prev) => ({ ...prev, [groupName]: !prev[groupName] }));
   }
 
   const primarySwimmers = swimmers.filter((s) => s.group_type === "primary");
