@@ -336,7 +336,7 @@ export default function SwimmersPage() {
 
             {/* Group cards */}
             {followingGroups.map(([groupName, groupSwimmers]) => {
-              const isOpen = expandedGroups[groupName] !== false; // default open
+              const isOpen = expandedGroups[groupName] === true; // default open
               const colors = groupColor(groupName);
 
               return (
