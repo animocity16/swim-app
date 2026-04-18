@@ -113,7 +113,7 @@ export default function SwimmersPage() {
       const groups: Record<string, boolean> = {};
       following.forEach((s) => {
         const key = (groupBy === "club" ? s.swim_club : s.school) || "Other";
-        groups[key] = true;
+        groups[key] = false;
       });
       setExpandedGroups(groups);
     }
@@ -166,7 +166,7 @@ export default function SwimmersPage() {
   }
 
   function toggleGroup(groupName: string) {
-    setExpandedGroups((prev) => ({ ...prev, [groupName]: !prev[groupName] }));
+    setExpandedGroups((prev) => ({ ...prev, [groupName]: prev[groupName] === true ? false : false }));
   }
 
   const primarySwimmers = swimmers.filter((s) => s.group_type === "primary");
@@ -336,7 +336,7 @@ export default function SwimmersPage() {
 
             {/* Group cards */}
             {followingGroups.map(([groupName, groupSwimmers]) => {
-              const isOpen = expandedGroups[groupName] === true; // default open
+                const isOpen = expandedGroups[groupName] === true;
               const colors = groupColor(groupName);
 
               return (
