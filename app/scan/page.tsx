@@ -448,6 +448,7 @@ export default function ScanPage() {
       }
 
       setRawText(combined);
+      console.log("RAW OCR:", combined);
       const isEventPage = isEventResultsPage(combined);
 
       if (isEventPage) {
