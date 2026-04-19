@@ -1,28 +1,26 @@
 // ocrSwimmerScheduleParser.ts
 //
-// Parses the Meet Mobile "Swimmer" schedule page — all events for one swimmer
-// across an entire meet, shown in a scrollable list.
+// Parses the Meet Mobile "Swimmer" schedule page — all events for one swimmer.
 //
-// OCR FORMAT:
+// ACTUAL OCR FORMAT (from real screenshots):
 //
-//   SWIMMER
-//   Elizabeth Le Xuan Chiu
-//   CSC | 10
+//   < SWIMMER %*
+//   NEI Elizabeth Le Xuan Chiu       ← name with OCR noise prefix
+//   9) CsC 10                         ← club/age garbled
 //   Full schedule
 //
-//   EVENT 102 Girls 9-10 100 Meter Back
-//   Finals | 0-10 | Completed
-//   1:27.87 | Place: 9
+//   cent Girls 9-10100 Meter Back     ← "EVENT" read as "cent", distance stuck to age
+//   Finals | 0-10 |
+//   102 1:27.87 | Place: 9            ← event number + time + place on one line
 //   Time improvement: - 1.32
 //
-//   EVENT 108 Girls 9-10 50 Meter Free
-//   Finals | 0-10 | Completed
-//   35.76 | Place: 18
+//   cent Girls 9-10 50 Meter Free
+//   108 Finals | 0-10 |               ← sometimes event number on same line as Finals
+//   36.76 | Place: 18
 //
-//   EVENT 115 Mixed 7-8 200 Meter Medley Relay   ← skip relays
-//   Finals | 0-10 | Completed
-//   2:32.59 | Place: 3
-//
+//   cent Mixed 7-8 200 Meter Medley Relay  ← relay — skip
+//   Finals | 0-10 |
+//   115 2:32.59 | Place: 3
 
 export type ScheduleResultRow = {
   eventNumber: number | null;
@@ -55,18 +53,39 @@ function timeToMs(timeStr: string): number {
   if (s.includes(":")) {
     const [mm, rest] = s.split(":");
     const [sec, hun] = rest.split(".");
+    if (Number(sec) >= 60) return 0;
     return Number(mm) * 60_000 + Number(sec) * 1_000 + Number(hun ?? "0") * 10;
   }
   const [sec, hun] = s.split(".");
   return Number(sec) * 1_000 + Number(hun ?? "0") * 10;
 }
 
+// Repair times:
+//   "36.76"  → "36.76"   (valid as-is)
+//   "118.03" → "1:18.03" (3 digits before dot = m:ss.hh)
+//   "215.72" → "2:15.72"
+//   "11803"  → "1:18.03" (5 raw digits)
 function repairTime(raw: string): string | null {
   const s = raw.trim();
-  if (/^\d{1,2}:\d{2}\.\d{2}$/.test(s)) return s;
+  if (/^\d{1,2}:\d{2}\.\d{2}$/.test(s)) {
+    const sec = Number(s.split(":")[1].split(".")[0]);
+    if (sec >= 60) return null;
+    return s;
+  }
   if (/^\d{2}\.\d{2}$/.test(s)) return s;
-  if (/^\d{4}$/.test(s)) return `${s.slice(0, 2)}.${s.slice(2)}`;
-  if (/^\d{5}$/.test(s)) return `${s[0]}:${s.slice(1, 3)}.${s.slice(3)}`;
+  if (/^\d{5}$/.test(s)) {
+    const sec = Number(s.slice(1, 3));
+    if (sec >= 60) return null;
+    return `${s[0]}:${s.slice(1, 3)}.${s.slice(3)}`;
+  }
+  // "118.03" or "215.72" — 3 digits, dot, 2 digits
+  if (/^\d{3}\.\d{2}$/.test(s)) {
+    const mins = s[0];
+    const sec = s.slice(1, 3);
+    const hun = s.slice(4);
+    if (Number(sec) >= 60) return null;
+    return `${mins}:${sec}.${hun}`;
+  }
   return null;
 }
 
@@ -78,8 +97,8 @@ function detectCourse(rawText: string): "LCM" | "SCM" | "SCY" | "UNKNOWN" {
   return "UNKNOWN";
 }
 
-function parseStroke(eventLine: string): string | null {
-  const l = eventLine.toLowerCase();
+function parseStroke(line: string): string | null {
+  const l = line.toLowerCase();
   if (l.includes("freestyle") || / free\b/.test(l)) return "Freestyle";
   if (l.includes("butterfly") || / fly\b/.test(l)) return "Butterfly";
   if (l.includes("backstroke") || / back\b/.test(l)) return "Backstroke";
@@ -88,8 +107,8 @@ function parseStroke(eventLine: string): string | null {
   return null;
 }
 
-function parseDistance(eventLine: string): number | null {
-  const m = eventLine.match(/\b(50|100|200|400|800|1500)\b/);
+function parseDistance(line: string): number | null {
+  const m = line.match(/\b(50|100|200|400|800|1500)\b/);
   return m ? Number(m[1]) : null;
 }
 
@@ -112,68 +131,70 @@ function extractMeetDate(rawText: string): string | null {
   return null;
 }
 
-function extractMeetName(lines: string[]): string | null {
-  const meetRe = /championship|open|invitational|junior|classic|cup|trophy|gala|national|series|aquatic|swim/i;
-  for (const line of lines.slice(0, 15)) {
-    if (line.length < 5 || line.length > 100) continue;
-    if (/^\d/.test(line)) continue;
-    if (/\b(am|pm)\b/i.test(line)) continue;
-    if (/place|lane|heat|time|dropped|club|swimmer|schedule|completed|finals/i.test(line)) continue;
-    if (line.split(/\s+/).length < 2) continue;
-    if (meetRe.test(line)) return line.trim();
-  }
-  return null;
-}
-
-// ─── Swimmer name extraction from top of schedule page ───────────────────────
-// Format:
-//   SWIMMER           ← header (may be mangled by OCR)
-//   Elizabeth Le Xuan Chiu
-//   CSC | 10          ← club | age
+// ─── Swimmer name extraction ──────────────────────────────────────────────────
+// Name appears just above "Full schedule" line
+// OCR adds noise prefix like "NEI ", "< ", etc.
 
 function extractSwimmerHeader(lines: string[]): {
-  name: string | null;
-  club: string | null;
-  age: number | null;
+  name: string | null; club: string | null; age: number | null;
 } {
-  // Look for the "SWIMMER" header line — OCR may garble it slightly
-  const swimmerIdx = lines.findIndex((l) =>
-    /^swim[nm]?e?r?$/i.test(l.trim()) || l.trim().toUpperCase() === "SWIMMER"
-  );
-
-  const startIdx = swimmerIdx >= 0 ? swimmerIdx + 1 : 0;
-
-  // Next meaningful line should be the name
-  for (let i = startIdx; i < Math.min(startIdx + 4, lines.length); i++) {
-    const line = lines[i].trim();
-    if (!line) continue;
-    if (/^[\W\d]/.test(line)) continue; // skip lines starting with non-letters/digits
-    if (/full.?schedule|completed|event|finals|place/i.test(line)) continue;
-
-    // Strip OCR noise prefix (e.g. "(cc) ")
-    const cleaned = line.replace(/^[^A-Z]+/, "").trim();
-    const words = cleaned.split(/\s+/);
-    if (words.length < 2 || words.length > 7) continue;
-    if (!words.every((w) => /^[A-Z]/.test(w))) continue;
-    if (/\d/.test(cleaned)) continue;
-
-    // Found likely name — now look for club | age on next line
-    const nextLine = lines[i + 1]?.trim() ?? "";
-    const clubAgeMatch = nextLine.match(/^([A-Z]{2,10})\s*[|l\/\[]\s*(\d{1,2})$/i);
-
-    if (clubAgeMatch) {
-      return {
-        name: cleaned,
-        club: clubAgeMatch[1].toUpperCase(),
-        age: Number(clubAgeMatch[2]),
-      };
+  const scheduleIdx = lines.findIndex((l) => /full.?schedule/i.test(l));
+  if (scheduleIdx >= 1) {
+    for (let i = scheduleIdx - 1; i >= Math.max(0, scheduleIdx - 3); i--) {
+      const line = lines[i].trim();
+      const cleaned = line.replace(/^[^A-Z]+/, "").trim();
+      const words = cleaned.split(/\s+/);
+      if (
+        words.length >= 2 && words.length <= 7 &&
+        !/\d/.test(cleaned) &&
+        words.every((w) => /^[A-Z]/.test(w))
+      ) {
+        return { name: cleaned, club: null, age: null };
+      }
     }
-
-    // Club line not found — still return the name
-    return { name: cleaned, club: null, age: null };
   }
-
   return { name: null, club: null, age: null };
+}
+
+// ─── Event description line detection ────────────────────────────────────────
+// OCR reads "EVENT" as "cent", "ent", "EVENT", etc.
+// Lines contain a stroke word + distance number.
+
+function isEventDescriptionLine(line: string): boolean {
+  if (/place:/i.test(line)) return false;
+  if (/time improvement/i.test(line)) return false;
+  if (/full.?schedule/i.test(line)) return false;
+  if (/^\d{2,3}\s+\d/.test(line)) return false; // "102 1:27.87" — this is a data line
+  const hasStroke = parseStroke(line) !== null;
+  const hasDistance = parseDistance(line) !== null;
+  return hasStroke && hasDistance;
+}
+
+// ─── Extract time + place from a line ────────────────────────────────────────
+// Handles patterns like:
+//   "102 1:27.87 | Place: 9"
+//   "36.76 | Place: 18"
+//   "118.03 | Place: 11"
+//   "3:02.40 | Place:"   (place missing)
+
+function extractTimePlaceFromLine(line: string): {
+  timeStr: string; timeMs: number; place: number | null;
+} | null {
+  const m = line.match(
+    /(\d{1,2}:\d{2}\.\d{2}|\d{3}\.\d{2}|\d{2}\.\d{2}|\d{5})\s*\|\s*Place:\s*(\d+|EXH)?/i
+  );
+  if (!m) return null;
+
+  const timeStr = repairTime(m[1]);
+  if (!timeStr) return null;
+
+  const timeMs = timeToMs(timeStr);
+  if (timeMs <= 0 || timeMs > 1_800_000) return null;
+
+  const placeStr = m[2] ?? "";
+  const place = /^\d+$/.test(placeStr) ? Number(placeStr) : null;
+
+  return { timeStr, timeMs, place };
 }
 
 // ─── Main parser ──────────────────────────────────────────────────────────────
@@ -187,89 +208,69 @@ export function parseSwimmerScheduleOCR(rawText: string): ParsedSwimmerSchedule 
 
   const course = detectCourse(rawText);
   const swamAt = extractMeetDate(rawText);
-  const meetName = extractMeetName(lines);
   const { name: swimmerName, club, age } = extractSwimmerHeader(lines);
 
-  const results: ScheduleResultRow[] = [];
+  const meetKeywords = /championship|open|invitational|junior|classic|cup|series|aquatic|swim/i;
+  let meetName: string | null = null;
+  for (const line of lines.slice(0, 20)) {
+    if (line.length < 5 || line.length > 100) continue;
+    if (/^\d/.test(line)) continue;
+    if (/place|heat|finals|schedule|swimmer/i.test(line)) continue;
+    if (meetKeywords.test(line)) { meetName = line.trim(); break; }
+  }
 
-  // Each event block starts with "EVENT [number] [event name]"
-  // e.g. "EVENT 102 Girls 9-10 100 Meter Back"
-  const EVENT_LINE_RE = /^EVENT\s+(\d+)\s+(.+)$/i;
+  const results: ScheduleResultRow[] = [];
+  const seen = new Set<string>();
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    const eventMatch = line.match(EVENT_LINE_RE);
-    if (!eventMatch) continue;
+    if (!isEventDescriptionLine(line)) continue;
 
-    const eventNumber = Number(eventMatch[1]);
-    const eventDescription = eventMatch[2].trim();
+    const isRelay = /relay/i.test(line);
+    const distance = parseDistance(line);
+    const stroke = parseStroke(line);
+    if (!distance || !stroke) continue;
 
-    const isRelay = /relay/i.test(eventDescription);
-    const distance = parseDistance(eventDescription);
-    const stroke = parseStroke(eventDescription);
+    // Look ahead up to 5 lines for time + place
+    let found: { timeStr: string; timeMs: number; place: number | null } | null = null;
+    let eventNumber: number | null = null;
 
-    if (!distance || !stroke) continue; // skip if can't parse event
-
-    // Look ahead up to 4 lines for time and place
-    let timeStr: string | null = null;
-    let place: number | null = null;
-
-    for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
+    for (let j = i + 1; j < Math.min(i + 6, lines.length); j++) {
       const next = lines[j];
+      if (isEventDescriptionLine(next)) break;
+      if (/time improvement/i.test(next)) continue;
+      if (/full.?schedule/i.test(next)) continue;
 
-      // Stop if we hit the next event block
-      if (EVENT_LINE_RE.test(next)) break;
-
-      // Look for "35.76 | Place: 18" or "1:27.87 | Place: 9"
-      // Also handles "Place: EXH" (exhibition — no place number)
-      const timePlaceMatch = next.match(
-        /^(\d{1,2}:\d{2}\.\d{2}|\d{2}\.\d{2}|\d{4,5})\s*[|]\s*Place:\s*(\d+|EXH)/i
-      );
-      if (timePlaceMatch) {
-        const repaired = repairTime(timePlaceMatch[1]);
-        if (repaired) {
-          timeStr = repaired;
-          const placeStr = timePlaceMatch[2];
-          place = /^EXH$/i.test(placeStr) ? null : Number(placeStr);
-        }
-        break;
-      }
-
-      // Sometimes time is on its own line, place on next
-      const standaloneTime = next.match(/^(\d{1,2}:\d{2}\.\d{2}|\d{2}\.\d{2}|\d{4,5})$/);
-      if (standaloneTime) {
-        const repaired = repairTime(standaloneTime[1]);
-        if (repaired) timeStr = repaired;
-        continue;
-      }
-
-      // Place on its own line
-      const placeOnly = next.match(/^Place:\s*(\d+|EXH)/i);
-      if (placeOnly && timeStr) {
-        const placeStr = placeOnly[1];
-        place = /^EXH$/i.test(placeStr) ? null : Number(placeStr);
+      const extracted = extractTimePlaceFromLine(next);
+      if (extracted) {
+        found = extracted;
+        const numMatch = next.match(/^(\d{2,3})\s+/);
+        if (numMatch) eventNumber = Number(numMatch[1]);
         break;
       }
     }
 
-    if (!timeStr) continue;
+    if (!found) continue;
 
-    const ms = timeToMs(timeStr);
-    if (ms <= 0 || ms > 1_800_000) continue;
+    // Sanity checks
+    if (distance === 50 && found.timeMs < 20_000) continue;
+    if (distance === 100 && found.timeMs < 40_000) continue;
+    if (distance === 200 && found.timeMs < 80_000) continue;
+    if (distance === 400 && found.timeMs < 200_000) continue;
 
-    // Basic sanity: 50m should be > 20s, 100m > 40s, etc.
-    if (distance === 50 && ms < 20_000) continue;
-    if (distance === 100 && ms < 40_000) continue;
-    if (distance === 200 && ms < 80_000) continue;
+    // Deduplicate by event + time
+    const key = `${distance}|${stroke}|${found.timeStr}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
 
     results.push({
       eventNumber,
       event: `${distance} ${stroke}`,
       distance,
       stroke,
-      timeStr,
-      timeMs: ms,
-      place,
+      timeStr: found.timeStr,
+      timeMs: found.timeMs,
+      place: found.place,
       course,
       swamAt,
       meetName,
@@ -281,29 +282,22 @@ export function parseSwimmerScheduleOCR(rawText: string): ParsedSwimmerSchedule 
 }
 
 // ─── Detection ────────────────────────────────────────────────────────────────
-// Swimmer schedule page signals:
-// - "Full schedule" text
-// - Multiple "Place:" (with colon) occurrences
-// - Multiple "Completed" statuses
-// - "SWIMMER" header
-// - Does NOT have "SWIM DETAIL" or "EVENT SUMMARY" (those are single-result screens)
+// Key signals:
+// - "Full schedule" — unique to this screen
+// - Multiple "Place:" with colon — unique to swimmer schedule format
+// NOT checking COMPLETED — OCR doesn't read it reliably on this screen type
 
 export function isSwimmerSchedulePage(rawText: string): boolean {
   const flat = rawText.replace(/\s+/g, " ").toUpperCase();
 
-  // Hard excludes — these are other screen types
   if (flat.includes("SWIM DETAIL")) return false;
   if (flat.includes("EVENT SUMMARY")) return false;
   if (flat.includes("EVENT DETAILS")) return false;
 
-  // Must have "FULL SCHEDULE" — the strongest signal
+  // "FULL SCHEDULE" is the strongest unique signal
   if (!flat.includes("FULL SCHEDULE")) return false;
 
-  // Must have multiple "COMPLETED" statuses
-  const completedCount = (flat.match(/COMPLETED/g) ?? []).length;
-  if (completedCount < 2) return false;
-
-  // Must have multiple "PLACE:" (with colon — unique to this format)
+  // Multiple "PLACE:" with colon
   const placeColonCount = (flat.match(/PLACE:/g) ?? []).length;
   if (placeColonCount < 2) return false;
 
