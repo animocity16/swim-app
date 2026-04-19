@@ -256,10 +256,11 @@ function extractMeetName(rawText: string): string | null {
 // Strategy 2: Find first name-like line appearing after the event description line
 
 function isLikelyPersonName(line: string): boolean {
-  const trimmed = line.trim();
+  // Strip leading OCR noise like "(cc) ", "& ", "< " before testing
+  const trimmed = line.trim().replace(/^[^A-Z]+/, "").trim();
   if (!trimmed || trimmed.length < 5 || trimmed.length > 70) return false;
-  // No digits allowed in names
   if (/\d/.test(trimmed)) return false;
+  if (/[|•·@#$%^&*()\[\]{}\\/]/.test(trimmed)) return false;
   // No special characters
   if (/[|•·@#$%^&*()\[\]{}\\/]/.test(trimmed)) return false;
   const words = trimmed.split(/\s+/);
@@ -288,7 +289,7 @@ function extractSwimmerName(lines: string[]): string | null {
   // Strategy 1: Look for a line immediately before "CLUB | AGE" pattern
   // e.g., "CSC | 10", "SSC | 12", "AQGOLDS | 14"
   // OCR may render "|" as "l", "1", "/" — be flexible
-  const CLUB_AGE_PATTERN = /^[A-Z]{2,10}\s*[|l\/]\s*\d{1,2}$/i;
+  const CLUB_AGE_PATTERN = /^[A-Z]{2,10}\s*[|l\/\[]\s*\d{1,2}$/i;
 
   for (let i = 1; i < lines.length; i++) {
     const curr = lines[i].trim();
