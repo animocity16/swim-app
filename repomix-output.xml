@@ -131,29 +131,6 @@ tsconfig.json
 <files>
 This section contains the contents of the repository's files.
 
-<file path="app/auth/confirm/page.tsx">
-"use client";
-
-import { useEffect } from "react";
-import { supabase } from "@/lib/supabaseClient";
-import { useRouter } from "next/navigation";
-
-export default function AuthConfirmPage() {
-  const router = useRouter();
-
-  useEffect(() => {
-    async function handleAuth() {
-      await supabase.auth.getSession();
-      router.replace("/swimmers");
-    }
-
-    handleAuth();
-  }, [router]);
-
-  return <div style={{ padding: 20 }}>Logging you in...</div>;
-}
-</file>
-
 <file path="app/components/DetectedOCRResultCard.tsx">
 "use client";
 
@@ -5644,15 +5621,6 @@ export async function parseAndSaveSwimOCR(
 }
 </file>
 
-<file path="lib/supabaseClient.ts">
-import { createBrowserClient } from "@supabase/ssr";
-
-export const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
-);
-</file>
-
 <file path="public/manifest.webmanifest">
 {
   "name": "Natrix — Swim Tracker",
@@ -5678,6 +5646,56 @@ export const supabase = createBrowserClient(
       "purpose": "any maskable"
     }
   ]
+}
+</file>
+
+<file path="app/auth/confirm/page.tsx">
+"use client";
+
+import { useEffect } from "react";
+import { supabase } from "@/lib/supabaseClient";
+import { useRouter } from "next/navigation";
+
+export default function AuthConfirmPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    async function handleAuth() {
+      const search = window.location.search;
+      const hash = window.location.hash;
+
+      if (search) {
+        const params = new URLSearchParams(search);
+        const type = params.get("type");
+        const code = params.get("code");
+
+        if (type === "recovery") {
+          router.replace("/reset-password" + search);
+          return;
+        }
+
+        if (code) {
+          router.replace("/reset-password" + search);
+          return;
+        }
+      }
+
+      if (hash) {
+        const hashParams = new URLSearchParams(hash.substring(1));
+        if (hashParams.get("type") === "recovery") {
+          router.replace("/reset-password" + hash);
+          return;
+        }
+      }
+
+      await supabase.auth.getSession();
+      router.replace("/swimmers");
+    }
+
+    handleAuth();
+  }, [router]);
+
+  return <div style={{ padding: 20 }}>Logging you in...</div>;
 }
 </file>
 
@@ -6945,169 +6963,6 @@ export default function ForgotPasswordPage() {
                 ← Back to sign in
               </Link>
             </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-</file>
-
-<file path="app/reset-password/page.tsx">
-"use client";
-
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
-
-export default function ResetPasswordPage() {
-  const router = useRouter();
-
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [checking, setChecking] = useState(true);
-  const [status, setStatus] = useState("");
-  const [isError, setIsError] = useState(false);
-  const [done, setDone] = useState(false);
-
-  useEffect(() => {
-    async function handleRecovery() {
-      try {
-        const hash = window.location.hash;
-        if (hash) {
-          const params = new URLSearchParams(hash.substring(1));
-          const access_token = params.get("access_token");
-          const refresh_token = params.get("refresh_token");
-          const type = params.get("type");
-
-          if (type === "recovery" && access_token && refresh_token) {
-            const { error } = await supabase.auth.setSession({ access_token, refresh_token });
-            if (error) { setStatus(`Recovery link error: ${error.message}`); setIsError(true); setChecking(false); return; }
-            setChecking(false);
-            return;
-          }
-        }
-
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) { setStatus("Invalid or expired reset link."); setIsError(true); }
-      } catch {
-        setStatus("Something went wrong while checking the reset link.");
-        setIsError(true);
-      } finally {
-        setChecking(false);
-      }
-    }
-    handleRecovery();
-  }, []);
-
-  async function handleUpdatePassword(e: React.FormEvent) {
-    e.preventDefault();
-    if (!password || !confirmPassword) { setStatus("Please fill in both fields."); setIsError(true); return; }
-    if (password.length < 6) { setStatus("Password must be at least 6 characters."); setIsError(true); return; }
-    if (password !== confirmPassword) { setStatus("Passwords do not match."); setIsError(true); return; }
-
-    setLoading(true);
-    setStatus("");
-    setIsError(false);
-
-    const { error } = await supabase.auth.updateUser({ password });
-
-    if (error) {
-      setStatus(error.message);
-      setIsError(true);
-      setLoading(false);
-      return;
-    }
-
-    setDone(true);
-    setLoading(false);
-    setTimeout(() => router.push("/login"), 2000);
-  }
-
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-6 py-12">
-
-      {/* Logo */}
-      <div className="mb-10 text-center">
-        <div
-          className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl text-3xl"
-          style={{ background: "rgba(217,119,6,0.25)", border: "1px solid rgba(253,230,138,0.3)" }}
-        >
-          🏊
-        </div>
-        <h1 className="text-4xl font-bold tracking-tight text-white">Natrix</h1>
-        <p className="mt-1 text-sm text-white/40">Swim meet results for parents</p>
-      </div>
-
-      {/* Glass card */}
-      <div
-        className="w-full max-w-sm rounded-3xl p-6 space-y-5"
-        style={{
-          background: "rgba(255,255,255,0.13)",
-          backdropFilter: "blur(24px) saturate(1.3)",
-          WebkitBackdropFilter: "blur(24px) saturate(1.3)",
-          border: "1px solid rgba(255,255,255,0.24)",
-        }}
-      >
-        {checking ? (
-          <div className="text-center py-4">
-            <p className="text-sm text-white/40">Verifying reset link...</p>
-          </div>
-        ) : done ? (
-          <div className="text-center py-4 space-y-3">
-            <div className="text-4xl">✅</div>
-            <h2 className="text-xl font-bold text-white">Password updated!</h2>
-            <p className="text-sm text-white/50">Redirecting you to sign in...</p>
-          </div>
-        ) : isError && !password ? (
-          <div className="text-center py-4 space-y-3">
-            <div className="text-4xl">⚠️</div>
-            <h2 className="text-xl font-bold text-white">Invalid link</h2>
-            <p className="text-sm text-white/50">{status}</p>
-            <a href="/forgot-password" className="mt-2 inline-block text-sm font-semibold" style={{ color: "#FDE68A" }}>
-              Request a new link
-            </a>
-          </div>
-        ) : (
-          <>
-            <div>
-              <h2 className="text-2xl font-bold text-white">Set new password</h2>
-              <p className="mt-1 text-sm text-white/45">Choose a strong password for your account.</p>
-            </div>
-
-            <form onSubmit={handleUpdatePassword} className="space-y-4">
-              <input
-                type="password"
-                placeholder="New password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="input"
-              />
-              <input
-                type="password"
-                placeholder="Confirm new password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="input"
-              />
-
-              {status && (
-                <p className="rounded-2xl px-3 py-2 text-sm"
-                  style={{ background: "rgba(226,75,74,0.1)", border: "1px solid rgba(226,75,74,0.2)", color: "#F09595" }}>
-                  {status}
-                </p>
-              )}
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full rounded-2xl py-3.5 text-base font-bold text-white transition disabled:opacity-50"
-                style={{ background: "#D97706" }}
-              >
-                {loading ? "Updating..." : "Update password"}
-              </button>
-            </form>
           </>
         )}
       </div>
@@ -8594,497 +8449,20 @@ export default function HomePage() {
 }
 </file>
 
-<file path="lib/ocrEventResultsParser.ts">
-// ✅ ocrEventResultsParser.ts
-//
-// Parses the Meet Mobile "Event Details" page — the full event rankings list.
-//
-// REAL OCR FORMAT (from actual screenshots):
-//
-//   PLACE En Ning Olivia Lim 38.70    ← "PLACE" + name + time all on one line
-//   1 csclio TIME                      ← place number + club on next line
-//
-//   PLACE Ena Ang 42.70
-//   4A aAas|10 TIME                    ← place "4A" — OCR adds letter after number!
-//
-//   PLACE Mikaela Loh 4350             ← time "4350" = "43.50" (missing dot)
-//   / ssclio TIVE                      ← "/" = "7" OCR misread
-//
-//   PACE Tessa Ng | 43.85             ← "PACE" = "PLACE" (OCR dropped the L)
-//
-//   PLACE Mengqi Fang 1:26.26
-//   (9) TLSC | 10 TIME                 ← bracketed place number
+<file path="lib/supabaseClient.ts">
+import { createBrowserClient } from "@supabase/ssr";
 
-export type EventResultRow = {
-  place: number;
-  name: string;
-  club: string | null;
-  age: number | null;
-  timeStr: string;
-  timeMs: number;
-  event: string | null;
-  course: "LCM" | "SCM" | "SCY" | "UNKNOWN";
-  swamAt: string | null;
-  meetName: string | null;
-};
-
-export type ParsedEventResults = {
-  event: string | null;
-  course: "LCM" | "SCM" | "SCY" | "UNKNOWN";
-  swamAt: string | null;
-  meetName: string | null;
-  results: EventResultRow[];
-};
-
-// ✅ Repair common OCR time manglings
-function repairTime(raw: string): string | null {
-  const s = raw.trim();
-  if (/^\d{1,2}:\d{2}\.\d{2}$/.test(s)) return s;
-  if (/^\d{2}\.\d{2}$/.test(s)) return s;
-  if (/^\d{1}:\d{4}$/.test(s)) return `${s[0]}:${s.slice(2, 4)}.${s.slice(4)}`;
-  if (/^\d{5}$/.test(s)) return `${s[0]}:${s.slice(1, 3)}.${s.slice(3)}`;
-  if (/^\d{4}$/.test(s)) return `${s.slice(0, 2)}.${s.slice(2)}`;
-  return null;
-}
-
-function timeToMs(timeStr: string): number {
-  if (!timeStr) return 0;
-  const clean = timeStr.trim();
-  if (clean.includes(":")) {
-    const [mm, rest] = clean.split(":");
-    const [sec, hundredths] = rest.split(".");
-    return Number(mm) * 60_000 + Number(sec) * 1_000 + Number(hundredths ?? "0") * 10;
+export const supabase = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+  {
+    auth: {
+      flowType: "implicit",
+      detectSessionInUrl: true,
+      persistSession: true,
+    },
   }
-  const [sec, hundredths] = clean.split(".");
-  return Number(sec) * 1_000 + Number(hundredths ?? "0") * 10;
-}
-
-function detectCourse(text: string): "LCM" | "SCM" | "SCY" | "UNKNOWN" {
-  const t = text.toLowerCase();
-  if (t.includes("meter") || t.includes("long course") || t.includes("lcm")) return "LCM";
-  if (t.includes("25 meter") || t.includes("short course meters") || t.includes("scm")) return "SCM";
-  if (t.includes("yard") || t.includes("scy")) return "SCY";
-  return "UNKNOWN";
-}
-
-function extractEventName(lines: string[]): string | null {
-  const strokeRe = /freestyle|backstroke|breaststroke|butterfly|medley|free|back|breast|fly|\bim\b/i;
-  const distRe = /\b(50|100|200|400|800|1500)\b/;
-  for (const line of lines.slice(0, 15)) {
-    if (!strokeRe.test(line) || !distRe.test(line)) continue;
-    const distMatch = line.match(distRe);
-    const dist = distMatch?.[1];
-    const l = line.toLowerCase();
-    let stroke = null;
-    if (l.includes("freestyle") || / free\b/.test(l)) stroke = "Freestyle";
-    else if (l.includes("butterfly") || / fly\b/.test(l)) stroke = "Butterfly";
-    else if (l.includes("backstroke") || / back\b/.test(l)) stroke = "Backstroke";
-    else if (l.includes("breaststroke") || / breast\b/.test(l)) stroke = "Breaststroke";
-    else if (l.includes("individual medley") || / medley\b/.test(l) || / im\b/.test(l)) stroke = "IM";
-    if (dist && stroke) return `${dist} ${stroke}`;
-  }
-  return null;
-}
-
-function extractMeetDate(rawText: string): string | null {
-  const monthMap: Record<string, number> = {
-    jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
-    jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
-  };
-  const m = rawText.match(
-    /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s.,|/-]*(\d{1,2})[\s,|/-]*(\d{4})\b/i
-  );
-  if (m) {
-    const month = monthMap[m[1].slice(0, 3).toLowerCase()];
-    const day = Number(m[2]);
-    const year = Number(m[3]);
-    if (month != null && day >= 1 && day <= 31) {
-      return new Date(Date.UTC(year, month, day)).toISOString().split("T")[0];
-    }
-  }
-  return null;
-}
-
-function extractMeetName(lines: string[]): string | null {
-  const meetRe = /championship|championships|open|invitational|junior|juniors|classic|cup|trophy|gala|national|regional|age.?group|series|aquatic|swim.?meet/i;
-  for (const line of lines) {
-    const m = line.match(/^EVENT\s+(.+)$/i);
-    if (m && m[1].length >= 4 && !/^\d+$/.test(m[1])) return m[1].trim();
-  }
-  for (const line of lines.slice(0, 20)) {
-    if (line.length < 5 || line.length > 100) continue;
-    if (/\b(am|pm)\b/i.test(line)) continue;
-    if (/^\d+$/.test(line)) continue;
-    if (/place|lane|heat|time|dropped|club/i.test(line)) continue;
-    if (line.split(/\s+/).length < 2) continue;
-    if (meetRe.test(line)) return line.trim();
-  }
-  return null;
-}
-
-// ✅ Extract age group from the event header or section header.
-// Used as a fallback when individual club/age lines can't be parsed cleanly.
-//
-// Handles:
-//   "10 Year Olds"              → 10
-//   "Girls 9-10 50 Meter Free"  → 10 (upper bound of range)
-//   "Boys 11-12 100 Backstroke" → 12
-function extractAgeGroupFromText(rawText: string): number | null {
-  // "10 Year Olds" — Meet Mobile section header (most reliable)
-  const yearOldsMatch = rawText.match(/\b(\d{1,2})\s+[Yy]ear\s+[Oo]lds?\b/);
-  if (yearOldsMatch) {
-    const age = parseInt(yearOldsMatch[1], 10);
-    if (age >= 6 && age <= 18) return age;
-  }
-
-  // "Girls 9-10" or "Boys 11-12" in event title
-  const ageRangeMatch = rawText.match(/(?:Girls|Boys|Women|Men)\s+(\d{1,2})-(\d{1,2})/i);
-  if (ageRangeMatch) {
-    const upper = parseInt(ageRangeMatch[2], 10);
-    if (upper >= 6 && upper <= 18) return upper;
-  }
-
-  // Single age: "Girls 10 50 Meter Free"
-  const singleAgeMatch = rawText.match(
-    /(?:Girls|Boys|Women|Men)\s+(\d{1,2})\s+(?:\d+\s+)?(?:Meter|Yard|Free|Back|Breast|Fly|IM)/i
-  );
-  if (singleAgeMatch) {
-    const age = parseInt(singleAgeMatch[1], 10);
-    if (age >= 6 && age <= 18) return age;
-  }
-
-  return null;
-}
-
-// ✅ Apply age-group fallback to swimmers where age is null.
-function applyAgeGroupFallback(results: EventResultRow[], rawText: string): EventResultRow[] {
-  if (!results.some((r) => r.age === null)) return results;
-  const fallbackAge = extractAgeGroupFromText(rawText);
-  if (fallbackAge === null) return results;
-  return results.map((r) => (r.age === null ? { ...r, age: fallbackAge } : r));
-}
-
-// ✅ Extract place number — handles all real OCR variants
-function extractPlaceFromLine(line: string): number | null {
-  const s = line.trim();
-  const bracketMatch = s.match(/^\((\d{1,3})\)/);
-  if (bracketMatch) {
-    const n = parseInt(bracketMatch[1], 10);
-    return isNaN(n) ? null : n;
-  }
-  const plainMatch = s.match(/^(\d{1,3})[A-Za-z]?\s/);
-  if (plainMatch) {
-    const n = parseInt(plainMatch[1], 10);
-    return isNaN(n) || n < 1 || n > 999 ? null : n;
-  }
-  return null;
-}
-
-// ✅ Extract club and age from the place/club line.
-//
-// KEY FIXES applied here:
-//   1. Proper TIME stripping — old regex only stripped trailing 'E', leaving 'TIM'
-//   2. OCR garble detection: "CSC | 10" often reads as "csclio":
-//        l = "|" (pipe), i = "1", o = "0"  → suffix "lio" = age 10
-//        suffix "lo" = likely age 10
-//        suffix "io" = likely age 10
-//   3. "AcEl" pattern: "ACE | 1[0]" where final 0 dropped by OCR → age ambiguous
-function extractClubAge(line: string): { club: string | null; age: number | null } {
-  let rest = line
-    .replace(/^\(\d{1,3}\)\s*/, "")          // remove "(9) "
-    .replace(/^\d{1,3}[A-Za-z]?\s+/, "")     // remove "4 " or "4A "
-    .replace(/^\/\s*/, "")                    // remove leading "/"
-    .replace(/\s*\b(?:TIME|TIVE|TIIME|TIM)\b\s*$/i, "") // ✅ strip all TIME variants
-    .trim();
-
-  // Strategy 1: Clean separator — "CSC | 10" or "TLSC | 10"
-  const ageMatch = rest.match(/[\[|,\s]+(\d{1,2})\s*$/);
-  if (ageMatch) {
-    const age = parseInt(ageMatch[1], 10);
-    const rawClub = rest.slice(0, ageMatch.index).replace(/[\[|,\s]+$/, "").trim();
-    const club = rawClub.replace(/[^A-Za-z\s\-]/g, "").trim() || null;
-    return { club, age: isNaN(age) ? null : age };
-  }
-
-  // Strategy 2: All-alpha string — check for OCR garble of "| 10"
-  // "csclio" → l=|, i=1, o=0 → age=10, club="CSC"
-  // "aqlio"  → age=10, club="AQ" (J dropped by OCR)
-  // "APSCio" → age=10, club="APSC"
-  const onlyAlpha = /^[A-Za-z]+$/.test(rest);
-  if (onlyAlpha && rest.length >= 4) {
-    // "lio" suffix — most reliable (pipe + 1 + 0)
-    const lioMatch = rest.match(/^([A-Za-z]{2,6}?)(lio)$/i);
-    if (lioMatch && lioMatch[1].length >= 2) {
-      return { club: lioMatch[1].toUpperCase(), age: 10 };
-    }
-    // "lo" suffix
-    const loMatch = rest.match(/^([A-Za-z]{2,6}?)(lo)$/i);
-    if (loMatch && loMatch[1].length >= 2) {
-      return { club: loMatch[1].toUpperCase(), age: 10 };
-    }
-    // "io" suffix
-    const ioMatch = rest.match(/^([A-Za-z]{3,6}?)(io)$/i);
-    if (ioMatch && ioMatch[1].length >= 2) {
-      return { club: ioMatch[1].toUpperCase(), age: 10 };
-    }
-    // "El" or "el" suffix — e.g. "AcEl" from "ACE | 1[0]" where 0 was cut off
-    const elMatch = rest.match(/^([A-Za-z]{2,5})([Ee][Ll]|[Ll][Ee])$/);
-    if (elMatch && elMatch[1].length >= 2) {
-      return { club: elMatch[1].toUpperCase(), age: null }; // age ambiguous — fallback will apply
-    }
-  }
-
-  // Strategy 3: Return whatever's left as the club name
-  const club = rest.replace(/[^A-Za-z\s\-]/g, "").trim() || null;
-  return { club, age: null };
-}
-
-function startsWithPlace(line: string): boolean {
-  return /^(?:PLACE|PACE)\s+[A-Za-z]/i.test(line);
-}
-
-export function parseEventResultsOCR(rawText: string): ParsedEventResults {
-  const lines = rawText.replace(/\r/g, "\n").split("\n").map((l) => l.trim()).filter(Boolean);
-
-  // Try NSG card format (standalone PLACE lines)
-  const standalonePlaceLines = lines.filter((l) => /^(?:PLACE|PACE)$/i.test(l));
-  const numberedPlaceLines = lines.filter((l) => /^(?:PLACE|PACE)\s+\d{1,3}$/i.test(l));
-  if (standalonePlaceLines.length >= 2 || numberedPlaceLines.length >= 2) {
-    const nsgResult = parseNSGCardFormat(rawText);
-    if (nsgResult.results.length > 0) {
-      nsgResult.results = applyAgeGroupFallback(nsgResult.results, rawText);
-      return nsgResult;
-    }
-  }
-
-  // Try Name+Time format
-  const timeAtEndRe = /\s(\d{1,2}:\d{2}\.\d{2}|\d{2}\.\d{2})$/;
-  const clubLineRe = /[A-Z]{2,8}\s*(?:lio|lo|io|clo)?\s*(?:\|?\s*\d{1,2})?\s*(?:TIME|TIVE|TIM)?\s*$/i;
-  let nameTimePairs = 0;
-  for (let i = 0; i < lines.length - 1; i++) {
-    if (timeAtEndRe.test(lines[i]) && clubLineRe.test(lines[i + 1])) nameTimePairs++;
-  }
-  if (nameTimePairs >= 2) {
-    const ntResult = parseNameTimeFormat(rawText);
-    if (ntResult.results.length > 0) {
-      ntResult.results = applyAgeGroupFallback(ntResult.results, rawText);
-      return ntResult;
-    }
-  }
-
-  // Inline PLACE format
-  const inlineResult = parseInlineEventResultsOCR(rawText);
-  inlineResult.results = applyAgeGroupFallback(inlineResult.results, rawText);
-  return inlineResult;
-}
-
-function parseInlineEventResultsOCR(rawText: string): ParsedEventResults {
-  const lines = rawText
-    .replace(/\r/g, "\n")
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
-
-  const course = detectCourse(rawText);
-  const swamAt = extractMeetDate(rawText);
-  const meetName = extractMeetName(lines);
-  const event = extractEventName(lines);
-  const results: EventResultRow[] = [];
-  const timeAtEndRe = /[\s|]*(\d{1}:\d{4}|\d{1,2}:\d{2}\.\d{2}|\d{2}\.\d{2}|\d{4,5})$/;
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (!startsWithPlace(line)) continue;
-
-    const afterPlace = line.replace(/^(?:PLACE|PACE)\s+/i, "").trim();
-    const timeMatch = afterPlace.match(timeAtEndRe);
-    if (!timeMatch) continue;
-
-    const timeStr = repairTime(timeMatch[1]);
-    if (!timeStr) continue;
-    const timeMs = timeToMs(timeStr);
-    if (timeMs <= 0 || timeMs > 1_800_000) continue;
-
-    const nameRaw = afterPlace.slice(0, afterPlace.search(timeAtEndRe)).trim();
-    const name = nameRaw.replace(/[\s|]+$/, "").trim();
-    if (!name || name.length < 2) continue;
-
-    let place: number | null = null;
-    let club: string | null = null;
-    let age: number | null = null;
-
-    for (let j = i + 1; j <= Math.min(i + 2, lines.length - 1); j++) {
-      const next = lines[j];
-      if (/dropped|improvement|\*|\[>/i.test(next)) continue;
-      if (startsWithPlace(next)) break;
-      if (/^\/\s+/.test(next)) {
-        place = results.length + 1;
-        const ca = extractClubAge(next);
-        club = ca.club; age = ca.age;
-        break;
-      }
-      const p = extractPlaceFromLine(next);
-      if (p !== null) {
-        place = p;
-        const ca = extractClubAge(next);
-        club = ca.club; age = ca.age;
-        break;
-      }
-    }
-
-    if (place === null) place = results.length + 1;
-    results.push({ place, name, club, age, timeStr, timeMs, event, course, swamAt, meetName });
-  }
-
-  results.sort((a, b) => a.place - b.place);
-  const seen = new Set<string>();
-  const deduped = results.filter((r) => {
-    const key = r.name.toLowerCase();
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-  return { event, course, swamAt, meetName, results: deduped };
-}
-
-export function isEventResultsPage(rawText: string): boolean {
-  const lines = rawText.split("\n").map((l) => l.trim());
-  if (lines.filter((l) => /^(?:PLACE|PACE)\s+[A-Za-z]/i.test(l)).length >= 2) return true;
-  if (lines.filter((l) => /^(?:PLACE|PACE)$/i.test(l)).length >= 2) return true;
-  if (lines.filter((l) => /^(?:PLACE|PACE)\s+\d{1,3}$/i.test(l)).length >= 2) return true;
-
-  const timeAtEndRe = /\s(\d{1,2}:\d{2}\.\d{2}|\d{2}\.\d{2})$/;
-  const clubLineRe = /[A-Z]{2,8}\s*(?:lio|lo|io|clo)?\s*(?:\|?\s*\d{1,2})?\s*(?:TIME|TIVE|TIM)?\s*$/i;
-  let pairs = 0;
-  for (let i = 0; i < lines.length - 1; i++) {
-    if (timeAtEndRe.test(lines[i]) && clubLineRe.test(lines[i + 1])) pairs++;
-  }
-  return pairs >= 2;
-}
-
-function parseNameTimeFormat(rawText: string): ParsedEventResults {
-  const lines = rawText.replace(/\r/g, "\n").split("\n").map((l) => l.trim()).filter(Boolean);
-  const course = detectCourse(rawText);
-  const swamAt = extractMeetDate(rawText);
-  const meetName = extractMeetName(lines);
-  const event = extractEventName(lines);
-  const results: EventResultRow[] = [];
-  const timeAtEndRe = /\s(\d{1,2}:\d{2}\.\d{2}|\d{2}\.\d{2})$/;
-  const clubLineRe = /^([A-Za-z]{2,8})\s*(?:\|?\s*(\d{1,2}))?\s*(?:TIME|TIVE|TIM)?\s*$/i;
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const timeMatch = line.match(timeAtEndRe);
-    if (!timeMatch) continue;
-    const nextLine = lines[i + 1] ?? "";
-    const clubMatch = nextLine.match(clubLineRe);
-    if (!clubMatch) continue;
-
-    const timeStr = timeMatch[1];
-    const timeMs = timeToMs(timeStr);
-    if (timeMs <= 0 || timeMs > 1_800_000) continue;
-
-    const name = line.slice(0, line.lastIndexOf(timeMatch[0])).trim();
-    if (!name || name.length < 3) continue;
-    if (/^\d|finals|results|completed|heats|swimmers|unofficial|am|pm/i.test(name)) continue;
-
-    // Use extractClubAge for consistency — handles garble patterns
-    const ca = extractClubAge(nextLine);
-    let club = ca.club;
-    let age = ca.age;
-
-    // Fallback to clean regex match if extractClubAge got confused
-    if (!age && clubMatch[2]) {
-      club = clubMatch[1].trim().toUpperCase();
-      age = parseInt(clubMatch[2], 10);
-    }
-
-    results.push({ place: results.length + 1, name, club, age, timeStr, timeMs, event, course, swamAt, meetName });
-    i++;
-  }
-
-  return { event, course, swamAt, meetName, results };
-}
-
-function parseNSGCardFormat(rawText: string): ParsedEventResults {
-  const lines = rawText.replace(/\r/g, "\n").split("\n").map((l) => l.trim()).filter(Boolean);
-  const course = detectCourse(rawText);
-  const swamAt = extractMeetDate(rawText);
-  const meetName = extractMeetName(lines);
-  const event = extractEventName(lines);
-  const results: EventResultRow[] = [];
-
-  let i = 0;
-  while (i < lines.length) {
-    const line = lines[i];
-    const isPlaceStandalone = /^(?:PLACE|PACE)$/i.test(line);
-    const isPlaceNumbered = /^(?:PLACE|PACE)\s+\d{1,3}$/i.test(line);
-    if (!isPlaceStandalone && !isPlaceNumbered) { i++; continue; }
-
-    let place: number | null = null;
-    let nameIdx = i + 1;
-
-    if (isPlaceNumbered) {
-      const m = line.match(/\d{1,3}/);
-      if (m) place = parseInt(m[0], 10);
-    } else {
-      const nextLine = lines[i + 1] ?? "";
-      if (/^\d{1,3}$/.test(nextLine.trim())) {
-        place = parseInt(nextLine.trim(), 10);
-        nameIdx = i + 2;
-      }
-    }
-
-    let name = "";
-    let club: string | null = null;
-    let age: number | null = null;
-    let timeStr: string | null = null;
-    let timeMs = 0;
-
-    for (let j = nameIdx; j < Math.min(nameIdx + 6, lines.length); j++) {
-      const l = lines[j];
-      if (/^(?:PLACE|PACE)/i.test(l)) break;
-      if (/dropped|improvement|★|▷/i.test(l)) continue;
-      if (/^(?:TIME|TIVE|TIM)$/i.test(l)) continue;
-      if (/completed|finals|unofficial|heats|swimmers/i.test(l)) continue;
-
-      const timeMatch = l.match(/^(\d{1,2}:\d{2}\.\d{2}|\d{2}\.\d{2}|\d{4,5})$/);
-      if (timeMatch && !timeStr) {
-        const repaired = repairTime(timeMatch[1]);
-        if (repaired) { timeStr = repaired; timeMs = timeToMs(repaired); }
-        continue;
-      }
-
-      const clubAgeMatch = l.match(/^([A-Z]{2,6})\s*[|]\s*(\d{1,2})$/i);
-      if (clubAgeMatch) {
-        club = clubAgeMatch[1].trim().toUpperCase();
-        age = parseInt(clubAgeMatch[2], 10);
-        continue;
-      }
-
-      if (!name && l.length >= 3 && /[A-Za-z]/.test(l) && !/^\d+$/.test(l)) {
-        name = l.trim();
-      }
-    }
-
-    if (name && timeStr && timeMs > 0 && timeMs < 1_800_000) {
-      results.push({ place: place ?? results.length + 1, name, club, age, timeStr, timeMs, event, course, swamAt, meetName });
-    }
-
-    i++;
-  }
-
-  results.sort((a, b) => a.place - b.place);
-  const seen = new Set<string>();
-  const deduped = results.filter((r) => {
-    const key = r.name.toLowerCase();
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-
-  return { event, course, swamAt, meetName, results: deduped };
-}
+);
 </file>
 
 <file path="package.json">
@@ -9250,214 +8628,115 @@ export default function BottomNav() {
 }
 </file>
 
-<file path="app/components/SplashScreen.tsx">
+<file path="app/reset-password/page.tsx">
 "use client";
 
 import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
-const SPLASH_KEY = "natrix_splash_shown";
-
-function isVideo(url: string) {
-  return /\.(mp4|mov|webm)(\?|$)/i.test(url);
-}
-
-export default function SplashScreen() {
-  const [ready, setReady] = useState(false);
-  const [fadingOut, setFadingOut] = useState(false);
-  const [gone, setGone] = useState(false);
-  const [mediaUrl, setMediaUrl] = useState<string | null>(null);
+export default function ResetPasswordPage() {
+  const router = useRouter();
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [checking, setChecking] = useState(true);
+  const [status, setStatus] = useState("");
+  const [isError, setIsError] = useState(false);
+  const [done, setDone] = useState(false);
+  const [sessionReady, setSessionReady] = useState(false);
 
   useEffect(() => {
-    const alreadyShown = sessionStorage.getItem(SPLASH_KEY);
-    if (alreadyShown) return;
-    sessionStorage.setItem(SPLASH_KEY, "1");
-    void loadThenShow();
+    const code = new URLSearchParams(window.location.search).get("code");
+    if (code) {
+      window.history.replaceState({}, "", "/reset-password");
+      supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
+        if (error) {
+          setStatus("Reset link is invalid or expired.");
+          setIsError(true);
+        } else {
+          setSessionReady(true);
+        }
+        setChecking(false);
+      });
+      return;
+    }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") {
+        setSessionReady(true);
+        setChecking(false);
+      }
+    });
+    const timeout = setTimeout(() => {
+      setStatus("Reset link is invalid or expired.");
+      setIsError(true);
+      setChecking(false);
+    }, 3000);
+    return () => { subscription.unsubscribe(); clearTimeout(timeout); };
   }, []);
 
-  async function loadThenShow() {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      const url = user?.user_metadata?.splash_image_url as string | undefined;
-      if (url && !isVideo(url)) {
-        await new Promise<void>((resolve) => {
-          const img = new Image();
-          img.onload = () => resolve();
-          img.onerror = () => resolve();
-          img.src = url;
-        });
-        setMediaUrl(url);
-      } else if (url) {
-        setMediaUrl(url);
-      }
-    } catch {
-      // default background
-    }
-    setReady(true);
+  async function handleUpdatePassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (!password || !confirmPassword) { setStatus("Please fill in both fields."); setIsError(true); return; }
+    if (password.length < 6) { setStatus("Password must be at least 6 characters."); setIsError(true); return; }
+    if (password !== confirmPassword) { setStatus("Passwords do not match."); setIsError(true); return; }
+    setLoading(true);
+    setStatus("");
+    setIsError(false);
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) { setStatus(error.message); setIsError(true); setLoading(false); return; }
+    setDone(true);
+    setLoading(false);
+    setTimeout(() => router.push("/dashboard"), 2000);
   }
 
-  function handleEnter() {
-    setFadingOut(true);
-    setTimeout(() => setGone(true), 700);
-  }
-
-  if (!ready || gone) return null;
-
-  const showVideo = mediaUrl && isVideo(mediaUrl);
-  const showImage = mediaUrl && !isVideo(mediaUrl);
-
-  const content = (
-    <>
-      <style>{`
-        @keyframes natrix-drop {
-          from { opacity: 0; transform: translateY(-24px) scale(0.75); }
-          to   { opacity: 1; transform: translateY(0) scale(1); }
-        }
-        @keyframes natrix-title {
-          from { opacity: 0; transform: translateY(20px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes natrix-sub {
-          from { opacity: 0; }
-          to   { opacity: 1; }
-        }
-        @keyframes natrix-shimmer {
-          0%   { opacity: 0.15; transform: scale(1); }
-          50%  { opacity: 0.25; transform: scale(1.05); }
-          100% { opacity: 0.15; transform: scale(1); }
-        }
-
-        /* ✅ Cinematic drift — slow, smooth, no permissions */
-        @keyframes natrix-drift {
-          0%   { transform: scale(1.12) translate(0px, 0px); }
-          25%  { transform: scale(1.12) translate(-12px, -6px); }
-          50%  { transform: scale(1.12) translate(8px, -10px); }
-          75%  { transform: scale(1.12) translate(12px, 4px); }
-          100% { transform: scale(1.12) translate(0px, 0px); }
-        }
-
-        .splash-drop    { animation: natrix-drop  0.55s cubic-bezier(0.34,1.56,0.64,1) 0.15s both; }
-        .splash-title   { animation: natrix-title 0.75s ease-out 0.45s both; }
-        .splash-sub     { animation: natrix-sub   0.75s ease-out 0.85s both; }
-        .splash-hint    { animation: natrix-sub   0.75s ease-out 1.1s both; }
-        .splash-shimmer { animation: natrix-shimmer 3s ease-in-out infinite; }
-        .splash-drift   { animation: natrix-drift 12s ease-in-out infinite; }
-      `}</style>
-
-      <div
-        style={{
-          position: "fixed",
-          top: 0, left: 0, right: 0, bottom: 0,
-          zIndex: 999999,
-          opacity: fadingOut ? 0 : 1,
-          transition: fadingOut ? "opacity 0.65s ease" : "none",
-          overflow: "hidden",
-        }}
-      >
-        {/* Background */}
-        {showVideo && (
-          <video autoPlay muted loop playsInline style={{
-            position: "absolute", inset: 0,
-            width: "100%", height: "100%", objectFit: "cover",
-          }}>
-            <source src={mediaUrl} />
-          </video>
-        )}
-
-        {/* ✅ Photo with cinematic drift animation */}
-        {showImage && (
-          <img
-            src={mediaUrl}
-            alt=""
-            className="splash-drift"
-            style={{
-              position: "absolute", inset: 0,
-              width: "100%", height: "100%",
-              objectFit: "cover",
-            }}
-          />
-        )}
-
-        {!mediaUrl && <DefaultBackground />}
-
-        {/* Dark overlay */}
-        <div style={{
-          position: "absolute", inset: 0,
-          background: "linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.45) 50%, rgba(0,0,0,0.72) 100%)",
-        }} />
-
-        {/* Shimmer */}
-        <div className="splash-shimmer" style={{
-          position: "absolute", inset: 0,
-          background: "radial-gradient(ellipse at 50% 40%, rgba(14,165,233,0.18) 0%, transparent 65%)",
-        }} />
-
-        {/* Content — stays perfectly still while photo drifts */}
-        <div style={{
-          position: "absolute", inset: 0,
-          display: "flex", flexDirection: "column",
-          alignItems: "center", justifyContent: "center",
-          padding: "40px 32px", textAlign: "center",
-        }}>
-          <div className="splash-drop" style={{ fontSize: "52px", lineHeight: 1, marginBottom: "20px" }}>
-            💧
-          </div>
-
-          <div className="splash-title" style={{
-            fontFamily: "'Bebas Neue', 'Arial Narrow', sans-serif",
-            fontSize: "clamp(52px, 14vw, 88px)",
-            lineHeight: 1.05, letterSpacing: "0.06em", color: "#ffffff",
-            textShadow: "0 2px 20px rgba(0,0,0,0.6), 0 0 80px rgba(14,165,233,0.4)",
-          }}>
-            WELCOME TO<br />NATRIX
-          </div>
-
-          <div className="splash-sub" style={{
-            marginTop: "16px", fontSize: "13px",
-            letterSpacing: "0.25em", textTransform: "uppercase",
-            color: "rgba(255,255,255,0.6)", fontWeight: 500,
-          }}>
-            Track Every Stroke
-          </div>
-
-          <button
-            onClick={handleEnter}
-            className="splash-hint"
-            style={{
-              marginTop: "48px", padding: "14px 40px",
-              borderRadius: "100px",
-              border: "1px solid rgba(255,255,255,0.25)",
-              background: "rgba(255,255,255,0.1)",
-              fontSize: "13px", letterSpacing: "0.2em",
-              textTransform: "uppercase", color: "rgba(255,255,255,0.85)",
-              fontWeight: 600, backdropFilter: "blur(8px)",
-              cursor: "pointer",
-            }}
-          >
-            Tap to Enter
-          </button>
-        </div>
-      </div>
-    </>
-  );
-
-  return createPortal(content, document.body);
-}
-
-function DefaultBackground() {
   return (
-    <div style={{
-      position: "absolute", inset: 0,
-      background: "linear-gradient(160deg, #010f1c 0%, #062a45 30%, #0a4d7a 60%, #063554 80%, #011627 100%)",
-    }}>
-      <div style={{
-        position: "absolute", inset: 0,
-        backgroundImage: `
-          linear-gradient(175deg, rgba(14,165,233,0.08) 0%, transparent 40%),
-          linear-gradient(185deg, rgba(14,165,233,0.05) 0%, transparent 40%)
-        `,
-      }} />
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 py-12">
+      <div className="mb-10 text-center">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl text-3xl"
+          style={{ background: "rgba(217,119,6,0.25)", border: "1px solid rgba(253,230,138,0.3)" }}>🏊</div>
+        <h1 className="text-4xl font-bold tracking-tight text-white">Natrix</h1>
+        <p className="mt-1 text-sm text-white/40">Swim meet results for parents</p>
+      </div>
+      <div className="w-full max-w-sm rounded-3xl p-6 space-y-5"
+        style={{ background: "rgba(255,255,255,0.13)", backdropFilter: "blur(24px) saturate(1.3)",
+          WebkitBackdropFilter: "blur(24px) saturate(1.3)", border: "1px solid rgba(255,255,255,0.24)" }}>
+        {checking ? (
+          <div className="text-center py-4"><p className="text-sm text-white/40">Verifying reset link...</p></div>
+        ) : done ? (
+          <div className="text-center py-4 space-y-3">
+            <div className="text-4xl">✅</div>
+            <h2 className="text-xl font-bold text-white">Password updated!</h2>
+            <p className="text-sm text-white/50">Redirecting you to the app...</p>
+          </div>
+        ) : isError && !sessionReady ? (
+          <div className="text-center py-4 space-y-3">
+            <div className="text-4xl">⚠️</div>
+            <h2 className="text-xl font-bold text-white">Invalid link</h2>
+            <p className="text-sm text-white/50">{status}</p>
+            <a href="/forgot-password" className="mt-2 inline-block text-sm font-semibold" style={{ color: "#FDE68A" }}>
+              Request a new link</a>
+          </div>
+        ) : (
+          <>
+            <div>
+              <h2 className="text-2xl font-bold text-white">Set new password</h2>
+              <p className="mt-1 text-sm text-white/45">Choose a strong password for your account.</p>
+            </div>
+            <form onSubmit={handleUpdatePassword} className="space-y-4">
+              <input type="password" placeholder="New password" value={password}
+                onChange={(e) => setPassword(e.target.value)} className="input" />
+              <input type="password" placeholder="Confirm new password" value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)} className="input" />
+              {status && <p className="rounded-2xl px-3 py-2 text-sm"
+                style={{ background: "rgba(226,75,74,0.1)", border: "1px solid rgba(226,75,74,0.2)", color: "#F09595" }}>{status}</p>}
+              <button type="submit" disabled={loading}
+                className="w-full rounded-2xl py-3.5 text-base font-bold text-white transition disabled:opacity-50"
+                style={{ background: "#D97706" }}>{loading ? "Updating..." : "Update password"}</button>
+            </form>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -11410,6 +10689,714 @@ nav.fixed {
 }
 </file>
 
+<file path="lib/ocrEventResultsParser.ts">
+// ✅ ocrEventResultsParser.ts
+//
+// Parses the Meet Mobile "Event Details" page — the full event rankings list.
+//
+// REAL OCR FORMAT (from actual screenshots):
+//
+//   PLACE En Ning Olivia Lim 38.70    ← "PLACE" + name + time all on one line
+//   1 csclio TIME                      ← place number + club on next line
+//
+//   PLACE Ena Ang 42.70
+//   4A aAas|10 TIME                    ← place "4A" — OCR adds letter after number!
+//
+//   PLACE Mikaela Loh 4350             ← time "4350" = "43.50" (missing dot)
+//   / ssclio TIVE                      ← "/" = "7" OCR misread
+//
+//   PACE Tessa Ng | 43.85             ← "PACE" = "PLACE" (OCR dropped the L)
+//
+//   PLACE Mengqi Fang 1:26.26
+//   (9) TLSC | 10 TIME                 ← bracketed place number
+
+export type EventResultRow = {
+  place: number;
+  name: string;
+  club: string | null;
+  age: number | null;
+  timeStr: string;
+  timeMs: number;
+  event: string | null;
+  course: "LCM" | "SCM" | "SCY" | "UNKNOWN";
+  swamAt: string | null;
+  meetName: string | null;
+};
+
+export type ParsedEventResults = {
+  event: string | null;
+  course: "LCM" | "SCM" | "SCY" | "UNKNOWN";
+  swamAt: string | null;
+  meetName: string | null;
+  results: EventResultRow[];
+};
+
+// ✅ Repair common OCR time manglings
+function repairTime(raw: string): string | null {
+  const s = raw.trim();
+  if (/^\d{1,2}:\d{2}\.\d{2}$/.test(s)) return s;
+  if (/^\d{2}\.\d{2}$/.test(s)) return s;
+  if (/^\d{1}:\d{4}$/.test(s)) return `${s[0]}:${s.slice(2, 4)}.${s.slice(4)}`;
+  if (/^\d{5}$/.test(s)) return `${s[0]}:${s.slice(1, 3)}.${s.slice(3)}`;
+  if (/^\d{4}$/.test(s)) return `${s.slice(0, 2)}.${s.slice(2)}`;
+  return null;
+}
+
+function timeToMs(timeStr: string): number {
+  if (!timeStr) return 0;
+  const clean = timeStr.trim();
+  if (clean.includes(":")) {
+    const [mm, rest] = clean.split(":");
+    const [sec, hundredths] = rest.split(".");
+    return Number(mm) * 60_000 + Number(sec) * 1_000 + Number(hundredths ?? "0") * 10;
+  }
+  const [sec, hundredths] = clean.split(".");
+  return Number(sec) * 1_000 + Number(hundredths ?? "0") * 10;
+}
+
+function detectCourse(text: string): "LCM" | "SCM" | "SCY" | "UNKNOWN" {
+  const t = text.toLowerCase();
+  if (t.includes("meter") || t.includes("long course") || t.includes("lcm")) return "LCM";
+  if (t.includes("25 meter") || t.includes("short course meters") || t.includes("scm")) return "SCM";
+  if (t.includes("yard") || t.includes("scy")) return "SCY";
+  return "UNKNOWN";
+}
+
+function extractEventName(lines: string[]): string | null {
+  const strokeRe = /freestyle|backstroke|breaststroke|butterfly|medley|free|back|breast|fly|\bim\b/i;
+  const distRe = /\b(50|100|200|400|800|1500)\b/;
+  for (const line of lines.slice(0, 15)) {
+    if (!strokeRe.test(line) || !distRe.test(line)) continue;
+    const distMatch = line.match(distRe);
+    const dist = distMatch?.[1];
+    const l = line.toLowerCase();
+    let stroke = null;
+    if (l.includes("freestyle") || / free\b/.test(l)) stroke = "Freestyle";
+    else if (l.includes("butterfly") || / fly\b/.test(l)) stroke = "Butterfly";
+    else if (l.includes("backstroke") || / back\b/.test(l)) stroke = "Backstroke";
+    else if (l.includes("breaststroke") || / breast\b/.test(l)) stroke = "Breaststroke";
+    else if (l.includes("individual medley") || / medley\b/.test(l) || / im\b/.test(l)) stroke = "IM";
+    if (dist && stroke) return `${dist} ${stroke}`;
+  }
+  return null;
+}
+
+function extractMeetDate(rawText: string): string | null {
+  const monthMap: Record<string, number> = {
+    jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+    jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+  };
+  const m = rawText.match(
+    /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s.,|/-]*(\d{1,2})[\s,|/-]*(\d{4})\b/i
+  );
+  if (m) {
+    const month = monthMap[m[1].slice(0, 3).toLowerCase()];
+    const day = Number(m[2]);
+    const year = Number(m[3]);
+    if (month != null && day >= 1 && day <= 31) {
+      return new Date(Date.UTC(year, month, day)).toISOString().split("T")[0];
+    }
+  }
+  return null;
+}
+
+function extractMeetName(lines: string[]): string | null {
+  const meetRe = /championship|championships|open|invitational|junior|juniors|classic|cup|trophy|gala|national|regional|age.?group|series|aquatic|swim.?meet/i;
+  for (const line of lines) {
+    const m = line.match(/^EVENT\s+(.+)$/i);
+    if (m && m[1].length >= 4 && !/^\d+$/.test(m[1])) return m[1].trim();
+  }
+  for (const line of lines.slice(0, 20)) {
+    if (line.length < 5 || line.length > 100) continue;
+    if (/\b(am|pm)\b/i.test(line)) continue;
+    if (/^\d+$/.test(line)) continue;
+    if (/place|lane|heat|time|dropped|club/i.test(line)) continue;
+    if (line.split(/\s+/).length < 2) continue;
+    if (meetRe.test(line)) return line.trim();
+  }
+  return null;
+}
+
+function extractAgeGroupFromText(rawText: string): number | null {
+  const yearOldsMatch = rawText.match(/\b(\d{1,2})\s+[Yy]ear\s+[Oo]lds?\b/);
+  if (yearOldsMatch) {
+    const age = parseInt(yearOldsMatch[1], 10);
+    if (age >= 6 && age <= 18) return age;
+  }
+  const ageRangeMatch = rawText.match(/(?:Girls|Boys|Women|Men)\s+(\d{1,2})-(\d{1,2})/i);
+  if (ageRangeMatch) {
+    const upper = parseInt(ageRangeMatch[2], 10);
+    if (upper >= 6 && upper <= 18) return upper;
+  }
+  const singleAgeMatch = rawText.match(
+    /(?:Girls|Boys|Women|Men)\s+(\d{1,2})\s+(?:\d+\s+)?(?:Meter|Yard|Free|Back|Breast|Fly|IM)/i
+  );
+  if (singleAgeMatch) {
+    const age = parseInt(singleAgeMatch[1], 10);
+    if (age >= 6 && age <= 18) return age;
+  }
+  return null;
+}
+
+function applyAgeGroupFallback(results: EventResultRow[], rawText: string): EventResultRow[] {
+  if (!results.some((r) => r.age === null)) return results;
+  const fallbackAge = extractAgeGroupFromText(rawText);
+  if (fallbackAge === null) return results;
+  return results.map((r) => (r.age === null ? { ...r, age: fallbackAge } : r));
+}
+
+function extractPlaceFromLine(line: string): number | null {
+  const s = line.trim();
+  const bracketMatch = s.match(/^\((\d{1,3})\)/);
+  if (bracketMatch) {
+    const n = parseInt(bracketMatch[1], 10);
+    return isNaN(n) ? null : n;
+  }
+  const plainMatch = s.match(/^(\d{1,3})[A-Za-z]?\s/);
+  if (plainMatch) {
+    const n = parseInt(plainMatch[1], 10);
+    return isNaN(n) || n < 1 || n > 999 ? null : n;
+  }
+  return null;
+}
+
+function extractClubAge(line: string): { club: string | null; age: number | null } {
+  let rest = line
+    .replace(/^\(\d{1,3}\)\s*/, "")
+    .replace(/^\d{1,3}[A-Za-z]?\s+/, "")
+    .replace(/^\/\s*/, "")
+    .replace(/\s*\b(?:TIME|TIVE|TIIME|TIM)\b\s*$/i, "")
+    .trim();
+
+  const ageMatch = rest.match(/[\[|,\s]+(\d{1,2})\s*$/);
+  if (ageMatch) {
+    const age = parseInt(ageMatch[1], 10);
+    const rawClub = rest.slice(0, ageMatch.index).replace(/[\[|,\s]+$/, "").trim();
+    const club = rawClub.replace(/[^A-Za-z\s\-]/g, "").trim() || null;
+    return { club, age: isNaN(age) ? null : age };
+  }
+
+  const onlyAlpha = /^[A-Za-z]+$/.test(rest);
+  if (onlyAlpha && rest.length >= 4) {
+    const lioMatch = rest.match(/^([A-Za-z]{2,6}?)(lio)$/i);
+    if (lioMatch && lioMatch[1].length >= 2) return { club: lioMatch[1].toUpperCase(), age: 10 };
+    const loMatch = rest.match(/^([A-Za-z]{2,6}?)(lo)$/i);
+    if (loMatch && loMatch[1].length >= 2) return { club: loMatch[1].toUpperCase(), age: 10 };
+    const ioMatch = rest.match(/^([A-Za-z]{3,6}?)(io)$/i);
+    if (ioMatch && ioMatch[1].length >= 2) return { club: ioMatch[1].toUpperCase(), age: 10 };
+    const elMatch = rest.match(/^([A-Za-z]{2,5})([Ee][Ll]|[Ll][Ee])$/);
+    if (elMatch && elMatch[1].length >= 2) return { club: elMatch[1].toUpperCase(), age: null };
+  }
+
+  const club = rest.replace(/[^A-Za-z\s\-]/g, "").trim() || null;
+  return { club, age: null };
+}
+
+function startsWithPlace(line: string): boolean {
+  return /^(?:PLACE|PACE)\s+[A-Za-z]/i.test(line);
+}
+
+export function parseEventResultsOCR(rawText: string): ParsedEventResults {
+  const lines = rawText.replace(/\r/g, "\n").split("\n").map((l) => l.trim()).filter(Boolean);
+
+  const standalonePlaceLines = lines.filter((l) => /^(?:PLACE|PACE)$/i.test(l));
+  const numberedPlaceLines = lines.filter((l) => /^(?:PLACE|PACE)\s+\d{1,3}$/i.test(l));
+  if (standalonePlaceLines.length >= 2 || numberedPlaceLines.length >= 2) {
+    const nsgResult = parseNSGCardFormat(rawText);
+    if (nsgResult.results.length > 0) {
+      nsgResult.results = applyAgeGroupFallback(nsgResult.results, rawText);
+      return nsgResult;
+    }
+  }
+
+  const timeAtEndRe = /\s(\d{1,2}:\d{2}\.\d{2}|\d{2}\.\d{2})$/;
+  const clubLineRe = /[A-Z]{2,8}\s*(?:lio|lo|io|clo)?\s*(?:\|?\s*\d{1,2})?\s*(?:TIME|TIVE|TIM)?\s*$/i;
+  let nameTimePairs = 0;
+  for (let i = 0; i < lines.length - 1; i++) {
+    if (timeAtEndRe.test(lines[i]) && clubLineRe.test(lines[i + 1])) nameTimePairs++;
+  }
+  if (nameTimePairs >= 2) {
+    const ntResult = parseNameTimeFormat(rawText);
+    if (ntResult.results.length > 0) {
+      ntResult.results = applyAgeGroupFallback(ntResult.results, rawText);
+      return ntResult;
+    }
+  }
+
+  const inlineResult = parseInlineEventResultsOCR(rawText);
+  inlineResult.results = applyAgeGroupFallback(inlineResult.results, rawText);
+  return inlineResult;
+}
+
+function parseInlineEventResultsOCR(rawText: string): ParsedEventResults {
+  const lines = rawText
+    .replace(/\r/g, "\n")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  const course = detectCourse(rawText);
+  const swamAt = extractMeetDate(rawText);
+  const meetName = extractMeetName(lines);
+  const event = extractEventName(lines);
+  const results: EventResultRow[] = [];
+  const timeAtEndRe = /[\s|]*(\d{1}:\d{4}|\d{1,2}:\d{2}\.\d{2}|\d{2}\.\d{2}|\d{4,5})$/;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!startsWithPlace(line)) continue;
+
+    const afterPlace = line.replace(/^(?:PLACE|PACE)\s+/i, "").trim();
+    const timeMatch = afterPlace.match(timeAtEndRe);
+    if (!timeMatch) continue;
+
+    const timeStr = repairTime(timeMatch[1]);
+    if (!timeStr) continue;
+    const timeMs = timeToMs(timeStr);
+    if (timeMs <= 0 || timeMs > 1_800_000) continue;
+
+    const nameRaw = afterPlace.slice(0, afterPlace.search(timeAtEndRe)).trim();
+    const name = nameRaw.replace(/[\s|]+$/, "").trim();
+    if (!name || name.length < 2) continue;
+
+    let place: number | null = null;
+    let club: string | null = null;
+    let age: number | null = null;
+
+    for (let j = i + 1; j <= Math.min(i + 2, lines.length - 1); j++) {
+      const next = lines[j];
+      if (/dropped|improvement|\*|\[>/i.test(next)) continue;
+      if (startsWithPlace(next)) break;
+      if (/^\/\s+/.test(next)) {
+        place = results.length + 1;
+        const ca = extractClubAge(next);
+        club = ca.club; age = ca.age;
+        break;
+      }
+      const p = extractPlaceFromLine(next);
+      if (p !== null) {
+        place = p;
+        const ca = extractClubAge(next);
+        club = ca.club; age = ca.age;
+        break;
+      }
+    }
+
+    if (place === null) place = results.length + 1;
+    results.push({ place, name, club, age, timeStr, timeMs, event, course, swamAt, meetName });
+  }
+
+  results.sort((a, b) => a.place - b.place);
+  const seen = new Set<string>();
+  const deduped = results.filter((r) => {
+    const key = r.name.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return { event, course, swamAt, meetName, results: deduped };
+}
+
+// ✅ Detect whether OCR text is a multi-swimmer event results page.
+//
+// CRITICAL: The Meet Mobile single-swimmer "Swim Detail" screen contains
+// column labels (FINALS, ENTRY, STATUS, DROPPED, SPLITS, EVENT SUMMARY)
+// that can fool the PLACE-counting heuristics into thinking it's a results list.
+//
+// We collapse ALL whitespace before matching because Tesseract often splits
+// a single UI label across multiple lines — e.g. "SWIM DETAIL" → "SWIM\nDETAIL"
+// which makes a plain .includes("SWIM DETAIL") check silently fail.
+export function isEventResultsPage(rawText: string): boolean {
+  // Collapse all whitespace into single spaces for reliable multi-word matching
+  const flat = rawText.replace(/\s+/g, " ").toUpperCase();
+
+  // ── Guard 1: "SWIM DETAIL" — the screen title, strongest single signal ──
+  if (flat.includes("SWIM DETAIL")) return false;
+
+  // ── Guard 2: "EVENT SUMMARY" — button at bottom of every detail screen ──
+  if (flat.includes("EVENT SUMMARY")) return false;
+
+  // ── Guard 3: "Completed" status + SPLITS — only on detail screens ──
+  if (flat.includes("COMPLETED") && flat.includes("SPLITS")) return false;
+
+  // ── Guard 4: Detail-screen column header combo ──
+  // "PLACE FINALS ENTRY" and "STATUS DROPPED" never appear on results lists
+  const hasFinalsEntry = flat.includes("FINALS") && flat.includes("ENTRY");
+  const hasStatusDropped = flat.includes("STATUS") && flat.includes("DROPPED");
+  if (hasFinalsEntry && hasStatusDropped) return false;
+
+  // ── Guard 5: FINALS + ENTRY + SPLITS ──
+  if (hasFinalsEntry && flat.includes("SPLITS")) return false;
+
+  // ── Guard 6: HEAT PLACE + LANE + SPLITS — detail screen grid labels ──
+  if (flat.includes("HEAT PLACE") && flat.includes("LANE") && flat.includes("SPLITS")) return false;
+
+  // ── Guard 7: Looser fallback — HEAT + LANE + SPLITS + TOTAL ──
+  if (
+    flat.includes("HEAT") &&
+    flat.includes("LANE") &&
+    flat.includes("SPLITS") &&
+    flat.includes("TOTAL")
+  ) return false;
+
+  // ── Multi-swimmer detection (unchanged) ──
+  const lines = rawText.split("\n").map((l) => l.trim());
+  if (lines.filter((l) => /^(?:PLACE|PACE)\s+[A-Za-z]/i.test(l)).length >= 2) return true;
+  if (lines.filter((l) => /^(?:PLACE|PACE)$/i.test(l)).length >= 2) return true;
+  if (lines.filter((l) => /^(?:PLACE|PACE)\s+\d{1,3}$/i.test(l)).length >= 2) return true;
+
+  const timeAtEndRe = /\s(\d{1,2}:\d{2}\.\d{2}|\d{2}\.\d{2})$/;
+  const clubLineRe = /[A-Z]{2,8}\s*(?:lio|lo|io|clo)?\s*(?:\|?\s*\d{1,2})?\s*(?:TIME|TIVE|TIM)?\s*$/i;
+  let pairs = 0;
+  for (let i = 0; i < lines.length - 1; i++) {
+    if (timeAtEndRe.test(lines[i]) && clubLineRe.test(lines[i + 1])) pairs++;
+  }
+  return pairs >= 2;
+}
+
+function parseNameTimeFormat(rawText: string): ParsedEventResults {
+  const lines = rawText.replace(/\r/g, "\n").split("\n").map((l) => l.trim()).filter(Boolean);
+  const course = detectCourse(rawText);
+  const swamAt = extractMeetDate(rawText);
+  const meetName = extractMeetName(lines);
+  const event = extractEventName(lines);
+  const results: EventResultRow[] = [];
+  const timeAtEndRe = /\s(\d{1,2}:\d{2}\.\d{2}|\d{2}\.\d{2})$/;
+  const clubLineRe = /^([A-Za-z]{2,8})\s*(?:\|?\s*(\d{1,2}))?\s*(?:TIME|TIVE|TIM)?\s*$/i;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const timeMatch = line.match(timeAtEndRe);
+    if (!timeMatch) continue;
+    const nextLine = lines[i + 1] ?? "";
+    const clubMatch = nextLine.match(clubLineRe);
+    if (!clubMatch) continue;
+
+    const timeStr = timeMatch[1];
+    const timeMs = timeToMs(timeStr);
+    if (timeMs <= 0 || timeMs > 1_800_000) continue;
+
+    const name = line.slice(0, line.lastIndexOf(timeMatch[0])).trim();
+    if (!name || name.length < 3) continue;
+    if (/^\d|finals|results|completed|heats|swimmers|unofficial|am|pm/i.test(name)) continue;
+
+    const ca = extractClubAge(nextLine);
+    let club = ca.club;
+    let age = ca.age;
+
+    if (!age && clubMatch[2]) {
+      club = clubMatch[1].trim().toUpperCase();
+      age = parseInt(clubMatch[2], 10);
+    }
+
+    results.push({ place: results.length + 1, name, club, age, timeStr, timeMs, event, course, swamAt, meetName });
+    i++;
+  }
+
+  return { event, course, swamAt, meetName, results };
+}
+
+function parseNSGCardFormat(rawText: string): ParsedEventResults {
+  const lines = rawText.replace(/\r/g, "\n").split("\n").map((l) => l.trim()).filter(Boolean);
+  const course = detectCourse(rawText);
+  const swamAt = extractMeetDate(rawText);
+  const meetName = extractMeetName(lines);
+  const event = extractEventName(lines);
+  const results: EventResultRow[] = [];
+
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    const isPlaceStandalone = /^(?:PLACE|PACE)$/i.test(line);
+    const isPlaceNumbered = /^(?:PLACE|PACE)\s+\d{1,3}$/i.test(line);
+    if (!isPlaceStandalone && !isPlaceNumbered) { i++; continue; }
+
+    let place: number | null = null;
+    let nameIdx = i + 1;
+
+    if (isPlaceNumbered) {
+      const m = line.match(/\d{1,3}/);
+      if (m) place = parseInt(m[0], 10);
+    } else {
+      const nextLine = lines[i + 1] ?? "";
+      if (/^\d{1,3}$/.test(nextLine.trim())) {
+        place = parseInt(nextLine.trim(), 10);
+        nameIdx = i + 2;
+      }
+    }
+
+    let name = "";
+    let club: string | null = null;
+    let age: number | null = null;
+    let timeStr: string | null = null;
+    let timeMs = 0;
+
+    for (let j = nameIdx; j < Math.min(nameIdx + 6, lines.length); j++) {
+      const l = lines[j];
+      if (/^(?:PLACE|PACE)/i.test(l)) break;
+      if (/dropped|improvement|★|▷/i.test(l)) continue;
+      if (/^(?:TIME|TIVE|TIM)$/i.test(l)) continue;
+      if (/completed|finals|unofficial|heats|swimmers/i.test(l)) continue;
+
+      const timeMatch = l.match(/^(\d{1,2}:\d{2}\.\d{2}|\d{2}\.\d{2}|\d{4,5})$/);
+      if (timeMatch && !timeStr) {
+        const repaired = repairTime(timeMatch[1]);
+        if (repaired) { timeStr = repaired; timeMs = timeToMs(repaired); }
+        continue;
+      }
+
+      const clubAgeMatch = l.match(/^([A-Z]{2,6})\s*[|]\s*(\d{1,2})$/i);
+      if (clubAgeMatch) {
+        club = clubAgeMatch[1].trim().toUpperCase();
+        age = parseInt(clubAgeMatch[2], 10);
+        continue;
+      }
+
+      if (!name && l.length >= 3 && /[A-Za-z]/.test(l) && !/^\d+$/.test(l)) {
+        name = l.trim();
+      }
+    }
+
+    if (name && timeStr && timeMs > 0 && timeMs < 1_800_000) {
+      results.push({ place: place ?? results.length + 1, name, club, age, timeStr, timeMs, event, course, swamAt, meetName });
+    }
+
+    i++;
+  }
+
+  results.sort((a, b) => a.place - b.place);
+  const seen = new Set<string>();
+  const deduped = results.filter((r) => {
+    const key = r.name.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  return { event, course, swamAt, meetName, results: deduped };
+}
+</file>
+
+<file path="app/components/SplashScreen.tsx">
+"use client";
+
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+import { supabase } from "@/lib/supabaseClient";
+
+const SPLASH_KEY = "natrix_splash_shown";
+
+function isVideo(url: string) {
+  return /\.(mp4|mov|webm)(\?|$)/i.test(url);
+}
+
+export default function SplashScreen() {
+  const [ready, setReady] = useState(false);
+  const [fadingOut, setFadingOut] = useState(false);
+  const [gone, setGone] = useState(false);
+  const [mediaUrl, setMediaUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (
+      window.location.pathname === "/reset-password" ||
+      window.location.search.includes("code=") ||
+      window.location.search.includes("type=recovery") ||
+      window.location.hash.includes("type=recovery")
+    ) return;
+    const alreadyShown = sessionStorage.getItem(SPLASH_KEY);
+  
+    if (alreadyShown) return;
+    sessionStorage.setItem(SPLASH_KEY, "1");
+    void loadThenShow();
+  }, []);
+
+  async function loadThenShow() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const url = user?.user_metadata?.splash_image_url as string | undefined;
+      if (url && !isVideo(url)) {
+        await new Promise<void>((resolve) => {
+          const img = new Image();
+          img.onload = () => resolve();
+          img.onerror = () => resolve();
+          img.src = url;
+        });
+        setMediaUrl(url);
+      } else if (url) {
+        setMediaUrl(url);
+      }
+    } catch {
+      // default background
+    }
+    setReady(true);
+  }
+
+  function handleEnter() {
+    setFadingOut(true);
+    setTimeout(() => setGone(true), 700);
+  }
+
+  if (!ready || gone) return null;
+
+  const showVideo = mediaUrl && isVideo(mediaUrl);
+  const showImage = mediaUrl && !isVideo(mediaUrl);
+
+  const content = (
+    <>
+      <style>{`
+        @keyframes natrix-drop {
+          from { opacity: 0; transform: translateY(-24px) scale(0.75); }
+          to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes natrix-title {
+          from { opacity: 0; transform: translateY(20px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes natrix-sub {
+          from { opacity: 0; }
+          to   { opacity: 1; }
+        }
+        @keyframes natrix-shimmer {
+          0%   { opacity: 0.15; transform: scale(1); }
+          50%  { opacity: 0.25; transform: scale(1.05); }
+          100% { opacity: 0.15; transform: scale(1); }
+        }
+
+        /* ✅ Cinematic drift — slow, smooth, no permissions */
+        @keyframes natrix-drift {
+          0%   { transform: scale(1.12) translate(0px, 0px); }
+          25%  { transform: scale(1.12) translate(-12px, -6px); }
+          50%  { transform: scale(1.12) translate(8px, -10px); }
+          75%  { transform: scale(1.12) translate(12px, 4px); }
+          100% { transform: scale(1.12) translate(0px, 0px); }
+        }
+
+        .splash-drop    { animation: natrix-drop  0.55s cubic-bezier(0.34,1.56,0.64,1) 0.15s both; }
+        .splash-title   { animation: natrix-title 0.75s ease-out 0.45s both; }
+        .splash-sub     { animation: natrix-sub   0.75s ease-out 0.85s both; }
+        .splash-hint    { animation: natrix-sub   0.75s ease-out 1.1s both; }
+        .splash-shimmer { animation: natrix-shimmer 3s ease-in-out infinite; }
+        .splash-drift   { animation: natrix-drift 12s ease-in-out infinite; }
+      `}</style>
+
+      <div
+        style={{
+          position: "fixed",
+          top: 0, left: 0, right: 0, bottom: 0,
+          zIndex: 999999,
+          opacity: fadingOut ? 0 : 1,
+          transition: fadingOut ? "opacity 0.65s ease" : "none",
+          overflow: "hidden",
+        }}
+      >
+        {/* Background */}
+        {showVideo && (
+          <video autoPlay muted loop playsInline style={{
+            position: "absolute", inset: 0,
+            width: "100%", height: "100%", objectFit: "cover",
+          }}>
+            <source src={mediaUrl} />
+          </video>
+        )}
+
+        {/* ✅ Photo with cinematic drift animation */}
+        {showImage && (
+          <img
+            src={mediaUrl}
+            alt=""
+            className="splash-drift"
+            style={{
+              position: "absolute", inset: 0,
+              width: "100%", height: "100%",
+              objectFit: "cover",
+            }}
+          />
+        )}
+
+        {!mediaUrl && <DefaultBackground />}
+
+        {/* Dark overlay */}
+        <div style={{
+          position: "absolute", inset: 0,
+          background: "linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.45) 50%, rgba(0,0,0,0.72) 100%)",
+        }} />
+
+        {/* Shimmer */}
+        <div className="splash-shimmer" style={{
+          position: "absolute", inset: 0,
+          background: "radial-gradient(ellipse at 50% 40%, rgba(14,165,233,0.18) 0%, transparent 65%)",
+        }} />
+
+        {/* Content — stays perfectly still while photo drifts */}
+        <div style={{
+          position: "absolute", inset: 0,
+          display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center",
+          padding: "40px 32px", textAlign: "center",
+        }}>
+          <div className="splash-drop" style={{ fontSize: "52px", lineHeight: 1, marginBottom: "20px" }}>
+            💧
+          </div>
+
+          <div className="splash-title" style={{
+            fontFamily: "'Bebas Neue', 'Arial Narrow', sans-serif",
+            fontSize: "clamp(52px, 14vw, 88px)",
+            lineHeight: 1.05, letterSpacing: "0.06em", color: "#ffffff",
+            textShadow: "0 2px 20px rgba(0,0,0,0.6), 0 0 80px rgba(14,165,233,0.4)",
+          }}>
+            WELCOME TO<br />NATRIX
+          </div>
+
+          <div className="splash-sub" style={{
+            marginTop: "16px", fontSize: "13px",
+            letterSpacing: "0.25em", textTransform: "uppercase",
+            color: "rgba(255,255,255,0.6)", fontWeight: 500,
+          }}>
+            Track Every Stroke
+          </div>
+
+          <button
+            onClick={handleEnter}
+            className="splash-hint"
+            style={{
+              marginTop: "48px", padding: "14px 40px",
+              borderRadius: "100px",
+              border: "1px solid rgba(255,255,255,0.25)",
+              background: "rgba(255,255,255,0.1)",
+              fontSize: "13px", letterSpacing: "0.2em",
+              textTransform: "uppercase", color: "rgba(255,255,255,0.85)",
+              fontWeight: 600, backdropFilter: "blur(8px)",
+              cursor: "pointer",
+            }}
+          >
+            Tap to Enter
+          </button>
+        </div>
+      </div>
+    </>
+  );
+
+  return createPortal(content, document.body);
+}
+
+function DefaultBackground() {
+  return (
+    <div style={{
+      position: "absolute", inset: 0,
+      background: "linear-gradient(160deg, #010f1c 0%, #062a45 30%, #0a4d7a 60%, #063554 80%, #011627 100%)",
+    }}>
+      <div style={{
+        position: "absolute", inset: 0,
+        backgroundImage: `
+          linear-gradient(175deg, rgba(14,165,233,0.08) 0%, transparent 40%),
+          linear-gradient(185deg, rgba(14,165,233,0.05) 0%, transparent 40%)
+        `,
+      }} />
+    </div>
+  );
+}
+</file>
+
 <file path="app/standards/[id]/page.tsx">
 "use client";
 
@@ -11841,7 +11828,8 @@ export default function LoginPage() {
     async function checkSession() {
       const { data: { session }, error } = await supabase.auth.getSession();
       if (error) { setCheckingSession(false); return; }
-      if (session) { router.replace("/dashboard"); return; }
+      const isResetting = window.location.pathname === "/reset-password";
+if (session && !isResetting) { router.replace("/dashboard"); return; }
       setCheckingSession(false);
     }
     checkSession();
@@ -12835,763 +12823,6 @@ export default function RootLayout({
 }
 </file>
 
-<file path="app/swimmers/[id]/page.tsx">
-"use client";
-
-import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { useParams, useSearchParams } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
-import SwimTimesSection from "./SwimTimesSection";
-import ProgressTab from "./ProgressTab";
-import { canonicalCourse, canonicalEventName, eventKey } from "@/lib/events";
-import { seedETCStandard, etcStandardExists } from "@/lib/emergingTalentsStandards";
-import { seedSNAGStandard, snagStandardExists, getSNAGQualifyingTime } from "@/lib/snagStandards";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type Swimmer = {
-  id: number | string;
-  name: string;
-  age: number;
-  group_type?: string | null;
-  created_at?: string | null;
-  swim_club?: string | null;
-  school?: string | null;
-  status?: string | null;
-  gender?: string | null;
-};
-
-type SwimTimeRow = {
-  id?: number;
-  swimmer_id?: number | string;
-  event: string;
-  course: string;
-  time_ms: number;
-  swam_at?: string | null;
-  created_at?: string | null;
-  place?: number | null;
-};
-
-type StandardSet = {
-  id: number;
-  name: string;
-  type: "UPGRADING" | "IMPORTANT_MEET";
-  created_at?: string | null;
-};
-
-type StandardItem = {
-  id: number;
-  standard_set_id: number;
-  event: string;
-  course: string;
-  gender?: string | null;
-  min_age?: number | null;
-  max_age?: number | null;
-  qualifying_time_ms: number;
-  created_at?: string | null;
-};
-
-type StandardsRow = StandardItem & {
-  pbMs: number | null;
-  pbSwamAt: string | null;
-  gapMs: number | null;
-  pctNeeded: number | null;
-  status: "Qualified" | "In progress" | "No PB yet" | "Age not in range";
-};
-
-type TabKey = "swimTimes" | "progress" | "standards";
-
-type EditProfileForm = {
-  name: string;
-  age: string;
-  club: string;
-  school: string;
-  status: string;
-  gender: string;
-  groupType: string;
-};
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const TAB_LABELS: Record<TabKey, string> = {
-  swimTimes: "Times",
-  progress: "Progress",
-  standards: "Standards",
-};
-
-const TAB_ORDER: TabKey[] = ["swimTimes", "progress", "standards"];
-
-const STROKE_ORDER = ["Freestyle", "Backstroke", "Breaststroke", "Butterfly", "IM"];
-
-function formatSwamAt(value?: string | null) {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-}
-
-function formatMs(ms?: number | null) {
-  if (ms == null || Number.isNaN(ms)) return "-";
-  const totalSeconds = ms / 1000;
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds - minutes * 60;
-  return minutes > 0
-    ? `${minutes}:${seconds.toFixed(2).padStart(5, "0")}`
-    : seconds.toFixed(2);
-}
-
-function keyOf(event: string, course: string) {
-  return eventKey(canonicalEventName(event), canonicalCourse(course));
-}
-
-function getPBMap(swimTimes: SwimTimeRow[]) {
-  const map = new Map<string, SwimTimeRow>();
-  for (const row of swimTimes) {
-    const key = keyOf(row.event, row.course);
-    const existing = map.get(key);
-    if (!existing || row.time_ms < existing.time_ms) map.set(key, row);
-  }
-  return map;
-}
-
-function getStrokeName(event: string): string {
-  const e = event.toLowerCase();
-  if (e.includes("breaststroke") || e.includes("breast")) return "Breaststroke";
-  if (e.includes("backstroke") || e.includes("back")) return "Backstroke";
-  if (e.includes("butterfly") || e.includes("fly")) return "Butterfly";
-  if (e.includes("freestyle") || e.includes("free")) return "Freestyle";
-  if (e.includes("medley") || e.endsWith(" im") || e === "im") return "IM";
-  return "Other";
-}
-
-function getEventDistance(event: string) {
-  const match = canonicalEventName(event).match(/\d+/);
-  return match ? Number(match[0]) : 9999;
-}
-
-function createEditForm(swimmer: Swimmer | null): EditProfileForm {
-  return {
-    name: swimmer?.name ?? "",
-    age: swimmer?.age != null ? String(swimmer.age) : "",
-    club: swimmer?.swim_club ?? "",
-    school: swimmer?.school ?? "",
-    status: swimmer?.status ?? "Active",
-    gender: swimmer?.gender ?? "",
-    groupType: swimmer?.group_type ?? "primary",
-  };
-}
-
-function FieldLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <label className="mb-1.5 block text-[10px] uppercase tracking-[0.2em] text-white/35">
-      {children}
-    </label>
-  );
-}
-
-function StatPill({ label, value, accent = false }: { label: string; value: React.ReactNode; accent?: boolean }) {
-  return (
-    <div className={`rounded-2xl border px-4 py-3 ${accent ? "border-amber-400/20 bg-amber-500/10" : "border-white/8 bg-white/[0.03]"}`}>
-      <p className={`text-[10px] uppercase tracking-[0.2em] ${accent ? "text-amber-200/60" : "text-white/35"}`}>{label}</p>
-      <p className={`mt-1.5 text-2xl font-bold ${accent ? "text-amber-300" : "text-white"}`}>{value}</p>
-    </div>
-  );
-}
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
-
-export default function SwimmerProfilePage() {
-  const params = useParams();
-  const searchParams = useSearchParams();
-  const swimmerId = Number(params?.id);
-
-  const tabParam = searchParams.get("tab") as TabKey | null;
-  const validTabs: TabKey[] = ["swimTimes", "progress", "standards"];
-  const initialTab: TabKey = tabParam && validTabs.includes(tabParam) ? tabParam : "swimTimes";
-
-  const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
-  const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState("Loading swimmer...");
-
-  const [swimmer, setSwimmer] = useState<Swimmer | null>(null);
-  const [swimTimes, setSwimTimes] = useState<SwimTimeRow[]>([]);
-  const [standardSets, setStandardSets] = useState<StandardSet[]>([]);
-  const [selectedSetId, setSelectedSetId] = useState<number | null>(null);
-  const [standardItems, setStandardItems] = useState<StandardItem[]>([]);
-
-  const [isEditingProfile, setIsEditingProfile] = useState(false);
-  const [savingProfile, setSavingProfile] = useState(false);
-  const [editForm, setEditForm] = useState<EditProfileForm>(createEditForm(null));
-
-  // Standards UI
-  const [showNextAge, setShowNextAge] = useState(false);
-
-  // ETC standards
-  const [seedingETC, setSeedingETC] = useState(false);
-  const [etcMessage, setEtcMessage] = useState("");
-  const [etcAlreadyExists, setEtcAlreadyExists] = useState(false);
-
-  // SNAG standards
-  const [seedingSNAG, setSeedingSNAG] = useState(false);
-  const [snagMessage, setSnagMessage] = useState("");
-  const [snagAlreadyExists, setSnagAlreadyExists] = useState(false);
-
-  useEffect(() => { void loadPage(); }, [swimmerId]);
-  useEffect(() => { void loadStandardItems(selectedSetId); }, [selectedSetId]);
-
-  async function loadPage() {
-    if (!swimmerId || Number.isNaN(swimmerId)) { setStatus("Invalid swimmer id."); setLoading(false); return; }
-    setLoading(true);
-
-    const [swimmerRes, swimTimesRes, standardSetsRes] = await Promise.all([
-      supabase.from("swimmers").select("id, name, age, group_type, created_at, swim_club, school, status, gender").eq("id", swimmerId).limit(1),
-      supabase.from("swim_times").select("id, swimmer_id, event, course, time_ms, swam_at, created_at, place").eq("swimmer_id", swimmerId).order("event", { ascending: true }),
-      supabase.from("standard_sets").select("id, name, type, created_at").order("created_at", { ascending: false }),
-    ]);
-
-    if (swimmerRes.error || swimTimesRes.error || standardSetsRes.error) {
-      const err = swimmerRes.error?.message || swimTimesRes.error?.message || standardSetsRes.error?.message;
-      setStatus(`Error: ${err}`); setLoading(false); return;
-    }
-
-    const swimmerRows = (swimmerRes.data as Swimmer[]) || [];
-    if (swimmerRows.length === 0) {
-      setSwimmer(null); setStatus("Swimmer not found."); setLoading(false); return;
-    }
-
-    const swimmerData = swimmerRows[0];
-    const swimTimesData = (swimTimesRes.data as SwimTimeRow[]) || [];
-    const standardSetsData = (standardSetsRes.data as StandardSet[]) || [];
-
-    setSwimmer(swimmerData);
-    setEditForm(createEditForm(swimmerData));
-    setSwimTimes(swimTimesData);
-    setStandardSets(standardSetsData);
-
-    const firstSet = standardSetsData[0] ?? null;
-    setSelectedSetId(firstSet?.id ?? null);
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const [etcExists, snagExists] = await Promise.all([
-        etcStandardExists(user.id),
-        snagStandardExists(user.id),
-      ]);
-      setEtcAlreadyExists(etcExists);
-      setSnagAlreadyExists(snagExists);
-    }
-
-    setStatus("Ready");
-    setLoading(false);
-  }
-
-  async function loadStandardItems(setId: number | null) {
-    if (!setId) { setStandardItems([]); return; }
-    const { data, error } = await supabase
-      .from("standard_items")
-      .select("id, standard_set_id, event, course, gender, min_age, max_age, qualifying_time_ms, created_at")
-      .eq("standard_set_id", setId).order("event", { ascending: true });
-    if (error) { setStandardItems([]); return; }
-    setStandardItems((data as StandardItem[]) || []);
-  }
-
-  async function handleSaveProfile() {
-    if (!swimmer) return;
-    const trimmedName = editForm.name.trim();
-    const parsedAge = Number(editForm.age);
-    if (!trimmedName) { setStatus("Name is required."); return; }
-    if (!editForm.age || Number.isNaN(parsedAge) || parsedAge < 0) { setStatus("Please enter a valid age."); return; }
-    setSavingProfile(true);
-    try {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) { setStatus("Not logged in."); return; }
-      const { data, error } = await supabase.from("swimmers").update({
-        name: trimmedName, age: parsedAge,
-        swim_club: editForm.club.trim() || null,
-        school: editForm.school.trim() || null,
-        status: editForm.status.trim() || "Active",
-        gender: editForm.gender || null,
-        group_type: editForm.groupType || "primary",
-      }).eq("id", Number(swimmer.id)).eq("user_id", user.id).select();
-      if (error) { setStatus(`Error: ${error.message}`); return; }
-      if (!data || data.length === 0) { setStatus("⚠️ No rows updated."); return; }
-      setIsEditingProfile(false);
-      await loadPage();
-    } finally {
-      setSavingProfile(false);
-    }
-  }
-
-  function handleCancelEdit() {
-    setEditForm(createEditForm(swimmer));
-    setIsEditingProfile(false);
-    setStatus("");
-  }
-
-  async function handleSeedETC() {
-    if (!swimmer?.gender || !swimmer?.age) { setEtcMessage("Set age and gender first."); return; }
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    setSeedingETC(true); setEtcMessage("");
-    const result = await seedETCStandard(user.id, swimmer.age, swimmer.gender as "Male" | "Female");
-    setEtcMessage(result.message);
-    if (result.success) { setEtcAlreadyExists(true); await loadPage(); }
-    setSeedingETC(false);
-  }
-
-  async function handleSeedSNAG() {
-    if (!swimmer?.gender || !swimmer?.age) { setSnagMessage("Set age and gender first."); return; }
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    setSeedingSNAG(true); setSnagMessage("");
-    const result = await seedSNAGStandard(user.id, swimmer.age, swimmer.gender as "Male" | "Female");
-    setSnagMessage(result.message);
-    if (result.success) { setSnagAlreadyExists(true); await loadPage(); }
-    setSeedingSNAG(false);
-  }
-
-  const pbMap = useMemo(() => getPBMap(swimTimes), [swimTimes]);
-
-  const standardsRows = useMemo<StandardsRow[]>(() => {
-    return standardItems.map((item) => {
-      const pb = pbMap.get(keyOf(item.event, item.course));
-      const swimmerAge = swimmer?.age ?? null;
-      const ageTooYoung = swimmerAge != null && item.min_age != null && swimmerAge < item.min_age;
-      const ageTooOld = swimmerAge != null && item.max_age != null && swimmerAge > item.max_age;
-      if (ageTooYoung || ageTooOld) return { ...item, pbMs: null, pbSwamAt: null, gapMs: null, pctNeeded: null, status: "Age not in range" };
-      if (!pb) return { ...item, pbMs: null, pbSwamAt: null, gapMs: null, pctNeeded: null, status: "No PB yet" };
-      const gapMs = pb.time_ms - item.qualifying_time_ms;
-      const pctNeeded = gapMs > 0 ? (gapMs / pb.time_ms) * 100 : null;
-      return {
-        ...item,
-        pbMs: pb.time_ms,
-        pbSwamAt: pb.swam_at ?? null,
-        gapMs,
-        pctNeeded,
-        status: gapMs <= 0 ? "Qualified" : "In progress",
-      };
-    });
-  }, [standardItems, pbMap, swimmer?.age]);
-
-  // Group by stroke
-  const strokeGroups = useMemo(() => {
-    const grouped = new Map<string, StandardsRow[]>();
-    for (const row of standardsRows) {
-      if (row.status === "Age not in range") continue;
-      const stroke = getStrokeName(row.event);
-      if (!grouped.has(stroke)) grouped.set(stroke, []);
-      grouped.get(stroke)!.push(row);
-    }
-    return STROKE_ORDER
-      .filter((s) => grouped.has(s))
-      .map((s) => ({
-        stroke: s,
-        rows: (grouped.get(s) ?? []).sort((a, b) => getEventDistance(a.event) - getEventDistance(b.event)),
-      }));
-  }, [standardsRows]);
-
-  const qualifiedCount = standardsRows.filter((r) => r.status === "Qualified").length;
-  const inProgressCount = standardsRows.filter((r) => r.status === "In progress").length;
-  const noPBCount = standardsRows.filter((r) => r.status === "No PB yet").length;
-
-  const latestResultDate = useMemo(() => {
-    const datedRows = swimTimes.filter((row) => row.swam_at);
-    if (datedRows.length === 0) return null;
-    return [...datedRows].sort((a, b) => new Date(b.swam_at || "").getTime() - new Date(a.swam_at || "").getTime())[0]?.swam_at ?? null;
-  }, [swimTimes]);
-
-  const totalUniqueEvents = useMemo(() => pbMap.size, [pbMap]);
-  const etcEligible = swimmer?.age != null && [10, 11, 12].includes(swimmer.age) && !!swimmer.gender;
-
-  if (loading) return <div className="shell"><div className="container-app"><p className="muted">Loading...</p></div></div>;
-
-  if (!swimmer) {
-    return (
-      <div className="shell">
-        <div className="container-app">
-          <p className="danger-text">{status || "Swimmer not found."}</p>
-          <Link href="/swimmers" className="btn-outline mt-4 inline-flex">← Back</Link>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="shell">
-      <div className="container-app space-y-5">
-
-        {/* Back nav */}
-        <div className="pt-2">
-          <Link href="/swimmers" className="inline-flex items-center gap-1.5 text-sm text-white/40 transition hover:text-white/70">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M10 3L5 8L10 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            Swimmers
-          </Link>
-        </div>
-
-        {/* ── Profile header ─────────────────────────────────────────────── */}
-        {!isEditingProfile ? (
-          <div className="rounded-3xl border border-white/10 bg-white/5 p-5 space-y-4">
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">Profile</p>
-                <h1 className="mt-1 text-3xl font-bold tracking-tight text-white truncate">{swimmer.name}</h1>
-              </div>
-              <button
-                onClick={() => { setEditForm(createEditForm(swimmer)); setIsEditingProfile(true); }}
-                className="flex-shrink-0 flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-base transition hover:bg-white/10"
-              >
-                ✏️
-              </button>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              {swimmer.age != null && <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-white/70">Age {swimmer.age}</span>}
-              {swimmer.gender && <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-white/70">{swimmer.gender}</span>}
-              {swimmer.status && <span className="rounded-full border border-amber-400/25 bg-amber-500/10 px-3 py-1 text-sm text-amber-300">{swimmer.status}</span>}
-              {swimmer.swim_club && <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-white/70">{swimmer.swim_club}</span>}
-              {swimmer.school && <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-white/70">{swimmer.school}</span>}
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              <StatPill label="PB Events" value={totalUniqueEvents} accent />
-              <StatPill label="All Times" value={swimTimes.length} />
-              <StatPill label="Latest" value={latestResultDate ? <span className="text-lg">{formatSwamAt(latestResultDate)}</span> : <span className="text-base text-white/40">—</span>} />
-            </div>
-
-            <div className="flex gap-2 border-t border-white/8 pt-4">
-              {TAB_ORDER.map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={`flex-1 rounded-2xl border py-2.5 text-sm font-medium transition-colors ${
-                    activeTab === tab
-                      ? "border-amber-400/30 bg-amber-500/15 text-amber-300"
-                      : "border-white/10 bg-transparent text-white/45 hover:text-white/70"
-                  }`}
-                >
-                  {TAB_LABELS[tab]}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="rounded-3xl border border-white/10 bg-white/5 p-5 space-y-4">
-            <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">Editing profile</p>
-            <div className="grid grid-cols-[1fr_100px] gap-3">
-              <div>
-                <FieldLabel>Name</FieldLabel>
-                <input value={editForm.name} onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))} className="input text-lg font-semibold" placeholder="Full name" />
-              </div>
-              <div>
-                <FieldLabel>Race Age</FieldLabel>
-                <input value={editForm.age} onChange={(e) => setEditForm((p) => ({ ...p, age: e.target.value }))} className="input text-center text-lg font-semibold" inputMode="numeric" placeholder="—" />
-              </div>
-            </div>
-            <div>
-              <FieldLabel>Gender</FieldLabel>
-              <div className="grid grid-cols-2 gap-2">
-                {(["Male", "Female"] as const).map((g) => (
-                  <button key={g} type="button" onClick={() => setEditForm((p) => ({ ...p, gender: p.gender === g ? "" : g }))}
-                    className="rounded-2xl border py-2.5 text-sm font-medium transition"
-                    style={editForm.gender === g
-                      ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
-                      : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}
-                  >
-                    {g === "Male" ? "♂ Male" : "♀ Female"}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><FieldLabel>Club</FieldLabel><input value={editForm.club} onChange={(e) => setEditForm((p) => ({ ...p, club: e.target.value }))} className="input" placeholder="Swim club" /></div>
-              <div><FieldLabel>School</FieldLabel><input value={editForm.school} onChange={(e) => setEditForm((p) => ({ ...p, school: e.target.value }))} className="input" placeholder="School" /></div>
-            </div>
-            {/* My Swimmer vs Following toggle */}
-            <div>
-              <FieldLabel>Type</FieldLabel>
-              <div className="grid grid-cols-2 gap-2 mt-1">
-                {(["primary", "following"] as const).map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setEditForm((p) => ({ ...p, groupType: t }))}
-                    className="rounded-2xl py-3 text-sm font-semibold transition"
-                    style={editForm.groupType === t
-                      ? { background: "rgba(217,119,6,0.25)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
-                      : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}
-                  >
-                    {t === "primary" ? "👤 My swimmer" : "👁 Following"}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div><FieldLabel>Status</FieldLabel><input value={editForm.status} onChange={(e) => setEditForm((p) => ({ ...p, status: e.target.value }))} className="input" placeholder="Active" /></div>
-            {status && <p className="text-sm" style={{ color: status.startsWith("Error") ? "#F09595" : "#6EE7B7" }}>{status}</p>}
-            <div className="flex gap-2 border-t border-white/8 pt-4">
-              <button onClick={handleSaveProfile} disabled={savingProfile} className="btn">{savingProfile ? "Saving..." : "Save changes"}</button>
-              <button onClick={handleCancelEdit} disabled={savingProfile} className="btn-outline">Cancel</button>
-            </div>
-          </div>
-        )}
-
-        {/* ── Tab: Times ────────────────────────────────────────────────── */}
-        {!isEditingProfile && activeTab === "swimTimes" && (
-  <section className="card">
-    <SwimTimesSection swimmerId={Number(swimmer.id)} swimmerAge={swimmer.age} swimmerName={swimmer.name} />
-  </section>
-)}
-
-        {/* ── Tab: Progress ─────────────────────────────────────────────── */}
-        {!isEditingProfile && activeTab === "progress" && (
-          <ProgressTab swimmerId={Number(swimmer.id)} swimmerName={swimmer.name} />
-        )}
-
-        {/* ── Tab: Standards ────────────────────────────────────────────── */}
-        {!isEditingProfile && activeTab === "standards" && (
-          <section className="space-y-4">
-
-            {/* Seed banners */}
-            {etcEligible && !etcAlreadyExists && (
-              <div className="rounded-3xl p-5 space-y-3" style={{ background: "rgba(217,119,6,0.1)", border: "1px solid rgba(253,230,138,0.25)" }}>
-                <div>
-                  <p className="text-sm font-semibold text-white">🏊 Emerging Talents Championship 2026</p>
-                  <p className="mt-1 text-xs text-white/55">{swimmer.name} is age {swimmer.age} ({swimmer.gender}) — load qualifying standards in one tap.</p>
-                </div>
-                <button type="button" onClick={handleSeedETC} disabled={seedingETC}
-                  className="w-full rounded-2xl py-3 text-sm font-semibold text-white transition disabled:opacity-50"
-                  style={{ background: "#D97706" }}>
-                  {seedingETC ? "Loading…" : "Load ETC 2026 standards"}
-                </button>
-                {etcMessage && <p className="text-xs" style={{ color: etcMessage.startsWith("✓") ? "#6EE7B7" : "#FCA5A5" }}>{etcMessage}</p>}
-              </div>
-            )}
-
-            {swimmer.gender && swimmer.age && !snagAlreadyExists && (
-              <div className="rounded-3xl p-5 space-y-3" style={{ background: "rgba(24,95,165,0.1)", border: "1px solid rgba(147,197,253,0.25)" }}>
-                <div>
-                  <p className="text-sm font-semibold text-white">🏆 56th SNAG 2026</p>
-                  <p className="mt-1 text-xs text-white/55">National Age Group qualifying standards — age {swimmer.age} ({swimmer.gender}), LCM.</p>
-                </div>
-                <button type="button" onClick={handleSeedSNAG} disabled={seedingSNAG}
-                  className="w-full rounded-2xl py-3 text-sm font-semibold text-white transition disabled:opacity-50"
-                  style={{ background: "#185FA5" }}>
-                  {seedingSNAG ? "Loading…" : "Load SNAG 2026 standards"}
-                </button>
-                {snagMessage && <p className="text-xs" style={{ color: snagMessage.startsWith("✓") ? "#6EE7B7" : "#FCA5A5" }}>{snagMessage}</p>}
-              </div>
-            )}
-
-            {/* Standard set pill switcher */}
-            {standardSets.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {standardSets.map((set) => (
-                  <button
-                    key={set.id}
-                    type="button"
-                    onClick={() => setSelectedSetId(set.id)}
-                    className="rounded-2xl border px-3 py-2 text-xs font-semibold transition"
-                    style={selectedSetId === set.id
-                      ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
-                      : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}
-                  >
-                    {set.name}
-                  </button>
-                ))}
-                <Link
-                  href="/standards"
-                  className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white/40 transition hover:bg-white/10"
-                >
-                  Manage
-                </Link>
-              </div>
-            )}
-
-            {/* Nothing selected */}
-            {!selectedSetId && standardSets.length === 0 && (
-              <div className="rounded-3xl p-8 text-center" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                <p className="text-base font-semibold text-white">No standards yet</p>
-                <p className="mt-1 text-sm text-white/40">Load the SNAG or ETC standards above, or create your own.</p>
-              </div>
-            )}
-
-            {selectedSetId && standardItems.length > 0 && (
-              <>
-                {/* Summary stats + age toggle */}
-                <div className="rounded-3xl border border-white/10 bg-white/5 p-4 space-y-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex gap-3">
-                      <div className="text-center">
-                        <p className="text-2xl font-bold" style={{ color: "#6EE7B7" }}>{qualifiedCount}</p>
-                        <p className="text-[10px] uppercase tracking-wider text-white/35 mt-0.5">Qualified</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-2xl font-bold text-white">{inProgressCount}</p>
-                        <p className="text-[10px] uppercase tracking-wider text-white/35 mt-0.5">In progress</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-2xl font-bold text-white/40">{noPBCount}</p>
-                        <p className="text-[10px] uppercase tracking-wider text-white/35 mt-0.5">No PB</p>
-                      </div>
-                    </div>
-
-                    {/* Age toggle */}
-                    <div className="flex rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.12)" }}>
-                      <button
-                        type="button"
-                        onClick={() => setShowNextAge(false)}
-                        className="px-3 py-1.5 text-xs font-semibold transition"
-                        style={!showNextAge
-                          ? { background: "rgba(217,119,6,0.2)", color: "#FDE68A" }
-                          : { background: "transparent", color: "rgba(255,255,255,0.4)" }}
-                      >
-                        Age {swimmer.age}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setShowNextAge(true)}
-                        className="px-3 py-1.5 text-xs font-semibold transition"
-                        style={showNextAge
-                          ? { background: "rgba(24,95,165,0.3)", color: "#93C5FD" }
-                          : { background: "transparent", color: "rgba(255,255,255,0.4)" }}
-                      >
-                        Age {swimmer.age + 1} ↑
-                      </button>
-                    </div>
-                  </div>
-
-                  <p className="text-xs text-white/30">
-                    {swimmer.name} · {swimmer.gender} · {standardSets.find(s => s.id === selectedSetId)?.name}
-                  </p>
-                </div>
-
-                {/* Table */}
-                {!showNextAge ? (
-                  <div className="space-y-3">
-                    {strokeGroups.map(({ stroke, rows }) => (
-                      <div key={stroke} className="rounded-3xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.09)", background: "rgba(255,255,255,0.04)" }}>
-                        <p className="px-4 pt-3 pb-1 text-[10px] font-medium uppercase tracking-widest text-white/30">{stroke}</p>
-                        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                          <thead>
-                            <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
-                              <th style={{ padding: "6px 16px", textAlign: "left", fontSize: 10, color: "rgba(255,255,255,0.3)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>Event</th>
-                              <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 10, color: "rgba(255,255,255,0.3)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>PB</th>
-                              <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 10, color: "rgba(255,255,255,0.3)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>Target</th>
-                              <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 10, color: "rgba(255,255,255,0.3)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>Gap</th>
-                              <th style={{ padding: "6px 16px 6px 8px", textAlign: "right", fontSize: 10, color: "rgba(255,255,255,0.3)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>%</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {rows.map((row, i) => {
-                              const qualified = row.status === "Qualified";
-                              const noPB = row.status === "No PB yet";
-                              const isLast = i === rows.length - 1;
-                              return (
-                                <tr key={row.id} style={{ borderBottom: isLast ? "none" : "1px solid rgba(255,255,255,0.05)" }}>
-                                  <td style={{ padding: "10px 16px", fontSize: 13, fontWeight: 500, color: "white" }}>
-                                    {canonicalEventName(row.event).replace(` ${stroke}`, "").replace("Freestyle", "Free").replace("Backstroke", "Back").replace("Breaststroke", "Breast").replace("Butterfly", "Fly")}
-                                    <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", marginLeft: 4 }}>{canonicalCourse(row.course)}</span>
-                                  </td>
-                                  <td style={{ padding: "10px 8px", textAlign: "right", fontSize: 13, color: qualified ? "#6EE7B7" : noPB ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.8)" }}>
-                                    {row.pbMs == null ? "—" : formatMs(row.pbMs)}
-                                  </td>
-                                  <td style={{ padding: "10px 8px", textAlign: "right", fontSize: 13, color: "rgba(255,255,255,0.5)" }}>
-                                    {formatMs(row.qualifying_time_ms)}
-                                  </td>
-                                  <td style={{ padding: "10px 8px", textAlign: "right", fontSize: 12 }}>
-                                    {qualified ? (
-                                      <span style={{ background: "rgba(16,185,129,0.15)", color: "#6EE7B7", border: "1px solid rgba(110,231,183,0.25)", borderRadius: 10, padding: "2px 8px", fontSize: 10, fontWeight: 500 }}>✓ Done</span>
-                                    ) : noPB ? (
-                                      <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 11 }}>No PB</span>
-                                    ) : (
-                                      <span style={{ color: (row.pctNeeded ?? 0) < 3 ? "#FDE68A" : "rgba(255,255,255,0.55)" }}>
-                                        {formatMs(row.gapMs != null ? Math.abs(row.gapMs) : null)}
-                                      </span>
-                                    )}
-                                  </td>
-                                  <td style={{ padding: "10px 16px 10px 8px", textAlign: "right", fontSize: 12 }}>
-                                    {qualified || noPB ? (
-                                      <span style={{ color: "rgba(255,255,255,0.2)" }}>—</span>
-                                    ) : (
-                                      <span style={{ color: (row.pctNeeded ?? 0) < 2 ? "#FDE68A" : (row.pctNeeded ?? 0) < 5 ? "#FAC775" : "rgba(255,255,255,0.4)" }}>
-                                        {row.pctNeeded?.toFixed(1)}%
-                                      </span>
-                                    )}
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  /* Next age up view */
-                  <div className="rounded-3xl p-5 space-y-3" style={{ background: "rgba(24,95,165,0.08)", border: "1px solid rgba(147,197,253,0.2)" }}>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span style={{ background: "rgba(24,95,165,0.2)", color: "#93C5FD", border: "1px solid rgba(147,197,253,0.25)", borderRadius: 10, padding: "2px 10px", fontSize: 10, fontWeight: 500 }}>
-                        Age {swimmer.age + 1} targets
-                      </span>
-                      <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>Planning ahead for next year</span>
-                    </div>
-
-                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                      <thead>
-                        <tr style={{ borderBottom: "1px solid rgba(147,197,253,0.1)" }}>
-                          <th style={{ padding: "6px 0", textAlign: "left", fontSize: 10, color: "rgba(147,197,253,0.5)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>Event</th>
-                          <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 10, color: "rgba(147,197,253,0.5)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>Current PB</th>
-                          <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 10, color: "rgba(147,197,253,0.5)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>Age {swimmer.age + 1} target</th>
-                          <th style={{ padding: "6px 0", textAlign: "right", fontSize: 10, color: "rgba(147,197,253,0.5)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>Gap</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {standardsRows
-                          .filter((r) => r.pbMs != null && r.status !== "Age not in range")
-                          .map((row) => {
-                            if (!swimmer.gender) return null;
-                            const nextTarget = getSNAGQualifyingTime(row.event, swimmer.age + 1, swimmer.gender as "Male" | "Female");
-                            if (!nextTarget) return null;
-                            const nextTargetMs = parseFloat(nextTarget.includes(":") ?
-                              (() => { const [m, s] = nextTarget.split(":"); return (Number(m) * 60 + Number(s)).toString(); })()
-                              : nextTarget) * 1000;
-                            const gapToNext = row.pbMs! - nextTargetMs;
-                            return (
-                              <tr key={row.id} style={{ borderBottom: "1px solid rgba(147,197,253,0.06)" }}>
-                                <td style={{ padding: "9px 0", fontSize: 13, fontWeight: 500, color: "white" }}>
-                                  {canonicalEventName(row.event)}
-                                </td>
-                                <td style={{ padding: "9px 8px", textAlign: "right", fontSize: 13, color: "rgba(255,255,255,0.6)" }}>
-                                  {formatMs(row.pbMs)}
-                                </td>
-                                <td style={{ padding: "9px 8px", textAlign: "right", fontSize: 13, color: "#93C5FD" }}>
-                                  {nextTarget}
-                                </td>
-                                <td style={{ padding: "9px 0", textAlign: "right", fontSize: 12, color: gapToNext <= 0 ? "#6EE7B7" : "rgba(255,255,255,0.4)" }}>
-                                  {gapToNext <= 0 ? "✓ Ready" : formatMs(Math.abs(gapToNext)) + " off"}
-                                </td>
-                              </tr>
-                            );
-                          })
-                          .filter(Boolean)}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </>
-            )}
-          </section>
-        )}
-
-        <div className="h-4" />
-      </div>
-    </div>
-  );
-}
-</file>
-
 <file path="app/swimmers/[id]/SwimTimesSection.tsx">
 "use client";
 
@@ -14203,6 +13434,770 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
 }
 </file>
 
+<file path="app/swimmers/[id]/page.tsx">
+"use client";
+
+
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabaseClient";
+import SwimTimesSection from "./SwimTimesSection";
+import ProgressTab from "./ProgressTab";
+import { canonicalCourse, canonicalEventName, eventKey } from "@/lib/events";
+import { seedETCStandard, etcStandardExists } from "@/lib/emergingTalentsStandards";
+import { seedSNAGStandard, snagStandardExists, getSNAGQualifyingTime } from "@/lib/snagStandards";
+
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type Swimmer = {
+  id: number | string;
+  name: string;
+  age: number;
+  group_type?: string | null;
+  created_at?: string | null;
+  swim_club?: string | null;
+  school?: string | null;
+  status?: string | null;
+  gender?: string | null;
+};
+
+type SwimTimeRow = {
+  id?: number;
+  swimmer_id?: number | string;
+  event: string;
+  course: string;
+  time_ms: number;
+  swam_at?: string | null;
+  created_at?: string | null;
+  place?: number | null;
+};
+
+type StandardSet = {
+  id: number;
+  name: string;
+  type: "UPGRADING" | "IMPORTANT_MEET";
+  created_at?: string | null;
+};
+
+type StandardItem = {
+  id: number;
+  standard_set_id: number;
+  event: string;
+  course: string;
+  gender?: string | null;
+  min_age?: number | null;
+  max_age?: number | null;
+  qualifying_time_ms: number;
+  created_at?: string | null;
+};
+
+type StandardsRow = StandardItem & {
+  pbMs: number | null;
+  pbSwamAt: string | null;
+  gapMs: number | null;
+  pctNeeded: number | null;
+  status: "Qualified" | "In progress" | "No PB yet" | "Age not in range";
+};
+
+type TabKey = "swimTimes" | "progress" | "standards";
+
+type EditProfileForm = {
+  name: string;
+  age: string;
+  club: string;
+  school: string;
+  status: string;
+  gender: string;
+  groupType: string;
+};
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const TAB_LABELS: Record<TabKey, string> = {
+  swimTimes: "Times",
+  progress: "Progress",
+  standards: "Standards",
+};
+
+const TAB_ORDER: TabKey[] = ["swimTimes", "progress", "standards"];
+
+const STROKE_ORDER = ["Freestyle", "Backstroke", "Breaststroke", "Butterfly", "IM"];
+
+function formatSwamAt(value?: string | null) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+
+function formatMs(ms?: number | null) {
+  if (ms == null || Number.isNaN(ms)) return "-";
+  const totalSeconds = ms / 1000;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds - minutes * 60;
+  return minutes > 0
+    ? `${minutes}:${seconds.toFixed(2).padStart(5, "0")}`
+    : seconds.toFixed(2);
+}
+
+function keyOf(event: string, course: string) {
+  return eventKey(canonicalEventName(event), canonicalCourse(course));
+}
+
+function getPBMap(swimTimes: SwimTimeRow[]) {
+  const map = new Map<string, SwimTimeRow>();
+  for (const row of swimTimes) {
+    const key = keyOf(row.event, row.course);
+    const existing = map.get(key);
+    if (!existing || row.time_ms < existing.time_ms) map.set(key, row);
+  }
+  return map;
+}
+
+function getStrokeName(event: string): string {
+  const e = event.toLowerCase();
+  if (e.includes("breaststroke") || e.includes("breast")) return "Breaststroke";
+  if (e.includes("backstroke") || e.includes("back")) return "Backstroke";
+  if (e.includes("butterfly") || e.includes("fly")) return "Butterfly";
+  if (e.includes("freestyle") || e.includes("free")) return "Freestyle";
+  if (e.includes("medley") || e.endsWith(" im") || e === "im") return "IM";
+  return "Other";
+}
+
+function getEventDistance(event: string) {
+  const match = canonicalEventName(event).match(/\d+/);
+  return match ? Number(match[0]) : 9999;
+}
+
+function createEditForm(swimmer: Swimmer | null): EditProfileForm {
+  return {
+    name: swimmer?.name ?? "",
+    age: swimmer?.age != null ? String(swimmer.age) : "",
+    club: swimmer?.swim_club ?? "",
+    school: swimmer?.school ?? "",
+    status: swimmer?.status ?? "Active",
+    gender: swimmer?.gender ?? "",
+    groupType: swimmer?.group_type ?? "primary",
+  };
+}
+
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <label className="mb-1.5 block text-[10px] uppercase tracking-[0.2em] text-white/35">
+      {children}
+    </label>
+  );
+}
+
+function StatPill({ label, value, accent = false }: { label: string; value: React.ReactNode; accent?: boolean }) {
+  return (
+    <div className={`rounded-2xl border px-4 py-3 ${accent ? "border-amber-400/20 bg-amber-500/10" : "border-white/8 bg-white/[0.03]"}`}>
+      <p className={`text-[10px] uppercase tracking-[0.2em] ${accent ? "text-amber-200/60" : "text-white/35"}`}>{label}</p>
+      <p className={`mt-1.5 text-2xl font-bold ${accent ? "text-amber-300" : "text-white"}`}>{value}</p>
+    </div>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default function SwimmerProfilePage() {
+  const params = useParams();
+const router = useRouter();
+  const searchParams = useSearchParams();
+  const swimmerId = Number(params?.id);
+
+  const tabParam = searchParams.get("tab") as TabKey | null;
+  const validTabs: TabKey[] = ["swimTimes", "progress", "standards"];
+  const initialTab: TabKey = tabParam && validTabs.includes(tabParam) ? tabParam : "swimTimes";
+
+  const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
+  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState("Loading swimmer...");
+
+  const [swimmer, setSwimmer] = useState<Swimmer | null>(null);
+  const [swimTimes, setSwimTimes] = useState<SwimTimeRow[]>([]);
+  const [standardSets, setStandardSets] = useState<StandardSet[]>([]);
+  const [selectedSetId, setSelectedSetId] = useState<number | null>(null);
+  const [standardItems, setStandardItems] = useState<StandardItem[]>([]);
+
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [editForm, setEditForm] = useState<EditProfileForm>(createEditForm(null));
+
+  // Standards UI
+  const [showNextAge, setShowNextAge] = useState(false);
+
+  // ETC standards
+  const [seedingETC, setSeedingETC] = useState(false);
+  const [etcMessage, setEtcMessage] = useState("");
+  const [etcAlreadyExists, setEtcAlreadyExists] = useState(false);
+
+  // SNAG standards
+  const [seedingSNAG, setSeedingSNAG] = useState(false);
+  const [snagMessage, setSnagMessage] = useState("");
+  const [snagAlreadyExists, setSnagAlreadyExists] = useState(false);
+
+  useEffect(() => { void loadPage(); }, [swimmerId]);
+  useEffect(() => { void loadStandardItems(selectedSetId); }, [selectedSetId]);
+
+  async function loadPage() {
+    if (!swimmerId || Number.isNaN(swimmerId)) { setStatus("Invalid swimmer id."); setLoading(false); return; }
+    setLoading(true);
+
+    const [swimmerRes, swimTimesRes, standardSetsRes] = await Promise.all([
+      supabase.from("swimmers").select("id, name, age, group_type, created_at, swim_club, school, status, gender").eq("id", swimmerId).limit(1),
+      supabase.from("swim_times").select("id, swimmer_id, event, course, time_ms, swam_at, created_at, place").eq("swimmer_id", swimmerId).order("event", { ascending: true }),
+      supabase.from("standard_sets").select("id, name, type, created_at").order("created_at", { ascending: false }),
+    ]);
+
+    if (swimmerRes.error || swimTimesRes.error || standardSetsRes.error) {
+      const err = swimmerRes.error?.message || swimTimesRes.error?.message || standardSetsRes.error?.message;
+      setStatus(`Error: ${err}`); setLoading(false); return;
+    }
+
+    const swimmerRows = (swimmerRes.data as Swimmer[]) || [];
+    if (swimmerRows.length === 0) {
+      setSwimmer(null); setStatus("Swimmer not found."); setLoading(false); return;
+    }
+
+    const swimmerData = swimmerRows[0];
+    const swimTimesData = (swimTimesRes.data as SwimTimeRow[]) || [];
+    const standardSetsData = (standardSetsRes.data as StandardSet[]) || [];
+
+    setSwimmer(swimmerData);
+    setEditForm(createEditForm(swimmerData));
+    setSwimTimes(swimTimesData);
+    setStandardSets(standardSetsData);
+
+    const firstSet = standardSetsData[0] ?? null;
+    setSelectedSetId(firstSet?.id ?? null);
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const [etcExists, snagExists] = await Promise.all([
+        etcStandardExists(user.id),
+        snagStandardExists(user.id),
+      ]);
+      setEtcAlreadyExists(etcExists);
+      setSnagAlreadyExists(snagExists);
+    }
+
+    setStatus("Ready");
+    setLoading(false);
+  }
+
+  async function loadStandardItems(setId: number | null) {
+    if (!setId) { setStandardItems([]); return; }
+    const { data, error } = await supabase
+      .from("standard_items")
+      .select("id, standard_set_id, event, course, gender, min_age, max_age, qualifying_time_ms, created_at")
+      .eq("standard_set_id", setId).order("event", { ascending: true });
+    if (error) { setStandardItems([]); return; }
+    setStandardItems((data as StandardItem[]) || []);
+  }
+
+  async function handleSaveProfile() {
+    if (!swimmer) return;
+    const trimmedName = editForm.name.trim();
+    const parsedAge = Number(editForm.age);
+    if (!trimmedName) { setStatus("Name is required."); return; }
+    if (!editForm.age || Number.isNaN(parsedAge) || parsedAge < 0) { setStatus("Please enter a valid age."); return; }
+    setSavingProfile(true);
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) { setStatus("Not logged in."); return; }
+      const { data, error } = await supabase.from("swimmers").update({
+        name: trimmedName, age: parsedAge,
+        swim_club: editForm.club.trim() || null,
+        school: editForm.school.trim() || null,
+        status: editForm.status.trim() || "Active",
+        gender: editForm.gender || null,
+        group_type: editForm.groupType || "primary",
+      }).eq("id", Number(swimmer.id)).eq("user_id", user.id).select();
+      if (error) { setStatus(`Error: ${error.message}`); return; }
+      if (!data || data.length === 0) { setStatus("⚠️ No rows updated."); return; }
+      setIsEditingProfile(false);
+      await loadPage();
+    } finally {
+      setSavingProfile(false);
+    }
+  }
+
+  function handleCancelEdit() {
+    setEditForm(createEditForm(swimmer));
+    setIsEditingProfile(false);
+    setStatus("");
+  }
+
+  async function handleSeedETC() {
+    if (!swimmer?.gender || !swimmer?.age) { setEtcMessage("Set age and gender first."); return; }
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    setSeedingETC(true); setEtcMessage("");
+    const result = await seedETCStandard(user.id, swimmer.age, swimmer.gender as "Male" | "Female");
+    setEtcMessage(result.message);
+    if (result.success) { setEtcAlreadyExists(true); await loadPage(); }
+    setSeedingETC(false);
+  }
+
+  async function handleSeedSNAG() {
+    if (!swimmer?.gender || !swimmer?.age) { setSnagMessage("Set age and gender first."); return; }
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    setSeedingSNAG(true); setSnagMessage("");
+    const result = await seedSNAGStandard(user.id, swimmer.age, swimmer.gender as "Male" | "Female");
+    setSnagMessage(result.message);
+    if (result.success) { setSnagAlreadyExists(true); await loadPage(); }
+    setSeedingSNAG(false);
+  }
+
+  const pbMap = useMemo(() => getPBMap(swimTimes), [swimTimes]);
+
+  const standardsRows = useMemo<StandardsRow[]>(() => {
+    return standardItems.map((item) => {
+      const pb = pbMap.get(keyOf(item.event, item.course));
+      const swimmerAge = swimmer?.age ?? null;
+      const ageTooYoung = swimmerAge != null && item.min_age != null && swimmerAge < item.min_age;
+      const ageTooOld = swimmerAge != null && item.max_age != null && swimmerAge > item.max_age;
+      if (ageTooYoung || ageTooOld) return { ...item, pbMs: null, pbSwamAt: null, gapMs: null, pctNeeded: null, status: "Age not in range" };
+      if (!pb) return { ...item, pbMs: null, pbSwamAt: null, gapMs: null, pctNeeded: null, status: "No PB yet" };
+      const gapMs = pb.time_ms - item.qualifying_time_ms;
+      const pctNeeded = gapMs > 0 ? (gapMs / pb.time_ms) * 100 : null;
+      return {
+        ...item,
+        pbMs: pb.time_ms,
+        pbSwamAt: pb.swam_at ?? null,
+        gapMs,
+        pctNeeded,
+        status: gapMs <= 0 ? "Qualified" : "In progress",
+      };
+    });
+  }, [standardItems, pbMap, swimmer?.age]);
+
+  // Group by stroke
+  const strokeGroups = useMemo(() => {
+    const grouped = new Map<string, StandardsRow[]>();
+    for (const row of standardsRows) {
+      if (row.status === "Age not in range") continue;
+      const stroke = getStrokeName(row.event);
+      if (!grouped.has(stroke)) grouped.set(stroke, []);
+      grouped.get(stroke)!.push(row);
+    }
+    return STROKE_ORDER
+      .filter((s) => grouped.has(s))
+      .map((s) => ({
+        stroke: s,
+        rows: (grouped.get(s) ?? []).sort((a, b) => getEventDistance(a.event) - getEventDistance(b.event)),
+      }));
+  }, [standardsRows]);
+
+  const qualifiedCount = standardsRows.filter((r) => r.status === "Qualified").length;
+  const inProgressCount = standardsRows.filter((r) => r.status === "In progress").length;
+  const noPBCount = standardsRows.filter((r) => r.status === "No PB yet").length;
+
+  const latestResultDate = useMemo(() => {
+    const datedRows = swimTimes.filter((row) => row.swam_at);
+    if (datedRows.length === 0) return null;
+    return [...datedRows].sort((a, b) => new Date(b.swam_at || "").getTime() - new Date(a.swam_at || "").getTime())[0]?.swam_at ?? null;
+  }, [swimTimes]);
+
+  const totalUniqueEvents = useMemo(() => pbMap.size, [pbMap]);
+  const etcEligible = swimmer?.age != null && [10, 11, 12].includes(swimmer.age) && !!swimmer.gender;
+
+  if (loading) return <div className="shell"><div className="container-app"><p className="muted">Loading...</p></div></div>;
+
+  if (!swimmer) {
+    return (
+      <div className="shell">
+        <div className="container-app">
+          <p className="danger-text">{status || "Swimmer not found."}</p>
+          <Link href="/swimmers" className="btn-outline mt-4 inline-flex">← Back</Link>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="shell">
+      <div className="container-app space-y-5">
+
+        {/* Back nav */}
+        <div className="pt-2">
+          <button
+  type="button"
+  onClick={() => router.push("/swimmers")}
+  className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm text-white/40 transition hover:text-white/70 -ml-3"
+>
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <path d="M10 3L5 8L10 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+  Swimmers
+</button>
+        </div>
+
+        {/* ── Profile header ─────────────────────────────────────────────── */}
+        {!isEditingProfile ? (
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-5 space-y-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">Profile</p>
+                <h1 className="mt-1 text-3xl font-bold tracking-tight text-white truncate">{swimmer.name}</h1>
+              </div>
+              <button
+                onClick={() => { setEditForm(createEditForm(swimmer)); setIsEditingProfile(true); }}
+                className="flex-shrink-0 flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-base transition hover:bg-white/10"
+              >
+                ✏️
+              </button>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {swimmer.age != null && <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-white/70">Age {swimmer.age}</span>}
+              {swimmer.gender && <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-white/70">{swimmer.gender}</span>}
+              {swimmer.status && <span className="rounded-full border border-amber-400/25 bg-amber-500/10 px-3 py-1 text-sm text-amber-300">{swimmer.status}</span>}
+              {swimmer.swim_club && <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-white/70">{swimmer.swim_club}</span>}
+              {swimmer.school && <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-white/70">{swimmer.school}</span>}
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              <StatPill label="PB Events" value={totalUniqueEvents} accent />
+              <StatPill label="All Times" value={swimTimes.length} />
+              <StatPill label="Latest" value={latestResultDate ? <span className="text-lg">{formatSwamAt(latestResultDate)}</span> : <span className="text-base text-white/40">—</span>} />
+            </div>
+
+            <div className="flex gap-2 border-t border-white/8 pt-4">
+              {TAB_ORDER.map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`flex-1 rounded-2xl border py-2.5 text-sm font-medium transition-colors ${
+                    activeTab === tab
+                      ? "border-amber-400/30 bg-amber-500/15 text-amber-300"
+                      : "border-white/10 bg-transparent text-white/45 hover:text-white/70"
+                  }`}
+                >
+                  {TAB_LABELS[tab]}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-5 space-y-4">
+            <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">Editing profile</p>
+            <div className="grid grid-cols-[1fr_100px] gap-3">
+              <div>
+                <FieldLabel>Name</FieldLabel>
+                <input value={editForm.name} onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))} className="input text-lg font-semibold" placeholder="Full name" />
+              </div>
+              <div>
+                <FieldLabel>Race Age</FieldLabel>
+                <input value={editForm.age} onChange={(e) => setEditForm((p) => ({ ...p, age: e.target.value }))} className="input text-center text-lg font-semibold" inputMode="numeric" placeholder="—" />
+              </div>
+            </div>
+            <div>
+              <FieldLabel>Gender</FieldLabel>
+              <div className="grid grid-cols-2 gap-2">
+                {(["Male", "Female"] as const).map((g) => (
+                  <button key={g} type="button" onClick={() => setEditForm((p) => ({ ...p, gender: p.gender === g ? "" : g }))}
+                    className="rounded-2xl border py-2.5 text-sm font-medium transition"
+                    style={editForm.gender === g
+                      ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
+                      : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}
+                  >
+                    {g === "Male" ? "♂ Male" : "♀ Female"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><FieldLabel>Club</FieldLabel><input value={editForm.club} onChange={(e) => setEditForm((p) => ({ ...p, club: e.target.value }))} className="input" placeholder="Swim club" /></div>
+              <div><FieldLabel>School</FieldLabel><input value={editForm.school} onChange={(e) => setEditForm((p) => ({ ...p, school: e.target.value }))} className="input" placeholder="School" /></div>
+            </div>
+            {/* My Swimmer vs Following toggle */}
+            <div>
+              <FieldLabel>Type</FieldLabel>
+              <div className="grid grid-cols-2 gap-2 mt-1">
+                {(["primary", "following"] as const).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setEditForm((p) => ({ ...p, groupType: t }))}
+                    className="rounded-2xl py-3 text-sm font-semibold transition"
+                    style={editForm.groupType === t
+                      ? { background: "rgba(217,119,6,0.25)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
+                      : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}
+                  >
+                    {t === "primary" ? "👤 My swimmer" : "👁 Following"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div><FieldLabel>Status</FieldLabel><input value={editForm.status} onChange={(e) => setEditForm((p) => ({ ...p, status: e.target.value }))} className="input" placeholder="Active" /></div>
+            {status && <p className="text-sm" style={{ color: status.startsWith("Error") ? "#F09595" : "#6EE7B7" }}>{status}</p>}
+            <div className="flex gap-2 border-t border-white/8 pt-4">
+              <button onClick={handleSaveProfile} disabled={savingProfile} className="btn">{savingProfile ? "Saving..." : "Save changes"}</button>
+              <button onClick={handleCancelEdit} disabled={savingProfile} className="btn-outline">Cancel</button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Tab: Times ────────────────────────────────────────────────── */}
+        {!isEditingProfile && activeTab === "swimTimes" && (
+  <section className="card">
+    <SwimTimesSection swimmerId={Number(swimmer.id)} swimmerAge={swimmer.age} swimmerName={swimmer.name} />
+  </section>
+)}
+
+        {/* ── Tab: Progress ─────────────────────────────────────────────── */}
+        {!isEditingProfile && activeTab === "progress" && (
+          <ProgressTab swimmerId={Number(swimmer.id)} swimmerName={swimmer.name} />
+        )}
+
+        {/* ── Tab: Standards ────────────────────────────────────────────── */}
+        {!isEditingProfile && activeTab === "standards" && (
+          <section className="space-y-4">
+
+            {/* Seed banners */}
+            {etcEligible && !etcAlreadyExists && (
+              <div className="rounded-3xl p-5 space-y-3" style={{ background: "rgba(217,119,6,0.1)", border: "1px solid rgba(253,230,138,0.25)" }}>
+                <div>
+                  <p className="text-sm font-semibold text-white">🏊 Emerging Talents Championship 2026</p>
+                  <p className="mt-1 text-xs text-white/55">{swimmer.name} is age {swimmer.age} ({swimmer.gender}) — load qualifying standards in one tap.</p>
+                </div>
+                <button type="button" onClick={handleSeedETC} disabled={seedingETC}
+                  className="w-full rounded-2xl py-3 text-sm font-semibold text-white transition disabled:opacity-50"
+                  style={{ background: "#D97706" }}>
+                  {seedingETC ? "Loading…" : "Load ETC 2026 standards"}
+                </button>
+                {etcMessage && <p className="text-xs" style={{ color: etcMessage.startsWith("✓") ? "#6EE7B7" : "#FCA5A5" }}>{etcMessage}</p>}
+              </div>
+            )}
+
+            {swimmer.gender && swimmer.age && !snagAlreadyExists && (
+              <div className="rounded-3xl p-5 space-y-3" style={{ background: "rgba(24,95,165,0.1)", border: "1px solid rgba(147,197,253,0.25)" }}>
+                <div>
+                  <p className="text-sm font-semibold text-white">🏆 56th SNAG 2026</p>
+                  <p className="mt-1 text-xs text-white/55">National Age Group qualifying standards — age {swimmer.age} ({swimmer.gender}), LCM.</p>
+                </div>
+                <button type="button" onClick={handleSeedSNAG} disabled={seedingSNAG}
+                  className="w-full rounded-2xl py-3 text-sm font-semibold text-white transition disabled:opacity-50"
+                  style={{ background: "#185FA5" }}>
+                  {seedingSNAG ? "Loading…" : "Load SNAG 2026 standards"}
+                </button>
+                {snagMessage && <p className="text-xs" style={{ color: snagMessage.startsWith("✓") ? "#6EE7B7" : "#FCA5A5" }}>{snagMessage}</p>}
+              </div>
+            )}
+
+            {/* Standard set pill switcher */}
+            {standardSets.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {standardSets.map((set) => (
+                  <button
+                    key={set.id}
+                    type="button"
+                    onClick={() => setSelectedSetId(set.id)}
+                    className="rounded-2xl border px-3 py-2 text-xs font-semibold transition"
+                    style={selectedSetId === set.id
+                      ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
+                      : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}
+                  >
+                    {set.name}
+                  </button>
+                ))}
+                <Link
+                  href="/standards"
+                  className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white/40 transition hover:bg-white/10"
+                >
+                  Manage
+                </Link>
+              </div>
+            )}
+
+            {/* Nothing selected */}
+            {!selectedSetId && standardSets.length === 0 && (
+              <div className="rounded-3xl p-8 text-center" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                <p className="text-base font-semibold text-white">No standards yet</p>
+                <p className="mt-1 text-sm text-white/40">Load the SNAG or ETC standards above, or create your own.</p>
+              </div>
+            )}
+
+            {selectedSetId && standardItems.length > 0 && (
+              <>
+                {/* Summary stats + age toggle */}
+                <div className="rounded-3xl border border-white/10 bg-white/5 p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex gap-3">
+                      <div className="text-center">
+                        <p className="text-2xl font-bold" style={{ color: "#6EE7B7" }}>{qualifiedCount}</p>
+                        <p className="text-[10px] uppercase tracking-wider text-white/35 mt-0.5">Qualified</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-2xl font-bold text-white">{inProgressCount}</p>
+                        <p className="text-[10px] uppercase tracking-wider text-white/35 mt-0.5">In progress</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-2xl font-bold text-white/40">{noPBCount}</p>
+                        <p className="text-[10px] uppercase tracking-wider text-white/35 mt-0.5">No PB</p>
+                      </div>
+                    </div>
+
+                    {/* Age toggle */}
+                    <div className="flex rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.12)" }}>
+                      <button
+                        type="button"
+                        onClick={() => setShowNextAge(false)}
+                        className="px-3 py-1.5 text-xs font-semibold transition"
+                        style={!showNextAge
+                          ? { background: "rgba(217,119,6,0.2)", color: "#FDE68A" }
+                          : { background: "transparent", color: "rgba(255,255,255,0.4)" }}
+                      >
+                        Age {swimmer.age}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowNextAge(true)}
+                        className="px-3 py-1.5 text-xs font-semibold transition"
+                        style={showNextAge
+                          ? { background: "rgba(24,95,165,0.3)", color: "#93C5FD" }
+                          : { background: "transparent", color: "rgba(255,255,255,0.4)" }}
+                      >
+                        Age {swimmer.age + 1} ↑
+                      </button>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-white/30">
+                    {swimmer.name} · {swimmer.gender} · {standardSets.find(s => s.id === selectedSetId)?.name}
+                  </p>
+                </div>
+
+                {/* Table */}
+                {!showNextAge ? (
+                  <div className="space-y-3">
+                    {strokeGroups.map(({ stroke, rows }) => (
+                      <div key={stroke} className="rounded-3xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.09)", background: "rgba(255,255,255,0.04)" }}>
+                        <p className="px-4 pt-3 pb-1 text-[10px] font-medium uppercase tracking-widest text-white/30">{stroke}</p>
+                        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                          <thead>
+                            <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+                              <th style={{ padding: "6px 16px", textAlign: "left", fontSize: 10, color: "rgba(255,255,255,0.3)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>Event</th>
+                              <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 10, color: "rgba(255,255,255,0.3)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>PB</th>
+                              <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 10, color: "rgba(255,255,255,0.3)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>Target</th>
+                              <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 10, color: "rgba(255,255,255,0.3)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>Gap</th>
+                              <th style={{ padding: "6px 16px 6px 8px", textAlign: "right", fontSize: 10, color: "rgba(255,255,255,0.3)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>%</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {rows.map((row, i) => {
+                              const qualified = row.status === "Qualified";
+                              const noPB = row.status === "No PB yet";
+                              const isLast = i === rows.length - 1;
+                              return (
+                                <tr key={row.id} style={{ borderBottom: isLast ? "none" : "1px solid rgba(255,255,255,0.05)" }}>
+                                  <td style={{ padding: "10px 16px", fontSize: 13, fontWeight: 500, color: "white" }}>
+                                    {canonicalEventName(row.event).replace(` ${stroke}`, "").replace("Freestyle", "Free").replace("Backstroke", "Back").replace("Breaststroke", "Breast").replace("Butterfly", "Fly")}
+                                    <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", marginLeft: 4 }}>{canonicalCourse(row.course)}</span>
+                                  </td>
+                                  <td style={{ padding: "10px 8px", textAlign: "right", fontSize: 13, color: qualified ? "#6EE7B7" : noPB ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.8)" }}>
+                                    {row.pbMs == null ? "—" : formatMs(row.pbMs)}
+                                  </td>
+                                  <td style={{ padding: "10px 8px", textAlign: "right", fontSize: 13, color: "rgba(255,255,255,0.5)" }}>
+                                    {formatMs(row.qualifying_time_ms)}
+                                  </td>
+                                  <td style={{ padding: "10px 8px", textAlign: "right", fontSize: 12 }}>
+                                    {qualified ? (
+                                      <span style={{ background: "rgba(16,185,129,0.15)", color: "#6EE7B7", border: "1px solid rgba(110,231,183,0.25)", borderRadius: 10, padding: "2px 8px", fontSize: 10, fontWeight: 500 }}>✓ Done</span>
+                                    ) : noPB ? (
+                                      <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 11 }}>No PB</span>
+                                    ) : (
+                                      <span style={{ color: (row.pctNeeded ?? 0) < 3 ? "#FDE68A" : "rgba(255,255,255,0.55)" }}>
+                                        {formatMs(row.gapMs != null ? Math.abs(row.gapMs) : null)}
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td style={{ padding: "10px 16px 10px 8px", textAlign: "right", fontSize: 12 }}>
+                                    {qualified || noPB ? (
+                                      <span style={{ color: "rgba(255,255,255,0.2)" }}>—</span>
+                                    ) : (
+                                      <span style={{ color: (row.pctNeeded ?? 0) < 2 ? "#FDE68A" : (row.pctNeeded ?? 0) < 5 ? "#FAC775" : "rgba(255,255,255,0.4)" }}>
+                                        {row.pctNeeded?.toFixed(1)}%
+                                      </span>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  /* Next age up view */
+                  <div className="rounded-3xl p-5 space-y-3" style={{ background: "rgba(24,95,165,0.08)", border: "1px solid rgba(147,197,253,0.2)" }}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span style={{ background: "rgba(24,95,165,0.2)", color: "#93C5FD", border: "1px solid rgba(147,197,253,0.25)", borderRadius: 10, padding: "2px 10px", fontSize: 10, fontWeight: 500 }}>
+                        Age {swimmer.age + 1} targets
+                      </span>
+                      <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>Planning ahead for next year</span>
+                    </div>
+
+                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                      <thead>
+                        <tr style={{ borderBottom: "1px solid rgba(147,197,253,0.1)" }}>
+                          <th style={{ padding: "6px 0", textAlign: "left", fontSize: 10, color: "rgba(147,197,253,0.5)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>Event</th>
+                          <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 10, color: "rgba(147,197,253,0.5)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>Current PB</th>
+                          <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 10, color: "rgba(147,197,253,0.5)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>Age {swimmer.age + 1} target</th>
+                          <th style={{ padding: "6px 0", textAlign: "right", fontSize: 10, color: "rgba(147,197,253,0.5)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>Gap</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {standardsRows
+                          .filter((r) => r.pbMs != null && r.status !== "Age not in range")
+                          .map((row) => {
+                            if (!swimmer.gender) return null;
+                            const nextTarget = getSNAGQualifyingTime(row.event, swimmer.age + 1, swimmer.gender as "Male" | "Female");
+                            if (!nextTarget) return null;
+                            const nextTargetMs = parseFloat(nextTarget.includes(":") ?
+                              (() => { const [m, s] = nextTarget.split(":"); return (Number(m) * 60 + Number(s)).toString(); })()
+                              : nextTarget) * 1000;
+                            const gapToNext = row.pbMs! - nextTargetMs;
+                            return (
+                              <tr key={row.id} style={{ borderBottom: "1px solid rgba(147,197,253,0.06)" }}>
+                                <td style={{ padding: "9px 0", fontSize: 13, fontWeight: 500, color: "white" }}>
+                                  {canonicalEventName(row.event)}
+                                </td>
+                                <td style={{ padding: "9px 8px", textAlign: "right", fontSize: 13, color: "rgba(255,255,255,0.6)" }}>
+                                  {formatMs(row.pbMs)}
+                                </td>
+                                <td style={{ padding: "9px 8px", textAlign: "right", fontSize: 13, color: "#93C5FD" }}>
+                                  {nextTarget}
+                                </td>
+                                <td style={{ padding: "9px 0", textAlign: "right", fontSize: 12, color: gapToNext <= 0 ? "#6EE7B7" : "rgba(255,255,255,0.4)" }}>
+                                  {gapToNext <= 0 ? "✓ Ready" : formatMs(Math.abs(gapToNext)) + " off"}
+                                </td>
+                              </tr>
+                            );
+                          })
+                          .filter(Boolean)}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
+            )}
+          </section>
+        )}
+
+        <div className="h-4" />
+      </div>
+    </div>
+  );
+}
+</file>
+
 <file path="app/swimmers/page.tsx">
 "use client";
 
@@ -14314,14 +14309,6 @@ export default function SwimmersPage() {
     else {
       const rows = (data as Swimmer[]) || [];
       setSwimmers(rows);
-      // Auto-expand all groups on first load
-      const following = rows.filter((s) => s.group_type === "following");
-      const groups: Record<string, boolean> = {};
-      following.forEach((s) => {
-        const key = (groupBy === "club" ? s.swim_club : s.school) || "Other";
-        groups[key] = true;
-      });
-      setExpandedGroups(groups);
     }
     setLoading(false);
   }
@@ -14542,7 +14529,7 @@ export default function SwimmersPage() {
 
             {/* Group cards */}
             {followingGroups.map(([groupName, groupSwimmers]) => {
-              const isOpen = expandedGroups[groupName] !== false; // default open
+                const isOpen = expandedGroups[groupName] === true;
               const colors = groupColor(groupName);
 
               return (

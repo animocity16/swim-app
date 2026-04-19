@@ -95,19 +95,16 @@ function fourDigitToMs(raw: string): number | null {
 }
 
 function extractPlace(line: string, nextLine: string = ""): number | null {
-  // "PLACE 6", "place: 6", "place|6"
-  const placeMatch = line.match(/place[:\s|]*([0-9]{1,3})/i);
+  const placeMatch = line.match(/place[:\s|]*([0-9]{1,3})/i);
   if (placeMatch) {
     const parsed = parseInt(placeMatch[1], 10);
     if (!Number.isNaN(parsed) && parsed >= 1 && parsed <= 999) return parsed;
   }
-  // "Finals 6 37.70" — place number before time on finals line
-  const finalsMatch = line.match(/finals\s+(\d{1,3})\s+[\d:.]+/i);
+  const finalsMatch = line.match(/finals\s+(\d{1,3})\s+[\d:.]+/i);
   if (finalsMatch) {
     const parsed = parseInt(finalsMatch[1], 10);
     if (!Number.isNaN(parsed) && parsed >= 1 && parsed <= 999) return parsed;
   }
-  // "PLACE FINALS ENTRY" on one line, "1 36.39 36.50" on next
   if (/^PLACE\s+(FINALS|SEMI|ENTRY)/i.test(line) && nextLine) {
     const m = nextLine.match(/^(\d{1,3})\s/);
     if (m) {
@@ -192,16 +189,6 @@ function extractMeetDate(rawText: string): string | null {
   return null;
 }
 
-// ✅ Extract meet name from OCR text.
-//
-// Meet Mobile shows the meet name in the swim detail screen like this:
-//   "EVENT 56th SNAG Juniors"         → "56th SNAG Juniors"
-//   "EVENT Singapore Age Group Open"  → "Singapore Age Group Open"
-//
-// Three strategies tried in order:
-//   1. "EVENT [meet name]" line  — most reliable Meet Mobile pattern
-//   2. "MEET [meet name]" line   — fallback
-//   3. Scan first 20 lines for a line containing known meet keywords
 function extractMeetName(rawText: string): string | null {
   const lines = rawText
     .replace(/\r/g, "\n")
@@ -209,17 +196,13 @@ function extractMeetName(rawText: string): string | null {
     .map((l) => l.trim())
     .filter(Boolean);
 
-  // Strategy 0: NSG meet name — OCR garbles "EVENT" as "EUS" or similar
-  // Look for lines containing NSG/SPSSC/JR keywords directly
   for (const line of lines.slice(0, 10)) {
     if (/\bNSG\b/i.test(line) || /\bSPSSC\b/i.test(line)) {
-      // Strip leading garbled chars (EUS, &, etc.) before the real meet name
       const cleaned = line.replace(/^[^A-Z0-9]*(?:EUS|EVENT)?\s*/i, "").trim();
       if (cleaned.length >= 4) return cleaned;
     }
   }
 
-  // Strategy 1: "EVENT [meet name]"
   for (const line of lines) {
     const eventMatch = line.match(/^EVENT\s+(.+)$/i);
     if (eventMatch) {
@@ -227,13 +210,11 @@ function extractMeetName(rawText: string): string | null {
       if (/^\d+$/.test(candidate)) continue;
       if (detectStroke(candidate) !== null && detectDistance(candidate) !== null) continue;
       if (candidate.length < 4) continue;
-      // Block known non-meet-name keywords
       if (/^(summary|details|results|splits|total|completed|entry|finals|heat|lane|status|dropped|seed)$/i.test(candidate)) continue;
       return candidate;
     }
   }
 
-  // Strategy 2: "MEET [meet name]"
   for (const line of lines) {
     const meetMatch = line.match(/^MEET\s+(.+)$/i);
     if (meetMatch) {
@@ -242,7 +223,6 @@ function extractMeetName(rawText: string): string | null {
     }
   }
 
-  // Strategy 3: scan first 20 lines for known meet keywords
   const meetKeywords = /championship|championships|open|invitational|junior|juniors|classic|cup|trophy|gala|relay|carnival|national|regional|age.?group|series|aquatic|swim.?meet|swimming/i;
 
   for (const line of lines.slice(0, 20)) {
@@ -252,13 +232,96 @@ function extractMeetName(rawText: string): string | null {
     if (/place|lane|heat|finals|entry|seed|status|dropped|completed|summary|split|total|result/i.test(line)) continue;
     const words = line.split(/\s+/).filter(Boolean);
     if (words.length < 2) continue;
-    // Skip event description lines like "102 Girls 9-10 100 Meter Back"
     if (/^\d+\s+(girls|boys|women|men)/i.test(line)) continue;
     if (meetKeywords.test(line)) return line.trim();
   }
 
   return null;
 }
+
+// ─── ✅ NEW: Swimmer name extraction from Meet Mobile detail screen ────────────
+//
+// Meet Mobile swim detail layout (from OCR):
+//   EVENT 505
+//   Singapore Swim Series II February 2026
+//   Girls 9-10 100 Meter Fly
+//   Fri | Feb 6, 2026 | 4:44 PM | Finals
+//   EC                          ← avatar initials (skip this)
+//   Elizabeth Le Xuan Chiu      ← ✅ THIS is the name we want
+//   CSC | 10                    ← club code | age
+//   PLACE  FINALS  ENTRY
+//   ...
+//
+// Strategy 1: Find a name-like line immediately before "CLUB | AGE" pattern
+// Strategy 2: Find first name-like line appearing after the event description line
+
+function isLikelyPersonName(line: string): boolean {
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.length < 5 || trimmed.length > 70) return false;
+  // No digits allowed in names
+  if (/\d/.test(trimmed)) return false;
+  // No special characters
+  if (/[|•·@#$%^&*()\[\]{}\\/]/.test(trimmed)) return false;
+  const words = trimmed.split(/\s+/);
+  if (words.length < 2 || words.length > 7) return false;
+  // Skip 2-letter avatar initials like "EC", "ML"
+  if (words.length === 1 && words[0].length <= 3) return false;
+  // Skip all-caps abbreviations (e.g. "CSC", "MGS", "SSC")
+  if (words.every((w) => w === w.toUpperCase() && w.length <= 5)) return false;
+  // Each word should start with uppercase
+  if (!words.every((w) => /^[A-Z]/.test(w))) return false;
+  // Not a known swim/admin keyword
+  const KNOWN_BAD = [
+    "place", "finals", "entry", "heat", "lane", "split", "total",
+    "completed", "dropped", "status", "event", "summary", "seed",
+    "relay", "detail", "freestyle", "butterfly", "backstroke",
+    "breaststroke", "medley", "swim", "results", "schedule",
+    "points", "improvement", "girls", "boys", "women", "men",
+    "meter", "yard", "final", "semi", "prelim",
+  ];
+  const lower = trimmed.toLowerCase();
+  if (KNOWN_BAD.some((kw) => lower.includes(kw))) return false;
+  return true;
+}
+
+function extractSwimmerName(lines: string[]): string | null {
+  // Strategy 1: Look for a line immediately before "CLUB | AGE" pattern
+  // e.g., "CSC | 10", "SSC | 12", "AQGOLDS | 14"
+  // OCR may render "|" as "l", "1", "/" — be flexible
+  const CLUB_AGE_PATTERN = /^[A-Z]{2,10}\s*[|l\/]\s*\d{1,2}$/i;
+
+  for (let i = 1; i < lines.length; i++) {
+    const curr = lines[i].trim();
+    if (CLUB_AGE_PATTERN.test(curr)) {
+      const candidate = lines[i - 1].trim();
+      if (isLikelyPersonName(candidate)) return candidate;
+    }
+  }
+
+  // Strategy 2: Find first name-like line after the event description line
+  // Event description has distance + stroke (e.g., "Girls 9-10 100 Meter Fly")
+  let seenEventLine = false;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!seenEventLine) {
+      const hasStroke = /freestyle|butterfly|backstroke|breaststroke|medley|\bfly\b|\bback\b|\bbreast\b|\bfree\b|\bim\b/i.test(trimmed);
+      const hasDistance = /\b(50|100|200|400|800|1500)\b/.test(trimmed);
+      if (hasStroke && hasDistance) {
+        seenEventLine = true;
+        continue;
+      }
+    } else {
+      if (!trimmed) continue;
+      if (/\b(am|pm)\b/i.test(trimmed)) continue; // skip time-of-day
+      if (/^\d/.test(trimmed)) continue;           // skip lines starting with numbers
+      if (isLikelyPersonName(trimmed)) return trimmed;
+    }
+  }
+
+  return null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 function isSplitScreen(lines: string[]) {
   const joined = normalizeText(lines.join(" "));
@@ -276,9 +339,6 @@ function normalizeSplitLabel(cumulativeDistance: number, stroke: string) {
   return `${cumulativeDistance} ${strokeShort}`;
 }
 
-// ✅ Fill in the missing last split for ANY multi-lap event.
-// Only fills when exactly 1 leg is missing at the end.
-// Covers 100/200/400/800 Free, Back, Breast, Fly.
 function fillMissingLastSplit(
   splits: ParsedSplit[],
   eventDistance: number,
@@ -377,6 +437,10 @@ function parseSingleSplitScreen(rawText: string, lines: string[], options: Parse
   const swamAt = extractMeetDate(rawText);
   const meetName = extractMeetName(rawText);
 
+  // ✅ Try to extract swimmer name from OCR text (e.g. from Meet Mobile swim detail)
+  // Fall back to whatever was passed in from the UI (e.g. from the swimmer profile tab)
+  const resolvedName = options.swimmerName || extractSwimmerName(lines) || null;
+
   let bestEvent: { event: string; distance: number; stroke: string } | null = null;
 
   for (const line of lines) {
@@ -438,14 +502,13 @@ function parseSingleSplitScreen(rawText: string, lines: string[], options: Parse
   if (!finalTimeStr || finalTimeMs <= 0) return [];
   if (finalTimeMs > 1800000) return [];
 
-  // ✅ Fill missing last split for ANY multi-lap event
   splits = fillMissingLastSplit(splits, bestEvent.distance, bestEvent.stroke, finalTimeMs);
 
   return [{
     event: bestEvent.event,
     distance: bestEvent.distance,
     stroke: bestEvent.stroke,
-    name: options.swimmerName ?? null,
+    name: resolvedName,
     timeStr: finalTimeStr,
     timeMs: finalTimeMs,
     course: globalCourse,
@@ -495,6 +558,10 @@ function parseNormalEventBlocks(rawText: string, lines: string[], options: Parse
   const globalCourse = extractedCourse !== "UNKNOWN" ? extractedCourse : options.defaultCourse ?? "LCM";
   const detectedDate = extractMeetDate(rawText);
   const meetName = extractMeetName(rawText);
+
+  // ✅ Try to read swimmer name from OCR text if none was passed in
+  const resolvedName = options.swimmerName || extractSwimmerName(lines) || null;
+
   const results: ParsedSwimResult[] = [];
 
   for (let i = 0; i < lines.length; i++) {
@@ -562,7 +629,7 @@ function parseNormalEventBlocks(rawText: string, lines: string[], options: Parse
       event: built.event,
       distance: built.distance,
       stroke: built.stroke,
-      name: options.swimmerName ?? null,
+      name: resolvedName,
       timeStr: foundTime,
       timeMs,
       course: foundCourse,
