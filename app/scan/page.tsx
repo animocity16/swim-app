@@ -80,6 +80,11 @@ function getInitials(name: string) {
   return name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 }
 
+// Strip Meet Mobile / OCR prefixes like "INS", "SCR", "DNS" that appear before swimmer names
+function stripNamePrefix(name: string): string {
+  return name.replace(/^(INS|SCR|DNS|DNF|DQ|DSQ|NT|NS|HD|WD)\s+/i, "").trim();
+}
+
 const AVATAR_COLORS = [
   { bg: "#92400E", text: "#FDE68A" },
   { bg: "#78350F", text: "#FCD34D" },
@@ -490,14 +495,15 @@ export default function ScanPage() {
         setSelectedScheduleRows(new Set(nonRelayResults.map((_, i) => i)));
 
         if (parsed.swimmerName) {
-          const matched = fuzzyMatchSwimmer(parsed.swimmerName, swimmers);
+          const cleanedName = stripNamePrefix(parsed.swimmerName);
+          const matched = fuzzyMatchSwimmer(cleanedName, swimmers);
           if (matched) {
             setScheduleMatchedSwimmer(matched);
             setShowSchedulePicker(false);
             setShowCreateForm(false);
           } else {
             // No match — pre-fill the create form with OCR-detected details
-            setNewSwimmerName(parsed.swimmerName);
+            setNewSwimmerName(cleanedName);
             setNewSwimmerAge(""); // age group like "9-10" can't be a single number
             setNewSwimmerClub(""); // club will be set from parsed club if available
             setShowSchedulePicker(true);
@@ -529,14 +535,15 @@ export default function ScanPage() {
           setEditedTime(first.timeStr ?? "");
           const ocrName = first.name ?? null;
           if (ocrName && ocrName.trim().length > 0) {
-            const matched = fuzzyMatchSwimmer(ocrName, swimmers);
+            const cleanedName = stripNamePrefix(ocrName);
+            const matched = fuzzyMatchSwimmer(cleanedName, swimmers);
             if (matched) {
               setAutoMatchedSwimmer(matched);
               setShowPicker(false);
               setShowCreateForm(false);
             } else {
               // No match — pre-fill create form
-              setNewSwimmerName(ocrName);
+              setNewSwimmerName(cleanedName);
               setNewSwimmerAge("");
               setNewSwimmerClub("");
               setShowPicker(true);
