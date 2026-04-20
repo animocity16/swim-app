@@ -725,22 +725,27 @@ export default function ScanPage() {
                       </div>
                     )}
 
-                    <p className="text-sm text-white/50">Or save to an existing swimmer:</p>
-                    {primarySwimmers.map((swimmer, index) => {
-                      const colors = avatarColor(index);
-                      return (
-                        <button key={swimmer.id} type="button" onClick={() => void saveSingleDirectly(swimmer)}
-                          disabled={isSaving}
-                          className="flex w-full items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-3 text-left transition hover:bg-white/10 disabled:opacity-50">
-                          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-xs font-bold"
-                            style={{ background: colors.bg, color: colors.text }}>{getInitials(swimmer.name)}</div>
-                          <div>
-                            <p className="text-sm font-semibold text-white">{swimmer.name}</p>
-                            <p className="text-xs text-white/40">Age {swimmer.age}{swimmer.swim_club ? ` · ${swimmer.swim_club}` : ""}</p>
-                          </div>
-                        </button>
-                      );
-                    })}
+                    {/* Only show full swimmer list if no specific name was detected */}
+                    {!newSwimmerName.trim() && (
+                      <>
+                        <p className="text-sm text-white/50">Save to an existing swimmer:</p>
+                        {swimmers.map((swimmer, index) => {
+                          const colors = avatarColor(index);
+                          return (
+                            <button key={swimmer.id} type="button" onClick={() => void saveSingleDirectly(swimmer)}
+                              disabled={isSaving}
+                              className="flex w-full items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-3 text-left transition hover:bg-white/10 disabled:opacity-50">
+                              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-xs font-bold"
+                                style={{ background: colors.bg, color: colors.text }}>{getInitials(swimmer.name)}</div>
+                              <div>
+                                <p className="text-sm font-semibold text-white">{swimmer.name}</p>
+                                <p className="text-xs text-white/40">Age {swimmer.age}{swimmer.swim_club ? ` · ${swimmer.swim_club}` : ""}</p>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </>
+                    )}
                   </div>
                 )}
 
@@ -934,23 +939,28 @@ export default function ScanPage() {
                       </div>
                     )}
 
-                    <p className="text-sm text-white/50">Or save to an existing swimmer:</p>
-                    {primarySwimmers.map((swimmer, index) => {
-                      const colors = avatarColor(index);
-                      return (
-                        <button key={swimmer.id} type="button"
-                          onClick={() => void handleSaveSchedule(swimmer)}
-                          disabled={savingSchedule}
-                          className="flex w-full items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-3 text-left transition hover:bg-white/10 disabled:opacity-50">
-                          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-xs font-bold"
-                            style={{ background: colors.bg, color: colors.text }}>{getInitials(swimmer.name)}</div>
-                          <div>
-                            <p className="text-sm font-semibold text-white">{swimmer.name}</p>
-                            <p className="text-xs text-white/40">Age {swimmer.age}{swimmer.swim_club ? ` · ${swimmer.swim_club}` : ""}</p>
-                          </div>
-                        </button>
-                      );
-                    })}
+                    {/* Only show full swimmer list if no specific name was detected */}
+                    {!newSwimmerName.trim() && (
+                      <>
+                        <p className="text-sm text-white/50">Save to an existing swimmer:</p>
+                        {swimmers.map((swimmer, index) => {
+                          const colors = avatarColor(index);
+                          return (
+                            <button key={swimmer.id} type="button"
+                              onClick={() => void handleSaveSchedule(swimmer)}
+                              disabled={savingSchedule}
+                              className="flex w-full items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-3 text-left transition hover:bg-white/10 disabled:opacity-50">
+                              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-xs font-bold"
+                                style={{ background: colors.bg, color: colors.text }}>{getInitials(swimmer.name)}</div>
+                              <div>
+                                <p className="text-sm font-semibold text-white">{swimmer.name}</p>
+                                <p className="text-xs text-white/40">Age {swimmer.age}{swimmer.swim_club ? ` · ${swimmer.swim_club}` : ""}</p>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </>
+                    )}
                   </div>
                 )}
 
