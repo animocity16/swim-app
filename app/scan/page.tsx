@@ -170,6 +170,10 @@ export default function ScanPage() {
   const [showSchedulePicker, setShowSchedulePicker] = useState(false);
   const [savingSchedule, setSavingSchedule] = useState(false);
 
+  // ── Manual meet metadata (schedule mode) ─────────────────────────────────
+  const [manualMeetName, setManualMeetName] = useState("");
+  const [manualMeetDate, setManualMeetDate] = useState("");
+
   const ref1 = useRef<HTMLInputElement | null>(null);
   const ref2 = useRef<HTMLInputElement | null>(null);
 
@@ -210,6 +214,7 @@ export default function ScanPage() {
     setScheduleResults([]); setScheduleSwimmerName(null); setScheduleMeetName(null);
     setSelectedScheduleRows(new Set()); setScheduleMatchedSwimmer(null);
     setShowSchedulePicker(false); setSavingSchedule(false);
+    setManualMeetName(""); setManualMeetDate("");
     setShowInfo(false);
     if (ref1.current) ref1.current.value = "";
     if (ref2.current) ref2.current.value = "";
@@ -313,6 +318,10 @@ export default function ScanPage() {
     const saved: string[] = []; const errors: string[] = [];
     const meetType = detectMeetType(rawText, null);
 
+    // Use manual overrides if provided, otherwise fall back to OCR-detected values
+    const resolvedMeetName = manualMeetName.trim() || scheduleMeetName || null;
+    const resolvedSwamAt = manualMeetDate.trim() || null;
+
     for (const index of Array.from(selectedScheduleRows)) {
       const row = scheduleResults[index];
       if (!row) continue;
@@ -325,7 +334,9 @@ export default function ScanPage() {
       const { error } = await supabase.from("swim_times").insert({
         swimmer_id: swimmer.id, event: eventName, course: courseName,
         time_ms: row.timeMs, place: row.place ?? null,
-        meet_name: row.meetName ?? null, swam_at: row.swamAt ?? null, meet_type: meetType,
+        meet_name: resolvedMeetName,
+        swam_at: resolvedSwamAt ?? row.swamAt ?? null,
+        meet_type: meetType,
       });
       error ? errors.push(`${row.event}: ${error.message}`) : saved.push(row.event);
     }
@@ -350,6 +361,7 @@ export default function ScanPage() {
     setEventRows([]); setSelectedRows(new Set()); setSavedNames([]); setRowTypes({});
     setScheduleResults([]); setScheduleSwimmerName(null); setScheduleMeetName(null);
     setSelectedScheduleRows(new Set()); setScheduleMatchedSwimmer(null); setShowSchedulePicker(false);
+    setManualMeetName(""); setManualMeetDate("");
 
     try {
       const files = [file1, file2].filter(Boolean) as File[];
@@ -370,33 +382,24 @@ export default function ScanPage() {
 
       setRawText(combined);
 
-      // ── Mode detection — order matters ─────────────────────────────────────
-      // Swimmer schedule must be checked BEFORE event results
-      // because both pages can contain "PLACE" keywords
-
       if (isSwimmerSchedulePage(combined)) {
-        // ── Swimmer schedule mode ──────────────────────────────────────────
         setScanMode("swimmer_schedule");
         const parsed = parseSwimmerScheduleOCR(combined);
         const nonRelayResults = parsed.results.filter((r) => !r.isRelay);
         setScheduleResults(nonRelayResults);
         setScheduleSwimmerName(parsed.swimmerName);
         setScheduleMeetName(parsed.meetName);
-
-        // Pre-select all non-relay events
+        // Pre-fill meet name from OCR if detected
+        if (parsed.meetName) setManualMeetName(parsed.meetName);
         setSelectedScheduleRows(new Set(nonRelayResults.map((_, i) => i)));
-
-        // Try to auto-match the swimmer by name
         if (parsed.swimmerName) {
           const matched = fuzzyMatchSwimmer(parsed.swimmerName, swimmers);
           if (matched) { setScheduleMatchedSwimmer(matched); setShowSchedulePicker(false); }
           else { setShowSchedulePicker(true); }
         } else { setShowSchedulePicker(true); }
-
         setMessage(nonRelayResults.length === 0 ? "⚠️ No individual events detected." : "");
 
       } else if (isEventResultsPage(combined)) {
-        // ── Event results mode ─────────────────────────────────────────────
         setScanMode("event_results");
         const parsed = parseEventResultsOCR(combined);
         setEventRows(parsed.results);
@@ -406,7 +409,6 @@ export default function ScanPage() {
         setMessage(parsed.results.length === 0 ? "⚠️ No results detected." : "");
 
       } else {
-        // ── Single swimmer mode ────────────────────────────────────────────
         setScanMode("single");
         const results = parseSwimOCRText(combined, { swimmerName: "" });
         const first = results[0];
@@ -608,7 +610,7 @@ export default function ScanPage() {
                     {scheduleSwimmerName ?? "Swimmer"}'s meet results
                   </p>
                   <p className="mt-0.5 text-xs text-white/40">
-                    {scheduleMeetName ?? ""} · {scheduleResults.length} events · tick to select
+                    {scheduleResults.length} events · tick to select
                   </p>
                 </div>
 
@@ -657,6 +659,34 @@ export default function ScanPage() {
                     className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/60 hover:bg-white/10">
                     None
                   </button>
+                </div>
+
+                {/* ── Meet metadata inputs ────────────────────────────────── */}
+                <div className="rounded-2xl p-4 space-y-3"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                  <p className="text-xs font-medium uppercase tracking-widest text-white/40">Meet details</p>
+
+                  <div className="space-y-1">
+                    <label className="text-xs text-white/40">Meet name</label>
+                    <input
+                      type="text"
+                      value={manualMeetName}
+                      onChange={(e) => setManualMeetName(e.target.value)}
+                      placeholder="e.g. Singapore Swim Series II"
+                      className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white placeholder-white/20 outline-none focus:border-amber-400/50"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs text-white/40">Date swum</label>
+                    <input
+                      type="date"
+                      value={manualMeetDate}
+                      onChange={(e) => setManualMeetDate(e.target.value)}
+                      className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white outline-none focus:border-amber-400/50"
+                      style={{ colorScheme: "dark" }}
+                    />
+                  </div>
                 </div>
 
                 {/* Auto-matched swimmer */}
