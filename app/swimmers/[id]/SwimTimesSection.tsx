@@ -179,6 +179,7 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
   const [saving, setSaving] = useState(false);
   const [addStatus, setAddStatus] = useState("");
 
+  const [expandedStrokes, setExpandedStrokes] = useState<Record<string, boolean>>({});
   const [expandedEvents, setExpandedEvents] = useState<Record<string, boolean>>({});
   const [expandedSplits, setExpandedSplits] = useState<Record<number, boolean>>({});
   const [editingTime, setEditingTime] = useState<EditingTime | null>(null);
@@ -260,6 +261,10 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
     await loadTimes();
   }
 
+  function toggleStroke(key: string) {
+    setExpandedStrokes((prev) => ({ ...prev, [key]: !prev[key] }));
+  }
+
   function toggleEvent(key: string) {
     setExpandedEvents((prev) => ({ ...prev, [key]: !prev[key] }));
   }
@@ -309,7 +314,7 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
 
   return (
     <>
-      <div className="space-y-4">
+      <div className="space-y-3">
 
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -385,215 +390,231 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
           </div>
         )}
 
-        {/* Stroke groups */}
-        {strokeGroups.map((sg) => (
-          <div key={sg.key} className="rounded-2xl overflow-hidden"
-            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)" }}>
+        {/* Stroke groups — collapsible */}
+        {strokeGroups.map((sg) => {
+          const isStrokeOpen = !!expandedStrokes[sg.key];
+          return (
+            <div key={sg.key} className="rounded-2xl overflow-hidden"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)" }}>
 
-            {/* Stroke header */}
-            <div className="px-4 pt-3 pb-2 flex items-center gap-2">
-              <div className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ background: sg.color }} />
-              <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: sg.color }}>
-                {sg.label}
-              </p>
-              <p className="text-[10px] text-white/25 ml-1">
-                {sg.events.length} event{sg.events.length === 1 ? "" : "s"}
-              </p>
-            </div>
+              {/* Stroke header — tappable to collapse/expand */}
+              <button
+                type="button"
+                onClick={() => toggleStroke(sg.key)}
+                className="w-full px-4 pt-3 pb-3 flex items-center gap-2 transition hover:bg-white/5"
+              >
+                <div className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ background: sg.color }} />
+                <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: sg.color }}>
+                  {sg.label}
+                </p>
+                <p className="text-[10px] text-white/25 ml-1">
+                  {sg.events.length} event{sg.events.length === 1 ? "" : "s"}
+                </p>
+                {/* Show PB of first event as preview when collapsed */}
+                {!isStrokeOpen && (
+                  <p className="ml-auto text-xs font-bold" style={{ color: "#FDE68A" }}>
+                    {formatMs(sg.events[0]?.pb.time_ms)}
+                  </p>
+                )}
+                <svg width="12" height="12" viewBox="0 0 14 14" fill="none"
+                  className="flex-shrink-0 text-white/20 transition-transform ml-1"
+                  style={{ transform: isStrokeOpen ? "rotate(90deg)" : "rotate(0deg)" }}>
+                  <path d="M5 3L9 7L5 11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
 
-            {/* Event rows */}
-            {sg.events.map((eg) => {
-              const isOpen = !!expandedEvents[eg.key];
-              return (
-                <div key={eg.key} style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+              {/* Event rows — only show when stroke is expanded */}
+              {isStrokeOpen && sg.events.map((eg) => {
+                const isOpen = !!expandedEvents[eg.key];
+                return (
+                  <div key={eg.key} style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
 
-                  {/* PB row — expand button + share button side by side */}
-                  <div className="flex items-center gap-1 pr-2">
-                    <button
-                      type="button"
-                      onClick={() => toggleEvent(eg.key)}
-                      className="flex flex-1 items-center gap-3 px-4 py-3 text-left transition hover:bg-white/5"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-baseline gap-1.5">
-                          <span className="text-sm font-semibold text-white">{eg.shortEvent}</span>
-                          <span className="text-[10px] text-white/30">{eg.course}</span>
+                    {/* PB row */}
+                    <div className="flex items-center gap-1 pr-2">
+                      <button
+                        type="button"
+                        onClick={() => toggleEvent(eg.key)}
+                        className="flex flex-1 items-center gap-3 px-4 py-3 text-left transition hover:bg-white/5"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="text-sm font-semibold text-white">{eg.shortEvent}</span>
+                            <span className="text-[10px] text-white/30">{eg.course}</span>
+                          </div>
                         </div>
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        <p className="text-sm font-bold" style={{ color: "#FDE68A" }}>{formatMs(eg.pb.time_ms)}</p>
-                        <div className="flex items-center justify-end gap-1 mt-0.5">
-                          {eg.pb.place != null && (
-                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                              style={{ background: "rgba(99,179,237,0.15)", color: "#90CDF4", border: "1px solid rgba(99,179,237,0.25)" }}>
-                              {eg.pb.place}{eg.pb.place === 1 ? "st" : eg.pb.place === 2 ? "nd" : eg.pb.place === 3 ? "rd" : "th"}
-                            </span>
-                          )}
-                          {eg.pb.swam_at && (
-                            <p className="text-[10px] text-white/30">{formatDate(eg.pb.swam_at)}</p>
-                          )}
-                        </div>
-                      </div>
-                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
-                        className="flex-shrink-0 text-white/20 transition-transform"
-                        style={{ transform: isOpen ? "rotate(90deg)" : "rotate(0deg)" }}>
-                        <path d="M5 3L9 7L5 11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    </button>
-
-                    {/* Share button */}
-                    <button
-                      type="button"
-                      onClick={() => setShareResult({
-                        swimmerName,
-                        event: eg.event,
-                        course: eg.course,
-                        timeMs: eg.pb.time_ms,
-                        meetName: eg.pb.meet_name,
-                        swamAt: eg.pb.swam_at,
-                        isPB: true,
-                        strokeColor: sg.color,
-                        place: eg.pb.place ?? null,
-                      })}
-                      className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl transition"
-                      style={{ background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.45)" }}
-                      title="Share result"
-                    >
-                      <ShareIcon />
-                    </button>
-                  </div>
-
-                  {/* Expanded history */}
-                  {isOpen && (
-                    <div style={{ background: "rgba(0,0,0,0.2)", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-                      {eg.times.map((time, tIdx) => {
-                        const isPB = time.id === eg.pb.id;
-                        const splits = (splitsMap[time.id] || []).filter((s) => s.split_time_ms && s.split_time_ms > 0);
-                        const showSplits = !!expandedSplits[time.id];
-                        const isEditing = editingTime?.id === time.id;
-                        const isLastTime = tIdx === eg.times.length - 1;
-
-                        return (
-                          <div key={time.id}
-                            style={{ borderBottom: isLastTime ? "none" : "1px solid rgba(255,255,255,0.04)", padding: "10px 16px" }}>
-
-                            {isEditing ? (
-                              <div className="space-y-2">
-                                <p className="text-[10px] font-medium uppercase tracking-wider text-white/30">Meet name</p>
-                                <div className="flex flex-wrap gap-1.5">
-                                  {meetPresets.map((preset) => (
-                                    <button
-                                      key={preset}
-                                      type="button"
-                                      onClick={() => setEditingTime((p) => p ? { ...p, meetName: preset } : p)}
-                                      className="rounded-full px-2.5 py-1 text-[10px] font-medium transition"
-                                      style={editingTime?.meetName === preset
-                                        ? { background: "rgba(217,119,6,0.25)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
-                                        : { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.45)" }}
-                                    >
-                                      {preset}
-                                    </button>
-                                  ))}
-                                </div>
-                                <input
-                                  value={editingTime?.meetName ?? ""}
-                                  onChange={(e) => setEditingTime((p) => p ? { ...p, meetName: e.target.value } : p)}
-                                  placeholder="Or type a meet name…"
-                                  className="input"
-                                />
-                                <input
-                                  type="date"
-                                  value={editingTime?.swamAt ?? ""}
-                                  onChange={(e) => setEditingTime((p) => p ? { ...p, swamAt: e.target.value } : p)}
-                                  className="input"
-                                />
-                                <div className="flex gap-2">
-                                  <button type="button" onClick={handleSaveEdit} disabled={savingEdit}
-                                    className="flex-1 rounded-xl py-2 text-xs font-semibold text-white disabled:opacity-50"
-                                    style={{ background: "#D97706" }}>
-                                    {savingEdit ? "Saving…" : "Save"}
-                                  </button>
-                                  <button type="button" onClick={() => setEditingTime(null)}
-                                    className="flex-1 rounded-xl border border-white/10 bg-white/5 py-2 text-xs font-semibold text-white/50">
-                                    Cancel
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-3">
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-sm font-bold" style={{ color: isPB ? "#FDE68A" : "white" }}>
-                                      {formatMs(time.time_ms)}
-                                    </span>
-                                    {isPB && (
-                                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                                        style={{ background: "rgba(253,230,138,0.15)", color: "#FDE68A", border: "1px solid rgba(253,230,138,0.25)" }}>
-                                        PB
-                                      </span>
-                                    )}
-
-
-                                  </div>
-                                  <p className="text-[11px] text-white/35 mt-0.5">
-                                    {time.meet_name || "—"}
-                                    {time.swam_at ? ` · ${formatDate(time.swam_at)}` : ""}
-                                  </p>
-                                  {splits.length > 0 && (
-                                    <button type="button"
-                                      onClick={() => setExpandedSplits((p) => ({ ...p, [time.id]: !p[time.id] }))}
-                                      className="mt-1 text-[10px] font-medium transition"
-                                      style={{ color: "#FDE68A" }}>
-                                      {showSplits ? "Hide splits" : `Show ${splits.length} splits`}
-                                    </button>
-                                  )}
-                                </div>
-                                <div className="flex gap-1.5 flex-shrink-0">
-                                  <button type="button"
-                                    onClick={() => setEditingTime({ id: time.id, meetName: time.meet_name ?? "", swamAt: time.swam_at ?? "" })}
-                                    className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-[11px] text-white/50 transition hover:bg-white/10">
-                                    Edit
-                                  </button>
-                                  <button type="button" onClick={() => void handleDelete(time.id)}
-                                    className="rounded-lg border border-red-500/20 bg-red-500/10 px-2.5 py-1.5 text-[11px] text-red-300 transition hover:bg-red-500/20">
-                                    Del
-                                  </button>
-                                </div>
-                              </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-sm font-bold" style={{ color: "#FDE68A" }}>{formatMs(eg.pb.time_ms)}</p>
+                          <div className="flex items-center justify-end gap-1 mt-0.5">
+                            {eg.pb.place != null && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                                style={{ background: "rgba(99,179,237,0.15)", color: "#90CDF4", border: "1px solid rgba(99,179,237,0.25)" }}>
+                                {eg.pb.place}{eg.pb.place === 1 ? "st" : eg.pb.place === 2 ? "nd" : eg.pb.place === 3 ? "rd" : "th"}
+                              </span>
                             )}
-
-                            {/* Splits */}
-                            {!isEditing && showSplits && splits.length > 0 && (
-                              <div className="mt-2 rounded-xl overflow-hidden"
-                                style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                                {splits
-                                  .sort((a, b) => (a.split_order ?? 0) - (b.split_order ?? 0))
-                                  .map((split) => (
-                                    <div key={split.id} className="flex items-center justify-between px-3 py-2"
-                                      style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                                      <p className="text-xs text-white/60">{split.split_label || "Split"}</p>
-                                      <div className="text-right">
-                                        <p className="text-xs font-semibold" style={{ color: "#FDE68A" }}>
-                                          {formatMs(split.split_time_ms)}
-                                        </p>
-                                        {split.cumulative_time_ms != null && (
-                                          <p className="text-[10px] text-white/30">{formatMs(split.cumulative_time_ms)} cum.</p>
-                                        )}
-                                      </div>
-                                    </div>
-                                  ))}
-                              </div>
+                            {eg.pb.swam_at && (
+                              <p className="text-[10px] text-white/30">{formatDate(eg.pb.swam_at)}</p>
                             )}
                           </div>
-                        );
-                      })}
+                        </div>
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
+                          className="flex-shrink-0 text-white/20 transition-transform"
+                          style={{ transform: isOpen ? "rotate(90deg)" : "rotate(0deg)" }}>
+                          <path d="M5 3L9 7L5 11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </button>
+
+                      {/* Share button */}
+                      <button
+                        type="button"
+                        onClick={() => setShareResult({
+                          swimmerName,
+                          event: eg.event,
+                          course: eg.course,
+                          timeMs: eg.pb.time_ms,
+                          meetName: eg.pb.meet_name,
+                          swamAt: eg.pb.swam_at,
+                          isPB: true,
+                          strokeColor: sg.color,
+                          place: eg.pb.place ?? null,
+                        })}
+                        className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl transition"
+                        style={{ background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.45)" }}
+                        title="Share result"
+                      >
+                        <ShareIcon />
+                      </button>
                     </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        ))}
+
+                    {/* Expanded history */}
+                    {isOpen && (
+                      <div style={{ background: "rgba(0,0,0,0.2)", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                        {eg.times.map((time, tIdx) => {
+                          const isPB = time.id === eg.pb.id;
+                          const splits = (splitsMap[time.id] || []).filter((s) => s.split_time_ms && s.split_time_ms > 0);
+                          const showSplits = !!expandedSplits[time.id];
+                          const isEditing = editingTime?.id === time.id;
+                          const isLastTime = tIdx === eg.times.length - 1;
+
+                          return (
+                            <div key={time.id}
+                              style={{ borderBottom: isLastTime ? "none" : "1px solid rgba(255,255,255,0.04)", padding: "10px 16px" }}>
+
+                              {isEditing ? (
+                                <div className="space-y-2">
+                                  <p className="text-[10px] font-medium uppercase tracking-wider text-white/30">Meet name</p>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {meetPresets.map((preset) => (
+                                      <button
+                                        key={preset}
+                                        type="button"
+                                        onClick={() => setEditingTime((p) => p ? { ...p, meetName: preset } : p)}
+                                        className="rounded-full px-2.5 py-1 text-[10px] font-medium transition"
+                                        style={editingTime?.meetName === preset
+                                          ? { background: "rgba(217,119,6,0.25)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
+                                          : { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.45)" }}
+                                      >
+                                        {preset}
+                                      </button>
+                                    ))}
+                                  </div>
+                                  <input
+                                    value={editingTime?.meetName ?? ""}
+                                    onChange={(e) => setEditingTime((p) => p ? { ...p, meetName: e.target.value } : p)}
+                                    placeholder="Or type a meet name…"
+                                    className="input"
+                                  />
+                                  <input
+                                    type="date"
+                                    value={editingTime?.swamAt ?? ""}
+                                    onChange={(e) => setEditingTime((p) => p ? { ...p, swamAt: e.target.value } : p)}
+                                    className="input"
+                                  />
+                                  <div className="flex gap-2">
+                                    <button type="button" onClick={handleSaveEdit} disabled={savingEdit}
+                                      className="flex-1 rounded-xl py-2 text-xs font-semibold text-white disabled:opacity-50"
+                                      style={{ background: "#D97706" }}>
+                                      {savingEdit ? "Saving…" : "Save"}
+                                    </button>
+                                    <button type="button" onClick={() => setEditingTime(null)}
+                                      className="flex-1 rounded-xl border border-white/10 bg-white/5 py-2 text-xs font-semibold text-white/50">
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-3">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-sm font-bold" style={{ color: isPB ? "#FDE68A" : "white" }}>
+                                        {formatMs(time.time_ms)}
+                                      </span>
+                                      {isPB && (
+                                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                                          style={{ background: "rgba(253,230,138,0.15)", color: "#FDE68A", border: "1px solid rgba(253,230,138,0.25)" }}>
+                                          PB
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-[11px] text-white/35 mt-0.5">
+                                      {time.meet_name || "—"}
+                                      {time.swam_at ? ` · ${formatDate(time.swam_at)}` : ""}
+                                    </p>
+                                    {splits.length > 0 && (
+                                      <button type="button"
+                                        onClick={() => setExpandedSplits((p) => ({ ...p, [time.id]: !p[time.id] }))}
+                                        className="mt-1 text-[10px] font-medium transition"
+                                        style={{ color: "#FDE68A" }}>
+                                        {showSplits ? "Hide splits" : `Show ${splits.length} splits`}
+                                      </button>
+                                    )}
+                                  </div>
+                                  <div className="flex gap-1.5 flex-shrink-0">
+                                    <button type="button"
+                                      onClick={() => setEditingTime({ id: time.id, meetName: time.meet_name ?? "", swamAt: time.swam_at ?? "" })}
+                                      className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-[11px] text-white/50 transition hover:bg-white/10">
+                                      Edit
+                                    </button>
+                                    <button type="button" onClick={() => void handleDelete(time.id)}
+                                      className="rounded-lg border border-red-500/20 bg-red-500/10 px-2.5 py-1.5 text-[11px] text-red-300 transition hover:bg-red-500/20">
+                                      Del
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Splits */}
+                              {!isEditing && showSplits && splits.length > 0 && (
+                                <div className="mt-2 rounded-xl overflow-hidden"
+                                  style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                                  {splits
+                                    .sort((a, b) => (a.split_order ?? 0) - (b.split_order ?? 0))
+                                    .map((split) => (
+                                      <div key={split.id} className="flex items-center justify-between px-3 py-2"
+                                        style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                                        <p className="text-xs text-white/60">{split.split_label || "Split"}</p>
+                                        <div className="text-right">
+                                          <p className="text-xs font-semibold" style={{ color: "#FDE68A" }}>
+                                            {formatMs(split.split_time_ms)}
+                                          </p>
+                                          {split.cumulative_time_ms != null && (
+                                            <p className="text-[10px] text-white/30">{formatMs(split.cumulative_time_ms)} cum.</p>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
       </div>
 
       {/* Share card modal */}
