@@ -115,6 +115,7 @@ export default function ComparePage() {
   const [mySwimmerId, setMySwimmerId] = useState<number | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [timesMap, setTimesMap] = useState<Map<number, SwimTimeRow[]>>(new Map());
+  const [timesCountMap, setTimesCountMap] = useState<Map<number, number>>(new Map());
 
   const [filterMode, setFilterMode] = useState<FilterMode>("all");
   const [selectedClub, setSelectedClub] = useState<string | null>(null);
@@ -134,6 +135,24 @@ export default function ComparePage() {
 
     const swimmers = (data as Swimmer[]) || [];
     setAllSwimmers(swimmers);
+
+    // Fetch times count per swimmer for sorting
+    const followingIds = swimmers
+      .filter((s) => s.group_type === "following")
+      .map((s) => s.id);
+
+    if (followingIds.length > 0) {
+      const { data: countData } = await supabase
+        .from("swim_times")
+        .select("swimmer_id")
+        .in("swimmer_id", followingIds);
+
+      const countMap = new Map<number, number>();
+      for (const row of (countData as { swimmer_id: number }[]) || []) {
+        countMap.set(row.swimmer_id, (countMap.get(row.swimmer_id) ?? 0) + 1);
+      }
+      setTimesCountMap(countMap);
+    }
 
     const primary = swimmers.find((s) => s.group_type === "primary");
     if (primary) {
@@ -200,7 +219,6 @@ export default function ComparePage() {
   const mySwimmer = allSwimmers.find((s) => s.id === mySwimmerId) ?? null;
   const selectedSwimmers = allSwimmers.filter((s) => selectedIds.has(s.id));
 
-  // All unique clubs from following list
   const clubOptions = useMemo(() => {
     const set = new Set<string>();
     for (const s of followingSwimmers) {
@@ -209,7 +227,6 @@ export default function ComparePage() {
     return Array.from(set).sort();
   }, [followingSwimmers]);
 
-  // All unique schools from following list
   const schoolOptions = useMemo(() => {
     const set = new Set<string>();
     for (const s of followingSwimmers) {
@@ -218,16 +235,22 @@ export default function ComparePage() {
     return Array.from(set).sort();
   }, [followingSwimmers]);
 
-  // Filtered swimmer list based on mode + selected pill
+  // Filtered + sorted by most times recorded (best overall)
   const filteredFollowing = useMemo(() => {
+    let list = followingSwimmers;
     if (filterMode === "club" && selectedClub) {
-      return followingSwimmers.filter((s) => s.swim_club?.trim() === selectedClub);
+      list = list.filter((s) => s.swim_club?.trim() === selectedClub);
+    } else if (filterMode === "school" && selectedSchool) {
+      list = list.filter((s) => s.school?.trim() === selectedSchool);
     }
-    if (filterMode === "school" && selectedSchool) {
-      return followingSwimmers.filter((s) => s.school?.trim() === selectedSchool);
-    }
-    return followingSwimmers;
-  }, [followingSwimmers, filterMode, selectedClub, selectedSchool]);
+    // Sort by most times recorded descending, then name alphabetically
+    return [...list].sort((a, b) => {
+      const countA = timesCountMap.get(a.id) ?? 0;
+      const countB = timesCountMap.get(b.id) ?? 0;
+      if (countB !== countA) return countB - countA;
+      return a.name.localeCompare(b.name);
+    });
+  }, [followingSwimmers, filterMode, selectedClub, selectedSchool, timesCountMap]);
 
   // ─── PB maps ───────────────────────────────────────────────────────────────
 
@@ -361,7 +384,7 @@ export default function ComparePage() {
               </div>
             </div>
 
-            {/* Club directory pills */}
+            {/* Club pills */}
             {filterMode === "club" && (
               <div className="flex flex-wrap gap-2 mb-3">
                 {clubOptions.length === 0 ? (
@@ -379,7 +402,7 @@ export default function ComparePage() {
               </div>
             )}
 
-            {/* School directory pills */}
+            {/* School pills */}
             {filterMode === "school" && (
               <div className="flex flex-wrap gap-2 mb-3">
                 {schoolOptions.length === 0 ? (
@@ -397,7 +420,7 @@ export default function ComparePage() {
               </div>
             )}
 
-            {/* Swimmer list */}
+            {/* Swimmer list — sorted by most times recorded */}
             {followingSwimmers.length === 0 ? (
               <p className="text-sm text-white/40">No following swimmers yet — add some in Brood.</p>
             ) : filteredFollowing.length === 0 ? (
@@ -408,6 +431,7 @@ export default function ComparePage() {
                   const selected = selectedIds.has(s.id);
                   const disabled = !selected && selectedIds.size >= MAX_COMPARE;
                   const colors = avatarColor(primarySwimmers.length + i);
+                  const count = timesCountMap.get(s.id) ?? 0;
                   return (
                     <button key={s.id} type="button" onClick={() => void toggleSelected(s.id)} disabled={disabled}
                       className="flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition"
@@ -436,6 +460,13 @@ export default function ComparePage() {
                           {s.school && filterMode !== "school" ? ` · ${s.school}` : ""}
                         </p>
                       </div>
+                      {/* Times count badge */}
+                      {count > 0 && (
+                        <span className="flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                          style={{ background: "rgba(217,119,6,0.15)", color: "#FDE68A", border: "1px solid rgba(253,230,138,0.2)" }}>
+                          {count} times
+                        </span>
+                      )}
                     </button>
                   );
                 })}
