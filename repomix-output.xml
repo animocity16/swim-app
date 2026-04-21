@@ -41,6 +41,9 @@ The content is organized as follows:
 
 <directory_structure>
 app/
+  api/
+    claim-swimmer/
+      route.ts
   auth/
     confirm/
       page.tsx
@@ -106,6 +109,7 @@ lib/
   parseSwimOCRFlow.ts
   saveOCRResults.ts
   snagStandards.ts
+  supabaseAdmin.ts
   supabaseClient.ts
 public/
   sounds/
@@ -131,6 +135,201 @@ tsconfig.json
 
 <files>
 This section contains the contents of the repository's files.
+
+<file path="app/api/claim-swimmer/route.ts">
+import { NextRequest, NextResponse } from "next/server";
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
+
+const SEED_USER_ID = process.env.SEED_USER_ID ?? "";
+
+export async function POST(req: NextRequest) {
+  // ── 1. Authenticate the calling parent ──────────────────────────────────
+  const cookieStore = await cookies();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    {
+      cookies: {
+        getAll() { return cookieStore.getAll(); },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            cookieStore.set(name, value, options)
+          );
+        },
+      },
+    }
+  );
+
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { name, age, gender, swim_club, school } = await req.json();
+  if (!name || !age) {
+    return NextResponse.json({ error: "Name and age are required" }, { status: 400 });
+  }
+
+  const parentId = user.id;
+  const ageNum = Number(age);
+  let primarySwimmerId: number | null = null;
+  let claimed = false;
+
+  // ── 2. Try to find matching seed swimmer ────────────────────────────────
+  if (SEED_USER_ID) {
+    const { data: seedMatch } = await supabaseAdmin
+      .from("swimmers")
+      .select("*")
+      .eq("user_id", SEED_USER_ID)
+      .ilike("name", name.trim())
+      .eq("age", ageNum)
+      .maybeSingle();
+
+    if (seedMatch) {
+      const { data: claimedSwimmer } = await supabaseAdmin
+        .from("swimmers")
+        .update({
+          user_id: parentId,
+          group_type: "primary",
+          gender: gender || seedMatch.gender,
+          swim_club: swim_club || seedMatch.swim_club,
+          school: school || seedMatch.school,
+          status: "Active",
+        })
+        .eq("id", seedMatch.id)
+        .select("id")
+        .single();
+
+      if (claimedSwimmer) {
+        primarySwimmerId = claimedSwimmer.id;
+        claimed = true;
+      }
+    }
+  }
+
+  // ── 3. Create fresh swimmer if not claimed from seed ────────────────────
+  if (!primarySwimmerId) {
+    const { data: newSwimmer, error: insertError } = await supabaseAdmin
+      .from("swimmers")
+      .insert({
+        user_id: parentId,
+        name: name.trim(),
+        age: ageNum,
+        gender: gender || null,
+        swim_club: swim_club?.trim() || null,
+        school: school?.trim() || null,
+        group_type: "primary",
+        status: "Active",
+        country: "Singapore",
+      })
+      .select("id")
+      .single();
+
+    if (insertError || !newSwimmer) {
+      return NextResponse.json({ error: insertError?.message ?? "Failed to create swimmer" }, { status: 500 });
+    }
+    primarySwimmerId = newSwimmer.id;
+  }
+
+  // ── 4. Auto-follow seed competitors + copy their times ──────────────────
+  let competitorsAdded = 0;
+  if (SEED_USER_ID) {
+    let query = supabaseAdmin
+      .from("swimmers")
+      .select("id, name, age, gender, swim_club, school, country")
+      .eq("user_id", SEED_USER_ID)
+      .eq("age", ageNum);
+
+    if (gender) query = query.eq("gender", gender);
+
+    const { data: competitors } = await query;
+
+    if (competitors && competitors.length > 0) {
+      for (const c of competitors) {
+        // Skip if same name as primary swimmer
+        if (c.name.toLowerCase() === name.trim().toLowerCase()) continue;
+
+        // Check if already following
+        const { data: existing } = await supabaseAdmin
+          .from("swimmers")
+          .select("id")
+          .eq("user_id", parentId)
+          .eq("name", c.name)
+          .eq("age", c.age)
+          .maybeSingle();
+
+        let newSwimmerId: number;
+
+        if (existing) {
+          newSwimmerId = existing.id;
+        } else {
+          // Insert the following swimmer
+          const { data: inserted } = await supabaseAdmin
+            .from("swimmers")
+            .insert({
+              user_id: parentId,
+              name: c.name,
+              age: c.age,
+              gender: c.gender,
+              swim_club: c.swim_club,
+              school: c.school,
+              country: c.country ?? "Singapore",
+              group_type: "following",
+              status: "Active",
+            })
+            .select("id")
+            .single();
+
+          if (!inserted) continue;
+          newSwimmerId = inserted.id;
+          competitorsAdded++;
+        }
+
+        // ── Copy swim times from seed swimmer to new following swimmer ──
+        const { data: seedTimes } = await supabaseAdmin
+          .from("swim_times")
+          .select("event, course, time_ms, meet_name, meet_date, swam_at, place, meet_type, notes")
+          .eq("swimmer_id", c.id);
+
+        if (seedTimes && seedTimes.length > 0) {
+          // Only insert times that don't already exist
+          const { data: existingTimes } = await supabaseAdmin
+            .from("swim_times")
+            .select("event, swam_at")
+            .eq("swimmer_id", newSwimmerId);
+
+          const existingKeys = new Set(
+            (existingTimes ?? []).map((t) => `${t.event}|${t.swam_at}`)
+          );
+
+          const timesToInsert = seedTimes
+            .filter((t) => !existingKeys.has(`${t.event}|${t.swam_at}`))
+            .map((t) => ({
+              swimmer_id: newSwimmerId,
+              event: t.event,
+              course: t.course,
+              time_ms: t.time_ms,
+              meet_name: t.meet_name,
+              meet_date: t.meet_date,
+              swam_at: t.swam_at,
+              place: t.place,
+              meet_type: t.meet_type ?? "CLUB",
+              notes: t.notes ?? null,
+            }));
+
+          if (timesToInsert.length > 0) {
+            await supabaseAdmin.from("swim_times").insert(timesToInsert);
+          }
+        }
+      }
+    }
+  }
+
+  return NextResponse.json({ success: true, claimed, primarySwimmerId, competitorsAdded });
+}
+</file>
 
 <file path="app/components/DetectedOCRResultCard.tsx">
 "use client";
@@ -243,358 +442,6 @@ export default function DetectedOCRResultCard({
       )}
     </div>
   );
-}
-</file>
-
-<file path="app/components/OnboardingFlow.tsx">
-"use client";
-
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
-
-
-// ─── Theme options ─────────────────────────────────────────────────────────────
-
-const THEMES = [
-  { id: "ocean",    label: "Ocean",    from: "#062840", to: "#0F4C75", accent: "#38BDF8" },
-  { id: "midnight", label: "Midnight", from: "#0D0D1A", to: "#1A1A3E", accent: "#A78BFA" },
-  { id: "forest",   label: "Forest",   from: "#051A10", to: "#0A3020", accent: "#34D399" },
-  { id: "white",    label: "White",    from: "#C9D4DA", to: "#ECF0F3", accent: "#FFFFFF" },
-  { id: "cosmos",   label: "Cosmos",   from: "#0D0820", to: "#1E1040", accent: "#F472B6" },
-  { id: "slate",    label: "Slate",    from: "#0D1117", to: "#1C2333", accent: "#94A3B8" },
-];
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function parseTimeInputToMs(value: string) {
-  const t = value.trim();
-  if (/^\d{1,2}:\d{2}\.\d{2}$/.test(t)) {
-    const [mm, ss] = t.split(":");
-    const [sec, hun] = ss.split(".");
-    return Number(mm) * 60_000 + Number(sec) * 1000 + Number(hun) * 10;
-  }
-  if (/^\d{1,2}\.\d{2}$/.test(t)) {
-    const [sec, hun] = t.split(".");
-    return Number(sec) * 1000 + Number(hun) * 10;
-  }
-  return null;
-}
-
-// ─── Step indicator ───────────────────────────────────────────────────────────
-
-function StepDots({ total, current }: { total: number; current: number }) {
-  return (
-    <div className="flex items-center justify-center gap-1.5 mb-6">
-      {Array.from({ length: total }).map((_, i) => (
-        <div key={i} className="rounded-full transition-all"
-          style={{
-            width: i === current ? 20 : 6,
-            height: 6,
-            background: i === current ? "#FDE68A" : "rgba(255,255,255,0.2)",
-          }} />
-      ))}
-    </div>
-  );
-}
-
-// ─── Main onboarding component ────────────────────────────────────────────────
-
-export default function OnboardingFlow({ userName }: { userName: string }) {
-  const router = useRouter();
-  const [step, setStep] = useState(0);
-  const TOTAL_STEPS = 5;
-
-  // Swimmer form
-  const [swimmerName, setSwimmerName] = useState("");
-  const [swimmerAge, setSwimmerAge] = useState("");
-  const [swimmerGender, setSwimmerGender] = useState<"Male" | "Female" | "">("");
-  const [swimmerClub, setSwimmerClub] = useState("");
-  const [swimmerSchool, setSwimmerSchool] = useState("");
-  const [savingSwimmer, setSavingSwimmer] = useState(false);
-  const [swimmerError, setSwimmerError] = useState("");
-
-  // Theme
-  const [selectedTheme, setSelectedTheme] = useState("ocean");
-
-  // First time
-  const [saving, setSaving] = useState(false);
-
-  function next() { setStep((s) => Math.min(s + 1, TOTAL_STEPS - 1)); }
-  function skip() { void finish(); }
-
-  async function handleAddSwimmer() {
-    if (!swimmerName.trim()) { setSwimmerError("Please enter a name."); return; }
-    if (!swimmerAge || Number.isNaN(Number(swimmerAge))) { setSwimmerError("Please enter a valid age."); return; }
-    setSavingSwimmer(true);
-    setSwimmerError("");
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setSavingSwimmer(false); return; }
-    const { error } = await supabase.from("swimmers").insert({
-      user_id: user.id,
-      name: swimmerName.trim(),
-      age: Number(swimmerAge),
-      gender: swimmerGender || null,
-      swim_club: swimmerClub.trim() || null,
-      school: swimmerSchool.trim() || null,
-      group_type: "primary",
-      status: "Active",
-    });
-    if (error) { setSwimmerError(error.message); setSavingSwimmer(false); return; }
-    setSavingSwimmer(false);
-    next();
-  }
-
-  async function finish() {
-    setSaving(true);
-    await supabase.auth.updateUser({ data: { app_theme: selectedTheme } });
-    await supabase.auth.updateUser({ data: { onboarding_complete: true } });
-    router.replace("/dashboard");
-  }
-
-  // ── Step 0: Welcome ──────────────────────────────────────────────────────
-
-  if (step === 0) return (
-    <div className="onb-screen">
-      <StepDots total={TOTAL_STEPS} current={0} />
-      <div className="text-center space-y-6 px-6">
-        <div className="text-6xl mb-2">🏊</div>
-        <div>
-          <h1 className="text-4xl font-bold text-white tracking-tight">
-            Welcome,<br />{userName}!
-          </h1>
-          <p className="mt-3 text-white/55 text-base leading-relaxed">
-            Natrix is your personal swim meet tracker — built by a swim parent, for swim parents.
-          </p>
-        </div>
-        <div className="space-y-3 text-left">
-          {[
-            { icon: "📷", title: "Scan results instantly", desc: "Screenshot Meet Mobile — times save automatically" },
-            { icon: "📈", title: "Track every PB", desc: "Progress charts for every event, every stroke" },
-            { icon: "⭐", title: "Check qualifying standards", desc: "SNAG, ETC and more — pre-loaded for Singapore" },
-          ].map((item) => (
-            <div key={item.title} className="flex gap-3 items-start rounded-2xl px-4 py-3"
-              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}>
-              <span style={{ fontSize: 22, flexShrink: 0 }}>{item.icon}</span>
-              <div>
-                <p className="text-sm font-semibold text-white">{item.title}</p>
-                <p className="text-xs text-white/45 mt-0.5">{item.desc}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-        <button type="button" onClick={next} className="onb-btn-primary w-full">
-          Let's get started →
-        </button>
-      </div>
-    </div>
-  );
-
-  // ── Step 1: How it works ─────────────────────────────────────────────────
-
-  if (step === 1) return (
-    <div className="onb-screen">
-      <StepDots total={TOTAL_STEPS} current={1} />
-      <div className="text-center px-6 space-y-5">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-widest text-white/35 mb-2">How it works</p>
-          <h2 className="text-3xl font-bold text-white">Three taps.<br />Times saved.</h2>
-        </div>
-        <div className="space-y-3">
-          {[
-            { n: "1", title: "After your child races", desc: "Open Meet Mobile and find their result on the screen.", color: "#38BDF8" },
-            { n: "2", title: "Screenshot and scan", desc: "Take a screenshot. Open Natrix, tap Scan, upload it.", color: "#FDE68A" },
-            { n: "3", title: "Done — time saved", desc: "Event, time, date and meet name all saved automatically. No typing.", color: "#6EE7B7" },
-          ].map((item) => (
-            <div key={item.n} className="flex gap-4 items-start rounded-2xl px-4 py-4 text-left"
-              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)" }}>
-              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-sm font-bold text-white"
-                style={{ background: item.color + "25", border: `1px solid ${item.color}40`, color: item.color }}>
-                {item.n}
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-white">{item.title}</p>
-                <p className="text-xs text-white/45 mt-0.5 leading-relaxed">{item.desc}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="flex gap-3">
-          <button type="button" onClick={next} className="onb-btn-primary flex-1">
-            Got it →
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-
-  // ── Step 2: Add swimmer ──────────────────────────────────────────────────
-
-  if (step === 2) return (
-    <div className="onb-screen">
-      <StepDots total={TOTAL_STEPS} current={2} />
-      <div className="px-6 space-y-5">
-        <div className="text-center">
-          <p className="text-xs font-medium uppercase tracking-widest text-white/35 mb-2">Your swimmer</p>
-          <h2 className="text-3xl font-bold text-white">Who are you<br />tracking?</h2>
-          <p className="mt-2 text-sm text-white/45">Add your primary swimmer — you can add more later.</p>
-        </div>
-
-        <div className="space-y-3">
-          <input
-            value={swimmerName}
-            onChange={(e) => setSwimmerName(e.target.value)}
-            placeholder="Swimmer's full name"
-            className="input"
-          />
-          <div className="grid grid-cols-2 gap-3">
-            <input
-              value={swimmerAge}
-              onChange={(e) => setSwimmerAge(e.target.value)}
-              placeholder="Age"
-              className="input text-center"
-              inputMode="numeric"
-            />
-            <div className="grid grid-cols-2 gap-2">
-              {(["Male", "Female"] as const).map((g) => (
-                <button key={g} type="button"
-                  onClick={() => setSwimmerGender(swimmerGender === g ? "" : g)}
-                  className="rounded-2xl border py-3 text-xs font-semibold transition"
-                  style={swimmerGender === g
-                    ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
-                    : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}>
-                  {g === "Male" ? "♂" : "♀"} {g}
-                </button>
-              ))}
-            </div>
-          </div>
-          <input
-            value={swimmerClub}
-            onChange={(e) => setSwimmerClub(e.target.value)}
-            placeholder="Swim club (optional)"
-            className="input"
-          />
-          <input
-            value={swimmerSchool}
-            onChange={(e) => setSwimmerSchool(e.target.value)}
-            placeholder="School (optional)"
-            className="input"
-          />
-        </div>
-
-        {swimmerError && (
-          <p className="text-sm text-red-300 text-center">{swimmerError}</p>
-        )}
-
-        <div className="flex gap-3">
-          <button type="button" onClick={next} className="onb-btn-secondary flex-1">
-            Skip for now
-          </button>
-          <button type="button" onClick={handleAddSwimmer} disabled={savingSwimmer}
-            className="onb-btn-primary flex-1 disabled:opacity-50">
-            {savingSwimmer ? "Saving…" : "Add swimmer →"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-
-  // ── Step 3: Choose theme ─────────────────────────────────────────────────
-
-  if (step === 3) return (
-    <div className="onb-screen">
-      <StepDots total={TOTAL_STEPS} current={3} />
-      <div className="px-6 space-y-5">
-        <div className="text-center">
-          <p className="text-xs font-medium uppercase tracking-widest text-white/35 mb-2">Make it yours</p>
-          <h2 className="text-3xl font-bold text-white">Choose your<br />app theme</h2>
-          <p className="mt-2 text-sm text-white/45">Pick a colour that feels right. You can change it anytime in Settings.</p>
-        </div>
-
-        <div className="grid grid-cols-3 gap-3">
-          {THEMES.map((theme) => (
-            <button key={theme.id} type="button"
-              onClick={() => setSelectedTheme(theme.id)}
-              className="relative rounded-2xl overflow-hidden transition"
-              style={{
-                aspectRatio: "1",
-                background: `linear-gradient(135deg, ${theme.from}, ${theme.to})`,
-                border: selectedTheme === theme.id
-                  ? `2px solid ${theme.accent}`
-                  : "1px solid rgba(255,255,255,0.12)",
-              }}>
-              {selectedTheme === theme.id && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="rounded-full w-7 h-7 flex items-center justify-center"
-                    style={{ background: theme.accent }}>
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                      <path d="M2 7l3.5 3.5L12 4" stroke="#000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </div>
-                </div>
-              )}
-              <div className="absolute bottom-0 inset-x-0 p-2">
-                <p className="text-[10px] font-semibold text-white/80 text-center">{theme.label}</p>
-              </div>
-            </button>
-          ))}
-        </div>
-
-        <button type="button" onClick={next} className="onb-btn-primary w-full">
-          Looks great →
-        </button>
-      </div>
-    </div>
-  );
-
-  // ── Step 4: All set ──────────────────────────────────────────────────────
-
-  if (step === 4) return (
-    <div className="onb-screen">
-      <StepDots total={TOTAL_STEPS} current={4} />
-      <div className="text-center px-6 space-y-6">
-        <div className="text-6xl">🎉</div>
-        <div>
-          <h2 className="text-4xl font-bold text-white tracking-tight">You're all set!</h2>
-          <p className="mt-3 text-white/55 text-base leading-relaxed">
-            {swimmerName
-              ? `${swimmerName} has been added. Now scan your first result or import existing times.`
-              : "Your account is ready. Add your swimmer and start tracking results."}
-          </p>
-        </div>
-
-        <div className="space-y-3">
-          {[
-            { icon: "📷", label: "Scan a result", desc: "At the pool after a race", primary: true },
-            { icon: "📥", label: "Import existing times", desc: "From a spreadsheet", primary: false },
-          ].map((item) => (
-            <div key={item.label} className="flex items-center gap-3 rounded-2xl px-4 py-3"
-              style={{
-                background: item.primary ? "rgba(217,119,6,0.12)" : "rgba(255,255,255,0.05)",
-                border: item.primary ? "1px solid rgba(253,230,138,0.25)" : "1px solid rgba(255,255,255,0.09)",
-              }}>
-              <span style={{ fontSize: 22 }}>{item.icon}</span>
-              <div className="text-left">
-                <p className="text-sm font-semibold text-white">{item.label}</p>
-                <p className="text-xs text-white/40 mt-0.5">{item.desc}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <button type="button" onClick={finish} disabled={saving}
-          className="onb-btn-primary w-full disabled:opacity-50 text-base">
-          {saving ? "Setting up…" : "Take me to Natrix 🏊"}
-        </button>
-
-        <p className="text-xs text-white/25">
-          You can always change your theme and settings later.
-        </p>
-      </div>
-    </div>
-  );
-
-  return null;
 }
 </file>
 
@@ -3509,6 +3356,17 @@ export function getSNAGQualifyingTime(
 export const SNAG_EVENTS = SNAG_DATA.map((r) => r.event);
 </file>
 
+<file path="lib/supabaseAdmin.ts">
+import { createClient } from "@supabase/supabase-js";
+
+// Server-side only — never import this in client components!
+// Uses the service role key which bypasses RLS entirely.
+export const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+</file>
+
 <file path="public/file.svg">
 <svg fill="none" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M14.5 13.5V5.41a1 1 0 0 0-.3-.7L9.8.29A1 1 0 0 0 9.08 0H1.5v13.5A2.5 2.5 0 0 0 4 16h8a2.5 2.5 0 0 0 2.5-2.5m-1.5 0v-7H8v-5H3v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1M9.5 5V2.12L12.38 5zM5.13 5h-.62v1.25h2.12V5zm-.62 3h7.12v1.25H4.5zm.62 3h-.62v1.25h7.12V11z" clip-rule="evenodd" fill="#666" fill-rule="evenodd"/></svg>
 </file>
@@ -4259,6 +4117,354 @@ export default function ComparePage() {
       </div>
     </div>
   );
+}
+</file>
+
+<file path="app/components/OnboardingFlow.tsx">
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabaseClient";
+
+
+// ─── Theme options ─────────────────────────────────────────────────────────────
+
+const THEMES = [
+  { id: "ocean",    label: "Ocean",    from: "#062840", to: "#0F4C75", accent: "#38BDF8" },
+  { id: "midnight", label: "Midnight", from: "#0D0D1A", to: "#1A1A3E", accent: "#A78BFA" },
+  { id: "forest",   label: "Forest",   from: "#051A10", to: "#0A3020", accent: "#34D399" },
+  { id: "white",    label: "White",    from: "#C9D4DA", to: "#ECF0F3", accent: "#FFFFFF" },
+  { id: "cosmos",   label: "Cosmos",   from: "#0D0820", to: "#1E1040", accent: "#F472B6" },
+  { id: "slate",    label: "Slate",    from: "#0D1117", to: "#1C2333", accent: "#94A3B8" },
+];
+
+// ─── Step indicator ───────────────────────────────────────────────────────────
+
+function StepDots({ total, current }: { total: number; current: number }) {
+  return (
+    <div className="flex items-center justify-center gap-1.5 mb-6">
+      {Array.from({ length: total }).map((_, i) => (
+        <div key={i} className="rounded-full transition-all"
+          style={{
+            width: i === current ? 20 : 6,
+            height: 6,
+            background: i === current ? "#FDE68A" : "rgba(255,255,255,0.2)",
+          }} />
+      ))}
+    </div>
+  );
+}
+
+// ─── Main onboarding component ────────────────────────────────────────────────
+
+export default function OnboardingFlow({ userName }: { userName: string }) {
+  const router = useRouter();
+  const [step, setStep] = useState(0);
+  const TOTAL_STEPS = 5;
+
+  // Swimmer form
+  const [swimmerName, setSwimmerName] = useState("");
+  const [swimmerAge, setSwimmerAge] = useState("");
+  const [swimmerGender, setSwimmerGender] = useState<"Male" | "Female" | "">("");
+  const [swimmerClub, setSwimmerClub] = useState("");
+  const [swimmerSchool, setSwimmerSchool] = useState("");
+  const [savingSwimmer, setSavingSwimmer] = useState(false);
+  const [swimmerError, setSwimmerError] = useState("");
+  const [swimmerSaved, setSwimmerSaved] = useState(false);
+
+  // Theme
+  const [selectedTheme, setSelectedTheme] = useState("ocean");
+  const [saving, setSaving] = useState(false);
+
+  function next() { setStep((s) => Math.min(s + 1, TOTAL_STEPS - 1)); }
+
+  async function handleAddSwimmer() {
+    if (!swimmerName.trim()) { setSwimmerError("Please enter a name."); return; }
+    if (!swimmerAge || Number.isNaN(Number(swimmerAge))) { setSwimmerError("Please enter a valid age."); return; }
+    if (!swimmerGender) { setSwimmerError("Please select a gender."); return; }
+
+    setSavingSwimmer(true);
+    setSwimmerError("");
+
+    try {
+      const res = await fetch("/api/claim-swimmer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: swimmerName.trim(),
+          age: Number(swimmerAge),
+          gender: swimmerGender,
+          swim_club: swimmerClub.trim() || null,
+          school: swimmerSchool.trim() || null,
+        }),
+      });
+
+      const result = await res.json();
+
+      if (!res.ok || !result.success) {
+        setSwimmerError(result.error ?? "Something went wrong. Please try again.");
+        setSavingSwimmer(false);
+        return;
+      }
+
+      setSwimmerSaved(true);
+      setSavingSwimmer(false);
+      next();
+    } catch {
+      setSwimmerError("Network error. Please try again.");
+      setSavingSwimmer(false);
+    }
+  }
+
+  async function finish() {
+    setSaving(true);
+    await supabase.auth.updateUser({ data: { app_theme: selectedTheme } });
+    await supabase.auth.updateUser({ data: { onboarding_complete: true } });
+    router.replace("/dashboard");
+  }
+
+  // ── Step 0: Welcome ──────────────────────────────────────────────────────
+
+  if (step === 0) return (
+    <div className="onb-screen">
+      <StepDots total={TOTAL_STEPS} current={0} />
+      <div className="text-center space-y-6 px-6">
+        <div className="text-6xl mb-2">🏊</div>
+        <div>
+          <h1 className="text-4xl font-bold text-white tracking-tight">
+            Welcome,<br />{userName}!
+          </h1>
+          <p className="mt-3 text-white/55 text-base leading-relaxed">
+            Natrix is your personal swim meet tracker — built by a swim parent, for swim parents.
+          </p>
+        </div>
+        <div className="space-y-3 text-left">
+          {[
+            { icon: "📷", title: "Scan results instantly", desc: "Screenshot Meet Mobile — times save automatically" },
+            { icon: "📈", title: "Track every PB", desc: "Progress charts for every event, every stroke" },
+            { icon: "⭐", title: "Check qualifying standards", desc: "SNAG, ETC and more — pre-loaded for Singapore" },
+          ].map((item) => (
+            <div key={item.title} className="flex gap-3 items-start rounded-2xl px-4 py-3"
+              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}>
+              <span style={{ fontSize: 22, flexShrink: 0 }}>{item.icon}</span>
+              <div>
+                <p className="text-sm font-semibold text-white">{item.title}</p>
+                <p className="text-xs text-white/45 mt-0.5">{item.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        <button type="button" onClick={next} className="onb-btn-primary w-full">
+          Let's get started →
+        </button>
+      </div>
+    </div>
+  );
+
+  // ── Step 1: How it works ─────────────────────────────────────────────────
+
+  if (step === 1) return (
+    <div className="onb-screen">
+      <StepDots total={TOTAL_STEPS} current={1} />
+      <div className="text-center px-6 space-y-5">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-widest text-white/35 mb-2">How it works</p>
+          <h2 className="text-3xl font-bold text-white">Three taps.<br />Times saved.</h2>
+        </div>
+        <div className="space-y-3">
+          {[
+            { n: "1", title: "After your child races", desc: "Open Meet Mobile and find their result on the screen.", color: "#38BDF8" },
+            { n: "2", title: "Screenshot and scan", desc: "Take a screenshot. Open Natrix, tap Scan, upload it.", color: "#FDE68A" },
+            { n: "3", title: "Done — time saved", desc: "Event, time, date and meet name all saved automatically. No typing.", color: "#6EE7B7" },
+          ].map((item) => (
+            <div key={item.n} className="flex gap-4 items-start rounded-2xl px-4 py-4 text-left"
+              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)" }}>
+              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-sm font-bold text-white"
+                style={{ background: item.color + "25", border: `1px solid ${item.color}40`, color: item.color }}>
+                {item.n}
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-white">{item.title}</p>
+                <p className="text-xs text-white/45 mt-0.5 leading-relaxed">{item.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        <button type="button" onClick={next} className="onb-btn-primary flex-1 w-full">
+          Got it →
+        </button>
+      </div>
+    </div>
+  );
+
+  // ── Step 2: Add swimmer ──────────────────────────────────────────────────
+
+  if (step === 2) return (
+    <div className="onb-screen">
+      <StepDots total={TOTAL_STEPS} current={2} />
+      <div className="px-6 space-y-5">
+        <div className="text-center">
+          <p className="text-xs font-medium uppercase tracking-widest text-white/35 mb-2">Your swimmer</p>
+          <h2 className="text-3xl font-bold text-white">Who are you<br />tracking?</h2>
+          <p className="mt-2 text-sm text-white/45">Add your primary swimmer — you can add more later.</p>
+        </div>
+
+        <div className="space-y-3">
+          <input
+            value={swimmerName}
+            onChange={(e) => setSwimmerName(e.target.value)}
+            placeholder="Swimmer's full name"
+            className="input"
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <input
+              value={swimmerAge}
+              onChange={(e) => setSwimmerAge(e.target.value)}
+              placeholder="Age"
+              className="input text-center"
+              inputMode="numeric"
+            />
+            <div className="grid grid-cols-2 gap-2">
+              {(["Male", "Female"] as const).map((g) => (
+                <button key={g} type="button"
+                  onClick={() => setSwimmerGender(swimmerGender === g ? "" : g)}
+                  className="rounded-2xl border py-3 text-xs font-semibold transition"
+                  style={swimmerGender === g
+                    ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
+                    : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}>
+                  {g === "Male" ? "♂" : "♀"} {g}
+                </button>
+              ))}
+            </div>
+          </div>
+          <input
+            value={swimmerClub}
+            onChange={(e) => setSwimmerClub(e.target.value)}
+            placeholder="Swim club (optional)"
+            className="input"
+          />
+          <input
+            value={swimmerSchool}
+            onChange={(e) => setSwimmerSchool(e.target.value)}
+            placeholder="School (optional)"
+            className="input"
+          />
+        </div>
+
+        {swimmerError && (
+          <p className="text-sm text-red-300 text-center">{swimmerError}</p>
+        )}
+
+        <div className="flex gap-3">
+          <button type="button" onClick={next} className="onb-btn-secondary flex-1">
+            Skip for now
+          </button>
+          <button type="button" onClick={handleAddSwimmer} disabled={savingSwimmer}
+            className="onb-btn-primary flex-1 disabled:opacity-50">
+            {savingSwimmer ? "Setting up…" : "Add swimmer →"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── Step 3: Choose theme ─────────────────────────────────────────────────
+
+  if (step === 3) return (
+    <div className="onb-screen">
+      <StepDots total={TOTAL_STEPS} current={3} />
+      <div className="px-6 space-y-5">
+        <div className="text-center">
+          <p className="text-xs font-medium uppercase tracking-widest text-white/35 mb-2">Make it yours</p>
+          <h2 className="text-3xl font-bold text-white">Choose your<br />app theme</h2>
+          <p className="mt-2 text-sm text-white/45">Pick a colour that feels right. You can change it anytime in Settings.</p>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          {THEMES.map((theme) => (
+            <button key={theme.id} type="button"
+              onClick={() => setSelectedTheme(theme.id)}
+              className="relative rounded-2xl overflow-hidden transition"
+              style={{
+                aspectRatio: "1",
+                background: `linear-gradient(135deg, ${theme.from}, ${theme.to})`,
+                border: selectedTheme === theme.id
+                  ? `2px solid ${theme.accent}`
+                  : "1px solid rgba(255,255,255,0.12)",
+              }}>
+              {selectedTheme === theme.id && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="rounded-full w-7 h-7 flex items-center justify-center"
+                    style={{ background: theme.accent }}>
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <path d="M2 7l3.5 3.5L12 4" stroke="#000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                </div>
+              )}
+              <div className="absolute bottom-0 inset-x-0 p-2">
+                <p className="text-[10px] font-semibold text-white/80 text-center">{theme.label}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+
+        <button type="button" onClick={next} className="onb-btn-primary w-full">
+          Looks great →
+        </button>
+      </div>
+    </div>
+  );
+
+  // ── Step 4: All set ──────────────────────────────────────────────────────
+
+  if (step === 4) return (
+    <div className="onb-screen">
+      <StepDots total={TOTAL_STEPS} current={4} />
+      <div className="text-center px-6 space-y-6">
+        <div className="text-6xl">🎉</div>
+        <div>
+          <h2 className="text-4xl font-bold text-white tracking-tight">You're all set!</h2>
+          <p className="mt-3 text-white/55 text-base leading-relaxed">
+            {swimmerSaved
+              ? `${swimmerName} has been added and we've found their competitors. Check Brood to see who they race against!`
+              : "Your account is ready. Add your swimmer and start tracking results."}
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          {[
+            { icon: "📷", label: "Scan your child's latest 50M Free result", desc: "Take a screenshot from Meet Mobile and scan it here", primary: true },
+            { icon: "📥", label: "Import existing times", desc: "From a spreadsheet", primary: false },
+          ].map((item) => (
+            <div key={item.label} className="flex items-center gap-3 rounded-2xl px-4 py-3"
+              style={{
+                background: item.primary ? "rgba(217,119,6,0.12)" : "rgba(255,255,255,0.05)",
+                border: item.primary ? "1px solid rgba(253,230,138,0.25)" : "1px solid rgba(255,255,255,0.09)",
+              }}>
+              <span style={{ fontSize: 22 }}>{item.icon}</span>
+              <div className="text-left">
+                <p className="text-sm font-semibold text-white">{item.label}</p>
+                <p className="text-xs text-white/40 mt-0.5">{item.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <button type="button" onClick={finish} disabled={saving}
+          className="onb-btn-primary w-full disabled:opacity-50 text-base">
+          {saving ? "Setting up…" : "Take me to Natrix 🏊"}
+        </button>
+
+        <p className="text-xs text-white/25">
+          You can always change your theme and settings later.
+        </p>
+      </div>
+    </div>
+  );
+
+  return null;
 }
 </file>
 
@@ -6177,361 +6383,6 @@ export default function ThemeProvider() {
 }
 </file>
 
-<file path="app/components/TutorialOverlay.tsx">
-"use client";
-
-import { useEffect, useRef, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
-
-const TUTORIAL_KEY = "natrix_tutorial_done";
-
-type Step = {
-  id: string;
-  title: string;
-  body: string;
-  targetAttr: string | null;
-  route?: string;
-};
-
-const STEPS: Step[] = [
-  {
-    id: "welcome",
-    title: "Welcome to Natrix! 🏊",
-    body: "The swim meet tracker built for parents. Let us show you around — takes less than a minute.",
-    targetAttr: null,
-  },
-  {
-    id: "brood",
-    title: "Add your swimmer",
-    body: "Tap 'Brood' to add your child's profile. You can add multiple swimmers and follow teammates too.",
-    targetAttr: "brood",
-    route: "/swimmers",
-  },
-  {
-    id: "scan",
-    title: "Scan meet results",
-    body: "After a race, screenshot Meet Mobile and tap 'Scan'. Natrix reads the result and saves it automatically — no typing needed.",
-    targetAttr: "scan",
-    route: "/scan",
-  },
-  {
-    id: "progress",
-    title: "Track every PB",
-    body: "Open your swimmer's profile and tap the Progress tab to see sparkline charts for every event.",
-    targetAttr: "brood",
-    route: "/swimmers",
-  },
-  {
-    id: "standards",
-    title: "Chase qualifying standards",
-    body: "Tap Standards to see exactly how many seconds away your swimmer is from qualifying for their next big meet.",
-    targetAttr: "standards",
-    route: "/standards",
-  },
-  {
-    id: "done",
-    title: "You're all set! 🎉",
-    body: "Start by adding your first swimmer in Brood. You can replay this guide anytime from Settings → Help.",
-    targetAttr: null,
-    route: "/swimmers",
-  },
-];
-
-type SpotlightRect = {
-  top: number;
-  left: number;
-  width: number;
-  height: number;
-};
-
-export default function TutorialOverlay() {
-  const pathname = usePathname();
-  const router = useRouter();
-  const [active, setActive] = useState(false);
-  const [stepIndex, setStepIndex] = useState(0);
-  const [mounted, setMounted] = useState(false);
-  const [spotlight, setSpotlight] = useState<SpotlightRect | null>(null);
-  const frameRef = useRef<number | null>(null);
-
-  const hidden = ["/login", "/forgot-password", "/reset-password", "/invite", "/signup"].some((p) =>
-  pathname.startsWith(p)
-);
-  useEffect(() => {
-  setMounted(true);
-  const done = localStorage.getItem(TUTORIAL_KEY);
-  if (!done && !hidden) {
-    setTimeout(() => setActive(true), 900);
-  }
-}, [hidden]);
-
-  useEffect(() => {
-    function handleReplay() {
-      setStepIndex(0);
-      setActive(true);
-    }
-    window.addEventListener("natrix_replay_tutorial", handleReplay);
-    return () => window.removeEventListener("natrix_replay_tutorial", handleReplay);
-  }, []);
-
-  // ✅ Measure real DOM position of target nav element
-  useEffect(() => {
-    if (!active) return;
-    const step = STEPS[stepIndex];
-    if (!step.targetAttr) { setSpotlight(null); return; }
-
-    function measure() {
-      const el = document.querySelector(
-        `[data-tutorial="${step.targetAttr}"]`
-      ) as HTMLElement | null;
-
-      if (el) {
-        const rect = el.getBoundingClientRect();
-        setSpotlight({
-          top: rect.top - 6,
-          left: rect.left - 8,
-          width: rect.width + 16,
-          height: rect.height + 12,
-        });
-      } else {
-        frameRef.current = requestAnimationFrame(measure);
-      }
-    }
-
-    const timer = setTimeout(measure, 150);
-    return () => {
-      clearTimeout(timer);
-      if (frameRef.current) cancelAnimationFrame(frameRef.current);
-    };
-  }, [active, stepIndex]);
-
-  // ✅ Raise nav above overlay when a nav tab is being highlighted
-  // We inject a <style> tag that overrides the nav z-index only during tutorial
-  const step = STEPS[stepIndex];
-  const navIsTarget = active && step?.targetAttr !== null;
-
-  if (!mounted || !active || hidden) return null;
-
-  const isFirst = stepIndex === 0;
-  const isLast = stepIndex === STEPS.length - 1;
-  const isCentre = step.targetAttr === null;
-
-  function next() {
-    if (isLast) { finish(); return; }
-    const nextStep = STEPS[stepIndex + 1];
-    if (nextStep.route) router.push(nextStep.route);
-    setStepIndex((i) => i + 1);
-  }
-
-  function prev() {
-    if (stepIndex === 0) return;
-    setStepIndex((i) => i - 1);
-  }
-
-  function finish() {
-    localStorage.setItem(TUTORIAL_KEY, "1");
-    setActive(false);
-    router.push("/swimmers");
-  }
-
-  function skip() {
-    localStorage.setItem(TUTORIAL_KEY, "1");
-    setActive(false);
-  }
-
-  // Tooltip — either centred or above the spotlight
-  const tooltipBottom = spotlight
-    ? window.innerHeight - spotlight.top + 18
-    : 0;
-
-  const tooltipLeft = spotlight
-    ? Math.min(
-        Math.max(spotlight.left + spotlight.width / 2, 170),
-        window.innerWidth - 170
-      )
-    : window.innerWidth / 2;
-
-  return (
-    <>
-      {/* ✅ Inject style to raise nav above overlay during nav-target steps */}
-      {navIsTarget && (
-        <style>{`
-          nav.fixed { z-index: 10002 !important; }
-        `}</style>
-      )}
-
-      {/* Dark backdrop — z-index 9998, nav is 10002 so nav shows through */}
-      <div
-        onClick={skip}
-        style={{
-          position: "fixed",
-          inset: 0,
-          zIndex: 9998,
-          background: "rgba(0,8,20,0.85)",
-          backdropFilter: "blur(3px)",
-          WebkitBackdropFilter: "blur(3px)",
-        }}
-      />
-
-      {/* ✅ Spotlight cutout — measured from real DOM */}
-      {spotlight && (
-        <div
-          style={{
-            position: "fixed",
-            top: spotlight.top,
-            left: spotlight.left,
-            width: spotlight.width,
-            height: spotlight.height,
-            borderRadius: 18,
-            zIndex: 10003,
-            // Punch a hole in the backdrop using mix-blend-mode trick
-            background: "transparent",
-            boxShadow: "0 0 0 9999px rgba(0,8,20,0.85)",
-            border: "2px solid rgba(253,230,138,0.8)",
-            pointerEvents: "none",
-            transition: "all 0.3s ease",
-          }}
-        />
-      )}
-
-      {/* Tooltip bubble */}
-      <div
-        style={{
-          position: "fixed",
-          zIndex: 10004,
-          ...(isCentre
-            ? {
-                top: "50%",
-                left: "50%",
-                transform: "translate(-50%, -50%)",
-                width: "min(340px, calc(100vw - 48px))",
-              }
-            : {
-                bottom: tooltipBottom,
-                left: tooltipLeft,
-                transform: "translateX(-50%)",
-                width: "min(300px, calc(100vw - 48px))",
-              }),
-        }}
-      >
-        <div
-          style={{
-            background: "rgba(255,255,255,0.97)",
-            borderRadius: 22,
-            padding: "22px 24px",
-            boxShadow: "0 12px 48px rgba(0,20,60,0.6)",
-            position: "relative",
-            fontFamily: "-apple-system, 'SF Pro Display', sans-serif",
-          }}
-        >
-          {/* Progress dots */}
-          <div style={{ display: "flex", gap: 5, marginBottom: 16 }}>
-            {STEPS.map((_, i) => (
-              <div key={i} style={{
-                width: i === stepIndex ? 20 : 6,
-                height: 6,
-                borderRadius: 3,
-                background: i === stepIndex ? "#D97706" : "#E5E7EB",
-                transition: "all 0.25s ease",
-              }} />
-            ))}
-          </div>
-
-          {/* Step counter */}
-          <p style={{ fontSize: 11, color: "#9CA3AF", margin: "0 0 6px", fontWeight: 500, letterSpacing: "0.06em", textTransform: "uppercase" }}>
-            Step {stepIndex + 1} of {STEPS.length}
-          </p>
-
-          {/* Title */}
-          <p style={{ fontSize: 18, fontWeight: 700, color: "#0A1628", margin: "0 0 10px", lineHeight: 1.3 }}>
-            {step.title}
-          </p>
-
-          {/* Body */}
-          <p style={{ fontSize: 14, color: "#4B5563", lineHeight: 1.65, margin: "0 0 22px" }}>
-            {step.body}
-          </p>
-
-          {/* Buttons */}
-          <div style={{ display: "flex", gap: 8 }}>
-            {!isFirst && (
-              <button onClick={prev} style={{
-                flex: 1, padding: "11px 16px", borderRadius: 14,
-                border: "1px solid #E5E7EB", background: "transparent",
-                color: "#6B7280", fontSize: 14, fontWeight: 500,
-                cursor: "pointer", fontFamily: "inherit",
-              }}>
-                ← Back
-              </button>
-            )}
-            <button onClick={next} style={{
-              flex: isFirst ? 1 : 2, padding: "11px 16px", borderRadius: 14,
-              border: "none", background: "linear-gradient(135deg, #F59E0B, #D97706)",
-              color: "#fff", fontSize: 14, fontWeight: 700,
-              cursor: "pointer", fontFamily: "inherit",
-              boxShadow: "0 4px 14px rgba(217,119,6,0.4)",
-            }}>
-              {isLast ? "Let's go! 🏊" : "Next →"}
-            </button>
-          </div>
-
-          {/* Skip */}
-          {!isLast && (
-            <button onClick={skip} style={{
-              display: "block", width: "100%", marginTop: 14,
-              background: "none", border: "none",
-              color: "#9CA3AF", fontSize: 12,
-              cursor: "pointer", textAlign: "center", fontFamily: "inherit",
-            }}>
-              Skip tutorial
-            </button>
-          )}
-
-          {/* Arrow pointing down toward nav */}
-          {!isCentre && spotlight && (
-            <div style={{
-              position: "absolute", bottom: -20, left: "50%",
-              transform: "translateX(-50%)",
-              width: 0, height: 0,
-              borderLeft: "11px solid transparent",
-              borderRight: "11px solid transparent",
-              borderTop: "20px solid rgba(255,255,255,0.97)",
-            }} />
-          )}
-        </div>
-      </div>
-
-      {/* Bouncing finger — sits just above the spotlight */}
-      {spotlight && (
-        <div style={{
-          position: "fixed",
-          top: spotlight.top - 40,
-          left: spotlight.left + spotlight.width / 2,
-          transform: "translateX(-50%)",
-          fontSize: 26,
-          zIndex: 10003,
-          pointerEvents: "none",
-          animation: "tutBounce 1s ease-in-out infinite",
-        }}>
-          👆
-        </div>
-      )}
-
-      <style>{`
-        @keyframes tutBounce {
-          0%, 100% { transform: translateX(-50%) translateY(0); }
-          50% { transform: translateX(-50%) translateY(-7px); }
-        }
-      `}</style>
-    </>
-  );
-}
-
-export function replayTutorial() {
-  localStorage.removeItem(TUTORIAL_KEY);
-  window.dispatchEvent(new Event("natrix_replay_tutorial"));
-}
-</file>
-
 <file path="app/dashboard/page.tsx">
 "use client";
 
@@ -8102,6 +7953,351 @@ function DetectedResultBlock({
       )}
     </div>
   );
+}
+</file>
+
+<file path="app/components/TutorialOverlay.tsx">
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+
+const TUTORIAL_KEY = "natrix_tutorial_done";
+
+type Step = {
+  id: string;
+  title: string;
+  body: string;
+  targetAttr: string | null;
+  route?: string;
+};
+
+const STEPS: Step[] = [
+  {
+    id: "welcome",
+    title: "Welcome to Natrix! 🏊",
+    body: "The swim meet tracker built for parents. Let us show you around — takes less than a minute.",
+    targetAttr: null,
+  },
+  {
+    id: "brood",
+    title: "Your swimmers are here",
+    body: "Tap 'Brood' to see your child's profile and their competitors. We've already loaded their age group!",
+    targetAttr: "brood",
+    route: "/swimmers",
+  },
+  {
+    id: "scan",
+    title: "Scan your child's 50M Free result",
+    body: "Screenshot their 50M Free from Meet Mobile, tap Scan and upload it — Natrix reads the time and shows you exactly where they rank against the competition.",
+    targetAttr: "scan",
+    route: "/scan",
+  },
+  {
+    id: "progress",
+    title: "Track every PB",
+    body: "Open your swimmer's profile and tap the Progress tab to see sparkline charts for every event.",
+    targetAttr: "brood",
+    route: "/swimmers",
+  },
+  {
+    id: "standards",
+    title: "Chase qualifying standards",
+    body: "Tap Standards to see exactly how many seconds away your swimmer is from qualifying for their next big meet.",
+    targetAttr: "standards",
+    route: "/standards",
+  },
+  {
+    id: "done",
+    title: "You're all set! 🎉",
+    body: "Start by scanning your child's 50M Free result. You can replay this guide anytime from Settings → Help.",
+    targetAttr: null,
+    route: "/swimmers",
+  },
+];
+
+type SpotlightRect = {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+};
+
+export default function TutorialOverlay() {
+  const pathname = usePathname();
+  const router = useRouter();
+  const [active, setActive] = useState(false);
+  const [stepIndex, setStepIndex] = useState(0);
+  const [mounted, setMounted] = useState(false);
+  const [spotlight, setSpotlight] = useState<SpotlightRect | null>(null);
+  const frameRef = useRef<number | null>(null);
+
+  const hidden = [
+    "/login",
+    "/forgot-password",
+    "/reset-password",
+    "/invite",
+    "/signup",
+    "/onboarding",
+    "/auth",
+  ].some((p) => pathname.startsWith(p));
+
+  useEffect(() => {
+    setMounted(true);
+    const done = localStorage.getItem(TUTORIAL_KEY);
+    if (!done && !hidden) {
+      setTimeout(() => setActive(true), 900);
+    }
+  }, [hidden]);
+
+  useEffect(() => {
+    function handleReplay() {
+      setStepIndex(0);
+      setActive(true);
+    }
+    window.addEventListener("natrix_replay_tutorial", handleReplay);
+    return () => window.removeEventListener("natrix_replay_tutorial", handleReplay);
+  }, []);
+
+  useEffect(() => {
+    if (!active) return;
+    const step = STEPS[stepIndex];
+    if (!step.targetAttr) { setSpotlight(null); return; }
+
+    function measure() {
+      const el = document.querySelector(
+        `[data-tutorial="${step.targetAttr}"]`
+      ) as HTMLElement | null;
+
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        setSpotlight({
+          top: rect.top - 6,
+          left: rect.left - 8,
+          width: rect.width + 16,
+          height: rect.height + 12,
+        });
+      } else {
+        frameRef.current = requestAnimationFrame(measure);
+      }
+    }
+
+    const timer = setTimeout(measure, 150);
+    return () => {
+      clearTimeout(timer);
+      if (frameRef.current) cancelAnimationFrame(frameRef.current);
+    };
+  }, [active, stepIndex]);
+
+  const step = STEPS[stepIndex];
+  const navIsTarget = active && step?.targetAttr !== null;
+
+  if (!mounted || !active || hidden) return null;
+
+  const isFirst = stepIndex === 0;
+  const isLast = stepIndex === STEPS.length - 1;
+  const isCentre = step.targetAttr === null;
+
+  function next() {
+    if (isLast) { finish(); return; }
+    const nextStep = STEPS[stepIndex + 1];
+    if (nextStep.route) router.push(nextStep.route);
+    setStepIndex((i) => i + 1);
+  }
+
+  function prev() {
+    if (stepIndex === 0) return;
+    setStepIndex((i) => i - 1);
+  }
+
+  function finish() {
+    localStorage.setItem(TUTORIAL_KEY, "1");
+    setActive(false);
+    router.push("/swimmers");
+  }
+
+  function skip() {
+    localStorage.setItem(TUTORIAL_KEY, "1");
+    setActive(false);
+  }
+
+  const tooltipBottom = spotlight
+    ? window.innerHeight - spotlight.top + 18
+    : 0;
+
+  const tooltipLeft = spotlight
+    ? Math.min(
+        Math.max(spotlight.left + spotlight.width / 2, 170),
+        window.innerWidth - 170
+      )
+    : window.innerWidth / 2;
+
+  return (
+    <>
+      {navIsTarget && (
+        <style>{`
+          nav.fixed { z-index: 10002 !important; }
+        `}</style>
+      )}
+
+      <div
+        onClick={skip}
+        style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 9998,
+          background: "rgba(0,8,20,0.85)",
+          backdropFilter: "blur(3px)",
+          WebkitBackdropFilter: "blur(3px)",
+        }}
+      />
+
+      {spotlight && (
+        <div
+          style={{
+            position: "fixed",
+            top: spotlight.top,
+            left: spotlight.left,
+            width: spotlight.width,
+            height: spotlight.height,
+            borderRadius: 18,
+            zIndex: 10003,
+            background: "transparent",
+            boxShadow: "0 0 0 9999px rgba(0,8,20,0.85)",
+            border: "2px solid rgba(253,230,138,0.8)",
+            pointerEvents: "none",
+            transition: "all 0.3s ease",
+          }}
+        />
+      )}
+
+      <div
+        style={{
+          position: "fixed",
+          zIndex: 10004,
+          ...(isCentre
+            ? {
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+                width: "min(340px, calc(100vw - 48px))",
+              }
+            : {
+                bottom: tooltipBottom,
+                left: tooltipLeft,
+                transform: "translateX(-50%)",
+                width: "min(300px, calc(100vw - 48px))",
+              }),
+        }}
+      >
+        <div
+          style={{
+            background: "rgba(255,255,255,0.97)",
+            borderRadius: 22,
+            padding: "22px 24px",
+            boxShadow: "0 12px 48px rgba(0,20,60,0.6)",
+            position: "relative",
+            fontFamily: "-apple-system, 'SF Pro Display', sans-serif",
+          }}
+        >
+          <div style={{ display: "flex", gap: 5, marginBottom: 16 }}>
+            {STEPS.map((_, i) => (
+              <div key={i} style={{
+                width: i === stepIndex ? 20 : 6,
+                height: 6,
+                borderRadius: 3,
+                background: i === stepIndex ? "#D97706" : "#E5E7EB",
+                transition: "all 0.25s ease",
+              }} />
+            ))}
+          </div>
+
+          <p style={{ fontSize: 11, color: "#9CA3AF", margin: "0 0 6px", fontWeight: 500, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+            Step {stepIndex + 1} of {STEPS.length}
+          </p>
+
+          <p style={{ fontSize: 18, fontWeight: 700, color: "#0A1628", margin: "0 0 10px", lineHeight: 1.3 }}>
+            {step.title}
+          </p>
+
+          <p style={{ fontSize: 14, color: "#4B5563", lineHeight: 1.65, margin: "0 0 22px" }}>
+            {step.body}
+          </p>
+
+          <div style={{ display: "flex", gap: 8 }}>
+            {!isFirst && (
+              <button onClick={prev} style={{
+                flex: 1, padding: "11px 16px", borderRadius: 14,
+                border: "1px solid #E5E7EB", background: "transparent",
+                color: "#6B7280", fontSize: 14, fontWeight: 500,
+                cursor: "pointer", fontFamily: "inherit",
+              }}>
+                ← Back
+              </button>
+            )}
+            <button onClick={next} style={{
+              flex: isFirst ? 1 : 2, padding: "11px 16px", borderRadius: 14,
+              border: "none", background: "linear-gradient(135deg, #F59E0B, #D97706)",
+              color: "#fff", fontSize: 14, fontWeight: 700,
+              cursor: "pointer", fontFamily: "inherit",
+              boxShadow: "0 4px 14px rgba(217,119,6,0.4)",
+            }}>
+              {isLast ? "Let's go! 🏊" : "Next →"}
+            </button>
+          </div>
+
+          {!isLast && (
+            <button onClick={skip} style={{
+              display: "block", width: "100%", marginTop: 14,
+              background: "none", border: "none",
+              color: "#9CA3AF", fontSize: 12,
+              cursor: "pointer", textAlign: "center", fontFamily: "inherit",
+            }}>
+              Skip tutorial
+            </button>
+          )}
+
+          {!isCentre && spotlight && (
+            <div style={{
+              position: "absolute", bottom: -20, left: "50%",
+              transform: "translateX(-50%)",
+              width: 0, height: 0,
+              borderLeft: "11px solid transparent",
+              borderRight: "11px solid transparent",
+              borderTop: "20px solid rgba(255,255,255,0.97)",
+            }} />
+          )}
+        </div>
+      </div>
+
+      {spotlight && (
+        <div style={{
+          position: "fixed",
+          top: spotlight.top - 40,
+          left: spotlight.left + spotlight.width / 2,
+          transform: "translateX(-50%)",
+          fontSize: 26,
+          zIndex: 10003,
+          pointerEvents: "none",
+          animation: "tutBounce 1s ease-in-out infinite",
+        }}>
+          👆
+        </div>
+      )}
+
+      <style>{`
+        @keyframes tutBounce {
+          0%, 100% { transform: translateX(-50%) translateY(0); }
+          50% { transform: translateX(-50%) translateY(-7px); }
+        }
+      `}</style>
+    </>
+  );
+}
+
+export function replayTutorial() {
+  localStorage.removeAll(TUTORIAL_KEY);
+  window.dispatchEvent(new Event("natrix_replay_tutorial"));
 }
 </file>
 

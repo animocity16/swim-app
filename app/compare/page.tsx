@@ -29,7 +29,7 @@ type FilterMode = "all" | "club" | "school";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const MAX_COMPARE = 5;
+const MAX_COMPARE = 10;
 
 function formatMs(ms: number | null | undefined) {
   if (ms == null || isNaN(ms)) return "—";
