@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -17,10 +16,37 @@ export default function ResetPasswordPage() {
   const [sessionReady, setSessionReady] = useState(false);
 
   useEffect(() => {
-    const code = new URLSearchParams(window.location.search).get("code");
-    if (code) {
-      window.history.replaceState({}, "", "/reset-password");
-      supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
+    async function init() {
+      // ── Handle hash token (implicit flow) ───────────────────────────
+      const hash = window.location.hash;
+      if (hash) {
+        const hashParams = new URLSearchParams(hash.substring(1));
+        const accessToken = hashParams.get("access_token");
+        const refreshToken = hashParams.get("refresh_token");
+        const type = hashParams.get("type");
+
+        if (accessToken && (type === "recovery" || type === "magiclink")) {
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken ?? "",
+          });
+          window.history.replaceState({}, "", "/reset-password");
+          if (error) {
+            setStatus("Reset link is invalid or expired.");
+            setIsError(true);
+          } else {
+            setSessionReady(true);
+          }
+          setChecking(false);
+          return;
+        }
+      }
+
+      // ── Handle code (PKCE flow) ──────────────────────────────────────
+      const code = new URLSearchParams(window.location.search).get("code");
+      if (code) {
+        window.history.replaceState({}, "", "/reset-password");
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
         if (error) {
           setStatus("Reset link is invalid or expired.");
           setIsError(true);
@@ -28,21 +54,37 @@ export default function ResetPasswordPage() {
           setSessionReady(true);
         }
         setChecking(false);
+        return;
+      }
+
+      // ── Listen for PASSWORD_RECOVERY event ───────────────────────────
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+        if (event === "PASSWORD_RECOVERY") {
+          setSessionReady(true);
+          setChecking(false);
+        }
       });
-      return;
-    }
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY") {
+
+      // Check if already has valid session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
         setSessionReady(true);
         setChecking(false);
+        subscription.unsubscribe();
+        return;
       }
-    });
-    const timeout = setTimeout(() => {
-      setStatus("Reset link is invalid or expired.");
-      setIsError(true);
-      setChecking(false);
-    }, 3000);
-    return () => { subscription.unsubscribe(); clearTimeout(timeout); };
+
+      // Extended timeout — 10 seconds
+      const timeout = setTimeout(() => {
+        setStatus("Reset link is invalid or expired.");
+        setIsError(true);
+        setChecking(false);
+      }, 10000);
+
+      return () => { subscription.unsubscribe(); clearTimeout(timeout); };
+    }
+
+    init();
   }, []);
 
   async function handleUpdatePassword(e: React.FormEvent) {
@@ -93,17 +135,38 @@ export default function ResetPasswordPage() {
               <h2 className="text-2xl font-bold text-white">Set new password</h2>
               <p className="mt-1 text-sm text-white/45">Choose a strong password for your account.</p>
             </div>
-            <form onSubmit={handleUpdatePassword} className="space-y-4">
-              <input type="password" placeholder="New password" value={password}
-                onChange={(e) => setPassword(e.target.value)} className="input" />
-              <input type="password" placeholder="Confirm new password" value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)} className="input" />
-              {status && <p className="rounded-2xl px-3 py-2 text-sm"
-                style={{ background: "rgba(226,75,74,0.1)", border: "1px solid rgba(226,75,74,0.2)", color: "#F09595" }}>{status}</p>}
-              <button type="submit" disabled={loading}
-                className="w-full rounded-2xl py-3.5 text-base font-bold text-white transition disabled:opacity-50"
-                style={{ background: "#D97706" }}>{loading ? "Updating..." : "Update password"}</button>
-            </form>
+            <div className="space-y-3">
+              <input
+                type="password"
+                placeholder="New password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="input"
+                autoComplete="new-password"
+              />
+              <input
+                type="password"
+                placeholder="Confirm new password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="input"
+                autoComplete="new-password"
+              />
+            </div>
+            {status && (
+              <p className="rounded-2xl border px-3 py-2 text-sm"
+                style={{ background: "rgba(226,75,74,0.1)", border: "1px solid rgba(226,75,74,0.2)", color: "#F09595" }}>
+                {status}
+              </p>
+            )}
+            <button
+              onClick={handleUpdatePassword}
+              disabled={loading}
+              className="w-full rounded-2xl py-3.5 text-base font-bold text-white transition disabled:opacity-50"
+              style={{ background: "#D97706" }}
+            >
+              {loading ? "Updating..." : "Set new password"}
+            </button>
           </>
         )}
       </div>
