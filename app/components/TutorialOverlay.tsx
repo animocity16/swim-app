@@ -22,15 +22,15 @@ const STEPS: Step[] = [
   },
   {
     id: "brood",
-    title: "Add your swimmer",
-    body: "Tap 'Brood' to add your child's profile. You can add multiple swimmers and follow teammates too.",
+    title: "Your swimmers are here",
+    body: "Tap 'Brood' to see your child's profile and their competitors. We've already loaded their age group!",
     targetAttr: "brood",
     route: "/swimmers",
   },
   {
     id: "scan",
-    title: "Scan meet results",
-    body: "After a race, screenshot Meet Mobile and tap 'Scan'. Natrix reads the result and saves it automatically — no typing needed.",
+    title: "Scan your child's 50M Free result",
+    body: "Screenshot their 50M Free from Meet Mobile, tap Scan and upload it — Natrix reads the time and shows you exactly where they rank against the competition.",
     targetAttr: "scan",
     route: "/scan",
   },
@@ -51,7 +51,7 @@ const STEPS: Step[] = [
   {
     id: "done",
     title: "You're all set! 🎉",
-    body: "Start by adding your first swimmer in Brood. You can replay this guide anytime from Settings → Help.",
+    body: "Start by scanning your child's 50M Free result. You can replay this guide anytime from Settings → Help.",
     targetAttr: null,
     route: "/swimmers",
   },
@@ -73,16 +73,23 @@ export default function TutorialOverlay() {
   const [spotlight, setSpotlight] = useState<SpotlightRect | null>(null);
   const frameRef = useRef<number | null>(null);
 
-  const hidden = ["/login", "/forgot-password", "/reset-password", "/invite", "/signup"].some((p) =>
-  pathname.startsWith(p)
-);
+  const hidden = [
+    "/login",
+    "/forgot-password",
+    "/reset-password",
+    "/invite",
+    "/signup",
+    "/onboarding",
+    "/auth",
+  ].some((p) => pathname.startsWith(p));
+
   useEffect(() => {
-  setMounted(true);
-  const done = localStorage.getItem(TUTORIAL_KEY);
-  if (!done && !hidden) {
-    setTimeout(() => setActive(true), 900);
-  }
-}, [hidden]);
+    setMounted(true);
+    const done = localStorage.getItem(TUTORIAL_KEY);
+    if (!done && !hidden) {
+      setTimeout(() => setActive(true), 900);
+    }
+  }, [hidden]);
 
   useEffect(() => {
     function handleReplay() {
@@ -93,7 +100,6 @@ export default function TutorialOverlay() {
     return () => window.removeEventListener("natrix_replay_tutorial", handleReplay);
   }, []);
 
-  // ✅ Measure real DOM position of target nav element
   useEffect(() => {
     if (!active) return;
     const step = STEPS[stepIndex];
@@ -124,8 +130,6 @@ export default function TutorialOverlay() {
     };
   }, [active, stepIndex]);
 
-  // ✅ Raise nav above overlay when a nav tab is being highlighted
-  // We inject a <style> tag that overrides the nav z-index only during tutorial
   const step = STEPS[stepIndex];
   const navIsTarget = active && step?.targetAttr !== null;
 
@@ -158,7 +162,6 @@ export default function TutorialOverlay() {
     setActive(false);
   }
 
-  // Tooltip — either centred or above the spotlight
   const tooltipBottom = spotlight
     ? window.innerHeight - spotlight.top + 18
     : 0;
@@ -172,14 +175,12 @@ export default function TutorialOverlay() {
 
   return (
     <>
-      {/* ✅ Inject style to raise nav above overlay during nav-target steps */}
       {navIsTarget && (
         <style>{`
           nav.fixed { z-index: 10002 !important; }
         `}</style>
       )}
 
-      {/* Dark backdrop — z-index 9998, nav is 10002 so nav shows through */}
       <div
         onClick={skip}
         style={{
@@ -192,7 +193,6 @@ export default function TutorialOverlay() {
         }}
       />
 
-      {/* ✅ Spotlight cutout — measured from real DOM */}
       {spotlight && (
         <div
           style={{
@@ -203,7 +203,6 @@ export default function TutorialOverlay() {
             height: spotlight.height,
             borderRadius: 18,
             zIndex: 10003,
-            // Punch a hole in the backdrop using mix-blend-mode trick
             background: "transparent",
             boxShadow: "0 0 0 9999px rgba(0,8,20,0.85)",
             border: "2px solid rgba(253,230,138,0.8)",
@@ -213,7 +212,6 @@ export default function TutorialOverlay() {
         />
       )}
 
-      {/* Tooltip bubble */}
       <div
         style={{
           position: "fixed",
@@ -243,7 +241,6 @@ export default function TutorialOverlay() {
             fontFamily: "-apple-system, 'SF Pro Display', sans-serif",
           }}
         >
-          {/* Progress dots */}
           <div style={{ display: "flex", gap: 5, marginBottom: 16 }}>
             {STEPS.map((_, i) => (
               <div key={i} style={{
@@ -256,22 +253,18 @@ export default function TutorialOverlay() {
             ))}
           </div>
 
-          {/* Step counter */}
           <p style={{ fontSize: 11, color: "#9CA3AF", margin: "0 0 6px", fontWeight: 500, letterSpacing: "0.06em", textTransform: "uppercase" }}>
             Step {stepIndex + 1} of {STEPS.length}
           </p>
 
-          {/* Title */}
           <p style={{ fontSize: 18, fontWeight: 700, color: "#0A1628", margin: "0 0 10px", lineHeight: 1.3 }}>
             {step.title}
           </p>
 
-          {/* Body */}
           <p style={{ fontSize: 14, color: "#4B5563", lineHeight: 1.65, margin: "0 0 22px" }}>
             {step.body}
           </p>
 
-          {/* Buttons */}
           <div style={{ display: "flex", gap: 8 }}>
             {!isFirst && (
               <button onClick={prev} style={{
@@ -294,7 +287,6 @@ export default function TutorialOverlay() {
             </button>
           </div>
 
-          {/* Skip */}
           {!isLast && (
             <button onClick={skip} style={{
               display: "block", width: "100%", marginTop: 14,
@@ -306,7 +298,6 @@ export default function TutorialOverlay() {
             </button>
           )}
 
-          {/* Arrow pointing down toward nav */}
           {!isCentre && spotlight && (
             <div style={{
               position: "absolute", bottom: -20, left: "50%",
@@ -320,7 +311,6 @@ export default function TutorialOverlay() {
         </div>
       </div>
 
-      {/* Bouncing finger — sits just above the spotlight */}
       {spotlight && (
         <div style={{
           position: "fixed",
@@ -347,6 +337,6 @@ export default function TutorialOverlay() {
 }
 
 export function replayTutorial() {
-  localStorage.removeItem(TUTORIAL_KEY);
+  localStorage.removeAll(TUTORIAL_KEY);
   window.dispatchEvent(new Event("natrix_replay_tutorial"));
 }

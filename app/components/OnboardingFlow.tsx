@@ -16,22 +16,6 @@ const THEMES = [
   { id: "slate",    label: "Slate",    from: "#0D1117", to: "#1C2333", accent: "#94A3B8" },
 ];
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function parseTimeInputToMs(value: string) {
-  const t = value.trim();
-  if (/^\d{1,2}:\d{2}\.\d{2}$/.test(t)) {
-    const [mm, ss] = t.split(":");
-    const [sec, hun] = ss.split(".");
-    return Number(mm) * 60_000 + Number(sec) * 1000 + Number(hun) * 10;
-  }
-  if (/^\d{1,2}\.\d{2}$/.test(t)) {
-    const [sec, hun] = t.split(".");
-    return Number(sec) * 1000 + Number(hun) * 10;
-  }
-  return null;
-}
-
 // ─── Step indicator ───────────────────────────────────────────────────────────
 
 function StepDots({ total, current }: { total: number; current: number }) {
@@ -64,36 +48,50 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
   const [swimmerSchool, setSwimmerSchool] = useState("");
   const [savingSwimmer, setSavingSwimmer] = useState(false);
   const [swimmerError, setSwimmerError] = useState("");
+  const [swimmerSaved, setSwimmerSaved] = useState(false);
 
   // Theme
   const [selectedTheme, setSelectedTheme] = useState("ocean");
-
-  // First time
   const [saving, setSaving] = useState(false);
 
   function next() { setStep((s) => Math.min(s + 1, TOTAL_STEPS - 1)); }
-  function skip() { void finish(); }
 
   async function handleAddSwimmer() {
     if (!swimmerName.trim()) { setSwimmerError("Please enter a name."); return; }
     if (!swimmerAge || Number.isNaN(Number(swimmerAge))) { setSwimmerError("Please enter a valid age."); return; }
+    if (!swimmerGender) { setSwimmerError("Please select a gender."); return; }
+
     setSavingSwimmer(true);
     setSwimmerError("");
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setSavingSwimmer(false); return; }
-    const { error } = await supabase.from("swimmers").insert({
-      user_id: user.id,
-      name: swimmerName.trim(),
-      age: Number(swimmerAge),
-      gender: swimmerGender || null,
-      swim_club: swimmerClub.trim() || null,
-      school: swimmerSchool.trim() || null,
-      group_type: "primary",
-      status: "Active",
-    });
-    if (error) { setSwimmerError(error.message); setSavingSwimmer(false); return; }
-    setSavingSwimmer(false);
-    next();
+
+    try {
+      const res = await fetch("/api/claim-swimmer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: swimmerName.trim(),
+          age: Number(swimmerAge),
+          gender: swimmerGender,
+          swim_club: swimmerClub.trim() || null,
+          school: swimmerSchool.trim() || null,
+        }),
+      });
+
+      const result = await res.json();
+
+      if (!res.ok || !result.success) {
+        setSwimmerError(result.error ?? "Something went wrong. Please try again.");
+        setSavingSwimmer(false);
+        return;
+      }
+
+      setSwimmerSaved(true);
+      setSavingSwimmer(false);
+      next();
+    } catch {
+      setSwimmerError("Network error. Please try again.");
+      setSavingSwimmer(false);
+    }
   }
 
   async function finish() {
@@ -170,11 +168,9 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
             </div>
           ))}
         </div>
-        <div className="flex gap-3">
-          <button type="button" onClick={next} className="onb-btn-primary flex-1">
-            Got it →
-          </button>
-        </div>
+        <button type="button" onClick={next} className="onb-btn-primary flex-1 w-full">
+          Got it →
+        </button>
       </div>
     </div>
   );
@@ -243,7 +239,7 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
           </button>
           <button type="button" onClick={handleAddSwimmer} disabled={savingSwimmer}
             className="onb-btn-primary flex-1 disabled:opacity-50">
-            {savingSwimmer ? "Saving…" : "Add swimmer →"}
+            {savingSwimmer ? "Setting up…" : "Add swimmer →"}
           </button>
         </div>
       </div>
@@ -308,15 +304,15 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
         <div>
           <h2 className="text-4xl font-bold text-white tracking-tight">You're all set!</h2>
           <p className="mt-3 text-white/55 text-base leading-relaxed">
-            {swimmerName
-              ? `${swimmerName} has been added. Now scan your first result or import existing times.`
+            {swimmerSaved
+              ? `${swimmerName} has been added and we've found their competitors. Check Brood to see who they race against!`
               : "Your account is ready. Add your swimmer and start tracking results."}
           </p>
         </div>
 
         <div className="space-y-3">
           {[
-            { icon: "📷", label: "Scan a result", desc: "At the pool after a race", primary: true },
+            { icon: "📷", label: "Scan your child's latest 50M Free result", desc: "Take a screenshot from Meet Mobile and scan it here", primary: true },
             { icon: "📥", label: "Import existing times", desc: "From a spreadsheet", primary: false },
           ].map((item) => (
             <div key={item.label} className="flex items-center gap-3 rounded-2xl px-4 py-3"
