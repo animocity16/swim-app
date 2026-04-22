@@ -68,6 +68,22 @@ function formatDate(value?: string | null) {
   return date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
+/** Extract the distance in metres from an event name, e.g. "100 Freestyle" → 100 */
+function getEventDistanceM(event: string): number | null {
+  const match = canonicalEventName(event).match(/\d+/);
+  return match ? Number(match[0]) : null;
+}
+
+/** Calculate speed in m/s and return as a formatted string, or null if not calculable */
+function formatSpeed(timeMs: number | null | undefined, event: string): string | null {
+  if (timeMs == null || timeMs <= 0) return null;
+  const distance = getEventDistanceM(event);
+  if (!distance) return null;
+  const seconds = timeMs / 1000;
+  const speed = distance / seconds;
+  return `${speed.toFixed(2)} m/s`;
+}
+
 function getStrokeKey(event: string) {
   const e = event.toLowerCase();
   if (e.includes("breaststroke") || e.includes("breast")) return "breaststroke";
@@ -426,6 +442,7 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
               {/* Event rows — only show when stroke is expanded */}
               {isStrokeOpen && sg.events.map((eg) => {
                 const isOpen = !!expandedEvents[eg.key];
+                const pbSpeed = formatSpeed(eg.pb.time_ms, eg.event);
                 return (
                   <div key={eg.key} style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
 
@@ -444,6 +461,12 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
                         </div>
                         <div className="text-right flex-shrink-0">
                           <p className="text-sm font-bold" style={{ color: "#FDE68A" }}>{formatMs(eg.pb.time_ms)}</p>
+                          {/* ── Speed in m/s ── */}
+                          {pbSpeed && (
+                            <p className="text-[10px] font-medium mt-0.5" style={{ color: "rgba(253,230,138,0.5)" }}>
+                              {pbSpeed}
+                            </p>
+                          )}
                           <div className="flex items-center justify-end gap-1 mt-0.5">
                             {eg.pb.place != null && (
                               <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
@@ -494,6 +517,7 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
                           const showSplits = !!expandedSplits[time.id];
                           const isEditing = editingTime?.id === time.id;
                           const isLastTime = tIdx === eg.times.length - 1;
+                          const timeSpeed = formatSpeed(time.time_ms, eg.event);
 
                           return (
                             <div key={time.id}
@@ -552,6 +576,12 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
                                         <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
                                           style={{ background: "rgba(253,230,138,0.15)", color: "#FDE68A", border: "1px solid rgba(253,230,138,0.25)" }}>
                                           PB
+                                        </span>
+                                      )}
+                                      {/* Speed alongside each time in history */}
+                                      {timeSpeed && (
+                                        <span className="text-[10px] font-medium" style={{ color: "rgba(255,255,255,0.3)" }}>
+                                          {timeSpeed}
                                         </span>
                                       )}
                                     </div>
