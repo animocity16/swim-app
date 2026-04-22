@@ -44,11 +44,14 @@ function getInitials(name: string) {
   return name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 }
 
-// Assign a stable color per group name
 function groupColor(groupName: string) {
   let hash = 0;
   for (let i = 0; i < groupName.length; i++) hash = groupName.charCodeAt(i) + ((hash << 5) - hash);
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
+function raceAgeFromBirthYear(birthYear: number): number {
+  return new Date().getFullYear() - birthYear;
 }
 
 export default function SwimmersPage() {
@@ -60,20 +63,28 @@ export default function SwimmersPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [swimmers, setSwimmers] = useState<Swimmer[]>([]);
 
-  // Group toggle: club or school
   const [groupBy, setGroupBy] = useState<"club" | "school">("club");
-  // Track which groups are expanded — all open by default
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
   // Add form state
   const [name, setName] = useState("");
-  const [age, setAge] = useState("");
+  const [birthYear, setBirthYear] = useState("");
   const [birthMonth, setBirthMonth] = useState<number | "">("");
   const [country, setCountry] = useState("");
   const [swimClub, setSwimClub] = useState("");
   const [school, setSchool] = useState("");
   const [gender, setGender] = useState<"Male" | "Female" | "">("");
   const [groupType, setGroupType] = useState<"primary" | "following">("primary");
+
+  const currentYear = new Date().getFullYear();
+  const parsedBirthYear = Number(birthYear);
+  const previewRaceAge =
+    birthYear.length === 4 &&
+    !Number.isNaN(parsedBirthYear) &&
+    parsedBirthYear > 2000 &&
+    parsedBirthYear <= currentYear
+      ? raceAgeFromBirthYear(parsedBirthYear)
+      : null;
 
   useEffect(() => {
     let mounted = true;
@@ -105,19 +116,25 @@ export default function SwimmersPage() {
       .order("name", { ascending: true });
 
     if (error) { setStatus(`Error: ${error.message}`); }
-    else {
-      const rows = (data as Swimmer[]) || [];
-      setSwimmers(rows);
-    }
+    else { setSwimmers((data as Swimmer[]) || []); }
     setLoading(false);
   }
 
   async function addSwimmer() {
     const trimmedName = name.trim();
-    const parsedAge = Number(age);
     if (!trimmedName) { setStatus("Please enter swimmer name."); return; }
-    if (!age || Number.isNaN(parsedAge) || parsedAge <= 0) { setStatus("Please enter a valid age."); return; }
+    if (
+      !birthYear ||
+      birthYear.length !== 4 ||
+      Number.isNaN(parsedBirthYear) ||
+      parsedBirthYear < 2000 ||
+      parsedBirthYear > currentYear
+    ) {
+      setStatus("Please enter a valid 4-digit birth year e.g. 2013");
+      return;
+    }
 
+    const age = raceAgeFromBirthYear(parsedBirthYear);
     setLoading(true);
     setStatus("Adding...");
 
@@ -126,7 +143,7 @@ export default function SwimmersPage() {
 
     const { error } = await supabase.from("swimmers").insert([{
       name: trimmedName,
-      age: parsedAge,
+      age,
       birth_month: birthMonth === "" ? null : birthMonth,
       country: country.trim() || null,
       swim_club: swimClub.trim() || null,
@@ -138,7 +155,7 @@ export default function SwimmersPage() {
 
     if (error) { setStatus(`Error: ${error.message}`); setLoading(false); return; }
 
-    setName(""); setAge(""); setBirthMonth(""); setCountry("");
+    setName(""); setBirthYear(""); setBirthMonth(""); setCountry("");
     setSwimClub(""); setSchool(""); setGender(""); setGroupType("primary");
     setShowAddForm(false);
     setStatus("Swimmer added.");
@@ -164,7 +181,6 @@ export default function SwimmersPage() {
   const primarySwimmers = swimmers.filter((s) => s.group_type === "primary");
   const followingSwimmers = swimmers.filter((s) => s.group_type === "following");
 
-  // Group following swimmers by club or school
   const followingGroups = useMemo(() => {
     const map = new Map<string, Swimmer[]>();
     for (const s of followingSwimmers) {
@@ -172,7 +188,6 @@ export default function SwimmersPage() {
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(s);
     }
-    // Sort: alphabetical, but "Other" always last
     return Array.from(map.entries())
       .sort(([a], [b]) => {
         if (a === "Other") return 1;
@@ -215,7 +230,25 @@ export default function SwimmersPage() {
           <div className="rounded-3xl border border-white/10 bg-white/5 p-5 space-y-3">
             <h2 className="text-lg font-semibold text-white">Add swimmer</h2>
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" className="input" />
-            <input value={age} onChange={(e) => setAge(e.target.value)} placeholder="Race Age" inputMode="numeric" className="input" />
+
+            {/* Birth year with live race age preview */}
+            <div>
+              <input
+                value={birthYear}
+                onChange={(e) => setBirthYear(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                placeholder="Year of birth e.g. 2013"
+                inputMode="numeric"
+                className="input"
+              />
+              {previewRaceAge !== null && previewRaceAge > 0 && previewRaceAge < 30 && (
+                <p className="mt-1.5 text-xs font-medium px-1" style={{ color: "#FDE68A" }}>
+                  ✓ Race age this year: {previewRaceAge}
+                </p>
+              )}
+              {birthYear.length === 4 && (previewRaceAge === null || previewRaceAge <= 0 || previewRaceAge >= 30) && (
+                <p className="mt-1.5 text-xs text-red-300 px-1">Please enter a valid birth year</p>
+              )}
+            </div>
 
             <div className="grid grid-cols-2 gap-2">
               {(["Male", "Female"] as const).map((g) => (
@@ -297,7 +330,6 @@ export default function SwimmersPage() {
         {followingSwimmers.length > 0 && (
           <div className="space-y-3">
 
-            {/* Following header + group toggle */}
             <div className="flex items-center justify-between">
               <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">
                 Following · {followingSwimmers.length}
@@ -326,15 +358,13 @@ export default function SwimmersPage() {
               </div>
             </div>
 
-            {/* Group cards */}
             {followingGroups.map(([groupName, groupSwimmers]) => {
-                const isOpen = expandedGroups[groupName] === true;
+              const isOpen = expandedGroups[groupName] === true;
               const colors = groupColor(groupName);
 
               return (
                 <div key={groupName} className="rounded-3xl border border-white/10 bg-white/5 overflow-hidden">
 
-                  {/* Group header — tap to expand/collapse */}
                   <button
                     type="button"
                     onClick={() => toggleGroup(groupName)}
@@ -360,7 +390,6 @@ export default function SwimmersPage() {
                     </svg>
                   </button>
 
-                  {/* Swimmer rows */}
                   {isOpen && (
                     <div className="border-t border-white/8">
                       {groupSwimmers.map((swimmer, index) => (
