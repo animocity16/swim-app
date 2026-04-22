@@ -33,6 +33,13 @@ function StepDots({ total, current }: { total: number; current: number }) {
   );
 }
 
+// ─── Race age helper ──────────────────────────────────────────────────────────
+// Swimming race age = age on 31 Dec of the current year = currentYear - birthYear
+
+function raceAgeFromBirthYear(birthYear: number): number {
+  return new Date().getFullYear() - birthYear;
+}
+
 // ─── Main onboarding component ────────────────────────────────────────────────
 
 export default function OnboardingFlow({ userName }: { userName: string }) {
@@ -42,13 +49,14 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
 
   // Swimmer form
   const [swimmerName, setSwimmerName] = useState("");
-  const [swimmerAge, setSwimmerAge] = useState("");
+  const [birthYear, setBirthYear] = useState("");
   const [swimmerGender, setSwimmerGender] = useState<"Male" | "Female" | "">("");
   const [swimmerClub, setSwimmerClub] = useState("");
   const [swimmerSchool, setSwimmerSchool] = useState("");
   const [savingSwimmer, setSavingSwimmer] = useState(false);
   const [swimmerError, setSwimmerError] = useState("");
   const [swimmerSaved, setSwimmerSaved] = useState(false);
+  const [savedSwimmerName, setSavedSwimmerName] = useState("");
 
   // Theme
   const [selectedTheme, setSelectedTheme] = useState("ocean");
@@ -59,11 +67,32 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
 
   function next() { setStep((s) => Math.min(s + 1, TOTAL_STEPS - 1)); }
 
+  // Live race age preview as parent types
+  const parsedBirthYear = Number(birthYear);
+  const currentYear = new Date().getFullYear();
+  const previewRaceAge =
+    birthYear.length === 4 &&
+    !Number.isNaN(parsedBirthYear) &&
+    parsedBirthYear > 2000 &&
+    parsedBirthYear <= currentYear
+      ? raceAgeFromBirthYear(parsedBirthYear)
+      : null;
+
   async function handleAddSwimmer() {
     if (!swimmerName.trim()) { setSwimmerError("Please enter a name."); return; }
-    if (!swimmerAge || Number.isNaN(Number(swimmerAge))) { setSwimmerError("Please enter a valid age."); return; }
+    if (
+      !birthYear ||
+      birthYear.length !== 4 ||
+      Number.isNaN(parsedBirthYear) ||
+      parsedBirthYear < 2000 ||
+      parsedBirthYear > currentYear
+    ) {
+      setSwimmerError("Please enter a valid 4-digit birth year e.g. 2013");
+      return;
+    }
     if (!swimmerGender) { setSwimmerError("Please select a gender."); return; }
 
+    const age = raceAgeFromBirthYear(parsedBirthYear);
     setSavingSwimmer(true);
     setSwimmerError("");
 
@@ -73,7 +102,7 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: swimmerName.trim(),
-          age: Number(swimmerAge),
+          age,
           gender: swimmerGender,
           swim_club: swimmerClub.trim() || null,
           school: swimmerSchool.trim() || null,
@@ -89,6 +118,7 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
       }
 
       setSwimmerSaved(true);
+      setSavedSwimmerName(swimmerName.trim());
       setSavingSwimmer(false);
       next();
     } catch {
@@ -197,27 +227,41 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
             placeholder="Swimmer's full name"
             className="input"
           />
-          <div className="grid grid-cols-2 gap-3">
+
+          {/* Birth year with live race age preview */}
+          <div>
             <input
-              value={swimmerAge}
-              onChange={(e) => setSwimmerAge(e.target.value)}
-              placeholder="Age"
-              className="input text-center"
+              value={birthYear}
+              onChange={(e) => setBirthYear(e.target.value.replace(/\D/g, "").slice(0, 4))}
+              placeholder="Year of birth e.g. 2013"
+              className="input"
               inputMode="numeric"
             />
-            <div className="grid grid-cols-2 gap-2">
-              {(["Male", "Female"] as const).map((g) => (
-                <button key={g} type="button"
-                  onClick={() => setSwimmerGender(swimmerGender === g ? "" : g)}
-                  className="rounded-2xl border py-3 text-xs font-semibold transition"
-                  style={swimmerGender === g
-                    ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
-                    : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}>
-                  {g === "Male" ? "♂" : "♀"} {g}
-                </button>
-              ))}
-            </div>
+            {previewRaceAge !== null && previewRaceAge > 0 && previewRaceAge < 30 && (
+              <p className="mt-1.5 text-xs font-medium px-1" style={{ color: "#FDE68A" }}>
+                ✓ Race age this year: {previewRaceAge}
+              </p>
+            )}
+            {birthYear.length === 4 && (previewRaceAge === null || previewRaceAge <= 0 || previewRaceAge >= 30) && (
+              <p className="mt-1.5 text-xs text-red-300 px-1">
+                Please enter a valid birth year
+              </p>
+            )}
           </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            {(["Male", "Female"] as const).map((g) => (
+              <button key={g} type="button"
+                onClick={() => setSwimmerGender(swimmerGender === g ? "" : g)}
+                className="rounded-2xl border py-3 text-xs font-semibold transition"
+                style={swimmerGender === g
+                  ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
+                  : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}>
+                {g === "Male" ? "♂" : "♀"} {g}
+              </button>
+            ))}
+          </div>
+
           <input
             value={swimmerClub}
             onChange={(e) => setSwimmerClub(e.target.value)}
@@ -333,7 +377,6 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
           ))}
         </div>
 
-        {/* iPhone steps */}
         {installTab === "iphone" && (
           <div className="space-y-3">
             <div className="rounded-2xl px-4 py-3 text-sm text-amber-200/80 font-medium"
@@ -343,8 +386,8 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
             {[
               { n: "1", icon: "🧭", title: "Open in Safari", desc: "Copy swimnatrix.vercel.app and paste it into Safari if you're not already there." },
               { n: "2", icon: "⬆️", title: "Tap the Share button", desc: "The Share icon is at the bottom of Safari — a box with an arrow pointing up." },
-              { n: "3", icon: "➕", title: "Add to Home Screen", desc: 'Scroll down in the share menu and tap "Add to Home Screen", then tap Add.' },
-              { n: "4", icon: "🏊", title: "Open Natrix from your home screen", desc: "Tap the Natrix icon — it opens full screen like a real app. No browser bar!" },
+              { n: "3", icon: "➕", title: "Add to Home Screen", desc: 'Scroll down and tap "Add to Home Screen", then tap Add.' },
+              { n: "4", icon: "🏊", title: "Open Natrix from your home screen", desc: "Tap the Natrix icon — full screen, no browser bar!" },
             ].map((item) => (
               <div key={item.n} className="flex gap-3 items-start rounded-2xl px-4 py-3"
                 style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
@@ -361,7 +404,6 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
           </div>
         )}
 
-        {/* Android steps */}
         {installTab === "android" && (
           <div className="space-y-3">
             <div className="rounded-2xl px-4 py-3 text-sm text-amber-200/80 font-medium"
@@ -390,8 +432,7 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
         )}
 
         <div className="flex gap-3">
-          <button type="button" onClick={next}
-            className="onb-btn-secondary flex-1">
+          <button type="button" onClick={next} className="onb-btn-secondary flex-1">
             Skip for now
           </button>
           <button type="button" onClick={next} className="onb-btn-primary flex-1">
@@ -413,15 +454,15 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
           <h2 className="text-4xl font-bold text-white tracking-tight">You're all set!</h2>
           <p className="mt-3 text-white/55 text-base leading-relaxed">
             {swimmerSaved
-              ? `${swimmerName} has been added and we've found their competitors. Check Brood to see who they race against!`
+              ? `${savedSwimmerName} has been added. Start scanning their results!`
               : "Your account is ready. Add your swimmer and start tracking results."}
           </p>
         </div>
 
         <div className="space-y-3">
           {[
-            { icon: "📷", label: "Scan your child's latest 50M Free result", desc: "Take a screenshot from Meet Mobile and scan it here", primary: true },
-            { icon: "📥", label: "Import existing times", desc: "From a spreadsheet", primary: false },
+            { icon: "📷", label: "Scan your child's latest result", desc: "Take a screenshot from Meet Mobile and scan it", primary: true },
+            
           ].map((item) => (
             <div key={item.label} className="flex items-center gap-3 rounded-2xl px-4 py-3"
               style={{
