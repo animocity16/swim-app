@@ -41,6 +41,7 @@ type StandardSet = {
   id: number;
   name: string;
   type: "UPGRADING" | "IMPORTANT_MEET";
+  club?: string | null;
   created_at?: string | null;
 };
 
@@ -212,7 +213,7 @@ const router = useRouter();
     const [swimmerRes, swimTimesRes, standardSetsRes] = await Promise.all([
       supabase.from("swimmers").select("id, name, age, group_type, created_at, swim_club, school, status, gender").eq("id", swimmerId).limit(1),
       supabase.from("swim_times").select("id, swimmer_id, event, course, time_ms, swam_at, created_at, place").eq("swimmer_id", swimmerId).order("event", { ascending: true }),
-      supabase.from("standard_sets").select("id, name, type, created_at").order("created_at", { ascending: false }),
+      supabase.from("standard_sets").select("id, name, type, club, created_at").order("created_at", { ascending: false }),
     ]);
 
     if (swimmerRes.error || swimTimesRes.error || standardSetsRes.error) {
@@ -227,7 +228,11 @@ const router = useRouter();
 
     const swimmerData = swimmerRows[0];
     const swimTimesData = (swimTimesRes.data as SwimTimeRow[]) || [];
-    const standardSetsData = (standardSetsRes.data as StandardSet[]) || [];
+    const allSets = (standardSetsRes.data as StandardSet[]) || [];
+const swimmerClub = swimmerData.swim_club?.trim().toLowerCase() ?? null;
+const standardSetsData = allSets.filter((s) =>
+  !s.club || s.club.trim().toLowerCase() === swimmerClub
+);
 
     setSwimmer(swimmerData);
     setEditForm(createEditForm(swimmerData));
