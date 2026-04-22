@@ -38,7 +38,7 @@ function StepDots({ total, current }: { total: number; current: number }) {
 export default function OnboardingFlow({ userName }: { userName: string }) {
   const router = useRouter();
   const [step, setStep] = useState(0);
-  const TOTAL_STEPS = 5;
+  const TOTAL_STEPS = 6;
 
   // Swimmer form
   const [swimmerName, setSwimmerName] = useState("");
@@ -53,6 +53,9 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
   // Theme
   const [selectedTheme, setSelectedTheme] = useState("ocean");
   const [saving, setSaving] = useState(false);
+
+  // Install tab
+  const [installTab, setInstallTab] = useState<"iphone" | "android">("iphone");
 
   function next() { setStep((s) => Math.min(s + 1, TOTAL_STEPS - 1)); }
 
@@ -290,15 +293,120 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
         <button type="button" onClick={next} className="onb-btn-primary w-full">
           Looks great →
         </button>
+
+        <p className="text-xs text-white/25">
+          You can always change your theme and settings later.
+        </p>
       </div>
     </div>
   );
 
-  // ── Step 4: All set ──────────────────────────────────────────────────────
+  // ── Step 4: Install on your phone ────────────────────────────────────────
 
   if (step === 4) return (
     <div className="onb-screen">
       <StepDots total={TOTAL_STEPS} current={4} />
+      <div className="px-6 space-y-5">
+        <div className="text-center">
+          <p className="text-xs font-medium uppercase tracking-widest text-white/35 mb-2">One last thing</p>
+          <h2 className="text-3xl font-bold text-white">Add Natrix to<br />your home screen</h2>
+          <p className="mt-2 text-sm text-white/45">
+            It opens like a real app — no browser bar, full screen.
+          </p>
+        </div>
+
+        {/* iPhone / Android tab toggle */}
+        <div className="flex rounded-2xl overflow-hidden"
+          style={{ border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.04)" }}>
+          {(["iphone", "android"] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setInstallTab(tab)}
+              className="flex-1 py-2.5 text-xs font-semibold uppercase tracking-wider transition"
+              style={installTab === tab
+                ? { background: "rgba(217,119,6,0.25)", color: "#FDE68A" }
+                : { background: "transparent", color: "rgba(255,255,255,0.4)" }}
+            >
+              {tab === "iphone" ? "📱 iPhone" : "🤖 Android"}
+            </button>
+          ))}
+        </div>
+
+        {/* iPhone steps */}
+        {installTab === "iphone" && (
+          <div className="space-y-3">
+            <div className="rounded-2xl px-4 py-3 text-sm text-amber-200/80 font-medium"
+              style={{ background: "rgba(217,119,6,0.1)", border: "1px solid rgba(253,230,138,0.2)" }}>
+              ⚠️ Must be opened in <strong>Safari</strong> — not Chrome or another browser.
+            </div>
+            {[
+              { n: "1", icon: "🧭", title: "Open in Safari", desc: "Copy swimnatrix.vercel.app and paste it into Safari if you're not already there." },
+              { n: "2", icon: "⬆️", title: "Tap the Share button", desc: "The Share icon is at the bottom of Safari — a box with an arrow pointing up." },
+              { n: "3", icon: "➕", title: "Add to Home Screen", desc: 'Scroll down in the share menu and tap "Add to Home Screen", then tap Add.' },
+              { n: "4", icon: "🏊", title: "Open Natrix from your home screen", desc: "Tap the Natrix icon — it opens full screen like a real app. No browser bar!" },
+            ].map((item) => (
+              <div key={item.n} className="flex gap-3 items-start rounded-2xl px-4 py-3"
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl text-xs font-bold"
+                  style={{ background: "rgba(253,230,138,0.12)", border: "1px solid rgba(253,230,138,0.25)", color: "#FDE68A" }}>
+                  {item.n}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-white">{item.icon} {item.title}</p>
+                  <p className="text-xs text-white/45 mt-0.5 leading-relaxed">{item.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Android steps */}
+        {installTab === "android" && (
+          <div className="space-y-3">
+            <div className="rounded-2xl px-4 py-3 text-sm text-amber-200/80 font-medium"
+              style={{ background: "rgba(217,119,6,0.1)", border: "1px solid rgba(253,230,138,0.2)" }}>
+              ⚠️ Must be opened in <strong>Chrome</strong> for the install option to appear.
+            </div>
+            {[
+              { n: "1", icon: "🌐", title: "Open in Chrome", desc: "Copy swimnatrix.vercel.app and paste it into Chrome if you're not already there." },
+              { n: "2", icon: "⋮", title: "Tap the three-dot menu", desc: "Tap the ⋮ menu in the top-right corner of Chrome." },
+              { n: "3", icon: "➕", title: "Add to Home screen", desc: 'Tap "Add to Home screen" and confirm by tapping Add.' },
+              { n: "4", icon: "🏊", title: "Open Natrix from your home screen", desc: "Tap the Natrix icon — it launches full screen. You're in!" },
+            ].map((item) => (
+              <div key={item.n} className="flex gap-3 items-start rounded-2xl px-4 py-3"
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl text-xs font-bold"
+                  style={{ background: "rgba(253,230,138,0.12)", border: "1px solid rgba(253,230,138,0.25)", color: "#FDE68A" }}>
+                  {item.n}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-white">{item.icon} {item.title}</p>
+                  <p className="text-xs text-white/45 mt-0.5 leading-relaxed">{item.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex gap-3">
+          <button type="button" onClick={next}
+            className="onb-btn-secondary flex-1">
+            Skip for now
+          </button>
+          <button type="button" onClick={next} className="onb-btn-primary flex-1">
+            Done! →
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── Step 5: All set ──────────────────────────────────────────────────────
+
+  if (step === 5) return (
+    <div className="onb-screen">
+      <StepDots total={TOTAL_STEPS} current={5} />
       <div className="text-center px-6 space-y-6">
         <div className="text-6xl">🎉</div>
         <div>
@@ -333,10 +441,6 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
           className="onb-btn-primary w-full disabled:opacity-50 text-base">
           {saving ? "Setting up…" : "Take me to Natrix 🏊"}
         </button>
-
-        <p className="text-xs text-white/25">
-          You can always change your theme and settings later.
-        </p>
       </div>
     </div>
   );
