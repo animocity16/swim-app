@@ -89,6 +89,15 @@ const TAB_ORDER: TabKey[] = ["swimTimes", "progress", "standards"];
 
 const STROKE_ORDER = ["Freestyle", "Backstroke", "Breaststroke", "Butterfly", "IM"];
 
+const STROKE_COLOR: Record<string, string> = {
+  Freestyle: "#38BDF8",
+  Backstroke: "#A78BFA",
+  Breaststroke: "#34D399",
+  Butterfly: "#FB923C",
+  IM: "#F472B6",
+  Other: "#94A3B8",
+};
+
 function formatSwamAt(value?: string | null) {
   if (!value) return "—";
   const date = new Date(value);
@@ -135,6 +144,13 @@ function getEventDistance(event: string) {
   return match ? Number(match[0]) : 9999;
 }
 
+function gapText(pbMs: number, targetMs: number) {
+  const diff = pbMs - targetMs;
+  const seconds = Math.abs(diff / 1000).toFixed(2);
+  if (diff <= 0) return `${seconds}s under ✅`;
+  return `${seconds}s to go`;
+}
+
 function createEditForm(swimmer: Swimmer | null): EditProfileForm {
   return {
     name: swimmer?.name ?? "",
@@ -168,7 +184,7 @@ function StatPill({ label, value, accent = false }: { label: string; value: Reac
 
 export default function SwimmerProfilePage() {
   const params = useParams();
-const router = useRouter();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const swimmerId = Number(params?.id);
 
@@ -192,6 +208,7 @@ const router = useRouter();
 
   // Standards UI
   const [showNextAge, setShowNextAge] = useState(false);
+  const [expandedStrokes, setExpandedStrokes] = useState<Record<string, boolean>>({});
 
   // ETC standards
   const [seedingETC, setSeedingETC] = useState(false);
@@ -229,10 +246,12 @@ const router = useRouter();
     const swimmerData = swimmerRows[0];
     const swimTimesData = (swimTimesRes.data as SwimTimeRow[]) || [];
     const allSets = (standardSetsRes.data as StandardSet[]) || [];
-const swimmerClub = swimmerData.swim_club?.trim().toLowerCase() ?? null;
-const standardSetsData = allSets.filter((s) =>
-  !s.club || s.club.trim().toLowerCase() === swimmerClub
-);
+
+    // Filter sets by club — null club = everyone, set club = only matching swimmers
+    const swimmerClubNorm = swimmerData.swim_club?.trim().toLowerCase() ?? null;
+    const standardSetsData = allSets.filter((s) =>
+      !s.club || s.club.trim().toLowerCase() === swimmerClubNorm
+    );
 
     setSwimmer(swimmerData);
     setEditForm(createEditForm(swimmerData));
@@ -321,6 +340,10 @@ const standardSetsData = allSets.filter((s) =>
     setSeedingSNAG(false);
   }
 
+  function toggleStroke(stroke: string) {
+    setExpandedStrokes((p) => ({ ...p, [stroke]: !p[stroke] }));
+  }
+
   const pbMap = useMemo(() => getPBMap(swimTimes), [swimTimes]);
 
   const standardsRows = useMemo<StandardsRow[]>(() => {
@@ -344,7 +367,7 @@ const standardSetsData = allSets.filter((s) =>
     });
   }, [standardItems, pbMap, swimmer?.age]);
 
-  // Group by stroke
+  // Group by stroke for collapsible view
   const strokeGroups = useMemo(() => {
     const grouped = new Map<string, StandardsRow[]>();
     for (const row of standardsRows) {
@@ -357,13 +380,21 @@ const standardSetsData = allSets.filter((s) =>
       .filter((s) => grouped.has(s))
       .map((s) => ({
         stroke: s,
+        color: STROKE_COLOR[s] ?? "#94A3B8",
         rows: (grouped.get(s) ?? []).sort((a, b) => getEventDistance(a.event) - getEventDistance(b.event)),
       }));
   }, [standardsRows]);
 
   const qualifiedCount = standardsRows.filter((r) => r.status === "Qualified").length;
-  const inProgressCount = standardsRows.filter((r) => r.status === "In progress").length;
+  const closeCount = standardsRows.filter((r) => r.status === "In progress" && (r.gapMs ?? Infinity) <= 3000).length;
   const noPBCount = standardsRows.filter((r) => r.status === "No PB yet").length;
+
+  // Next target = in-progress row with smallest gap
+  const nextTarget = useMemo(() => {
+    return standardsRows
+      .filter((r) => r.status === "In progress" && r.gapMs != null)
+      .sort((a, b) => (a.gapMs ?? Infinity) - (b.gapMs ?? Infinity))[0] ?? null;
+  }, [standardsRows]);
 
   const latestResultDate = useMemo(() => {
     const datedRows = swimTimes.filter((row) => row.swam_at);
@@ -394,15 +425,15 @@ const standardSetsData = allSets.filter((s) =>
         {/* Back nav */}
         <div className="pt-2">
           <button
-  type="button"
-  onClick={() => router.push("/swimmers")}
-  className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm text-white/40 transition hover:text-white/70 -ml-3"
->
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-    <path d="M10 3L5 8L10 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-  Swimmers
-</button>
+            type="button"
+            onClick={() => router.push("/swimmers")}
+            className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm text-white/40 transition hover:text-white/70 -ml-3"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M10 3L5 8L10 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Swimmers
+          </button>
         </div>
 
         {/* ── Profile header ─────────────────────────────────────────────── */}
@@ -483,7 +514,6 @@ const standardSetsData = allSets.filter((s) =>
               <div><FieldLabel>Club</FieldLabel><input value={editForm.club} onChange={(e) => setEditForm((p) => ({ ...p, club: e.target.value }))} className="input" placeholder="Swim club" /></div>
               <div><FieldLabel>School</FieldLabel><input value={editForm.school} onChange={(e) => setEditForm((p) => ({ ...p, school: e.target.value }))} className="input" placeholder="School" /></div>
             </div>
-            {/* My Swimmer vs Following toggle */}
             <div>
               <FieldLabel>Type</FieldLabel>
               <div className="grid grid-cols-2 gap-2 mt-1">
@@ -513,10 +543,10 @@ const standardSetsData = allSets.filter((s) =>
 
         {/* ── Tab: Times ────────────────────────────────────────────────── */}
         {!isEditingProfile && activeTab === "swimTimes" && (
-  <section className="card">
-    <SwimTimesSection swimmerId={Number(swimmer.id)} swimmerAge={swimmer.age} swimmerName={swimmer.name} />
-  </section>
-)}
+          <section className="card">
+            <SwimTimesSection swimmerId={Number(swimmer.id)} swimmerAge={swimmer.age} swimmerName={swimmer.name} />
+          </section>
+        )}
 
         {/* ── Tab: Progress ─────────────────────────────────────────────── */}
         {!isEditingProfile && activeTab === "progress" && (
@@ -558,6 +588,14 @@ const standardSetsData = allSets.filter((s) =>
               </div>
             )}
 
+            {/* No standards at all */}
+            {standardSets.length === 0 && (
+              <div className="rounded-3xl p-8 text-center" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                <p className="text-base font-semibold text-white">No standards yet</p>
+                <p className="mt-1 text-sm text-white/40">Load the SNAG or ETC standards above, or create your own.</p>
+              </div>
+            )}
+
             {/* Standard set pill switcher */}
             {standardSets.length > 0 && (
               <div className="flex flex-wrap gap-2">
@@ -566,7 +604,7 @@ const standardSetsData = allSets.filter((s) =>
                     key={set.id}
                     type="button"
                     onClick={() => setSelectedSetId(set.id)}
-                    className="rounded-2xl border px-3 py-2 text-xs font-semibold transition"
+                    className="rounded-full px-4 py-2 text-xs font-semibold transition"
                     style={selectedSetId === set.id
                       ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
                       : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}
@@ -576,134 +614,192 @@ const standardSetsData = allSets.filter((s) =>
                 ))}
                 <Link
                   href="/standards"
-                  className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white/40 transition hover:bg-white/10"
+                  className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/40 transition hover:bg-white/10"
                 >
                   Manage
                 </Link>
               </div>
             )}
 
-            {/* Nothing selected */}
-            {!selectedSetId && standardSets.length === 0 && (
-              <div className="rounded-3xl p-8 text-center" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                <p className="text-base font-semibold text-white">No standards yet</p>
-                <p className="mt-1 text-sm text-white/40">Load the SNAG or ETC standards above, or create your own.</p>
-              </div>
-            )}
-
             {selectedSetId && standardItems.length > 0 && (
               <>
-                {/* Summary stats + age toggle */}
-                <div className="rounded-3xl border border-white/10 bg-white/5 p-4 space-y-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex gap-3">
-                      <div className="text-center">
-                        <p className="text-2xl font-bold" style={{ color: "#6EE7B7" }}>{qualifiedCount}</p>
-                        <p className="text-[10px] uppercase tracking-wider text-white/35 mt-0.5">Qualified</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-2xl font-bold text-white">{inProgressCount}</p>
-                        <p className="text-[10px] uppercase tracking-wider text-white/35 mt-0.5">In progress</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-2xl font-bold text-white/40">{noPBCount}</p>
-                        <p className="text-[10px] uppercase tracking-wider text-white/35 mt-0.5">No PB</p>
-                      </div>
-                    </div>
-
-                    {/* Age toggle */}
-                    <div className="flex rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.12)" }}>
-                      <button
-                        type="button"
-                        onClick={() => setShowNextAge(false)}
-                        className="px-3 py-1.5 text-xs font-semibold transition"
-                        style={!showNextAge
-                          ? { background: "rgba(217,119,6,0.2)", color: "#FDE68A" }
-                          : { background: "transparent", color: "rgba(255,255,255,0.4)" }}
-                      >
-                        Age {swimmer.age}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setShowNextAge(true)}
-                        className="px-3 py-1.5 text-xs font-semibold transition"
-                        style={showNextAge
-                          ? { background: "rgba(24,95,165,0.3)", color: "#93C5FD" }
-                          : { background: "transparent", color: "rgba(255,255,255,0.4)" }}
-                      >
-                        Age {swimmer.age + 1} ↑
-                      </button>
-                    </div>
-                  </div>
-
-                  <p className="text-xs text-white/30">
-                    {swimmer.name} · {swimmer.gender} · {standardSets.find(s => s.id === selectedSetId)?.name}
+                {/* ── Hero: Next target ── */}
+                <div className="rounded-3xl p-5 space-y-4 relative overflow-hidden"
+                  style={{ background: "linear-gradient(135deg, rgba(217,119,6,0.18), rgba(217,119,6,0.06))", border: "1px solid rgba(253,230,138,0.2)" }}>
+                  <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "rgba(253,230,138,0.6)" }}>
+                    🎯 Next target to hit
                   </p>
+
+                  {nextTarget ? (
+                    <>
+                      <div>
+                        <p className="text-2xl font-bold text-white">{canonicalEventName(nextTarget.event)}</p>
+                        <p className="text-xs mt-0.5 text-white/40">{canonicalCourse(nextTarget.course)}</p>
+                      </div>
+
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <span className="rounded-full px-3 py-1.5 text-xs font-bold"
+                          style={{ background: "rgba(253,230,138,0.15)", border: "1px solid rgba(253,230,138,0.3)", color: "#FDE68A" }}>
+                          {gapText(nextTarget.pbMs!, nextTarget.qualifying_time_ms)}
+                        </span>
+                        <div className="flex gap-2">
+                          {[
+                            { label: "Your PB", value: formatMs(nextTarget.pbMs) },
+                            { label: "Target", value: formatMs(nextTarget.qualifying_time_ms) },
+                          ].map((tile) => (
+                            <div key={tile.label} className="rounded-2xl px-3 py-2 text-center"
+                              style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                              <p className="text-[9px] uppercase tracking-wider text-white/35">{tile.label}</p>
+                              <p className="text-sm font-bold text-white mt-0.5 tabular-nums">{tile.value}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Progress bar */}
+                      {(() => {
+                        const baseline = nextTarget.qualifying_time_ms * 1.15;
+                        const range = baseline - nextTarget.qualifying_time_ms;
+                        const pct = Math.min(100, Math.max(0, Math.round(((baseline - nextTarget.pbMs!) / range) * 100)));
+                        return (
+                          <div>
+                            <div className="flex justify-between mb-1.5">
+                              <p className="text-[10px] text-white/35">How close is {swimmer.name.split(" ")[0]}?</p>
+                              <p className="text-[10px] font-bold" style={{ color: "#FDE68A" }}>{pct}% there</p>
+                            </div>
+                            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.08)" }}>
+                              <div className="h-full rounded-full" style={{ width: `${pct}%`, background: "linear-gradient(90deg, #D97706, #FDE68A)" }} />
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </>
+                  ) : qualifiedCount === standardsRows.filter((r) => r.status !== "Age not in range").length ? (
+                    <p className="text-lg font-bold text-white">All standards qualified! 🏆</p>
+                  ) : (
+                    <p className="text-sm text-white/50">Scan more results to see your next target.</p>
+                  )}
                 </div>
 
-                {/* Table */}
-                {!showNextAge ? (
-                  <div className="space-y-3">
-                    {strokeGroups.map(({ stroke, rows }) => (
-                      <div key={stroke} className="rounded-3xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.09)", background: "rgba(255,255,255,0.04)" }}>
-                        <p className="px-4 pt-3 pb-1 text-[10px] font-medium uppercase tracking-widest text-white/30">{stroke}</p>
-                        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                          <thead>
-                            <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
-                              <th style={{ padding: "6px 16px", textAlign: "left", fontSize: 10, color: "rgba(255,255,255,0.3)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>Event</th>
-                              <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 10, color: "rgba(255,255,255,0.3)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>PB</th>
-                              <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 10, color: "rgba(255,255,255,0.3)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>Target</th>
-                              <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 10, color: "rgba(255,255,255,0.3)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>Gap</th>
-                              <th style={{ padding: "6px 16px 6px 8px", textAlign: "right", fontSize: 10, color: "rgba(255,255,255,0.3)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>%</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {rows.map((row, i) => {
-                              const qualified = row.status === "Qualified";
-                              const noPB = row.status === "No PB yet";
-                              const isLast = i === rows.length - 1;
-                              return (
-                                <tr key={row.id} style={{ borderBottom: isLast ? "none" : "1px solid rgba(255,255,255,0.05)" }}>
-                                  <td style={{ padding: "10px 16px", fontSize: 13, fontWeight: 500, color: "white" }}>
-                                    {canonicalEventName(row.event).replace(` ${stroke}`, "").replace("Freestyle", "Free").replace("Backstroke", "Back").replace("Breaststroke", "Breast").replace("Butterfly", "Fly")}
-                                    <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", marginLeft: 4 }}>{canonicalCourse(row.course)}</span>
-                                  </td>
-                                  <td style={{ padding: "10px 8px", textAlign: "right", fontSize: 13, color: qualified ? "#6EE7B7" : noPB ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.8)" }}>
-                                    {row.pbMs == null ? "—" : formatMs(row.pbMs)}
-                                  </td>
-                                  <td style={{ padding: "10px 8px", textAlign: "right", fontSize: 13, color: "rgba(255,255,255,0.5)" }}>
-                                    {formatMs(row.qualifying_time_ms)}
-                                  </td>
-                                  <td style={{ padding: "10px 8px", textAlign: "right", fontSize: 12 }}>
-                                    {qualified ? (
-                                      <span style={{ background: "rgba(16,185,129,0.15)", color: "#6EE7B7", border: "1px solid rgba(110,231,183,0.25)", borderRadius: 10, padding: "2px 8px", fontSize: 10, fontWeight: 500 }}>✓ Done</span>
-                                    ) : noPB ? (
-                                      <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 11 }}>No PB</span>
-                                    ) : (
-                                      <span style={{ color: (row.pctNeeded ?? 0) < 3 ? "#FDE68A" : "rgba(255,255,255,0.55)" }}>
-                                        {formatMs(row.gapMs != null ? Math.abs(row.gapMs) : null)}
-                                      </span>
-                                    )}
-                                  </td>
-                                  <td style={{ padding: "10px 16px 10px 8px", textAlign: "right", fontSize: 12 }}>
-                                    {qualified || noPB ? (
-                                      <span style={{ color: "rgba(255,255,255,0.2)" }}>—</span>
-                                    ) : (
-                                      <span style={{ color: (row.pctNeeded ?? 0) < 2 ? "#FDE68A" : (row.pctNeeded ?? 0) < 5 ? "#FAC775" : "rgba(255,255,255,0.4)" }}>
-                                        {row.pctNeeded?.toFixed(1)}%
-                                      </span>
-                                    )}
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    ))}
+                {/* ── Summary strip ── */}
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { n: qualifiedCount, label: "Qualified", bg: "rgba(110,231,183,0.08)", border: "rgba(110,231,183,0.2)", color: "#6EE7B7" },
+                    { n: closeCount, label: "Within 3s", bg: "rgba(252,211,77,0.08)", border: "rgba(252,211,77,0.2)", color: "#FCD34D" },
+                    { n: noPBCount, label: "No PB yet", bg: "rgba(255,255,255,0.04)", border: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.5)" },
+                  ].map((tile) => (
+                    <div key={tile.label} className="rounded-2xl py-3 text-center"
+                      style={{ background: tile.bg, border: `1px solid ${tile.border}` }}>
+                      <p className="text-2xl font-bold" style={{ color: tile.color }}>{tile.n}</p>
+                      <p className="text-[10px] mt-0.5 font-medium" style={{ color: tile.color, opacity: 0.7 }}>{tile.label}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* ── Age toggle ── */}
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-white/30 px-1">All events</p>
+                  <div className="flex rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.12)" }}>
+                    <button type="button" onClick={() => setShowNextAge(false)}
+                      className="px-3 py-1.5 text-xs font-semibold transition"
+                      style={!showNextAge
+                        ? { background: "rgba(217,119,6,0.2)", color: "#FDE68A" }
+                        : { background: "transparent", color: "rgba(255,255,255,0.4)" }}>
+                      Age {swimmer.age}
+                    </button>
+                    <button type="button" onClick={() => setShowNextAge(true)}
+                      className="px-3 py-1.5 text-xs font-semibold transition"
+                      style={showNextAge
+                        ? { background: "rgba(24,95,165,0.3)", color: "#93C5FD" }
+                        : { background: "transparent", color: "rgba(255,255,255,0.4)" }}>
+                      Age {swimmer.age + 1} ↑
+                    </button>
                   </div>
-                ) : (
-                  /* Next age up view */
+                </div>
+
+                {/* ── Collapsible stroke groups ── */}
+                {!showNextAge && (
+                  <div className="space-y-2">
+                    {strokeGroups.map(({ stroke, color, rows }) => {
+                      const isOpen = !!expandedStrokes[stroke];
+                      const strokeQualified = rows.filter((r) => r.status === "Qualified").length;
+                      return (
+                        <div key={stroke} className="rounded-2xl overflow-hidden"
+                          style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)" }}>
+
+                          {/* Stroke header */}
+                          <button type="button" onClick={() => toggleStroke(stroke)}
+                            className="w-full px-4 py-3 flex items-center gap-2 transition hover:bg-white/5">
+                            <div className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ background: color }} />
+                            <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color }}>{stroke}</p>
+                            <p className="text-[10px] text-white/25 ml-1">{rows.length} event{rows.length !== 1 ? "s" : ""}</p>
+                            {!isOpen && strokeQualified > 0 && (
+                              <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full"
+                                style={{ background: "rgba(110,231,183,0.12)", color: "#6EE7B7", border: "1px solid rgba(110,231,183,0.2)" }}>
+                                {strokeQualified} ✅
+                              </span>
+                            )}
+                            <svg width="12" height="12" viewBox="0 0 14 14" fill="none"
+                              className={`flex-shrink-0 text-white/20 transition-transform ${!isOpen && strokeQualified === 0 ? "ml-auto" : "ml-1"}`}
+                              style={{ transform: isOpen ? "rotate(90deg)" : "rotate(0deg)" }}>
+                              <path d="M5 3L9 7L5 11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          </button>
+
+                          {/* Event rows */}
+                          {isOpen && (
+                            <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                              {rows.map((row, idx) => {
+                                const isLast = idx === rows.length - 1;
+                                const qualified = row.status === "Qualified";
+                                const noPb = row.status === "No PB yet";
+                                const gapColor = qualified
+                                  ? "#6EE7B7"
+                                  : !noPb && (row.gapMs ?? Infinity) <= 3000
+                                  ? "#FCD34D"
+                                  : "rgba(255,255,255,0.35)";
+
+                                return (
+                                  <div key={row.id} className="flex items-center gap-3 px-4 py-3"
+                                    style={{
+                                      borderBottom: isLast ? "none" : "1px solid rgba(255,255,255,0.04)",
+                                      background: qualified ? "rgba(110,231,183,0.04)" : "transparent",
+                                    }}>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm font-semibold text-white">
+                                        {canonicalEventName(row.event)}
+                                      </p>
+                                      <p className="text-[11px] mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>
+                                        Target · {formatMs(row.qualifying_time_ms)} {canonicalCourse(row.course)}
+                                      </p>
+                                    </div>
+                                    <div className="text-right flex-shrink-0">
+                                      {noPb ? (
+                                        <p className="text-xs text-white/25">Scan a result first</p>
+                                      ) : (
+                                        <>
+                                          <p className="text-sm font-bold tabular-nums" style={{ color: qualified ? "#6EE7B7" : "white" }}>
+                                            {formatMs(row.pbMs)}
+                                          </p>
+                                          <p className="text-[11px] font-semibold mt-0.5" style={{ color: gapColor }}>
+                                            {gapText(row.pbMs!, row.qualifying_time_ms)}
+                                          </p>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* ── Next age up view ── */}
+                {showNextAge && (
                   <div className="rounded-3xl p-5 space-y-3" style={{ background: "rgba(24,95,165,0.08)", border: "1px solid rgba(147,197,253,0.2)" }}>
                     <div className="flex items-center gap-2 mb-1">
                       <span style={{ background: "rgba(24,95,165,0.2)", color: "#93C5FD", border: "1px solid rgba(147,197,253,0.25)", borderRadius: 10, padding: "2px 10px", fontSize: 10, fontWeight: 500 }}>
@@ -734,15 +830,9 @@ const standardSetsData = allSets.filter((s) =>
                             const gapToNext = row.pbMs! - nextTargetMs;
                             return (
                               <tr key={row.id} style={{ borderBottom: "1px solid rgba(147,197,253,0.06)" }}>
-                                <td style={{ padding: "9px 0", fontSize: 13, fontWeight: 500, color: "white" }}>
-                                  {canonicalEventName(row.event)}
-                                </td>
-                                <td style={{ padding: "9px 8px", textAlign: "right", fontSize: 13, color: "rgba(255,255,255,0.6)" }}>
-                                  {formatMs(row.pbMs)}
-                                </td>
-                                <td style={{ padding: "9px 8px", textAlign: "right", fontSize: 13, color: "#93C5FD" }}>
-                                  {nextTarget}
-                                </td>
+                                <td style={{ padding: "9px 0", fontSize: 13, fontWeight: 500, color: "white" }}>{canonicalEventName(row.event)}</td>
+                                <td style={{ padding: "9px 8px", textAlign: "right", fontSize: 13, color: "rgba(255,255,255,0.6)" }}>{formatMs(row.pbMs)}</td>
+                                <td style={{ padding: "9px 8px", textAlign: "right", fontSize: 13, color: "#93C5FD" }}>{nextTarget}</td>
                                 <td style={{ padding: "9px 0", textAlign: "right", fontSize: 12, color: gapToNext <= 0 ? "#6EE7B7" : "rgba(255,255,255,0.4)" }}>
                                   {gapToNext <= 0 ? "✓ Ready" : formatMs(Math.abs(gapToNext)) + " off"}
                                 </td>
