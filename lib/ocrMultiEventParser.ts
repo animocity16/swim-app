@@ -375,8 +375,6 @@ function parseGenericSplitRows(
     const timeStrings = extractAllTimes(line);
     const timesOnLine = timeStrings.map((t) => timeToMs(t)).filter((ms) => ms > 0);
 
-    // Keep real rows like "100 Free Split 47.90 1:31.23"
-    // but skip headers/markers that say split(s) without usable timing data.
     if (norm.includes("split") && (!distance || !stroke || timesOnLine.length === 0)) {
       pendingMs = null;
       continue;
@@ -467,15 +465,26 @@ function parseGenericSplitRows(
   return remapSequentialDistances(splits);
 }
 
+// ─── FIX 1: guessMeetName ────────────────────────────────────────────────────
+// Previously matched ANY line containing "swim", which caught Meet Mobile's
+// "SWIM DETAIL" UI label. Now we explicitly reject those UI strings first.
 function guessMeetName(lines: string[]): string | null {
-  const meetLike = lines.find((line) =>
-    /\b(meet|cup|championship|championships|trials|league|invitational|swim)\b/i.test(
-      line
-    )
-  );
+  // Known Meet Mobile UI labels that contain "swim" but are NOT meet names
+  const UI_LABELS = /swim\s*detail|swim\s*scan|swim\s*meet\s*detail/i;
+
+  const meetLike = lines.find((line) => {
+    if (UI_LABELS.test(line)) return false;
+    // Also reject lines that are obviously table headers (e.g. "& SWIM DETAIL <")
+    if (/^[&<>|*#]+/.test(line.trim())) return false;
+    return /\b(meet|cup|championship|championships|trials|league|invitational|swim)\b/i.test(line);
+  });
   return meetLike ?? null;
 }
 
+// ─── FIX 2: guessNameFromLines ────────────────────────────────────────────────
+// Previously "nals PLACE TIME" passed the filter because "nals" isn't the full
+// word "finals". Now we block: any line containing "place" or "time" as words,
+// lines that appear to be truncated "finals" ("nals"), and all-caps header lines.
 function guessNameFromLines(lines: string[], options: ParseOptions): string | null {
   if (options.swimmerName?.trim()) return options.swimmerName.trim();
 
@@ -487,7 +496,12 @@ function guessNameFromLines(lines: string[], options: ParseOptions): string | nu
     if (detectCourse(line) !== "UNKNOWN") return false;
     if (detectPlace(line) != null) return false;
     if (isSkippableLine(line)) return false;
+    // Existing filter: common table-row keywords
     if (/\b(splits|total|finals|prelims|heat|lane)\b/i.test(line)) return false;
+    // NEW: reject lines with "place" or "time" as standalone words (table headers)
+    if (/\b(place|time|rank|nals)\b/i.test(line)) return false;
+    // NEW: reject lines that are ALL-CAPS only (table headers like "PLACE TIME")
+    if (/^[A-Z\s&<>|]+$/.test(line.trim()) && line.trim().length > 3) return false;
     return /^[A-Za-z ,.'-]{4,}$/.test(line);
   });
 

@@ -136,6 +136,187 @@ tsconfig.json
 <files>
 This section contains the contents of the repository's files.
 
+<file path="public/file.svg">
+<svg fill="none" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M14.5 13.5V5.41a1 1 0 0 0-.3-.7L9.8.29A1 1 0 0 0 9.08 0H1.5v13.5A2.5 2.5 0 0 0 4 16h8a2.5 2.5 0 0 0 2.5-2.5m-1.5 0v-7H8v-5H3v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1M9.5 5V2.12L12.38 5zM5.13 5h-.62v1.25h2.12V5zm-.62 3h7.12v1.25H4.5zm.62 3h-.62v1.25h7.12V11z" clip-rule="evenodd" fill="#666" fill-rule="evenodd"/></svg>
+</file>
+
+<file path="public/globe.svg">
+<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><g clip-path="url(#a)"><path fill-rule="evenodd" clip-rule="evenodd" d="M10.27 14.1a6.5 6.5 0 0 0 3.67-3.45q-1.24.21-2.7.34-.31 1.83-.97 3.1M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16m.48-1.52a7 7 0 0 1-.96 0H7.5a4 4 0 0 1-.84-1.32q-.38-.89-.63-2.08a40 40 0 0 0 3.92 0q-.25 1.2-.63 2.08a4 4 0 0 1-.84 1.31zm2.94-4.76q1.66-.15 2.95-.43a7 7 0 0 0 0-2.58q-1.3-.27-2.95-.43a18 18 0 0 1 0 3.44m-1.27-3.54a17 17 0 0 1 0 3.64 39 39 0 0 1-4.3 0 17 17 0 0 1 0-3.64 39 39 0 0 1 4.3 0m1.1-1.17q1.45.13 2.69.34a6.5 6.5 0 0 0-3.67-3.44q.65 1.26.98 3.1M8.48 1.5l.01.02q.41.37.84 1.31.38.89.63 2.08a40 40 0 0 0-3.92 0q.25-1.2.63-2.08a4 4 0 0 1 .85-1.32 7 7 0 0 1 .96 0m-2.75.4a6.5 6.5 0 0 0-3.67 3.44 29 29 0 0 1 2.7-.34q.31-1.83.97-3.1M4.58 6.28q-1.66.16-2.95.43a7 7 0 0 0 0 2.58q1.3.27 2.95.43a18 18 0 0 1 0-3.44m.17 4.71q-1.45-.12-2.69-.34a6.5 6.5 0 0 0 3.67 3.44q-.65-1.27-.98-3.1" fill="#666"/></g><defs><clipPath id="a"><path fill="#fff" d="M0 0h16v16H0z"/></clipPath></defs></svg>
+</file>
+
+<file path="public/next.svg">
+<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 394 80"><path fill="#000" d="M262 0h68.5v12.7h-27.2v66.6h-13.6V12.7H262V0ZM149 0v12.7H94v20.4h44.3v12.6H94v21h55v12.6H80.5V0h68.7zm34.3 0h-17.8l63.8 79.4h17.9l-32-39.7 32-39.6h-17.9l-23 28.6-23-28.6zm18.3 56.7-9-11-27.1 33.7h17.8l18.3-22.7z"/><path fill="#000" d="M81 79.3 17 0H0v79.3h13.6V17l50.2 62.3H81Zm252.6-.4c-1 0-1.8-.4-2.5-1s-1.1-1.6-1.1-2.6.3-1.8 1-2.5 1.6-1 2.6-1 1.8.3 2.5 1a3.4 3.4 0 0 1 .6 4.3 3.7 3.7 0 0 1-3 1.8zm23.2-33.5h6v23.3c0 2.1-.4 4-1.3 5.5a9.1 9.1 0 0 1-3.8 3.5c-1.6.8-3.5 1.3-5.7 1.3-2 0-3.7-.4-5.3-1s-2.8-1.8-3.7-3.2c-.9-1.3-1.4-3-1.4-5h6c.1.8.3 1.6.7 2.2s1 1.2 1.6 1.5c.7.4 1.5.5 2.4.5 1 0 1.8-.2 2.4-.6a4 4 0 0 0 1.6-1.8c.3-.8.5-1.8.5-3V45.5zm30.9 9.1a4.4 4.4 0 0 0-2-3.3 7.5 7.5 0 0 0-4.3-1.1c-1.3 0-2.4.2-3.3.5-.9.4-1.6 1-2 1.6a3.5 3.5 0 0 0-.3 4c.3.5.7.9 1.3 1.2l1.8 1 2 .5 3.2.8c1.3.3 2.5.7 3.7 1.2a13 13 0 0 1 3.2 1.8 8.1 8.1 0 0 1 3 6.5c0 2-.5 3.7-1.5 5.1a10 10 0 0 1-4.4 3.5c-1.8.8-4.1 1.2-6.8 1.2-2.6 0-4.9-.4-6.8-1.2-2-.8-3.4-2-4.5-3.5a10 10 0 0 1-1.7-5.6h6a5 5 0 0 0 3.5 4.6c1 .4 2.2.6 3.4.6 1.3 0 2.5-.2 3.5-.6 1-.4 1.8-1 2.4-1.7a4 4 0 0 0 .8-2.4c0-.9-.2-1.6-.7-2.2a11 11 0 0 0-2.1-1.4l-3.2-1-3.8-1c-2.8-.7-5-1.7-6.6-3.2a7.2 7.2 0 0 1-2.4-5.7 8 8 0 0 1 1.7-5 10 10 0 0 1 4.3-3.5c2-.8 4-1.2 6.4-1.2 2.3 0 4.4.4 6.2 1.2 1.8.8 3.2 2 4.3 3.4 1 1.4 1.5 3 1.5 5h-5.8z"/></svg>
+</file>
+
+<file path="public/vercel.svg">
+<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1155 1000"><path d="m577.3 0 577.4 1000H0z" fill="#fff"/></svg>
+</file>
+
+<file path="public/window.svg">
+<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path fill-rule="evenodd" clip-rule="evenodd" d="M1.5 2.5h13v10a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1zM0 1h16v11.5a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 0 12.5zm3.75 4.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5M7 4.75a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0m1.75.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5" fill="#666"/></svg>
+</file>
+
+<file path=".gitignore">
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+</file>
+
+<file path="eslint.config.mjs">
+import { defineConfig, globalIgnores } from "eslint/config";
+import nextVitals from "eslint-config-next/core-web-vitals";
+import nextTs from "eslint-config-next/typescript";
+
+const eslintConfig = defineConfig([
+  ...nextVitals,
+  ...nextTs,
+  // Override default ignores of eslint-config-next.
+  globalIgnores([
+    // Default ignores of eslint-config-next:
+    ".next/**",
+    "out/**",
+    "build/**",
+    "next-env.d.ts",
+  ]),
+]);
+
+export default eslintConfig;
+</file>
+
+<file path="next.config.ts">
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+  /* config options here */
+};
+
+export default nextConfig;
+</file>
+
+<file path="postcss.config.mjs">
+const config = {
+  plugins: {
+    "@tailwindcss/postcss": {},
+  },
+};
+
+export default config;
+</file>
+
+<file path="README.md">
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+
+## Getting Started
+
+First, run the development server:
+
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+
+## Learn More
+
+To learn more about Next.js, take a look at the following resources:
+
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+
+## Deploy on Vercel
+
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+</file>
+
+<file path="tsconfig.json">
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts",
+    "**/*.mts"
+  ],
+  "exclude": ["node_modules"]
+}
+</file>
+
 <file path="app/api/claim-swimmer/route.ts">
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
@@ -3367,12 +3548,32 @@ export const supabaseAdmin = createClient(
 );
 </file>
 
-<file path="public/file.svg">
-<svg fill="none" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M14.5 13.5V5.41a1 1 0 0 0-.3-.7L9.8.29A1 1 0 0 0 9.08 0H1.5v13.5A2.5 2.5 0 0 0 4 16h8a2.5 2.5 0 0 0 2.5-2.5m-1.5 0v-7H8v-5H3v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1M9.5 5V2.12L12.38 5zM5.13 5h-.62v1.25h2.12V5zm-.62 3h7.12v1.25H4.5zm.62 3h-.62v1.25h7.12V11z" clip-rule="evenodd" fill="#666" fill-rule="evenodd"/></svg>
-</file>
-
-<file path="public/globe.svg">
-<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><g clip-path="url(#a)"><path fill-rule="evenodd" clip-rule="evenodd" d="M10.27 14.1a6.5 6.5 0 0 0 3.67-3.45q-1.24.21-2.7.34-.31 1.83-.97 3.1M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16m.48-1.52a7 7 0 0 1-.96 0H7.5a4 4 0 0 1-.84-1.32q-.38-.89-.63-2.08a40 40 0 0 0 3.92 0q-.25 1.2-.63 2.08a4 4 0 0 1-.84 1.31zm2.94-4.76q1.66-.15 2.95-.43a7 7 0 0 0 0-2.58q-1.3-.27-2.95-.43a18 18 0 0 1 0 3.44m-1.27-3.54a17 17 0 0 1 0 3.64 39 39 0 0 1-4.3 0 17 17 0 0 1 0-3.64 39 39 0 0 1 4.3 0m1.1-1.17q1.45.13 2.69.34a6.5 6.5 0 0 0-3.67-3.44q.65 1.26.98 3.1M8.48 1.5l.01.02q.41.37.84 1.31.38.89.63 2.08a40 40 0 0 0-3.92 0q.25-1.2.63-2.08a4 4 0 0 1 .85-1.32 7 7 0 0 1 .96 0m-2.75.4a6.5 6.5 0 0 0-3.67 3.44 29 29 0 0 1 2.7-.34q.31-1.83.97-3.1M4.58 6.28q-1.66.16-2.95.43a7 7 0 0 0 0 2.58q1.3.27 2.95.43a18 18 0 0 1 0-3.44m.17 4.71q-1.45-.12-2.69-.34a6.5 6.5 0 0 0 3.67 3.44q-.65-1.27-.98-3.1" fill="#666"/></g><defs><clipPath id="a"><path fill="#fff" d="M0 0h16v16H0z"/></clipPath></defs></svg>
+<file path="public/manifest.webmanifest">
+{
+  "name": "Natrix — Swim Tracker",
+  "short_name": "Natrix",
+  "description": "Swim meet result tracker for parents. Scan, save and track your swimmer's PBs.",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#063554",
+  "theme_color": "#063554",
+  "categories": ["sports", "health", "lifestyle"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
 </file>
 
 <file path="public/natrix-favicon.svg">
@@ -3387,179 +3588,6 @@ export const supabaseAdmin = createClient(
     <circle cx="7" cy="-11.5" r="0.8" fill="#FDE68A"/>
   </g>
 </svg>
-</file>
-
-<file path="public/next.svg">
-<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 394 80"><path fill="#000" d="M262 0h68.5v12.7h-27.2v66.6h-13.6V12.7H262V0ZM149 0v12.7H94v20.4h44.3v12.6H94v21h55v12.6H80.5V0h68.7zm34.3 0h-17.8l63.8 79.4h17.9l-32-39.7 32-39.6h-17.9l-23 28.6-23-28.6zm18.3 56.7-9-11-27.1 33.7h17.8l18.3-22.7z"/><path fill="#000" d="M81 79.3 17 0H0v79.3h13.6V17l50.2 62.3H81Zm252.6-.4c-1 0-1.8-.4-2.5-1s-1.1-1.6-1.1-2.6.3-1.8 1-2.5 1.6-1 2.6-1 1.8.3 2.5 1a3.4 3.4 0 0 1 .6 4.3 3.7 3.7 0 0 1-3 1.8zm23.2-33.5h6v23.3c0 2.1-.4 4-1.3 5.5a9.1 9.1 0 0 1-3.8 3.5c-1.6.8-3.5 1.3-5.7 1.3-2 0-3.7-.4-5.3-1s-2.8-1.8-3.7-3.2c-.9-1.3-1.4-3-1.4-5h6c.1.8.3 1.6.7 2.2s1 1.2 1.6 1.5c.7.4 1.5.5 2.4.5 1 0 1.8-.2 2.4-.6a4 4 0 0 0 1.6-1.8c.3-.8.5-1.8.5-3V45.5zm30.9 9.1a4.4 4.4 0 0 0-2-3.3 7.5 7.5 0 0 0-4.3-1.1c-1.3 0-2.4.2-3.3.5-.9.4-1.6 1-2 1.6a3.5 3.5 0 0 0-.3 4c.3.5.7.9 1.3 1.2l1.8 1 2 .5 3.2.8c1.3.3 2.5.7 3.7 1.2a13 13 0 0 1 3.2 1.8 8.1 8.1 0 0 1 3 6.5c0 2-.5 3.7-1.5 5.1a10 10 0 0 1-4.4 3.5c-1.8.8-4.1 1.2-6.8 1.2-2.6 0-4.9-.4-6.8-1.2-2-.8-3.4-2-4.5-3.5a10 10 0 0 1-1.7-5.6h6a5 5 0 0 0 3.5 4.6c1 .4 2.2.6 3.4.6 1.3 0 2.5-.2 3.5-.6 1-.4 1.8-1 2.4-1.7a4 4 0 0 0 .8-2.4c0-.9-.2-1.6-.7-2.2a11 11 0 0 0-2.1-1.4l-3.2-1-3.8-1c-2.8-.7-5-1.7-6.6-3.2a7.2 7.2 0 0 1-2.4-5.7 8 8 0 0 1 1.7-5 10 10 0 0 1 4.3-3.5c2-.8 4-1.2 6.4-1.2 2.3 0 4.4.4 6.2 1.2 1.8.8 3.2 2 4.3 3.4 1 1.4 1.5 3 1.5 5h-5.8z"/></svg>
-</file>
-
-<file path="public/vercel.svg">
-<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1155 1000"><path d="m577.3 0 577.4 1000H0z" fill="#fff"/></svg>
-</file>
-
-<file path="public/window.svg">
-<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path fill-rule="evenodd" clip-rule="evenodd" d="M1.5 2.5h13v10a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1zM0 1h16v11.5a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 0 12.5zm3.75 4.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5M7 4.75a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0m1.75.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5" fill="#666"/></svg>
-</file>
-
-<file path=".gitignore">
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
-# dependencies
-/node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
-
-# testing
-/coverage
-
-# next.js
-/.next/
-/out/
-
-# production
-/build
-
-# misc
-.DS_Store
-*.pem
-
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-
-# env files (can opt-in for committing if needed)
-.env*
-
-# vercel
-.vercel
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts
-</file>
-
-<file path="eslint.config.mjs">
-import { defineConfig, globalIgnores } from "eslint/config";
-import nextVitals from "eslint-config-next/core-web-vitals";
-import nextTs from "eslint-config-next/typescript";
-
-const eslintConfig = defineConfig([
-  ...nextVitals,
-  ...nextTs,
-  // Override default ignores of eslint-config-next.
-  globalIgnores([
-    // Default ignores of eslint-config-next:
-    ".next/**",
-    "out/**",
-    "build/**",
-    "next-env.d.ts",
-  ]),
-]);
-
-export default eslintConfig;
-</file>
-
-<file path="next.config.ts">
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
-  /* config options here */
-};
-
-export default nextConfig;
-</file>
-
-<file path="postcss.config.mjs">
-const config = {
-  plugins: {
-    "@tailwindcss/postcss": {},
-  },
-};
-
-export default config;
-</file>
-
-<file path="README.md">
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
-
-## Getting Started
-
-First, run the development server:
-
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-</file>
-
-<file path="tsconfig.json">
-{
-  "compilerOptions": {
-    "target": "ES2017",
-    "lib": ["dom", "dom.iterable", "esnext"],
-    "allowJs": true,
-    "skipLibCheck": true,
-    "strict": true,
-    "noEmit": true,
-    "esModuleInterop": true,
-    "module": "esnext",
-    "moduleResolution": "bundler",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "jsx": "react-jsx",
-    "incremental": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
-    "paths": {
-      "@/*": ["./*"]
-    }
-  },
-  "include": [
-    "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts",
-    "**/*.mts"
-  ],
-  "exclude": ["node_modules"]
-}
 </file>
 
 <file path="app/components/ShareCardModal.tsx">
@@ -4370,891 +4398,416 @@ export default function ProgressTab({ swimmerId, swimmerName }: Props) {
 }
 </file>
 
-<file path="lib/ocrSwimmerScheduleParser.ts">
-// ocrSwimmerScheduleParser.ts
-//
-// Parses the Meet Mobile "Swimmer" schedule page — all events for one swimmer.
-//
-// ACTUAL OCR FORMAT (from real screenshots):
-//
-//   < SWIMMER %*
-//   NEI Elizabeth Le Xuan Chiu       ← name with OCR noise prefix
-//   9) CsC 10                         ← club/age garbled
-//   Full schedule
-//
-//   cent Girls 9-10100 Meter Back     ← "EVENT" read as "cent", distance stuck to age
-//   Finals | 0-10 |
-//   102 1:27.87 | Place: 9            ← event number + time + place on one line
-//   Time improvement: - 1.32
-//
-//   cent Girls 9-10 50 Meter Free
-//   108 Finals | 0-10 |               ← sometimes event number on same line as Finals
-//   36.76 | Place: 18
-//
-//   cent Mixed 7-8 200 Meter Medley Relay  ← relay — skip
-//   Finals | 0-10 |
-//   115 2:32.59 | Place: 3
+<file path="app/page.tsx">
+import { redirect } from "next/navigation";
 
-export type ScheduleResultRow = {
-  eventNumber: number | null;
-  event: string;
-  distance: number;
-  stroke: string;
-  timeStr: string;
-  timeMs: number;
-  place: number | null;
-  course: "LCM" | "SCM" | "SCY" | "UNKNOWN";
-  swamAt: string | null;
-  meetName: string | null;
-  isRelay: boolean;
-};
-
-export type ParsedSwimmerSchedule = {
-  swimmerName: string | null;
-  club: string | null;
-  age: number | null;
-  results: ScheduleResultRow[];
-  meetName: string | null;
-  swamAt: string | null;
-};
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function timeToMs(timeStr: string): number {
-  if (!timeStr) return 0;
-  const s = timeStr.trim();
-  if (s.includes(":")) {
-    const [mm, rest] = s.split(":");
-    const [sec, hun] = rest.split(".");
-    if (Number(sec) >= 60) return 0;
-    return Number(mm) * 60_000 + Number(sec) * 1_000 + Number(hun ?? "0") * 10;
-  }
-  const [sec, hun] = s.split(".");
-  return Number(sec) * 1_000 + Number(hun ?? "0") * 10;
-}
-
-// Repair times:
-//   "36.76"  → "36.76"   (valid as-is)
-//   "118.03" → "1:18.03" (3 digits before dot = m:ss.hh)
-//   "215.72" → "2:15.72"
-//   "11803"  → "1:18.03" (5 raw digits)
-function repairTime(raw: string): string | null {
-  const s = raw.trim();
-  if (/^\d{1,2}:\d{2}\.\d{2}$/.test(s)) {
-    const sec = Number(s.split(":")[1].split(".")[0]);
-    if (sec >= 60) return null;
-    return s;
-  }
-  if (/^\d{2}\.\d{2}$/.test(s)) return s;
-  if (/^\d{5}$/.test(s)) {
-    const sec = Number(s.slice(1, 3));
-    if (sec >= 60) return null;
-    return `${s[0]}:${s.slice(1, 3)}.${s.slice(3)}`;
-  }
-  // "118.03" or "215.72" — 3 digits, dot, 2 digits
-  if (/^\d{3}\.\d{2}$/.test(s)) {
-    const mins = s[0];
-    const sec = s.slice(1, 3);
-    const hun = s.slice(4);
-    if (Number(sec) >= 60) return null;
-    return `${mins}:${sec}.${hun}`;
-  }
-  return null;
-}
-
-function detectCourse(rawText: string): "LCM" | "SCM" | "SCY" | "UNKNOWN" {
-  const t = rawText.toLowerCase();
-  if (t.includes("meter") || t.includes("lcm")) return "LCM";
-  if (t.includes("25 meter") || t.includes("scm")) return "SCM";
-  if (t.includes("yard") || t.includes("scy")) return "SCY";
-  return "UNKNOWN";
-}
-
-function parseStroke(line: string): string | null {
-  const l = line.toLowerCase();
-  if (l.includes("freestyle") || / free\b/.test(l)) return "Freestyle";
-  if (l.includes("butterfly") || / fly\b/.test(l)) return "Butterfly";
-  if (l.includes("backstroke") || / back\b/.test(l)) return "Backstroke";
-  if (l.includes("breaststroke") || / breast\b/.test(l)) return "Breaststroke";
-  if (l.includes("individual medley") || / medley\b/.test(l) || / im\b/.test(l)) return "IM";
-  return null;
-}
-
-function parseDistance(line: string): number | null {
-  const m = line.match(/\b(50|100|200|400|800|1500)\b/);
-  return m ? Number(m[1]) : null;
-}
-
-function extractMeetDate(rawText: string): string | null {
-  const monthMap: Record<string, number> = {
-    jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
-    jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
-  };
-  const m = rawText.match(
-    /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s.,|/-]*(\d{1,2})[\s,|/-]*(\d{4})\b/i
-  );
-  if (m) {
-    const month = monthMap[m[1].slice(0, 3).toLowerCase()];
-    const day = Number(m[2]);
-    const year = Number(m[3]);
-    if (month != null && day >= 1 && day <= 31) {
-      return new Date(Date.UTC(year, month, day)).toISOString().split("T")[0];
-    }
-  }
-  return null;
-}
-
-// ─── Swimmer name extraction ──────────────────────────────────────────────────
-// Name appears just above "Full schedule" line
-// OCR adds noise prefix like "NEI ", "< ", etc.
-
-function extractSwimmerHeader(lines: string[]): {
-  name: string | null; club: string | null; age: number | null;
-} {
-  const scheduleIdx = lines.findIndex((l) => /full.?schedule/i.test(l));
-  if (scheduleIdx >= 1) {
-    for (let i = scheduleIdx - 1; i >= Math.max(0, scheduleIdx - 3); i--) {
-      const line = lines[i].trim();
-      const cleaned = line.replace(/^[^A-Z]+/, "").trim();
-      const words = cleaned.split(/\s+/);
-      if (
-        words.length >= 2 && words.length <= 7 &&
-        !/\d/.test(cleaned) &&
-        words.every((w) => /^[A-Z]/.test(w))
-      ) {
-        return { name: cleaned, club: null, age: null };
-      }
-    }
-  }
-  return { name: null, club: null, age: null };
-}
-
-// ─── Event description line detection ────────────────────────────────────────
-// OCR reads "EVENT" as "cent", "ent", "EVENT", etc.
-// Lines contain a stroke word + distance number.
-
-function isEventDescriptionLine(line: string): boolean {
-  if (/place:/i.test(line)) return false;
-  if (/time improvement/i.test(line)) return false;
-  if (/full.?schedule/i.test(line)) return false;
-  if (/^\d{2,3}\s+\d/.test(line)) return false; // "102 1:27.87" — this is a data line
-  const hasStroke = parseStroke(line) !== null;
-  const hasDistance = parseDistance(line) !== null;
-  return hasStroke && hasDistance;
-}
-
-// ─── Extract time + place from a line ────────────────────────────────────────
-// Handles patterns like:
-//   "102 1:27.87 | Place: 9"
-//   "36.76 | Place: 18"
-//   "118.03 | Place: 11"
-//   "3:02.40 | Place:"   (place missing)
-
-function extractTimePlaceFromLine(line: string): {
-  timeStr: string; timeMs: number; place: number | null;
-} | null {
-  const m = line.match(
-    /(\d{1,2}:\d{2}\.\d{2}|\d{3}\.\d{2}|\d{2}\.\d{2}|\d{5})\s*\|\s*Place:\s*(\d+|EXH)?/i
-  );
-  if (!m) return null;
-
-  const timeStr = repairTime(m[1]);
-  if (!timeStr) return null;
-
-  const timeMs = timeToMs(timeStr);
-  if (timeMs <= 0 || timeMs > 1_800_000) return null;
-
-  const placeStr = m[2] ?? "";
-  const place = /^\d+$/.test(placeStr) ? Number(placeStr) : null;
-
-  return { timeStr, timeMs, place };
-}
-
-// ─── Main parser ──────────────────────────────────────────────────────────────
-
-export function parseSwimmerScheduleOCR(rawText: string): ParsedSwimmerSchedule {
-  const lines = rawText
-    .replace(/\r/g, "\n")
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
-
-  const course = detectCourse(rawText);
-  const swamAt = extractMeetDate(rawText);
-  const { name: swimmerName, club, age } = extractSwimmerHeader(lines);
-
-  const meetKeywords = /championship|open|invitational|junior|classic|cup|series|aquatic|swim/i;
-  let meetName: string | null = null;
-  for (const line of lines.slice(0, 20)) {
-    if (line.length < 5 || line.length > 100) continue;
-    if (/^\d/.test(line)) continue;
-    if (/place|heat|finals|schedule|swimmer/i.test(line)) continue;
-    if (meetKeywords.test(line)) { meetName = line.trim(); break; }
-  }
-
-  const results: ScheduleResultRow[] = [];
-  const seen = new Set<string>();
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (!isEventDescriptionLine(line)) continue;
-
-    const isRelay = /relay/i.test(line);
-    const distance = parseDistance(line);
-    const stroke = parseStroke(line);
-    if (!distance || !stroke) continue;
-
-    // Look ahead up to 5 lines for time + place
-    let found: { timeStr: string; timeMs: number; place: number | null } | null = null;
-    let eventNumber: number | null = null;
-
-    for (let j = i + 1; j < Math.min(i + 6, lines.length); j++) {
-      const next = lines[j];
-      if (isEventDescriptionLine(next)) break;
-      if (/time improvement/i.test(next)) continue;
-      if (/full.?schedule/i.test(next)) continue;
-
-      const extracted = extractTimePlaceFromLine(next);
-      if (extracted) {
-        found = extracted;
-        const numMatch = next.match(/^(\d{2,3})\s+/);
-        if (numMatch) eventNumber = Number(numMatch[1]);
-        break;
-      }
-    }
-
-    if (!found) continue;
-
-    // Sanity checks
-    if (distance === 50 && found.timeMs < 20_000) continue;
-    if (distance === 100 && found.timeMs < 40_000) continue;
-    if (distance === 200 && found.timeMs < 80_000) continue;
-    if (distance === 400 && found.timeMs < 200_000) continue;
-
-    // Deduplicate by event + time
-    const key = `${distance}|${stroke}|${found.timeStr}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-
-    results.push({
-      eventNumber,
-      event: `${distance} ${stroke}`,
-      distance,
-      stroke,
-      timeStr: found.timeStr,
-      timeMs: found.timeMs,
-      place: found.place,
-      course,
-      swamAt,
-      meetName,
-      isRelay,
-    });
-  }
-
-  return { swimmerName, club, age, results, meetName, swamAt };
-}
-
-// ─── Detection ────────────────────────────────────────────────────────────────
-// Key signals:
-// - "Full schedule" — unique to this screen
-// - Multiple "Place:" with colon — unique to swimmer schedule format
-// NOT checking COMPLETED — OCR doesn't read it reliably on this screen type
-
-export function isSwimmerSchedulePage(rawText: string): boolean {
-  const flat = rawText.replace(/\s+/g, " ").toUpperCase();
-
-  if (flat.includes("SWIM DETAIL")) return false;
-  if (flat.includes("EVENT SUMMARY")) return false;
-  if (flat.includes("EVENT DETAILS")) return false;
-
-  // "FULL SCHEDULE" is the strongest unique signal
-  if (!flat.includes("FULL SCHEDULE")) return false;
-
-  // Multiple "PLACE:" with colon
-  const placeColonCount = (flat.match(/PLACE:/g) ?? []).length;
-  if (placeColonCount < 2) return false;
-
-  return true;
+export default function HomePage() {
+  redirect("/login");
 }
 </file>
 
 <file path="lib/parseSwimOCRFlow.ts">
-import { supabase } from "./supabaseClient";
-import { parseSwimOCRText } from "./ocrMultiEventParser";
-import { parse200IMSplitsFromOCR } from "./ocrSplitParser";
-import { parse400IMSplitsFromOCR } from "./parse400IMSplits";
-import { canonicalCourse, canonicalEventName } from "./events";
+function isLikelyPersonName(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  if (trimmed.length < 3) return false;
+  if (/^\d/.test(trimmed)) return false;
+  if (/\b(am|pm)\b/i.test(trimmed)) return false;
 
-type AnyParsedResult = {
-  swimmerName?: string;
-  name?: string;
-  age?: number | string | null;
-  club?: string | null;
-  event?: string | null;
-  course?: string | null;
-  timeMs?: number | string | null;
-  time_ms?: number | string | null;
-  swamAt?: string | null;
-  swam_at?: string | null;
-  meetName?: string | null;
-  meet_name?: string | null;
-  place?: number | string | null;
-  confidence?: number | null;
-  splits?: Array<{
-    label: string;
-    order: number;
-    distance: number | null;
-    splitMs: number;
-    cumulativeMs?: number | null;
-  }>;
-};
+  const KNOWN_BAD = [
+    "place",
+    "time",
+    "final",
+    "finals",
+    "heat",
+    "lane",
+    "entry",
+    "entries",
+    "completed",
+    "dropped",
+    "status",
+    "event",
+    "summary",
+    "seed",
+    "relay",
+    "detail",
+    "freestyle",
+    "butterfly",
+    "backstroke",
+    "breaststroke",
+    "medley",
+    "swim",
+    "results",
+    "schedule",
+    "points",
+    "improvement",
+    "girls",
+    "boys",
+    "women",
+    "men",
+    "meter",
+    "yard",
+    "prelim",
+    "prelims",
+    "semi",
+  ];
 
-type ParsedSplitRow = {
-  label: string;
-  order: number;
-  distance: number;
-  splitMs: number;
-  cumulativeMs: number | null;
-};
+  const lower = trimmed.toLowerCase();
+  if (KNOWN_BAD.some((kw) => lower.includes(kw))) return false;
 
-export type MeetType = "NSG" | "SNAG" | "CLUB";
+  // reject OCR junk like FINALS PLACE TIME
+  const words = trimmed.split(/\s+/).filter(Boolean);
+  if (words.length >= 2 && words.every((w) => /^[A-Z]+$/.test(w))) return false;
 
-export type OCRFlowResult = {
-  parsedResults: AnyParsedResult[];
-  savedCount: number;
-  splitSavedCount: number;
-  errors: string[];
-  waitingForSecondShot?: boolean;
-  meetType?: MeetType;
-};
+  // must look like a person-ish line
+  return /^[A-Za-z ,.'-]+$/.test(trimmed);
+}
 
-type ParseAndSaveOptions = {
-  swimmerId: number;
-  swimmerName: string;
-  defaultCourse?: string;
-};
+function extractSwimmerName(lines: string[]): string | null {
+  const CLUB_AGE_PATTERN = /^[A-Z]{2,10}\s*[|l\/\[]\s*\d{1,2}$/i;
 
-// ✅ Detect meet type from OCR text and club/school codes
-// NSG = National School Games (uses school codes like MGS, ADP, NYP)
-// SNAG = Singapore National Age Group (uses club codes)
-// CLUB = regular club meet
-export function detectMeetType(rawOCRText: string, clubOrSchoolCode?: string | null): MeetType {
-  const text = rawOCRText.toUpperCase();
+  // strongest signal: line before a club/age row
+  for (let i = 1; i < lines.length; i++) {
+    const curr = lines[i].trim();
+    if (!CLUB_AGE_PATTERN.test(curr)) continue;
 
-  // ✅ Check meet name for NSG keywords
-  if (
-    /\bNSG\b/.test(text) ||
-    /NATIONAL SCHOOL GAMES/.test(text) ||
-    /SPSSC/.test(text) ||
-    /SSSC/.test(text) ||
-    /\bD DIV\b/.test(text) ||
-    /\bC DIV\b/.test(text) ||
-    /\bB DIV\b/.test(text) ||
-    /\bA DIV\b/.test(text) ||
-    /JR[12]\b/.test(text)
-  ) {
-    return "NSG";
+    const candidate = lines[i - 1].trim();
+    if (isLikelyPersonName(candidate)) return candidate;
   }
 
-  // ✅ Check for SNAG keywords
-  if (
-    /\bSNAG\b/.test(text) ||
-    /SINGAPORE NATIONAL AGE GROUP/.test(text) ||
-    /NATIONAL AGE GROUP/.test(text)
-  ) {
-    return "SNAG";
+  // fallback: first decent person-like line after event line
+  let seenEventLine = false;
+
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
+
+    if (!seenEventLine) {
+      const hasStroke =
+        /freestyle|butterfly|backstroke|breaststroke|medley|\bfly\b|\bback\b|\bbreast\b|\bfree\b|\bim\b/i.test(
+          line
+        );
+      const hasDistance = /\b(50|100|200|400|800|1500)\b/.test(line);
+
+      if (hasStroke && hasDistance) {
+        seenEventLine = true;
+      }
+      continue;
+    }
+
+    if (/\b(am|pm)\b/i.test(line)) continue;
+    if (/^\d/.test(line)) continue;
+    if (!isLikelyPersonName(line)) continue;
+
+    return line;
   }
 
-  // ✅ If club code looks like a school code (matches known SG school pattern)
-  // School codes are typically 3-6 uppercase letters, not typical club names
-  if (clubOrSchoolCode) {
-    const code = clubOrSchoolCode.trim().toUpperCase();
-    if (KNOWN_SCHOOL_CODES.has(code)) return "NSG";
-  }
-
-  return "CLUB";
+  return null;
 }
 
-// ✅ Known Singapore school codes from sg_schools table
-// Used to detect NSG meets from multi-swimmer event results scans
-const KNOWN_SCHOOL_CODES = new Set([
-  "ADP","AIBS","ATS","ALP","AGP","APS","AMK","ACSJ","ACSP","ANP",
-  "BCP","BGP","BDP","BRP","BLG","BPP","BTP","BVP",
-  "CBP","CCP","CTP","CSP","CHS","CDP","CGP","CHIJK","CHIJKL","CHIJOLGC",
-  "CHIJOLN","CHIJOLQP","CHIJTP","CHIJSN","CFS","CZP","CCKP","CLP","CVP",
-  "COP","CRP","CORP",
-  "DQP","DMP","DZP","DLS",
-  "ECP","ESP","EVP","EFP","ELP","ENP","EGP",
-  "FMS","FPP","FSP","FVP","FTP","FRP","FCP","FHP",
-  "GES","GMS","GSP","GDP","GRP","GWP",
-  "HGS","HPP","HIJ","HWS","HZP","HGP","HMP",
-  "INP",
-  "JMP","JSP","JYP","JP","JWP","JYG",
-  "KMP","KCS","KHS","KJP","KCPP",
-  "LKP","LHP",
-  "MBS","MSH","MLP","MCS","MFP","MTS","MDP","MGS","MJS",
-  "NCP","NHP","NYP","NBP","NTP","NGP","NSP","NSPP","NVP","NVSP","NLP","NOP",
-  "OAP","OEP",
-  "PVP","PKP","PRP","PLMG","PCP","PHP","PTP","PYP","PIP","PCS","PEP",
-  "PGCP","PGGP","PGP","PGVP",
-  "QFP","QHP","QTP",
-  "RMP","RGP","RSS","RVP","RSP","RVLP","ROS","RLP",
-  "SBP","SKGP","SLP","SKP","SQP","SCGS","SVP","SDP","SAJS","SACP","SAP",
-  "SGP","SHP","SJIJ","SMP","SSS",
-  "TNP","TP","TKP","TNS","TGP","TWP","TKR","TMP","TVP",
-  "UTP",
-  "VLP",
-  "WAP","WLP","WGP","WSP","WVP","WWP","WDGP","WDP","WDRP",
-  "XHP","XNP","XMP","XSP",
-  "YZP","YTP","YCKP","YSP","YNP","YHP","YMP",
-  "ZDP","ZHP","ZCP",
-  // Secondary
-  "ACS","ACSI","AHS","CGS","CHIJKL2","CHIJSN2","CHIJTP2","HCI","MGS2",
-  "NAS","NHS","NUS","RI","RGS","SJI","VS","MGS",
-]);
-
-function safeNumber(value: unknown): number | null {
-  if (value === null || value === undefined || value === "") return null;
-  const num = Number(value);
-  return Number.isFinite(num) ? num : null;
-}
-
-function getSwimmerName(result: AnyParsedResult, fallbackName: string): string {
-  return String(result.swimmerName || result.name || fallbackName || "").trim();
-}
-
-function getTimeMs(result: AnyParsedResult): number | null {
-  return safeNumber(result.timeMs ?? result.time_ms);
-}
-
-function getSwamAt(result: AnyParsedResult): string | null {
-  const value = result.swamAt || result.swam_at || null;
-  return typeof value === "string" ? value.trim() : null;
-}
-
-function getMeetName(result: AnyParsedResult): string | null {
-  const value = result.meetName || result.meet_name || null;
-  return typeof value === "string" ? value.trim() : null;
-}
-
-function normalizeEventName(eventName: string | null | undefined): string {
-  return canonicalEventName(String(eventName || "").trim());
-}
-
-function normalizeCourseName(course: string | null | undefined, fallback = "LCM"): string {
-  return canonicalCourse(String(course || fallback || "").trim());
-}
-
-function is200IMEvent(eventName: string): boolean {
-  const e = eventName.toUpperCase();
-  return e.includes("200") && (e.includes("IM") || e.includes("INDIVIDUAL MEDLEY"));
-}
-
-function is400IMEvent(eventName: string): boolean {
-  const e = eventName.toUpperCase();
-  return e.includes("400") && (e.includes("IM") || e.includes("INDIVIDUAL MEDLEY"));
-}
-
-function timeStrToMs(raw: string): number | null {
-  const s = raw.trim().replace(/[OoQ]/g, "0").replace(/[Il]/g, "1");
-  if (!s) return null;
-  if (s.includes(":")) {
-    const parts = s.split(":");
-    if (parts.length !== 2) return null;
-    const min = Number(parts[0]);
-    const sec = Number(parts[1]);
-    if (isNaN(min) || isNaN(sec)) return null;
-    return Math.round((min * 60 + sec) * 1000);
-  }
-  if (/^\d{4}$/.test(s)) {
-    const sec = Number(`${s.slice(0, 2)}.${s.slice(2)}`);
-    return isNaN(sec) ? null : Math.round(sec * 1000);
-  }
-  if (/^\d{5}$/.test(s)) {
-    const min = Number(s.slice(0, 1));
-    const sec = Number(`${s.slice(1, 3)}.${s.slice(3)}`);
-    if (isNaN(min) || isNaN(sec)) return null;
-    return Math.round((min * 60 + sec) * 1000);
-  }
-  if (/^\d{3}\.\d{1,2}$/.test(s)) {
-    const min = Number(s[0]);
-    const sec = Number(s.slice(1));
-    if (isNaN(min) || isNaN(sec)) return null;
-    return Math.round((min * 60 + sec) * 1000);
-  }
-  const sec = Number(s);
-  return isNaN(sec) ? null : Math.round(sec * 1000);
-}
-
-function ordinalSplitLabel(position: number): string {
-  const suffixes: Record<number, string> = { 1: "st", 2: "nd", 3: "rd" };
-  const suffix = suffixes[position] ?? "th";
-  return `${position}${suffix} 50`;
-}
-
-const MAX_TIME_BY_DISTANCE: Record<number, number> = {
-  50: 120_000, 100: 240_000, 200: 480_000,
-  400: 960_000, 800: 1_800_000, 1500: 3_600_000,
-};
-
-const MIN_TIME_BY_DISTANCE: Record<number, number> = {
-  50: 20_000, 100: 40_000, 200: 80_000,
-  400: 200_000, 800: 450_000, 1500: 900_000,
-};
-
-function isReasonableSwimTime(distanceM: number, timeMs: number): boolean {
-  const max = MAX_TIME_BY_DISTANCE[distanceM] ?? 3_600_000;
-  const min = MIN_TIME_BY_DISTANCE[distanceM] ?? 0;
-  return timeMs >= min && timeMs <= max;
-}
-
-function parseGenericSplits(
-  rawOCRText: string,
+function parseGenericSplitRows(
+  lines: string[],
   eventDistance: number,
-  strokeKeyword: string,
-  totalMs?: number | null
-): ParsedSplitRow[] {
-  const lines = rawOCRText.replace(/\r/g, "\n").split("\n").map((l) => l.trim()).filter(Boolean);
-  const expectedDistances: number[] = [];
-  for (let d = 50; d <= eventDistance; d += 50) expectedDistances.push(d);
-
-  const strokeRegex = new RegExp(strokeKeyword, "i");
-  const cumulativeByDist = new Map<number, number>();
+  eventStroke: string
+): ParsedSplit[] {
+  const splits: ParsedSplit[] = [];
+  const MAX_LEG_MS = 90_000;
   let pendingMs: number | null = null;
 
-  for (const line of lines) {
-    if (/total|split|summary|entry|event/i.test(line)) { pendingMs = null; continue; }
-    if (/\b(am|pm)\b/i.test(line)) { pendingMs = null; continue; }
+  function allTimesFromLine(line: string): number[] {
+    const matches =
+      line.match(/\b(\d{1,2}:\d{2}\.\d{2}|\d{1,2}\.\d{2})\b/g) ?? [];
+    return matches.map((t) => timeToMs(t)).filter((ms) => ms > 0);
+  }
 
-    const isStandalone =
-      /^\d{1,2}\.\d{2}$/.test(line) ||
-      /^\d{1,2}:\d{2}\.\d{2}$/.test(line) ||
-      /^\d{4}$/.test(line);
+  function remapSequentialDistances(rows: ParsedSplit[]): ParsedSplit[] {
+    if (!rows.length) return rows;
 
-    if (isStandalone) { pendingMs = timeStrToMs(line); continue; }
+    const step = eventDistance / rows.length;
+    if (!Number.isInteger(step) || step <= 0) return rows;
 
-    for (const dist of expectedDistances) {
-      if (cumulativeByDist.has(dist)) continue;
-      const distRegex = new RegExp(`\\b${dist}\\b`);
-      if (!distRegex.test(line) || !strokeRegex.test(line)) continue;
-      const allTimes = line.match(/(\d{1,2}:\d{2}\.\d{2}|\d{1,2}\.\d{2}|\d{4})/g);
-      const lastTimeStr = allTimes ? allTimes[allTimes.length - 1] : null;
-      const cumulativeMs = lastTimeStr ? timeStrToMs(lastTimeStr) : pendingMs;
-      if (cumulativeMs && cumulativeMs > 0 && cumulativeMs < 400_000) {
-        cumulativeByDist.set(dist, cumulativeMs);
-      }
+    return rows.map((row, index) => {
+      const distance = step * (index + 1);
+
+      return {
+        ...row,
+        order: index + 1,
+        distance,
+        label: normalizeSplitLabel(distance, eventStroke),
+      };
+    });
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const norm = normalizeText(line);
+    if (!norm) continue;
+
+    if (norm.includes("total")) {
       pendingMs = null;
+      continue;
+    }
+
+    if (norm.includes("event summary")) continue;
+    if (norm.includes("heat place")) continue;
+    if (norm.includes("lane")) continue;
+    if (norm.includes("meet home")) continue;
+    if (/\b(am|pm)\b/i.test(line)) continue;
+
+    const distance = detectDistance(line, SPLIT_DISTANCES);
+    const stroke = detectStroke(line);
+    const times = allTimesFromLine(line);
+
+    // keep real rows like "100 Free Split 47.90 1:31.23"
+    // skip only marker/header rows like "Splits" or "100 Free Split" with no time data
+    if (norm.includes("split") && (!distance || !stroke || times.length === 0)) {
+      pendingMs = null;
+      continue;
+    }
+
+    // Strategy A: standalone time line — save for next label
+    const standaloneTime = extractTime(line);
+    if (standaloneTime && normalizeText(line) === normalizeText(standaloneTime)) {
+      const ms = timeToMs(standaloneTime);
+      if (ms > 5000 && ms <= MAX_LEG_MS) {
+        pendingMs = ms;
+      } else {
+        pendingMs = null;
+      }
+      continue;
+    }
+
+    if (!distance || !stroke) {
+      pendingMs = null;
+      continue;
+    }
+
+    if (stroke !== eventStroke) {
+      pendingMs = null;
+      continue;
+    }
+
+    if (distance > eventDistance) {
+      pendingMs = null;
+      continue;
+    }
+
+    const legMs = times.find((ms) => ms > 5000 && ms <= MAX_LEG_MS) ?? null;
+    const cumMs =
+      times.find((ms) => legMs != null && ms > legMs) ??
+      times.find((ms) => ms > MAX_LEG_MS) ??
+      null;
+
+    // Strategy B: inline time(s) on same line
+    if (legMs) {
+      splits.push({
+        label: normalizeSplitLabel(distance, eventStroke),
+        order: splits.length + 1,
+        distance,
+        splitMs: legMs,
+        cumulativeMs: cumMs ?? null,
+      });
+      pendingMs = null;
+      continue;
+    }
+
+    // Strategy C: time on next line
+    const nextLine = lines[i + 1] ?? "";
+    const nextTimes = allTimesFromLine(nextLine);
+    const nextLeg =
+      nextTimes.find((ms) => ms > 5000 && ms <= MAX_LEG_MS) ?? null;
+
+    if (nextLeg) {
+      const nextCum =
+        nextTimes.find((ms) => ms > nextLeg) ??
+        nextTimes.find((ms) => ms > MAX_LEG_MS) ??
+        null;
+
+      splits.push({
+        label: normalizeSplitLabel(distance, eventStroke),
+        order: splits.length + 1,
+        distance,
+        splitMs: nextLeg,
+        cumulativeMs: nextCum ?? null,
+      });
+
+      i++;
+      pendingMs = null;
+      continue;
+    }
+
+    // Strategy D: pending time from previous standalone line
+    if (pendingMs && pendingMs > 5000 && pendingMs <= MAX_LEG_MS) {
+      splits.push({
+        label: normalizeSplitLabel(distance, eventStroke),
+        order: splits.length + 1,
+        distance,
+        splitMs: pendingMs,
+        cumulativeMs: null,
+      });
+      pendingMs = null;
+      continue;
+    }
+
+    pendingMs = null;
+  }
+
+  return remapSequentialDistances(splits);
+}
+
+function parseSingleSplitScreen(
+  rawText: string,
+  lines: string[],
+  options: ParseOptions
+): ParsedSwimResult[] {
+  const extractedCourse = extractGlobalCourse(lines);
+  const globalCourse =
+    extractedCourse !== "UNKNOWN"
+      ? extractedCourse
+      : options.defaultCourse ?? "LCM";
+
+  const swamAt = extractMeetDate(rawText);
+  const meetName = extractMeetName(rawText);
+  const resolvedName = options.swimmerName || extractSwimmerName(lines) || null;
+
+  let bestEvent: { event: string; distance: number; stroke: string } | null = null;
+
+  for (const line of lines) {
+    const built = buildEvent(line);
+    if (!built) continue;
+
+    const t = normalizeText(line);
+    if (
+      t.includes("girls") ||
+      t.includes("boys") ||
+      t.includes("women") ||
+      t.includes("men") ||
+      t.includes("meter") ||
+      t.includes("yard")
+    ) {
+      bestEvent = built;
+      break;
+    }
+
+    if (!bestEvent || built.distance > bestEvent.distance) {
+      bestEvent = built;
+    }
+  }
+
+  if (!bestEvent) return [];
+
+  let place: number | null = null;
+  for (let li = 0; li < lines.length; li++) {
+    const line = lines[li];
+    const nextLineStr = li + 1 < lines.length ? lines[li + 1] : "";
+    const maybePlace = extractPlace(line, nextLineStr);
+    if (maybePlace != null) {
+      place = maybePlace;
       break;
     }
   }
 
-  const finalDist = eventDistance;
-  if (!cumulativeByDist.has(finalDist) && totalMs && totalMs > 0) {
-    cumulativeByDist.set(finalDist, totalMs);
-  }
-  if (cumulativeByDist.size === 0) return [];
-
-  const splits: ParsedSplitRow[] = [];
-  let prevCumulativeMs = 0;
-  let position = 0;
-
-  for (const dist of expectedDistances) {
-    const cumulativeMs = cumulativeByDist.get(dist);
-    if (cumulativeMs == null) { prevCumulativeMs = 0; continue; }
-    position++;
-    const legMs = prevCumulativeMs > 0 ? cumulativeMs - prevCumulativeMs : cumulativeMs;
-    if (legMs > 0) {
-      splits.push({ label: ordinalSplitLabel(position), order: position, distance: dist, splitMs: legMs, cumulativeMs });
-    }
-    prevCumulativeMs = cumulativeMs;
+  let splits: ParsedSplit[] = [];
+  if (bestEvent.stroke === "IM" && bestEvent.distance === 200) {
+    splits = parseIMSplitsFromDedicatedParser(rawText, bestEvent.distance);
   }
 
-  return splits.sort((a, b) => a.distance - b.distance);
-}
-
-function getStrokeKeyword(eventName: string): string {
-  const e = eventName.toUpperCase();
-  if (e.includes("FREE")) return "Free";
-  if (e.includes("BACK")) return "Back";
-  if (e.includes("BREAST")) return "Breast";
-  if (e.includes("FLY") || e.includes("BUTTERFLY")) return "Fly";
-  return "Free";
-}
-
-function getSplitsForResult(result: AnyParsedResult, rawOCRText: string, totalMs?: number | null): ParsedSplitRow[] {
-  const eventName = normalizeEventName(result.event);
-
-  if (result.splits && result.splits.length > 0) {
-    return result.splits
-      .filter((s) => s.distance != null && s.splitMs > 0)
-      .map((s, i) => ({
-        label: s.label, order: s.order ?? i + 1,
-        distance: s.distance!, splitMs: s.splitMs, cumulativeMs: s.cumulativeMs ?? null,
-      }));
+  if (splits.length === 0) {
+    splits = parseGenericSplitRows(lines, bestEvent.distance, bestEvent.stroke);
   }
 
-  if (is200IMEvent(eventName)) {
-    const parsed = parse200IMSplitsFromOCR(rawOCRText);
-    return parsed.splits.filter((s) => s.splitMs != null).map((s, i) => ({
-      label: `${s.distance} ${s.stroke}`, order: i + 1,
-      distance: s.distance, splitMs: s.splitMs!, cumulativeMs: s.cumulativeMs ?? null,
-    }));
+  // final time from Total row if possible
+  let finalTimeStr: string | null = null;
+  let finalTimeMs = 0;
+
+  for (const line of lines) {
+    if (!/^total\b/i.test(line.trim())) continue;
+    const maybe = extractTime(line);
+    if (!maybe) continue;
+    finalTimeStr = maybe;
+    finalTimeMs = timeToMs(maybe);
+    break;
   }
 
-  if (is400IMEvent(eventName)) {
-    const parsed = parse400IMSplitsFromOCR(rawOCRText);
-    return parsed.splits.filter((s) => s.legMs != null).map((s, i) => ({
-      label: s.label, order: i + 1, distance: s.distance,
-      splitMs: s.legMs!, cumulativeMs: s.cumulativeMs ?? null,
-    }));
-  }
+  // fallback: largest reasonable time on split screen
+  if (!finalTimeStr || finalTimeMs <= 0) {
+    const all = lines
+      .flatMap((line) => extractAllTimes(line))
+      .map((t) => ({ raw: t, ms: timeToMs(t) }))
+      .filter((x) => x.ms > 0);
 
-  const distMatch = eventName.match(/\b(100|200)\b/);
-  if (distMatch) {
-    const dist = Number(distMatch[1]);
-    const stroke = getStrokeKeyword(eventName);
-    const splits = parseGenericSplits(rawOCRText, dist, stroke, totalMs);
-    if (splits.length > 0) return splits;
-  }
-
-  return [];
-}
-
-async function isDuplicate(
-  swimmerId: number, eventName: string, courseName: string,
-  timeMs: number, swamAt: string | null
-): Promise<boolean> {
-  let query = supabase.from("swim_times").select("id")
-    .eq("swimmer_id", swimmerId).eq("event", eventName)
-    .eq("course", courseName).eq("time_ms", timeMs);
-  if (swamAt) query = query.eq("swam_at", swamAt);
-  const { data } = await query.limit(1);
-  return (data?.length ?? 0) > 0;
-}
-
-async function saveSwimTime(input: {
-  swimmerId: number;
-  result: AnyParsedResult;
-  fallbackCourse?: string;
-  meetType?: MeetType;
-}): Promise<{ swimTimeId: number | null; error?: string; duplicate?: boolean }> {
-  const eventName = normalizeEventName(input.result.event);
-  const courseName = normalizeCourseName(input.result.course, input.fallbackCourse || "LCM");
-  const timeMs = getTimeMs(input.result);
-
-  if (!eventName) return { swimTimeId: null, error: "Missing event name" };
-  if (!courseName) return { swimTimeId: null, error: "Missing course name" };
-  if (timeMs === null) return { swimTimeId: null, error: "Missing or invalid time" };
-
-  const distMatch = eventName.match(/\b(50|100|200|400|800|1500)\b/);
-  if (distMatch) {
-    const dist = Number(distMatch[1]);
-    if (!isReasonableSwimTime(dist, timeMs)) {
-      return { swimTimeId: null, error: `Rejected "${eventName}" — time ${timeMs}ms looks like a clock time, not a swim time` };
+    if (all.length > 0) {
+      all.sort((a, b) => b.ms - a.ms);
+      finalTimeStr = all[0].raw;
+      finalTimeMs = all[0].ms;
     }
   }
 
-  const swamAt = getSwamAt(input.result);
-  const duplicate = await isDuplicate(input.swimmerId, eventName, courseName, timeMs, swamAt);
-  if (duplicate) return { swimTimeId: null, duplicate: true };
+  if (!finalTimeStr || finalTimeMs <= 0) return [];
 
-  const payload: Record<string, unknown> = {
-    swimmer_id: input.swimmerId,
-    event: eventName,
-    course: courseName,
-    time_ms: timeMs,
-    meet_type: input.meetType ?? "CLUB", // ✅ Always save meet type
-  };
+  splits = fillMissingLastSplit(
+    splits,
+    bestEvent.distance,
+    bestEvent.stroke,
+    finalTimeMs
+  );
 
-  if (swamAt) payload.swam_at = swamAt;
+  const correctedCourse = inferCourseFromSplits(
+    globalCourse,
+    bestEvent.distance,
+    splits
+  );
 
-  const meetName = getMeetName(input.result);
-  if (meetName) payload.meet_name = meetName;
-
-  if (safeNumber(input.result.place) !== null) {
-    payload.place = Number(input.result.place);
-  }
-
-  const { data, error } = await supabase.from("swim_times").insert(payload).select("id").single();
-  if (error) return { swimTimeId: null, error: error.message };
-  return { swimTimeId: data?.id ?? null };
-}
-
-async function saveSplits(input: {
-  swimTimeId: number;
-  swimmerId: number;
-  eventName: string;
-  courseName: string;
-  splits: ParsedSplitRow[];
-}): Promise<{ count: number; error?: string }> {
-  if (!input.splits.length) return { count: 0 };
-
-  const rows = input.splits.map((split) => ({
-    swim_time_id: input.swimTimeId,
-    swimmer_id: input.swimmerId,
-    event: input.eventName,
-    course: input.courseName,
-    split_label: split.label,
-    split_order: split.order,
-    split_distance: split.distance,
-    split_time_ms: split.splitMs,
-    cumulative_ms: split.cumulativeMs,
-  }));
-
-  const { error } = await supabase.from("swim_splits").insert(rows);
-  if (error) return { count: 0, error: error.message };
-  return { count: rows.length };
-}
-
-export async function parseAndSaveSwimOCR(
-  rawOCRText: string,
-  options: ParseAndSaveOptions
-): Promise<OCRFlowResult> {
-  const errors: string[] = [];
-  let savedCount = 0;
-  let splitSavedCount = 0;
-
-  if (!rawOCRText.trim()) {
-    return { parsedResults: [], savedCount: 0, splitSavedCount: 0, errors: ["OCR text is empty"] };
-  }
-
-  // ✅ Detect meet type from raw OCR text
-  const meetType = detectMeetType(rawOCRText);
-
-  // 400 IM — dedicated parser
-  const is400IM = /400\s*(meter|m)?\s*im/i.test(rawOCRText);
-  if (is400IM) {
-    const parsed = parse400IMSplitsFromOCR(rawOCRText);
-
-    if (!parsed.finalTimeMs) {
-      return { parsedResults: [], savedCount: 0, splitSavedCount: 0, errors: ["Could not detect final time from 400 IM screenshots"] };
-    }
-
-    const fakeResult: AnyParsedResult = {
-      event: "400 IM",
-      course: parsed.course ?? "LCM",
-      timeMs: parsed.finalTimeMs,
-      swamAt: parsed.date ?? null,
-      name: parsed.swimmerName ?? options.swimmerName,
-    };
-
-    const swimTimeRes = await saveSwimTime({
-      swimmerId: options.swimmerId,
-      result: fakeResult,
-      fallbackCourse: options.defaultCourse || "LCM",
-      meetType,
-    });
-
-    if (swimTimeRes.duplicate) {
-      return { parsedResults: [fakeResult], savedCount: 0, splitSavedCount: 0, errors: ["This result has already been saved — same event, time and date."] };
-    }
-
-    if (!swimTimeRes.swimTimeId) {
-      return { parsedResults: [fakeResult], savedCount: 0, splitSavedCount: 0, errors: [swimTimeRes.error ?? "Failed to save 400 IM"] };
-    }
-
-    savedCount = 1;
-
-    const splits = getSplitsForResult(fakeResult, rawOCRText, parsed.finalTimeMs);
-    if (splits.length > 0) {
-      const splitRes = await saveSplits({
-        swimTimeId: swimTimeRes.swimTimeId,
-        swimmerId: options.swimmerId,
-        eventName: "400 IM",
-        courseName: normalizeCourseName(parsed.course, "LCM"),
-        splits,
-      });
-      if (splitRes.error) errors.push(`Could not save 400 IM splits: ${splitRes.error}`);
-      else splitSavedCount = splitRes.count;
-    }
-
-    return { parsedResults: [fakeResult], savedCount, splitSavedCount, errors, meetType };
-  }
-
-  // All other events
-  let parsedResults: AnyParsedResult[] = [];
-
-  try {
-    parsedResults = (parseSwimOCRText(rawOCRText, { swimmerName: options.swimmerName }) || []) as AnyParsedResult[];
-  } catch (error) {
-    return {
-      parsedResults: [], savedCount: 0, splitSavedCount: 0,
-      errors: [error instanceof Error ? error.message : "Failed to parse OCR text"],
-    };
-  }
-
-  if (parsedResults.length === 0) {
-    return { parsedResults: [], savedCount: 0, splitSavedCount: 0, errors: ["No swim results detected from OCR text"] };
-  }
-
-  for (const result of parsedResults) {
-    const swimmerName = getSwimmerName(result, options.swimmerName);
-    const eventName = normalizeEventName(result.event);
-    const courseName = normalizeCourseName(result.course, options.defaultCourse || "LCM");
-    const totalMs = getTimeMs(result);
-
-    if (!swimmerName) { errors.push(`Skipped — swimmer name missing (${eventName || "Unknown event"})`); continue; }
-    if (!eventName) { errors.push(`Skipped "${swimmerName}" — event name missing`); continue; }
-
-    const swimTimeRes = await saveSwimTime({
-      swimmerId: options.swimmerId,
-      result,
-      fallbackCourse: options.defaultCourse || "LCM",
-      meetType,
-    });
-
-    if (swimTimeRes.duplicate) { errors.push(`"${eventName}" on this date already saved — skipped.`); continue; }
-
-    if (!swimTimeRes.swimTimeId) {
-      errors.push(`Could not save "${swimmerName}" (${eventName}): ${swimTimeRes.error || "Unknown error"}`);
-      continue;
-    }
-
-    savedCount += 1;
-
-    const splits = getSplitsForResult(result, rawOCRText, totalMs);
-    if (splits.length > 0) {
-      const splitRes = await saveSplits({
-        swimTimeId: swimTimeRes.swimTimeId,
-        swimmerId: options.swimmerId,
-        eventName,
-        courseName,
-        splits,
-      });
-      if (splitRes.error) errors.push(`Could not save splits for "${swimmerName}" (${eventName}): ${splitRes.error}`);
-      else splitSavedCount += splitRes.count;
-    }
-  }
-
-  return { parsedResults, savedCount, splitSavedCount, errors, meetType };
+  return [
+    {
+      event: bestEvent.event,
+      distance: bestEvent.distance,
+      stroke: bestEvent.stroke,
+      name: resolvedName,
+      timeStr: finalTimeStr,
+      timeMs: finalTimeMs,
+      course: correctedCourse,
+      confidence: splits.length > 0 ? 7 : 4,
+      rawBlock: lines,
+      swamAt: swamAt || null,
+      meetName: meetName || null,
+      place,
+      splits: splits.length > 0 ? splits : undefined,
+    },
+  ];
 }
 </file>
 
-<file path="public/manifest.webmanifest">
+<file path="package.json">
 {
-  "name": "Natrix — Swim Tracker",
-  "short_name": "Natrix",
-  "description": "Swim meet result tracker for parents. Scan, save and track your swimmer's PBs.",
-  "start_url": "/dashboard",
-  "display": "standalone",
-  "orientation": "portrait",
-  "background_color": "#063554",
-  "theme_color": "#063554",
-  "categories": ["sports", "health", "lifestyle"],
-  "icons": [
-    {
-      "src": "/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
-  ]
+  "name": "swimtrack-sg",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.9.0",
+    "@supabase/supabase-js": "^2.98.0",
+    "next": "16.1.6",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "tesseract.js": "^7.0.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.6",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
 }
 </file>
 
@@ -6478,6 +6031,456 @@ export default function SignupPage() {
 }
 </file>
 
+<file path="app/swimmers/[id]/StandardsCompare.tsx">
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
+import { canonicalEventName, canonicalCourse, eventKey } from "@/lib/events";
+
+type SwimTimeRow = {
+  event: string;
+  course: string;
+  time_ms: number;
+};
+
+type StandardSet = {
+  id: number;
+  name: string;
+  type: string;
+};
+
+type StandardItem = {
+  id: number;
+  standard_set_id: number;
+  event: string;
+  course: string;
+  min_age: number | null;
+  max_age: number | null;
+  gender: string | null;
+  qualifying_time_ms: number;
+};
+
+type Tone = "neutral" | "good" | "warn";
+
+type CompareRow = {
+  key: string;
+  event: string;
+  course: string;
+  pbMs: number | null;
+  targetMs: number;
+  gapMs: number | null;
+  qualified: boolean;
+  hasPb: boolean;
+};
+
+function keyOf(event: string, course: string) {
+  return eventKey(event, course);
+}
+
+function normalizeEvent(event: string) {
+  return canonicalEventName(event).toLowerCase().replace(/\s+/g, "");
+}
+
+function normalizeCourse(course: string) {
+  return canonicalCourse(course);
+}
+
+function formatMs(ms: number | null | undefined) {
+  if (ms == null) return "—";
+  const totalSeconds = ms / 1000;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds - minutes * 60;
+  return minutes > 0
+    ? `${minutes}:${seconds.toFixed(2).padStart(5, "0")}`
+    : seconds.toFixed(2);
+}
+
+function gapText(pbMs: number, targetMs: number) {
+  const diff = pbMs - targetMs;
+  const seconds = Math.abs(diff / 1000).toFixed(2);
+  if (diff <= 0) return `${seconds}s under ✅`;
+  return `${seconds}s to go`;
+}
+
+function gapTone(pbMs: number, targetMs: number): Tone {
+  const diff = pbMs - targetMs;
+  if (diff <= 0) return "good";
+  if (diff <= 1000) return "warn";
+  return "neutral";
+}
+
+function toneColor(tone: Tone): string {
+  switch (tone) {
+    case "good": return "#6EE7B7";
+    case "warn": return "#FCD34D";
+    default: return "rgba(255,255,255,0.5)";
+  }
+}
+
+function toneBg(tone: Tone): string {
+  switch (tone) {
+    case "good": return "rgba(110,231,183,0.12)";
+    case "warn": return "rgba(252,211,77,0.12)";
+    default: return "rgba(255,255,255,0.06)";
+  }
+}
+
+function toneBorder(tone: Tone): string {
+  switch (tone) {
+    case "good": return "rgba(110,231,183,0.25)";
+    case "warn": return "rgba(252,211,77,0.25)";
+    default: return "rgba(255,255,255,0.12)";
+  }
+}
+
+export default function StandardsCompare({
+  swimmerId,
+  swimmerAge,
+  swimmerGender,
+}: {
+  swimmerId: number;
+  swimmerAge: number;
+  swimmerGender?: string | null;
+}) {
+  const [loading, setLoading] = useState(true);
+  const [loadingItems, setLoadingItems] = useState(false);
+
+  const [pbMap, setPbMap] = useState<Map<string, number>>(new Map());
+  const [pbLabelMap, setPbLabelMap] = useState<Map<string, { event: string; course: string }>>(new Map());
+
+  const [sets, setSets] = useState<StandardSet[]>([]);
+  const [selectedSetId, setSelectedSetId] = useState<number | "">("");
+  const [items, setItems] = useState<StandardItem[]>([]);
+
+  useEffect(() => {
+    if (!swimmerId) return;
+    loadInitialData();
+  }, [swimmerId]);
+
+  useEffect(() => {
+    if (!selectedSetId) { setItems([]); return; }
+    loadItemsForSet(Number(selectedSetId));
+  }, [selectedSetId, swimmerAge, swimmerGender]);
+
+  async function loadInitialData() {
+    setLoading(true);
+
+    const [timesResult, setsResult] = await Promise.all([
+      supabase.from("swim_times").select("event, course, time_ms").eq("swimmer_id", swimmerId),
+      supabase.from("standard_sets").select("id, name, type").order("created_at", { ascending: false }),
+    ]);
+
+    const { data: times, error: tErr } = timesResult;
+    const { data: setData, error: setErr } = setsResult;
+
+    if (tErr || setErr) { setLoading(false); return; }
+
+    const map = new Map<string, number>();
+    const labelMap = new Map<string, { event: string; course: string }>();
+
+    (times as SwimTimeRow[] | null)?.forEach((t) => {
+      const k = keyOf(t.event, t.course);
+      const currentPb = map.get(k);
+      if (currentPb == null || t.time_ms < currentPb) {
+        map.set(k, t.time_ms);
+        labelMap.set(k, { event: t.event.trim(), course: normalizeCourse(t.course) });
+      }
+    });
+
+    const loadedSets = (setData as StandardSet[] | null) ?? [];
+
+    setPbMap(map);
+    setPbLabelMap(labelMap);
+    setSets(loadedSets);
+
+    setSelectedSetId((current) => {
+      if (current && loadedSets.some((s) => s.id === current)) return current;
+      return loadedSets.length > 0 ? loadedSets[0].id : "";
+    });
+
+    setLoading(false);
+  }
+
+  async function loadItemsForSet(setId: number) {
+    setLoadingItems(true);
+
+    const { data, error } = await supabase
+      .from("standard_items")
+      .select("id, standard_set_id, event, course, min_age, max_age, gender, qualifying_time_ms")
+      .eq("standard_set_id", setId)
+      .order("event", { ascending: true });
+
+    if (error) { setLoadingItems(false); return; }
+
+    const normalizedSwimmerGender = swimmerGender?.trim().toLowerCase() ?? null;
+
+    const filtered = (data as StandardItem[] | null)?.filter((s) => {
+      const minOk = s.min_age == null || swimmerAge >= s.min_age;
+      const maxOk = s.max_age == null || swimmerAge <= s.max_age;
+      const genderOk =
+        !s.gender ||
+        !normalizedSwimmerGender ||
+        s.gender.trim().toLowerCase() === normalizedSwimmerGender;
+      return minOk && maxOk && genderOk;
+    }) ?? [];
+
+    setItems(filtered);
+    setLoadingItems(false);
+  }
+
+  const rows = useMemo<CompareRow[]>(() => {
+    const bestTargetByKey = new Map<string, StandardItem>();
+
+    for (const item of items) {
+      const key = keyOf(item.event, item.course);
+      const existing = bestTargetByKey.get(key);
+      if (!existing || item.qualifying_time_ms < existing.qualifying_time_ms) {
+        bestTargetByKey.set(key, item);
+      }
+    }
+
+    return Array.from(bestTargetByKey.entries())
+      .map(([key, item]) => {
+        const pbMs = pbMap.get(key) ?? null;
+        const label = pbLabelMap.get(key);
+        return {
+          key,
+          event: label?.event ?? item.event.trim(),
+          course: label?.course ?? normalizeCourse(item.course),
+          pbMs,
+          targetMs: item.qualifying_time_ms,
+          gapMs: pbMs != null ? pbMs - item.qualifying_time_ms : null,
+          qualified: pbMs != null ? pbMs <= item.qualifying_time_ms : false,
+          hasPb: pbMs != null,
+        };
+      })
+      .sort((a, b) => {
+        if (a.gapMs == null && b.gapMs == null) return a.event.localeCompare(b.event);
+        if (a.gapMs == null) return 1;
+        if (b.gapMs == null) return -1;
+        return a.gapMs - b.gapMs;
+      });
+  }, [items, pbMap, pbLabelMap]);
+
+  const selectedSet = sets.find((s) => s.id === selectedSetId) ?? null;
+
+  const nextTarget = useMemo(() => {
+    return rows
+      .filter((r) => r.hasPb && !r.qualified && r.gapMs != null)
+      .sort((a, b) => (a.gapMs ?? Infinity) - (b.gapMs ?? Infinity))[0] ?? null;
+  }, [rows]);
+
+  const qualifiedCount = rows.filter((r) => r.qualified).length;
+  const inProgressCount = rows.filter((r) => r.hasPb && !r.qualified).length;
+
+  if (loading) {
+    return (
+      <div className="py-10 text-center">
+        <p className="text-sm text-white/40">Loading standards...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+
+      {/* Set selector */}
+      <div
+        className="rounded-3xl p-4 space-y-3"
+        style={{
+          background: "rgba(255,255,255,0.07)",
+          border: "1px solid rgba(255,255,255,0.12)",
+        }}
+      >
+        <p className="text-[10px] font-medium uppercase tracking-widest text-white/40">Standard set</p>
+        <select
+          value={selectedSetId}
+          onChange={(e) => setSelectedSetId(e.target.value ? Number(e.target.value) : "")}
+          className="input"
+        >
+          <option value="">Select a standard set...</option>
+          {sets.map((set) => (
+            <option key={set.id} value={set.id}>
+              {set.name} · {set.type === "UPGRADING" ? "Upgrading" : "Important Meet"}
+            </option>
+          ))}
+        </select>
+
+        {selectedSet && rows.length > 0 && (
+          <div className="flex gap-2 flex-wrap">
+            <span
+              className="rounded-full px-3 py-1 text-xs font-semibold"
+              style={{ background: "rgba(110,231,183,0.12)", color: "#6EE7B7", border: "1px solid rgba(110,231,183,0.25)" }}
+            >
+              ✅ {qualifiedCount} qualified
+            </span>
+            <span
+              className="rounded-full px-3 py-1 text-xs font-semibold"
+              style={{ background: "rgba(252,211,77,0.12)", color: "#FCD34D", border: "1px solid rgba(252,211,77,0.25)" }}
+            >
+              🎯 {inProgressCount} in progress
+            </span>
+            <span
+              className="rounded-full px-3 py-1 text-xs font-semibold"
+              style={{ background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.4)", border: "1px solid rgba(255,255,255,0.12)" }}
+            >
+              {rows.length} events total
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Next target card */}
+      {selectedSet && (
+        <div
+          className="rounded-3xl p-4 space-y-3"
+          style={{
+            background: "rgba(217,119,6,0.1)",
+            border: "1px solid rgba(253,230,138,0.2)",
+          }}
+        >
+          <p className="text-[10px] font-medium uppercase tracking-widest" style={{ color: "#FDE68A" }}>
+            🎯 Next target
+          </p>
+
+          {loadingItems ? (
+            <p className="text-sm text-white/40">Loading...</p>
+          ) : !nextTarget ? (
+            <p className="text-sm text-white/50">
+              {rows.length === 0
+                ? "No matching standards for this swimmer's age."
+                : qualifiedCount === rows.length
+                ? "All standards qualified! 🏆"
+                : "No active target found — add some results first."}
+            </p>
+          ) : (
+            <>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-lg font-bold text-white">{canonicalEventName(nextTarget.event)}</p>
+                  <p className="text-xs text-white/40">{nextTarget.course}</p>
+                </div>
+                <span
+                  className="rounded-full px-3 py-1 text-xs font-semibold flex-shrink-0"
+                  style={{ background: "rgba(252,211,77,0.15)", color: "#FCD34D", border: "1px solid rgba(252,211,77,0.3)" }}
+                >
+                  {gapText(nextTarget.pbMs!, nextTarget.targetMs)}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { label: "Your PB", value: formatMs(nextTarget.pbMs) },
+                  { label: "Target", value: formatMs(nextTarget.targetMs) },
+                  { label: "Gap", value: `${Math.abs((nextTarget.gapMs ?? 0) / 1000).toFixed(2)}s` },
+                ].map((tile) => (
+                  <div
+                    key={tile.label}
+                    className="rounded-2xl p-3 text-center"
+                    style={{ background: "rgba(0,20,50,0.3)", border: "1px solid rgba(255,255,255,0.08)" }}
+                  >
+                    <p className="text-[10px] text-white/40 uppercase tracking-wider">{tile.label}</p>
+                    <p className="mt-1 text-base font-bold text-white tabular-nums">{tile.value}</p>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* All events list */}
+      {selectedSet && !loadingItems && rows.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-[10px] font-medium uppercase tracking-widest text-white/40 px-1">All events</p>
+          {rows.map((r) => {
+            const tone = r.hasPb ? gapTone(r.pbMs!, r.targetMs) : "neutral";
+            const isQualified = r.qualified;
+
+            return (
+              <div
+                key={r.key}
+                className="rounded-2xl p-4"
+                style={{
+                  background: isQualified ? "rgba(110,231,183,0.07)" : "rgba(255,255,255,0.05)",
+                  border: `1px solid ${isQualified ? "rgba(110,231,183,0.2)" : "rgba(255,255,255,0.1)"}`,
+                }}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-white truncate">{canonicalEventName(r.event)}</p>
+                    <p className="text-xs text-white/35 mt-0.5">{r.course}</p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    {isQualified ? (
+                      <span className="text-sm font-semibold" style={{ color: "#6EE7B7" }}>Qualified ✅</span>
+                    ) : r.hasPb ? (
+                      <span className="text-sm font-semibold" style={{ color: toneColor(tone) }}>
+                        {gapText(r.pbMs!, r.targetMs)}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-white/30">No PB yet</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <div
+                    className="rounded-xl p-2.5"
+                    style={{ background: "rgba(0,20,50,0.3)", border: "1px solid rgba(255,255,255,0.07)" }}
+                  >
+                    <p className="text-[10px] text-white/35 uppercase tracking-wider">Your PB</p>
+                    <p className="mt-0.5 text-sm font-bold text-white tabular-nums">{formatMs(r.pbMs)}</p>
+                  </div>
+                  <div
+                    className="rounded-xl p-2.5"
+                    style={{
+                      background: toneBg(r.hasPb ? tone : "neutral"),
+                      border: `1px solid ${toneBorder(r.hasPb ? tone : "neutral")}`,
+                    }}
+                  >
+                    <p className="text-[10px] text-white/35 uppercase tracking-wider">Target</p>
+                    <p className="mt-0.5 text-sm font-bold tabular-nums" style={{ color: r.hasPb ? toneColor(tone) : "rgba(255,255,255,0.5)" }}>
+                      {formatMs(r.targetMs)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Empty state */}
+      {selectedSet && !loadingItems && rows.length === 0 && (
+        <div
+          className="rounded-3xl p-8 text-center"
+          style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+        >
+          <p className="text-base font-semibold text-white">No matching standards</p>
+          <p className="mt-1 text-sm text-white/40">
+            This may be due to age range, gender, or no items added to this set yet.
+          </p>
+        </div>
+      )}
+
+      {!selectedSet && !loading && (
+        <div
+          className="rounded-3xl p-8 text-center"
+          style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+        >
+          <p className="text-base font-semibold text-white">No standard sets yet</p>
+          <p className="mt-1 text-sm text-white/40">
+            Go to Standards in the bottom nav to create your first set.
+          </p>
+        </div>
+      )}
+
+    </div>
+  );
+}
+</file>
+
 <file path="app/swimmers/[id]/SwimScan.tsx">
 "use client";
 
@@ -7048,6 +7051,22 @@ function DetectedResultBlock({
     </div>
   );
 }
+</file>
+
+<file path="lib/supabaseClient.ts">
+import { createBrowserClient } from "@supabase/ssr";
+
+export const supabase = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+  {
+    auth: {
+      flowType: "implicit",
+      detectSessionInUrl: true,
+      persistSession: true,
+    },
+  }
+);
 </file>
 
 <file path="app/compare/page.tsx">
@@ -7635,6 +7654,136 @@ export default function ComparePage() {
         <div className="h-4" />
       </div>
     </div>
+  );
+}
+</file>
+
+<file path="app/components/BottomNav.tsx">
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+const NAV_ITEMS = [
+  {
+    href: "/dashboard",
+    label: "Home",
+    tutorial: "home",
+    icon: (active: boolean) => (
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+        <path d="M4 10.5L11 4L18 10.5V18H14V13H8V18H4V10.5Z" stroke={active ? "#FDE68A" : "rgba(255,255,255,0.5)"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      </svg>
+    ),
+  },
+  {
+    href: "/swimmers",
+    label: "Brood",
+    tutorial: "brood",
+    icon: (active: boolean) => (
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+        <circle cx="11" cy="8" r="3.5" stroke={active ? "#FDE68A" : "rgba(255,255,255,0.5)"} strokeWidth="1.5" />
+        <path d="M3 19c0-4 3.6-7 8-7s8 3 8 7" stroke={active ? "#FDE68A" : "rgba(255,255,255,0.5)"} strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    href: "/scan",
+    label: "Scan",
+    tutorial: "scan",
+    icon: (active: boolean) => (
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+        <rect x="3" y="3" width="16" height="16" rx="3" stroke={active ? "#FDE68A" : "rgba(255,255,255,0.5)"} strokeWidth="1.5" />
+        <path d="M7 11h8M11 7v8" stroke={active ? "#FDE68A" : "rgba(255,255,255,0.5)"} strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    href: "/compare",
+    label: "Compare",
+    tutorial: "compare",
+    icon: (active: boolean) => (
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+        <path d="M7 5H3v12h4V5zM19 5h-4v12h4V5z" stroke={active ? "#FDE68A" : "rgba(255,255,255,0.5)"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M11 8v6M9 11l2-2 2 2" stroke={active ? "#FDE68A" : "rgba(255,255,255,0.5)"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  {
+    href: "/settings",
+    label: "Settings",
+    tutorial: "settings",
+    icon: (active: boolean) => (
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+        <circle cx="11" cy="11" r="2.5" stroke={active ? "#FDE68A" : "rgba(255,255,255,0.5)"} strokeWidth="1.5" />
+        <path d="M11 4v2M11 16v2M4 11H2M20 11h-2M5.93 5.93 7.34 7.34M14.66 14.66l1.41 1.41M5.93 16.07l1.41-1.41M14.66 7.34l1.41-1.41" stroke={active ? "#FDE68A" : "rgba(255,255,255,0.5)"} strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+];
+
+const HIDDEN_ON = ["/login", "/signup", "/forgot-password", "/reset-password", "/invite", "/auth", "/onboarding"];
+
+export default function BottomNav() {
+  const pathname = usePathname();
+  if (HIDDEN_ON.some((p) => pathname.startsWith(p))) return null;
+
+  return (
+    <nav
+      className="fixed bottom-3 left-1/2 z-50"
+      style={{ transform: "translateX(-50%)", width: "calc(100% - 32px)", maxWidth: "420px" }}
+    >
+      <div
+        style={{
+          background: "rgba(6,40,65,0.72)",
+          backdropFilter: "blur(32px) saturate(1.8)",
+          WebkitBackdropFilter: "blur(32px) saturate(1.8)",
+          border: "1px solid rgba(255,255,255,0.22)",
+          borderRadius: "28px",
+          padding: "8px 8px 10px",
+          display: "flex",
+          justifyContent: "space-around",
+          alignItems: "center",
+          boxShadow: "0 8px 32px rgba(0,20,50,0.45), inset 0 1px 0 rgba(255,255,255,0.12)",
+        }}
+      >
+        {NAV_ITEMS.map((item) => {
+          const active = item.href === "/dashboard"
+            ? pathname === "/dashboard"
+            : pathname.startsWith(item.href);
+
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              data-tutorial={item.tutorial}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "3px",
+                padding: "6px 12px",
+                borderRadius: "20px",
+                transition: "background 0.15s ease",
+                background: active ? "rgba(217,119,6,0.2)" : "transparent",
+                border: active ? "1px solid rgba(253,230,138,0.25)" : "1px solid transparent",
+                minWidth: "52px",
+              }}
+            >
+              {item.icon(active)}
+              <span style={{
+                fontSize: "10px",
+                fontWeight: active ? 600 : 400,
+                letterSpacing: "0.02em",
+                color: active ? "#FDE68A" : "rgba(255,255,255,0.45)",
+                transition: "color 0.15s ease",
+              }}>
+                {item.label}
+              </span>
+            </Link>
+          );
+        })}
+      </div>
+    </nav>
   );
 }
 </file>
@@ -8672,640 +8821,718 @@ export default function InvitePage() {
 }
 </file>
 
-<file path="app/swimmers/[id]/StandardsCompare.tsx">
-"use client";
+<file path="app/globals.css">
+@import "tailwindcss";
 
-import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
-import { canonicalEventName, canonicalCourse, eventKey } from "@/lib/events";
+/* ============================================================
+   NATRIX — Water Glass Theme
+   Pool caustic light + frosted glass cards
+   ============================================================ */
 
-type SwimTimeRow = {
-  event: string;
-  course: string;
-  time_ms: number;
-};
+:root {
+  --foreground: #ffffff;
 
-type StandardSet = {
-  id: number;
-  name: string;
-  type: string;
-};
+  /* ── Theme background variables ──────────────────────────────
+     These are overridden at runtime by ThemeProvider.tsx.
+     Defaults = Ocean (the original blue).
+  ─────────────────────────────────────────────────────────── */
+  --theme-bg:     #063554;
+  --theme-dark:   #073E6A;
+  --theme-mid:    #084A73;
+  --theme-light:  #0D6E9A;
+  --theme-light2: #0E7A9E;
+  --theme-light3: #0A5580;
+  --theme-nav-bg: rgba(6,53,84,0.80);
 
-type StandardItem = {
-  id: number;
-  standard_set_id: number;
-  event: string;
-  course: string;
-  min_age: number | null;
-  max_age: number | null;
-  gender: string | null;
-  qualifying_time_ms: number;
-};
+  /* Kept for backwards compat — mirrors --theme-bg */
+  --background: var(--theme-bg);
 
-type Tone = "neutral" | "good" | "warn";
+  /* Amber accent palette */
+  --amber:        #D97706;
+  --amber-light:  #FDE68A;
+  --amber-glow:   rgba(217,119,6,0.35);
 
-type CompareRow = {
-  key: string;
-  event: string;
-  course: string;
-  pbMs: number | null;
-  targetMs: number;
-  gapMs: number | null;
-  qualified: boolean;
-  hasPb: boolean;
-};
+  /* Glass surfaces */
+  --glass-bg:           rgba(255,255,255,0.13);
+  --glass-bg-hover:     rgba(255,255,255,0.18);
+  --glass-border:       rgba(255,255,255,0.24);
+  --glass-border-hover: rgba(255,255,255,0.38);
 
-function keyOf(event: string, course: string) {
-  return eventKey(event, course);
+  /* Text */
+  --text-primary:   #ffffff;
+  --text-secondary: rgba(255,255,255,0.65);
+  --text-muted:     rgba(255,255,255,0.38);
+  --text-hint:      rgba(255,255,255,0.22);
 }
 
-function normalizeEvent(event: string) {
-  return canonicalEventName(event).toLowerCase().replace(/\s+/g, "");
+/* ============================================================
+   BASE
+   ============================================================ */
+
+*, *::before, *::after {
+  box-sizing: border-box;
 }
 
-function normalizeCourse(course: string) {
-  return canonicalCourse(course);
+html, body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  color: var(--foreground);
+  font-family: -apple-system, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-function formatMs(ms: number | null | undefined) {
-  if (ms == null) return "—";
-  const totalSeconds = ms / 1000;
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds - minutes * 60;
-  return minutes > 0
-    ? `${minutes}:${seconds.toFixed(2).padStart(5, "0")}`
-    : seconds.toFixed(2);
+a {
+  color: inherit;
+  text-decoration: none;
 }
 
-function gapText(pbMs: number, targetMs: number) {
-  const diff = pbMs - targetMs;
-  const seconds = Math.abs(diff / 1000).toFixed(2);
-  if (diff <= 0) return `${seconds}s under ✅`;
-  return `${seconds}s to go`;
+button, input, select, textarea {
+  font: inherit;
 }
 
-function gapTone(pbMs: number, targetMs: number): Tone {
-  const diff = pbMs - targetMs;
-  if (diff <= 0) return "good";
-  if (diff <= 1000) return "warn";
-  return "neutral";
+/* ============================================================
+   WATER BACKGROUND — CSS animated pool caustics
+   Uses CSS variables so ThemeProvider can change colours.
+   GPU-accelerated on iOS Safari.
+   ============================================================ */
+
+body {
+  background-color: var(--theme-bg);
+  position: relative;
+  isolation: isolate;
+  transition: background-color 0.6s ease;
 }
 
-function toneColor(tone: Tone): string {
-  switch (tone) {
-    case "good": return "#6EE7B7";
-    case "warn": return "#FCD34D";
-    default: return "rgba(255,255,255,0.5)";
+/* Layer 1 — Deep water base gradient */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background:
+    radial-gradient(ellipse 60% 50% at 15% 25%, var(--theme-light)  0%, transparent 65%),
+    radial-gradient(ellipse 50% 60% at 85% 55%, var(--theme-dark)   0%, transparent 60%),
+    radial-gradient(ellipse 70% 40% at 50% 85%, var(--theme-light3) 0%, transparent 65%),
+    radial-gradient(ellipse 40% 30% at 70% 15%, var(--theme-light2) 0%, transparent 55%),
+    linear-gradient(160deg, var(--theme-bg) 0%, var(--theme-mid) 40%, var(--theme-bg) 100%);
+  animation: waterDepth 25s ease-in-out infinite alternate;
+  pointer-events: none;
+  transition: background 0.6s ease;
+}
+
+/* Layer 2 — Caustic light shimmer (pool light refraction) */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(ellipse 220px 110px at 25% 35%, rgba(140,210,255,0.12) 0%, transparent 70%),
+    radial-gradient(ellipse 180px  90px at 75% 25%, rgba(255,200, 80,0.08) 0%, transparent 65%),
+    radial-gradient(ellipse 200px 100px at 60% 65%, rgba(120,200,240,0.10) 0%, transparent 70%),
+    radial-gradient(ellipse 150px  80px at 30% 75%, rgba(255,180, 40,0.06) 0%, transparent 60%),
+    radial-gradient(ellipse 250px 120px at 80% 80%, rgba(100,190,230,0.09) 0%, transparent 70%);
+  animation: causticLight 18s ease-in-out infinite alternate-reverse;
+  pointer-events: none;
+}
+
+@keyframes waterDepth {
+  0%   { transform: translate(0px,   0px)  scale(1);    }
+  25%  { transform: translate(18px, -12px) scale(1.03); }
+  50%  { transform: translate(-14px, 20px) scale(0.98); }
+  75%  { transform: translate(10px,  -8px) scale(1.02); }
+  100% { transform: translate(-8px,  15px) scale(1.01); }
+}
+
+@keyframes causticLight {
+  0%   { transform: translate(0px,   0px); opacity: 0.7;  }
+  30%  { transform: translate(-28px, 18px); opacity: 1;   }
+  60%  { transform: translate(22px, -15px); opacity: 0.75; }
+  100% { transform: translate(-12px, 25px); opacity: 0.85; }
+}
+
+/* Subtle ripple lines overlay — pool surface effect */
+.water-ripple {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 28px,
+    rgba(255,255,255,0.018) 28px,
+    rgba(255,255,255,0.018) 29px
+  );
+  animation: rippleMove 12s linear infinite;
+}
+
+@keyframes rippleMove {
+  from { transform: translateY(0); }
+  to   { transform: translateY(29px); }
+}
+
+/* ============================================================
+   GLASS UTILITY — reusable glass surface
+   ============================================================ */
+
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  border: 1px solid var(--glass-border);
+}
+
+/* ============================================================
+   COMPONENT LAYER
+   ============================================================ */
+
+@layer components {
+
+  /* Shell — full page wrapper, transparent so water shows through */
+  .shell {
+    @apply min-h-screen text-white;
+    background: transparent;
+    position: relative;
+    z-index: 1;
   }
-}
 
-function toneBg(tone: Tone): string {
-  switch (tone) {
-    case "good": return "rgba(110,231,183,0.12)";
-    case "warn": return "rgba(252,211,77,0.12)";
-    default: return "rgba(255,255,255,0.06)";
+  /* Content container */
+  .container-app {
+    @apply mx-auto w-full max-w-md px-4 pt-6 pb-28;
   }
-}
 
-function toneBorder(tone: Tone): string {
-  switch (tone) {
-    case "good": return "rgba(110,231,183,0.25)";
-    case "warn": return "rgba(252,211,77,0.25)";
-    default: return "rgba(255,255,255,0.12)";
+  /* Card — frosted glass */
+  .card {
+    background: rgba(255,255,255,0.13);
+    backdrop-filter: blur(24px) saturate(1.3);
+    -webkit-backdrop-filter: blur(24px) saturate(1.3);
+    border: 1px solid rgba(255,255,255,0.24);
+    border-radius: 28px;
+    padding: 20px;
   }
+
+  /* Card soft — lighter glass */
+  .card-soft {
+    background: rgba(255,255,255,0.09);
+    backdrop-filter: blur(20px) saturate(1.2);
+    -webkit-backdrop-filter: blur(20px) saturate(1.2);
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 24px;
+    padding: 16px;
+  }
+
+  /* Input — dark glass */
+  .input {
+    @apply w-full h-14 rounded-[20px] px-4 text-white outline-none placeholder:text-white/35;
+    background: rgba(0,0,0,0.25);
+    border: 1px solid rgba(255,255,255,0.2);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    transition: border-color 0.15s ease;
+  }
+
+  .input:focus {
+    border-color: rgba(255,255,255,0.45);
+  }
+
+  /* Select */
+  select.input {
+    appearance: none;
+    -webkit-appearance: none;
+    color: white;
+  }
+
+  select.input option {
+    background: var(--theme-bg);
+    color: white;
+  }
+
+  /* Buttons */
+  .btn {
+    @apply inline-flex items-center justify-center rounded-[20px] px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50;
+    background: rgba(217,119,6,0.25);
+    border: 1px solid rgba(253,230,138,0.35);
+    color: #FDE68A;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .btn:hover:not(:disabled) {
+    background: rgba(217,119,6,0.35);
+    border-color: rgba(253,230,138,0.5);
+  }
+
+  .btn-block {
+    @apply inline-flex h-14 w-full items-center justify-center rounded-[20px] px-4 text-base font-semibold transition disabled:cursor-not-allowed disabled:opacity-50;
+    background: rgba(217,119,6,0.25);
+    border: 1px solid rgba(253,230,138,0.35);
+    color: #FDE68A;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .btn-block:hover:not(:disabled) {
+    background: rgba(217,119,6,0.35);
+  }
+
+  .btn-outline {
+    @apply inline-flex items-center justify-center rounded-[20px] px-4 py-3 text-sm font-medium transition;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.22);
+    color: rgba(255,255,255,0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .btn-outline:hover {
+    background: rgba(255,255,255,0.14);
+    border-color: rgba(255,255,255,0.35);
+  }
+
+  .btn-danger {
+    @apply inline-flex items-center justify-center rounded-[20px] px-4 py-3 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50;
+    background: rgba(239,68,68,0.15);
+    border: 1px solid rgba(252,165,165,0.25);
+    color: #fca5a5;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .btn-danger:hover:not(:disabled) {
+    background: rgba(239,68,68,0.25);
+  }
+
+  /* Segmented control */
+  .segmented {
+    @apply rounded-[22px] p-2;
+    background: rgba(0,20,50,0.3);
+    border: 1px solid rgba(255,255,255,0.15);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .segmented-btn {
+    @apply rounded-[16px] px-4 py-3 text-sm font-semibold transition;
+    color: rgba(255,255,255,0.55);
+  }
+
+  .segmented-btn:hover {
+    background: rgba(255,255,255,0.08);
+    color: white;
+  }
+
+  .segmented-btn-active {
+    @apply rounded-[16px] px-4 py-3 text-sm font-semibold;
+    background: rgba(217,119,6,0.25);
+    border: 1px solid rgba(253,230,138,0.3);
+    color: #FDE68A;
+  }
+
+  /* Typography */
+  .label {
+    @apply text-xs uppercase tracking-[0.25em];
+    color: rgba(255,255,255,0.4);
+  }
+
+  .title {
+    @apply text-3xl font-bold tracking-tight text-white;
+  }
+
+  .muted {
+    color: rgba(255,255,255,0.6);
+  }
+
+  .stat-number {
+    @apply mt-3 text-4xl font-bold tracking-tight text-white;
+  }
+
+  /* Semantic text colours */
+  .accent-text   { color: #FDE68A; }
+  .success-text  { color: #6EE7B7; }
+  .warning-text  { color: #FCD34D; }
+  .danger-text   { color: #FCA5A5; }
 }
 
-export default function StandardsCompare({
-  swimmerId,
-  swimmerAge,
-  swimmerGender,
-}: {
-  swimmerId: number;
-  swimmerAge: number;
-  swimmerGender?: string | null;
-}) {
-  const [loading, setLoading] = useState(true);
-  const [loadingItems, setLoadingItems] = useState(false);
+/* ============================================================
+   GLOBAL TAILWIND OVERRIDES
+   ============================================================ */
 
-  const [pbMap, setPbMap] = useState<Map<string, number>>(new Map());
-  const [pbLabelMap, setPbLabelMap] = useState<Map<string, { event: string; course: string }>>(new Map());
+/* Any element using bg-white/5 or similar gets glass treatment */
+.rounded-3xl.border,
+.rounded-2xl.border {
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+}
 
-  const [sets, setSets] = useState<StandardSet[]>([]);
-  const [selectedSetId, setSelectedSetId] = useState<number | "">("");
-  const [items, setItems] = useState<StandardItem[]>([]);
+/* Bottom nav glass — uses theme variable for base colour */
+nav.fixed {
+  backdrop-filter: blur(30px) saturate(1.5);
+  -webkit-backdrop-filter: blur(30px) saturate(1.5);
+  background: var(--theme-nav-bg) !important;
+  border-top-color: rgba(255,255,255,0.15) !important;
+  transition: background 0.6s ease;
+}
 
-  useEffect(() => {
-    if (!swimmerId) return;
-    loadInitialData();
-  }, [swimmerId]);
+/* Modal overlay */
+.fixed.inset-0.bg-black\/70 {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  background: rgba(0,20,50,0.65) !important;
+}
 
-  useEffect(() => {
-    if (!selectedSetId) { setItems([]); return; }
-    loadItemsForSet(Number(selectedSetId));
-  }, [selectedSetId, swimmerAge, swimmerGender]);
+/* Modal card inside overlay */
+.fixed.inset-0 > div > div {
+  background: rgba(8,50,80,0.85) !important;
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  border-color: rgba(255,255,255,0.2) !important;
+}
 
-  async function loadInitialData() {
-    setLoading(true);
+/* ============================================================
+   ONBOARDING — story walkthrough screens
+   ============================================================ */
 
-    const [timesResult, setsResult] = await Promise.all([
-      supabase.from("swim_times").select("event, course, time_ms").eq("swimmer_id", swimmerId),
-      supabase.from("standard_sets").select("id, name, type").order("created_at", { ascending: false }),
-    ]);
+.onb-screen {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 2rem 0;
+}
 
-    const { data: times, error: tErr } = timesResult;
-    const { data: setData, error: setErr } = setsResult;
+.onb-btn-primary {
+  background: #D97706;
+  border: none;
+  border-radius: 16px;
+  padding: 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
 
-    if (tErr || setErr) { setLoading(false); return; }
+.onb-btn-primary:hover { opacity: 0.9; }
 
-    const map = new Map<string, number>();
-    const labelMap = new Map<string, { event: string; course: string }>();
+.onb-btn-secondary {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 16px;
+  padding: 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.6);
+  cursor: pointer;
+}
+</file>
 
-    (times as SwimTimeRow[] | null)?.forEach((t) => {
-      const k = keyOf(t.event, t.course);
-      const currentPb = map.get(k);
-      if (currentPb == null || t.time_ms < currentPb) {
-        map.set(k, t.time_ms);
-        labelMap.set(k, { event: t.event.trim(), course: normalizeCourse(t.course) });
+<file path="lib/ocrSwimmerScheduleParser.ts">
+// ocrSwimmerScheduleParser.ts
+//
+// Parses the Meet Mobile "Swimmer" schedule page — all events for one swimmer.
+//
+// ACTUAL OCR FORMAT (from real screenshots):
+//
+//   < SWIMMER %*
+//   NEI Elizabeth Le Xuan Chiu       ← name with OCR noise prefix
+//   9) CsC 10                         ← club/age garbled
+//   Full schedule
+//
+//   cent Girls 9-10100 Meter Back     ← "EVENT" read as "cent", distance stuck to age
+//   Finals | 0-10 |
+//   102 1:27.87 | Place: 9            ← event number + time + place on one line
+//   Time improvement: - 1.32
+//
+//   cent Girls 9-10 50 Meter Free
+//   108 Finals | 0-10 |               ← sometimes event number on same line as Finals
+//   36.76 | Place: 18
+//
+//   cent Mixed 7-8 200 Meter Medley Relay  ← relay — skip
+//   Finals | 0-10 |
+//   115 2:32.59 | Place: 3
+
+export type ScheduleResultRow = {
+  eventNumber: number | null;
+  event: string;
+  distance: number;
+  stroke: string;
+  timeStr: string;
+  timeMs: number;
+  place: number | null;
+  course: "LCM" | "SCM" | "SCY" | "UNKNOWN";
+  swamAt: string | null;
+  meetName: string | null;
+  isRelay: boolean;
+};
+
+export type ParsedSwimmerSchedule = {
+  swimmerName: string | null;
+  club: string | null;
+  age: number | null;
+  results: ScheduleResultRow[];
+  meetName: string | null;
+  swamAt: string | null;
+};
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function timeToMs(timeStr: string): number {
+  if (!timeStr) return 0;
+  const s = timeStr.trim();
+  if (s.includes(":")) {
+    const [mm, rest] = s.split(":");
+    const [sec, hun] = rest.split(".");
+    if (Number(sec) >= 60) return 0;
+    return Number(mm) * 60_000 + Number(sec) * 1_000 + Number(hun ?? "0") * 10;
+  }
+  const [sec, hun] = s.split(".");
+  return Number(sec) * 1_000 + Number(hun ?? "0") * 10;
+}
+
+// Repair times:
+//   "36.76"  → "36.76"   (valid as-is)
+//   "118.03" → "1:18.03" (3 digits before dot = m:ss.hh)
+//   "215.72" → "2:15.72"
+//   "11803"  → "1:18.03" (5 raw digits)
+function repairTime(raw: string): string | null {
+  const s = raw.trim();
+  if (/^\d{1,2}:\d{2}\.\d{2}$/.test(s)) {
+    const sec = Number(s.split(":")[1].split(".")[0]);
+    if (sec >= 60) return null;
+    return s;
+  }
+  if (/^\d{2}\.\d{2}$/.test(s)) return s;
+  if (/^\d{5}$/.test(s)) {
+    const sec = Number(s.slice(1, 3));
+    if (sec >= 60) return null;
+    return `${s[0]}:${s.slice(1, 3)}.${s.slice(3)}`;
+  }
+  // "118.03" or "215.72" — 3 digits, dot, 2 digits
+  if (/^\d{3}\.\d{2}$/.test(s)) {
+    const mins = s[0];
+    const sec = s.slice(1, 3);
+    const hun = s.slice(4);
+    if (Number(sec) >= 60) return null;
+    return `${mins}:${sec}.${hun}`;
+  }
+  return null;
+}
+
+function detectCourse(rawText: string): "LCM" | "SCM" | "SCY" | "UNKNOWN" {
+  const t = rawText.toLowerCase();
+  if (t.includes("meter") || t.includes("lcm")) return "LCM";
+  if (t.includes("25 meter") || t.includes("scm")) return "SCM";
+  if (t.includes("yard") || t.includes("scy")) return "SCY";
+  return "UNKNOWN";
+}
+
+function parseStroke(line: string): string | null {
+  const l = line.toLowerCase();
+  if (l.includes("freestyle") || / free\b/.test(l)) return "Freestyle";
+  if (l.includes("butterfly") || / fly\b/.test(l)) return "Butterfly";
+  if (l.includes("backstroke") || / back\b/.test(l)) return "Backstroke";
+  if (l.includes("breaststroke") || / breast\b/.test(l)) return "Breaststroke";
+  if (l.includes("individual medley") || / medley\b/.test(l) || / im\b/.test(l)) return "IM";
+  return null;
+}
+
+function parseDistance(line: string): number | null {
+  const m = line.match(/\b(50|100|200|400|800|1500)\b/);
+  return m ? Number(m[1]) : null;
+}
+
+function extractMeetDate(rawText: string): string | null {
+  const monthMap: Record<string, number> = {
+    jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+    jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+  };
+  const m = rawText.match(
+    /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s.,|/-]*(\d{1,2})[\s,|/-]*(\d{4})\b/i
+  );
+  if (m) {
+    const month = monthMap[m[1].slice(0, 3).toLowerCase()];
+    const day = Number(m[2]);
+    const year = Number(m[3]);
+    if (month != null && day >= 1 && day <= 31) {
+      return new Date(Date.UTC(year, month, day)).toISOString().split("T")[0];
+    }
+  }
+  return null;
+}
+
+// ─── Swimmer name extraction ──────────────────────────────────────────────────
+// Name appears just above "Full schedule" line
+// OCR adds noise prefix like "NEI ", "< ", etc.
+
+function extractSwimmerHeader(lines: string[]): {
+  name: string | null; club: string | null; age: number | null;
+} {
+  const scheduleIdx = lines.findIndex((l) => /full.?schedule/i.test(l));
+  if (scheduleIdx >= 1) {
+    for (let i = scheduleIdx - 1; i >= Math.max(0, scheduleIdx - 3); i--) {
+      const line = lines[i].trim();
+      const cleaned = line.replace(/^[^A-Z]+/, "").trim();
+      const words = cleaned.split(/\s+/);
+      if (
+        words.length >= 2 && words.length <= 7 &&
+        !/\d/.test(cleaned) &&
+        words.every((w) => /^[A-Z]/.test(w))
+      ) {
+        return { name: cleaned, club: null, age: null };
       }
-    });
+    }
+  }
+  return { name: null, club: null, age: null };
+}
 
-    const loadedSets = (setData as StandardSet[] | null) ?? [];
+// ─── Event description line detection ────────────────────────────────────────
+// OCR reads "EVENT" as "cent", "ent", "EVENT", etc.
+// Lines contain a stroke word + distance number.
 
-    setPbMap(map);
-    setPbLabelMap(labelMap);
-    setSets(loadedSets);
+function isEventDescriptionLine(line: string): boolean {
+  if (/place:/i.test(line)) return false;
+  if (/time improvement/i.test(line)) return false;
+  if (/full.?schedule/i.test(line)) return false;
+  if (/^\d{2,3}\s+\d/.test(line)) return false; // "102 1:27.87" — this is a data line
+  const hasStroke = parseStroke(line) !== null;
+  const hasDistance = parseDistance(line) !== null;
+  return hasStroke && hasDistance;
+}
 
-    setSelectedSetId((current) => {
-      if (current && loadedSets.some((s) => s.id === current)) return current;
-      return loadedSets.length > 0 ? loadedSets[0].id : "";
-    });
+// ─── Extract time + place from a line ────────────────────────────────────────
+// Handles patterns like:
+//   "102 1:27.87 | Place: 9"
+//   "36.76 | Place: 18"
+//   "118.03 | Place: 11"
+//   "3:02.40 | Place:"   (place missing)
 
-    setLoading(false);
+function extractTimePlaceFromLine(line: string): {
+  timeStr: string; timeMs: number; place: number | null;
+} | null {
+  const m = line.match(
+    /(\d{1,2}:\d{2}\.\d{2}|\d{3}\.\d{2}|\d{2}\.\d{2}|\d{5})\s*\|\s*Place:\s*(\d+|EXH)?/i
+  );
+  if (!m) return null;
+
+  const timeStr = repairTime(m[1]);
+  if (!timeStr) return null;
+
+  const timeMs = timeToMs(timeStr);
+  if (timeMs <= 0 || timeMs > 1_800_000) return null;
+
+  const placeStr = m[2] ?? "";
+  const place = /^\d+$/.test(placeStr) ? Number(placeStr) : null;
+
+  return { timeStr, timeMs, place };
+}
+
+// ─── Main parser ──────────────────────────────────────────────────────────────
+
+export function parseSwimmerScheduleOCR(rawText: string): ParsedSwimmerSchedule {
+  const lines = rawText
+    .replace(/\r/g, "\n")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  const course = detectCourse(rawText);
+  const swamAt = extractMeetDate(rawText);
+  const { name: swimmerName, club, age } = extractSwimmerHeader(lines);
+
+  const meetKeywords = /championship|open|invitational|junior|classic|cup|series|aquatic|swim/i;
+  let meetName: string | null = null;
+  for (const line of lines.slice(0, 20)) {
+    if (line.length < 5 || line.length > 100) continue;
+    if (/^\d/.test(line)) continue;
+    if (/place|heat|finals|schedule|swimmer/i.test(line)) continue;
+    if (meetKeywords.test(line)) { meetName = line.trim(); break; }
   }
 
-  async function loadItemsForSet(setId: number) {
-    setLoadingItems(true);
+  const results: ScheduleResultRow[] = [];
+  const seen = new Set<string>();
 
-    const { data, error } = await supabase
-      .from("standard_items")
-      .select("id, standard_set_id, event, course, min_age, max_age, gender, qualifying_time_ms")
-      .eq("standard_set_id", setId)
-      .order("event", { ascending: true });
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!isEventDescriptionLine(line)) continue;
 
-    if (error) { setLoadingItems(false); return; }
+    const isRelay = /relay/i.test(line);
+    const distance = parseDistance(line);
+    const stroke = parseStroke(line);
+    if (!distance || !stroke) continue;
 
-    const normalizedSwimmerGender = swimmerGender?.trim().toLowerCase() ?? null;
+    // Look ahead up to 5 lines for time + place
+    let found: { timeStr: string; timeMs: number; place: number | null } | null = null;
+    let eventNumber: number | null = null;
 
-    const filtered = (data as StandardItem[] | null)?.filter((s) => {
-      const minOk = s.min_age == null || swimmerAge >= s.min_age;
-      const maxOk = s.max_age == null || swimmerAge <= s.max_age;
-      const genderOk =
-        !s.gender ||
-        !normalizedSwimmerGender ||
-        s.gender.trim().toLowerCase() === normalizedSwimmerGender;
-      return minOk && maxOk && genderOk;
-    }) ?? [];
+    for (let j = i + 1; j < Math.min(i + 6, lines.length); j++) {
+      const next = lines[j];
+      if (isEventDescriptionLine(next)) break;
+      if (/time improvement/i.test(next)) continue;
+      if (/full.?schedule/i.test(next)) continue;
 
-    setItems(filtered);
-    setLoadingItems(false);
-  }
-
-  const rows = useMemo<CompareRow[]>(() => {
-    const bestTargetByKey = new Map<string, StandardItem>();
-
-    for (const item of items) {
-      const key = keyOf(item.event, item.course);
-      const existing = bestTargetByKey.get(key);
-      if (!existing || item.qualifying_time_ms < existing.qualifying_time_ms) {
-        bestTargetByKey.set(key, item);
+      const extracted = extractTimePlaceFromLine(next);
+      if (extracted) {
+        found = extracted;
+        const numMatch = next.match(/^(\d{2,3})\s+/);
+        if (numMatch) eventNumber = Number(numMatch[1]);
+        break;
       }
     }
 
-    return Array.from(bestTargetByKey.entries())
-      .map(([key, item]) => {
-        const pbMs = pbMap.get(key) ?? null;
-        const label = pbLabelMap.get(key);
-        return {
-          key,
-          event: label?.event ?? item.event.trim(),
-          course: label?.course ?? normalizeCourse(item.course),
-          pbMs,
-          targetMs: item.qualifying_time_ms,
-          gapMs: pbMs != null ? pbMs - item.qualifying_time_ms : null,
-          qualified: pbMs != null ? pbMs <= item.qualifying_time_ms : false,
-          hasPb: pbMs != null,
-        };
-      })
-      .sort((a, b) => {
-        if (a.gapMs == null && b.gapMs == null) return a.event.localeCompare(b.event);
-        if (a.gapMs == null) return 1;
-        if (b.gapMs == null) return -1;
-        return a.gapMs - b.gapMs;
-      });
-  }, [items, pbMap, pbLabelMap]);
+    if (!found) continue;
 
-  const selectedSet = sets.find((s) => s.id === selectedSetId) ?? null;
+    // Sanity checks
+    if (distance === 50 && found.timeMs < 20_000) continue;
+    if (distance === 100 && found.timeMs < 40_000) continue;
+    if (distance === 200 && found.timeMs < 80_000) continue;
+    if (distance === 400 && found.timeMs < 200_000) continue;
 
-  const nextTarget = useMemo(() => {
-    return rows
-      .filter((r) => r.hasPb && !r.qualified && r.gapMs != null)
-      .sort((a, b) => (a.gapMs ?? Infinity) - (b.gapMs ?? Infinity))[0] ?? null;
-  }, [rows]);
+    // Deduplicate by event + time
+    const key = `${distance}|${stroke}|${found.timeStr}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
 
-  const qualifiedCount = rows.filter((r) => r.qualified).length;
-  const inProgressCount = rows.filter((r) => r.hasPb && !r.qualified).length;
-
-  if (loading) {
-    return (
-      <div className="py-10 text-center">
-        <p className="text-sm text-white/40">Loading standards...</p>
-      </div>
-    );
+    results.push({
+      eventNumber,
+      event: `${distance} ${stroke}`,
+      distance,
+      stroke,
+      timeStr: found.timeStr,
+      timeMs: found.timeMs,
+      place: found.place,
+      course,
+      swamAt,
+      meetName,
+      isRelay,
+    });
   }
 
-  return (
-    <div className="space-y-4">
-
-      {/* Set selector */}
-      <div
-        className="rounded-3xl p-4 space-y-3"
-        style={{
-          background: "rgba(255,255,255,0.07)",
-          border: "1px solid rgba(255,255,255,0.12)",
-        }}
-      >
-        <p className="text-[10px] font-medium uppercase tracking-widest text-white/40">Standard set</p>
-        <select
-          value={selectedSetId}
-          onChange={(e) => setSelectedSetId(e.target.value ? Number(e.target.value) : "")}
-          className="input"
-        >
-          <option value="">Select a standard set...</option>
-          {sets.map((set) => (
-            <option key={set.id} value={set.id}>
-              {set.name} · {set.type === "UPGRADING" ? "Upgrading" : "Important Meet"}
-            </option>
-          ))}
-        </select>
-
-        {selectedSet && rows.length > 0 && (
-          <div className="flex gap-2 flex-wrap">
-            <span
-              className="rounded-full px-3 py-1 text-xs font-semibold"
-              style={{ background: "rgba(110,231,183,0.12)", color: "#6EE7B7", border: "1px solid rgba(110,231,183,0.25)" }}
-            >
-              ✅ {qualifiedCount} qualified
-            </span>
-            <span
-              className="rounded-full px-3 py-1 text-xs font-semibold"
-              style={{ background: "rgba(252,211,77,0.12)", color: "#FCD34D", border: "1px solid rgba(252,211,77,0.25)" }}
-            >
-              🎯 {inProgressCount} in progress
-            </span>
-            <span
-              className="rounded-full px-3 py-1 text-xs font-semibold"
-              style={{ background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.4)", border: "1px solid rgba(255,255,255,0.12)" }}
-            >
-              {rows.length} events total
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* Next target card */}
-      {selectedSet && (
-        <div
-          className="rounded-3xl p-4 space-y-3"
-          style={{
-            background: "rgba(217,119,6,0.1)",
-            border: "1px solid rgba(253,230,138,0.2)",
-          }}
-        >
-          <p className="text-[10px] font-medium uppercase tracking-widest" style={{ color: "#FDE68A" }}>
-            🎯 Next target
-          </p>
-
-          {loadingItems ? (
-            <p className="text-sm text-white/40">Loading...</p>
-          ) : !nextTarget ? (
-            <p className="text-sm text-white/50">
-              {rows.length === 0
-                ? "No matching standards for this swimmer's age."
-                : qualifiedCount === rows.length
-                ? "All standards qualified! 🏆"
-                : "No active target found — add some results first."}
-            </p>
-          ) : (
-            <>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-lg font-bold text-white">{canonicalEventName(nextTarget.event)}</p>
-                  <p className="text-xs text-white/40">{nextTarget.course}</p>
-                </div>
-                <span
-                  className="rounded-full px-3 py-1 text-xs font-semibold flex-shrink-0"
-                  style={{ background: "rgba(252,211,77,0.15)", color: "#FCD34D", border: "1px solid rgba(252,211,77,0.3)" }}
-                >
-                  {gapText(nextTarget.pbMs!, nextTarget.targetMs)}
-                </span>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { label: "Your PB", value: formatMs(nextTarget.pbMs) },
-                  { label: "Target", value: formatMs(nextTarget.targetMs) },
-                  { label: "Gap", value: `${Math.abs((nextTarget.gapMs ?? 0) / 1000).toFixed(2)}s` },
-                ].map((tile) => (
-                  <div
-                    key={tile.label}
-                    className="rounded-2xl p-3 text-center"
-                    style={{ background: "rgba(0,20,50,0.3)", border: "1px solid rgba(255,255,255,0.08)" }}
-                  >
-                    <p className="text-[10px] text-white/40 uppercase tracking-wider">{tile.label}</p>
-                    <p className="mt-1 text-base font-bold text-white tabular-nums">{tile.value}</p>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      {/* All events list */}
-      {selectedSet && !loadingItems && rows.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-[10px] font-medium uppercase tracking-widest text-white/40 px-1">All events</p>
-          {rows.map((r) => {
-            const tone = r.hasPb ? gapTone(r.pbMs!, r.targetMs) : "neutral";
-            const isQualified = r.qualified;
-
-            return (
-              <div
-                key={r.key}
-                className="rounded-2xl p-4"
-                style={{
-                  background: isQualified ? "rgba(110,231,183,0.07)" : "rgba(255,255,255,0.05)",
-                  border: `1px solid ${isQualified ? "rgba(110,231,183,0.2)" : "rgba(255,255,255,0.1)"}`,
-                }}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-white truncate">{canonicalEventName(r.event)}</p>
-                    <p className="text-xs text-white/35 mt-0.5">{r.course}</p>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    {isQualified ? (
-                      <span className="text-sm font-semibold" style={{ color: "#6EE7B7" }}>Qualified ✅</span>
-                    ) : r.hasPb ? (
-                      <span className="text-sm font-semibold" style={{ color: toneColor(tone) }}>
-                        {gapText(r.pbMs!, r.targetMs)}
-                      </span>
-                    ) : (
-                      <span className="text-xs text-white/30">No PB yet</span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <div
-                    className="rounded-xl p-2.5"
-                    style={{ background: "rgba(0,20,50,0.3)", border: "1px solid rgba(255,255,255,0.07)" }}
-                  >
-                    <p className="text-[10px] text-white/35 uppercase tracking-wider">Your PB</p>
-                    <p className="mt-0.5 text-sm font-bold text-white tabular-nums">{formatMs(r.pbMs)}</p>
-                  </div>
-                  <div
-                    className="rounded-xl p-2.5"
-                    style={{
-                      background: toneBg(r.hasPb ? tone : "neutral"),
-                      border: `1px solid ${toneBorder(r.hasPb ? tone : "neutral")}`,
-                    }}
-                  >
-                    <p className="text-[10px] text-white/35 uppercase tracking-wider">Target</p>
-                    <p className="mt-0.5 text-sm font-bold tabular-nums" style={{ color: r.hasPb ? toneColor(tone) : "rgba(255,255,255,0.5)" }}>
-                      {formatMs(r.targetMs)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Empty state */}
-      {selectedSet && !loadingItems && rows.length === 0 && (
-        <div
-          className="rounded-3xl p-8 text-center"
-          style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
-        >
-          <p className="text-base font-semibold text-white">No matching standards</p>
-          <p className="mt-1 text-sm text-white/40">
-            This may be due to age range, gender, or no items added to this set yet.
-          </p>
-        </div>
-      )}
-
-      {!selectedSet && !loading && (
-        <div
-          className="rounded-3xl p-8 text-center"
-          style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
-        >
-          <p className="text-base font-semibold text-white">No standard sets yet</p>
-          <p className="mt-1 text-sm text-white/40">
-            Go to Standards in the bottom nav to create your first set.
-          </p>
-        </div>
-      )}
-
-    </div>
-  );
+  return { swimmerName, club, age, results, meetName, swamAt };
 }
-</file>
 
-<file path="app/page.tsx">
-import { redirect } from "next/navigation";
+// ─── Detection ────────────────────────────────────────────────────────────────
+// Key signals:
+// - "Full schedule" — unique to this screen
+// - Multiple "Place:" with colon — unique to swimmer schedule format
+// NOT checking COMPLETED — OCR doesn't read it reliably on this screen type
 
-export default function HomePage() {
-  redirect("/login");
-}
-</file>
+export function isSwimmerSchedulePage(rawText: string): boolean {
+  const flat = rawText.replace(/\s+/g, " ").toUpperCase();
 
-<file path="lib/supabaseClient.ts">
-import { createBrowserClient } from "@supabase/ssr";
+  if (flat.includes("SWIM DETAIL")) return false;
+  if (flat.includes("EVENT SUMMARY")) return false;
+  if (flat.includes("EVENT DETAILS")) return false;
 
-export const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-  {
-    auth: {
-      flowType: "implicit",
-      detectSessionInUrl: true,
-      persistSession: true,
-    },
-  }
-);
-</file>
+  // "FULL SCHEDULE" is the strongest unique signal
+  if (!flat.includes("FULL SCHEDULE")) return false;
 
-<file path="package.json">
-{
-  "name": "swimtrack-sg",
-  "version": "0.1.0",
-  "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
-  },
-  "dependencies": {
-    "@supabase/ssr": "^0.9.0",
-    "@supabase/supabase-js": "^2.98.0",
-    "next": "16.1.6",
-    "react": "19.2.3",
-    "react-dom": "19.2.3",
-    "tesseract.js": "^7.0.0",
-    "xlsx": "^0.18.5"
-  },
-  "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.1.6",
-    "tailwindcss": "^4",
-    "typescript": "^5"
-  }
-}
-</file>
+  // Multiple "PLACE:" with colon
+  const placeColonCount = (flat.match(/PLACE:/g) ?? []).length;
+  if (placeColonCount < 2) return false;
 
-<file path="app/components/BottomNav.tsx">
-"use client";
-
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-
-const NAV_ITEMS = [
-  {
-    href: "/dashboard",
-    label: "Home",
-    tutorial: "home",
-    icon: (active: boolean) => (
-      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-        <path d="M4 10.5L11 4L18 10.5V18H14V13H8V18H4V10.5Z" stroke={active ? "#FDE68A" : "rgba(255,255,255,0.5)"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-      </svg>
-    ),
-  },
-  {
-    href: "/swimmers",
-    label: "Brood",
-    tutorial: "brood",
-    icon: (active: boolean) => (
-      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-        <circle cx="11" cy="8" r="3.5" stroke={active ? "#FDE68A" : "rgba(255,255,255,0.5)"} strokeWidth="1.5" />
-        <path d="M3 19c0-4 3.6-7 8-7s8 3 8 7" stroke={active ? "#FDE68A" : "rgba(255,255,255,0.5)"} strokeWidth="1.5" strokeLinecap="round" />
-      </svg>
-    ),
-  },
-  {
-    href: "/scan",
-    label: "Scan",
-    tutorial: "scan",
-    icon: (active: boolean) => (
-      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-        <rect x="3" y="3" width="16" height="16" rx="3" stroke={active ? "#FDE68A" : "rgba(255,255,255,0.5)"} strokeWidth="1.5" />
-        <path d="M7 11h8M11 7v8" stroke={active ? "#FDE68A" : "rgba(255,255,255,0.5)"} strokeWidth="1.5" strokeLinecap="round" />
-      </svg>
-    ),
-  },
-  {
-    href: "/compare",
-    label: "Compare",
-    tutorial: "compare",
-    icon: (active: boolean) => (
-      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-        <path d="M7 5H3v12h4V5zM19 5h-4v12h4V5z" stroke={active ? "#FDE68A" : "rgba(255,255,255,0.5)"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M11 8v6M9 11l2-2 2 2" stroke={active ? "#FDE68A" : "rgba(255,255,255,0.5)"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    ),
-  },
-  {
-    href: "/settings",
-    label: "Settings",
-    tutorial: "settings",
-    icon: (active: boolean) => (
-      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-        <circle cx="11" cy="11" r="2.5" stroke={active ? "#FDE68A" : "rgba(255,255,255,0.5)"} strokeWidth="1.5" />
-        <path d="M11 4v2M11 16v2M4 11H2M20 11h-2M5.93 5.93 7.34 7.34M14.66 14.66l1.41 1.41M5.93 16.07l1.41-1.41M14.66 7.34l1.41-1.41" stroke={active ? "#FDE68A" : "rgba(255,255,255,0.5)"} strokeWidth="1.5" strokeLinecap="round" />
-      </svg>
-    ),
-  },
-];
-
-const HIDDEN_ON = ["/login", "/signup", "/forgot-password", "/reset-password", "/invite", "/auth", "/onboarding"];
-
-export default function BottomNav() {
-  const pathname = usePathname();
-  if (HIDDEN_ON.some((p) => pathname.startsWith(p))) return null;
-
-  return (
-    <nav
-      className="fixed bottom-3 left-1/2 z-50"
-      style={{ transform: "translateX(-50%)", width: "calc(100% - 32px)", maxWidth: "420px" }}
-    >
-      <div
-        style={{
-          background: "rgba(6,40,65,0.72)",
-          backdropFilter: "blur(32px) saturate(1.8)",
-          WebkitBackdropFilter: "blur(32px) saturate(1.8)",
-          border: "1px solid rgba(255,255,255,0.22)",
-          borderRadius: "28px",
-          padding: "8px 8px 10px",
-          display: "flex",
-          justifyContent: "space-around",
-          alignItems: "center",
-          boxShadow: "0 8px 32px rgba(0,20,50,0.45), inset 0 1px 0 rgba(255,255,255,0.12)",
-        }}
-      >
-        {NAV_ITEMS.map((item) => {
-          const active = item.href === "/dashboard"
-            ? pathname === "/dashboard"
-            : pathname.startsWith(item.href);
-
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              data-tutorial={item.tutorial}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: "3px",
-                padding: "6px 12px",
-                borderRadius: "20px",
-                transition: "background 0.15s ease",
-                background: active ? "rgba(217,119,6,0.2)" : "transparent",
-                border: active ? "1px solid rgba(253,230,138,0.25)" : "1px solid transparent",
-                minWidth: "52px",
-              }}
-            >
-              {item.icon(active)}
-              <span style={{
-                fontSize: "10px",
-                fontWeight: active ? 600 : 400,
-                letterSpacing: "0.02em",
-                color: active ? "#FDE68A" : "rgba(255,255,255,0.45)",
-                transition: "color 0.15s ease",
-              }}>
-                {item.label}
-              </span>
-            </Link>
-          );
-        })}
-      </div>
-    </nav>
-  );
+  return true;
 }
 </file>
 
@@ -10420,413 +10647,6 @@ export default function ResetPasswordPage() {
       </div>
     </div>
   );
-}
-</file>
-
-<file path="app/globals.css">
-@import "tailwindcss";
-
-/* ============================================================
-   NATRIX — Water Glass Theme
-   Pool caustic light + frosted glass cards
-   ============================================================ */
-
-:root {
-  --foreground: #ffffff;
-
-  /* ── Theme background variables ──────────────────────────────
-     These are overridden at runtime by ThemeProvider.tsx.
-     Defaults = Ocean (the original blue).
-  ─────────────────────────────────────────────────────────── */
-  --theme-bg:     #063554;
-  --theme-dark:   #073E6A;
-  --theme-mid:    #084A73;
-  --theme-light:  #0D6E9A;
-  --theme-light2: #0E7A9E;
-  --theme-light3: #0A5580;
-  --theme-nav-bg: rgba(6,53,84,0.80);
-
-  /* Kept for backwards compat — mirrors --theme-bg */
-  --background: var(--theme-bg);
-
-  /* Amber accent palette */
-  --amber:        #D97706;
-  --amber-light:  #FDE68A;
-  --amber-glow:   rgba(217,119,6,0.35);
-
-  /* Glass surfaces */
-  --glass-bg:           rgba(255,255,255,0.13);
-  --glass-bg-hover:     rgba(255,255,255,0.18);
-  --glass-border:       rgba(255,255,255,0.24);
-  --glass-border-hover: rgba(255,255,255,0.38);
-
-  /* Text */
-  --text-primary:   #ffffff;
-  --text-secondary: rgba(255,255,255,0.65);
-  --text-muted:     rgba(255,255,255,0.38);
-  --text-hint:      rgba(255,255,255,0.22);
-}
-
-/* ============================================================
-   BASE
-   ============================================================ */
-
-*, *::before, *::after {
-  box-sizing: border-box;
-}
-
-html, body {
-  margin: 0;
-  padding: 0;
-  min-height: 100vh;
-  color: var(--foreground);
-  font-family: -apple-system, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-}
-
-a {
-  color: inherit;
-  text-decoration: none;
-}
-
-button, input, select, textarea {
-  font: inherit;
-}
-
-/* ============================================================
-   WATER BACKGROUND — CSS animated pool caustics
-   Uses CSS variables so ThemeProvider can change colours.
-   GPU-accelerated on iOS Safari.
-   ============================================================ */
-
-body {
-  background-color: var(--theme-bg);
-  position: relative;
-  isolation: isolate;
-  transition: background-color 0.6s ease;
-}
-
-/* Layer 1 — Deep water base gradient */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: -2;
-  background:
-    radial-gradient(ellipse 60% 50% at 15% 25%, var(--theme-light)  0%, transparent 65%),
-    radial-gradient(ellipse 50% 60% at 85% 55%, var(--theme-dark)   0%, transparent 60%),
-    radial-gradient(ellipse 70% 40% at 50% 85%, var(--theme-light3) 0%, transparent 65%),
-    radial-gradient(ellipse 40% 30% at 70% 15%, var(--theme-light2) 0%, transparent 55%),
-    linear-gradient(160deg, var(--theme-bg) 0%, var(--theme-mid) 40%, var(--theme-bg) 100%);
-  animation: waterDepth 25s ease-in-out infinite alternate;
-  pointer-events: none;
-  transition: background 0.6s ease;
-}
-
-/* Layer 2 — Caustic light shimmer (pool light refraction) */
-body::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  background:
-    radial-gradient(ellipse 220px 110px at 25% 35%, rgba(140,210,255,0.12) 0%, transparent 70%),
-    radial-gradient(ellipse 180px  90px at 75% 25%, rgba(255,200, 80,0.08) 0%, transparent 65%),
-    radial-gradient(ellipse 200px 100px at 60% 65%, rgba(120,200,240,0.10) 0%, transparent 70%),
-    radial-gradient(ellipse 150px  80px at 30% 75%, rgba(255,180, 40,0.06) 0%, transparent 60%),
-    radial-gradient(ellipse 250px 120px at 80% 80%, rgba(100,190,230,0.09) 0%, transparent 70%);
-  animation: causticLight 18s ease-in-out infinite alternate-reverse;
-  pointer-events: none;
-}
-
-@keyframes waterDepth {
-  0%   { transform: translate(0px,   0px)  scale(1);    }
-  25%  { transform: translate(18px, -12px) scale(1.03); }
-  50%  { transform: translate(-14px, 20px) scale(0.98); }
-  75%  { transform: translate(10px,  -8px) scale(1.02); }
-  100% { transform: translate(-8px,  15px) scale(1.01); }
-}
-
-@keyframes causticLight {
-  0%   { transform: translate(0px,   0px); opacity: 0.7;  }
-  30%  { transform: translate(-28px, 18px); opacity: 1;   }
-  60%  { transform: translate(22px, -15px); opacity: 0.75; }
-  100% { transform: translate(-12px, 25px); opacity: 0.85; }
-}
-
-/* Subtle ripple lines overlay — pool surface effect */
-.water-ripple {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background-image: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 28px,
-    rgba(255,255,255,0.018) 28px,
-    rgba(255,255,255,0.018) 29px
-  );
-  animation: rippleMove 12s linear infinite;
-}
-
-@keyframes rippleMove {
-  from { transform: translateY(0); }
-  to   { transform: translateY(29px); }
-}
-
-/* ============================================================
-   GLASS UTILITY — reusable glass surface
-   ============================================================ */
-
-.glass {
-  background: var(--glass-bg);
-  backdrop-filter: blur(24px) saturate(1.4);
-  -webkit-backdrop-filter: blur(24px) saturate(1.4);
-  border: 1px solid var(--glass-border);
-}
-
-/* ============================================================
-   COMPONENT LAYER
-   ============================================================ */
-
-@layer components {
-
-  /* Shell — full page wrapper, transparent so water shows through */
-  .shell {
-    @apply min-h-screen text-white;
-    background: transparent;
-    position: relative;
-    z-index: 1;
-  }
-
-  /* Content container */
-  .container-app {
-    @apply mx-auto w-full max-w-md px-4 pt-6 pb-28;
-  }
-
-  /* Card — frosted glass */
-  .card {
-    background: rgba(255,255,255,0.13);
-    backdrop-filter: blur(24px) saturate(1.3);
-    -webkit-backdrop-filter: blur(24px) saturate(1.3);
-    border: 1px solid rgba(255,255,255,0.24);
-    border-radius: 28px;
-    padding: 20px;
-  }
-
-  /* Card soft — lighter glass */
-  .card-soft {
-    background: rgba(255,255,255,0.09);
-    backdrop-filter: blur(20px) saturate(1.2);
-    -webkit-backdrop-filter: blur(20px) saturate(1.2);
-    border: 1px solid rgba(255,255,255,0.18);
-    border-radius: 24px;
-    padding: 16px;
-  }
-
-  /* Input — dark glass */
-  .input {
-    @apply w-full h-14 rounded-[20px] px-4 text-white outline-none placeholder:text-white/35;
-    background: rgba(0,0,0,0.25);
-    border: 1px solid rgba(255,255,255,0.2);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    transition: border-color 0.15s ease;
-  }
-
-  .input:focus {
-    border-color: rgba(255,255,255,0.45);
-  }
-
-  /* Select */
-  select.input {
-    appearance: none;
-    -webkit-appearance: none;
-    color: white;
-  }
-
-  select.input option {
-    background: var(--theme-bg);
-    color: white;
-  }
-
-  /* Buttons */
-  .btn {
-    @apply inline-flex items-center justify-center rounded-[20px] px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50;
-    background: rgba(217,119,6,0.25);
-    border: 1px solid rgba(253,230,138,0.35);
-    color: #FDE68A;
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-  }
-
-  .btn:hover:not(:disabled) {
-    background: rgba(217,119,6,0.35);
-    border-color: rgba(253,230,138,0.5);
-  }
-
-  .btn-block {
-    @apply inline-flex h-14 w-full items-center justify-center rounded-[20px] px-4 text-base font-semibold transition disabled:cursor-not-allowed disabled:opacity-50;
-    background: rgba(217,119,6,0.25);
-    border: 1px solid rgba(253,230,138,0.35);
-    color: #FDE68A;
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-  }
-
-  .btn-block:hover:not(:disabled) {
-    background: rgba(217,119,6,0.35);
-  }
-
-  .btn-outline {
-    @apply inline-flex items-center justify-center rounded-[20px] px-4 py-3 text-sm font-medium transition;
-    background: rgba(255,255,255,0.08);
-    border: 1px solid rgba(255,255,255,0.22);
-    color: rgba(255,255,255,0.85);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-  }
-
-  .btn-outline:hover {
-    background: rgba(255,255,255,0.14);
-    border-color: rgba(255,255,255,0.35);
-  }
-
-  .btn-danger {
-    @apply inline-flex items-center justify-center rounded-[20px] px-4 py-3 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50;
-    background: rgba(239,68,68,0.15);
-    border: 1px solid rgba(252,165,165,0.25);
-    color: #fca5a5;
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-  }
-
-  .btn-danger:hover:not(:disabled) {
-    background: rgba(239,68,68,0.25);
-  }
-
-  /* Segmented control */
-  .segmented {
-    @apply rounded-[22px] p-2;
-    background: rgba(0,20,50,0.3);
-    border: 1px solid rgba(255,255,255,0.15);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-  }
-
-  .segmented-btn {
-    @apply rounded-[16px] px-4 py-3 text-sm font-semibold transition;
-    color: rgba(255,255,255,0.55);
-  }
-
-  .segmented-btn:hover {
-    background: rgba(255,255,255,0.08);
-    color: white;
-  }
-
-  .segmented-btn-active {
-    @apply rounded-[16px] px-4 py-3 text-sm font-semibold;
-    background: rgba(217,119,6,0.25);
-    border: 1px solid rgba(253,230,138,0.3);
-    color: #FDE68A;
-  }
-
-  /* Typography */
-  .label {
-    @apply text-xs uppercase tracking-[0.25em];
-    color: rgba(255,255,255,0.4);
-  }
-
-  .title {
-    @apply text-3xl font-bold tracking-tight text-white;
-  }
-
-  .muted {
-    color: rgba(255,255,255,0.6);
-  }
-
-  .stat-number {
-    @apply mt-3 text-4xl font-bold tracking-tight text-white;
-  }
-
-  /* Semantic text colours */
-  .accent-text   { color: #FDE68A; }
-  .success-text  { color: #6EE7B7; }
-  .warning-text  { color: #FCD34D; }
-  .danger-text   { color: #FCA5A5; }
-}
-
-/* ============================================================
-   GLOBAL TAILWIND OVERRIDES
-   ============================================================ */
-
-/* Any element using bg-white/5 or similar gets glass treatment */
-.rounded-3xl.border,
-.rounded-2xl.border {
-  backdrop-filter: blur(20px) saturate(1.2);
-  -webkit-backdrop-filter: blur(20px) saturate(1.2);
-}
-
-/* Bottom nav glass — uses theme variable for base colour */
-nav.fixed {
-  backdrop-filter: blur(30px) saturate(1.5);
-  -webkit-backdrop-filter: blur(30px) saturate(1.5);
-  background: var(--theme-nav-bg) !important;
-  border-top-color: rgba(255,255,255,0.15) !important;
-  transition: background 0.6s ease;
-}
-
-/* Modal overlay */
-.fixed.inset-0.bg-black\/70 {
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  background: rgba(0,20,50,0.65) !important;
-}
-
-/* Modal card inside overlay */
-.fixed.inset-0 > div > div {
-  background: rgba(8,50,80,0.85) !important;
-  backdrop-filter: blur(30px);
-  -webkit-backdrop-filter: blur(30px);
-  border-color: rgba(255,255,255,0.2) !important;
-}
-
-/* ============================================================
-   ONBOARDING — story walkthrough screens
-   ============================================================ */
-
-.onb-screen {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: 2rem 0;
-}
-
-.onb-btn-primary {
-  background: #D97706;
-  border: none;
-  border-radius: 16px;
-  padding: 14px;
-  font-size: 14px;
-  font-weight: 600;
-  color: white;
-  cursor: pointer;
-  transition: opacity 0.15s;
-}
-
-.onb-btn-primary:hover { opacity: 0.9; }
-
-.onb-btn-secondary {
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 16px;
-  padding: 14px;
-  font-size: 14px;
-  font-weight: 600;
-  color: rgba(255,255,255,0.6);
-  cursor: pointer;
 }
 </file>
 
@@ -12870,725 +12690,6 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
 }
 </file>
 
-<file path="lib/ocrMultiEventParser.ts">
-import { parse200IMSplitsFromOCR } from "@/lib/ocrSplitParser";
-
-export type ParsedSplit = {
-  label: string;
-  order: number;
-  distance: number | null;
-  splitMs: number;
-  cumulativeMs?: number | null;
-};
-
-export type ParsedSwimResult = {
-  event: string;
-  distance: number;
-  stroke: string;
-  name: string | null;
-  timeStr: string;
-  timeMs: number;
-  course: "LCM" | "SCM" | "SCY" | "UNKNOWN";
-  confidence: number;
-  rawBlock: string[];
-  swamAt?: string | null;
-  meetName?: string | null;
-  place?: number | null;
-  splits?: ParsedSplit[];
-};
-
-type ParseOptions = {
-  swimmerName?: string;
-  defaultCourse?: "LCM" | "SCM" | "SCY" | "UNKNOWN";
-};
-
-const EVENT_DISTANCES = [50, 100, 200, 400, 800, 1500];
-const SPLIT_DISTANCES = [25, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600, 650, 700, 750, 800, 1500];
-
-function normalizeText(value: string) {
-  return value
-    .toLowerCase()
-    .replace(/[|()[[\]{}]/g, " ")
-    .replace(/[–—-]/g, " ")
-    .replace(/[^a-z0-9:.+\-/, ]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function timeToMs(timeStr: string) {
-  if (!timeStr) return 0;
-  if (timeStr.includes(":")) {
-    const [mm, ss] = timeStr.split(":");
-    const [sec, hundredths] = ss.split(".");
-    return (
-      Number(mm) * 60_000 +
-      Number(sec) * 1000 +
-      Number(hundredths ?? "0") * 10
-    );
-  }
-  const [sec, hundredths] = timeStr.split(".");
-  return Number(sec) * 1000 + Number(hundredths ?? "0") * 10;
-}
-
-function msToTime(ms: number) {
-  if (!ms || Number.isNaN(ms)) return "";
-  const totalHundredths = Math.round(ms / 10);
-  const minutes = Math.floor(totalHundredths / 6000);
-  const secHundredths = totalHundredths % 6000;
-  const seconds = Math.floor(secHundredths / 100);
-  const hundredths = secHundredths % 100;
-  if (minutes > 0) {
-    return `${minutes}:${String(seconds).padStart(2, "0")}.${String(hundredths).padStart(2, "0")}`;
-  }
-  return `${seconds}.${String(hundredths).padStart(2, "0")}`;
-}
-
-function detectCourse(text: string): "LCM" | "SCM" | "SCY" | "UNKNOWN" {
-  const t = normalizeText(text);
-
-  // ✅ Skip event description lines — "50 Meter Fly" means race distance, NOT pool length.
-  // If a line has both a stroke name and an event distance, it's an event title, not a course indicator.
-  const hasStroke = /\b(freestyle|butterfly|backstroke|breaststroke|\bfly\b|\bback\b|\bbreast\b|\bfree\b|medley)\b/.test(t);
-  const hasEventDistance = /\b(50|100|200|400|800|1500)\b/.test(t);
-  if (hasStroke && hasEventDistance) return "UNKNOWN";
-
-  if (t.includes("long course") || t === "lcm" || t.includes(" lcm")) return "LCM";
-  if (t.includes("50 meter") || t.includes("50m")) return "LCM";
-  if (t.includes("meter")) return "LCM";
-  if (t.includes("25 meter") || t.includes("short course meters") || t === "scm" || t.includes(" scm")) return "SCM";
-  if (t.includes("25 yard") || t.includes("yard") || t.includes("short course yards") || t === "scy" || t.includes(" scy")) return "SCY";
-  return "UNKNOWN";
-}
-
-function extractTime(line: string): string | null {
-  if (/\b(am|pm)\b/i.test(line)) return null;
-  const direct = line.match(/\b(\d{1,2}:\d{2}\.\d{2}|\d{1,2}\.\d{2})\b/);
-  if (direct) return direct[1];
-  return null;
-}
-
-function fourDigitToMs(raw: string): number | null {
-  if (!/^\d{4}$/.test(raw.trim())) return null;
-  const s = raw.trim();
-  if (s.startsWith("0")) return null;
-  const sec = Number(`${s.slice(0, 2)}.${s.slice(2)}`);
-  if (isNaN(sec) || sec <= 0) return null;
-  return Math.round(sec * 1000);
-}
-
-function extractPlace(line: string, nextLine: string = ""): number | null {
-  const placeMatch = line.match(/place[:\s|]*([0-9]{1,3})/i);
-  if (placeMatch) {
-    const parsed = parseInt(placeMatch[1], 10);
-    if (!Number.isNaN(parsed) && parsed >= 1 && parsed <= 999) return parsed;
-  }
-  const finalsMatch = line.match(/finals\s+(\d{1,3})\s+[\d:.]+/i);
-  if (finalsMatch) {
-    const parsed = parseInt(finalsMatch[1], 10);
-    if (!Number.isNaN(parsed) && parsed >= 1 && parsed <= 999) return parsed;
-  }
-  if (/^PLACE\s+(FINALS|SEMI|ENTRY)/i.test(line) && nextLine) {
-    const m = nextLine.match(/^(\d{1,3})\s/);
-    if (m) {
-      const p = parseInt(m[1], 10);
-      if (!isNaN(p) && p >= 1 && p <= 999) return p;
-    }
-  }
-  return null;
-}
-
-function detectDistance(text: string, allowed: number[] = EVENT_DISTANCES): number | null {
-  const t = normalizeText(text);
-  for (const d of allowed) {
-    if (new RegExp(`\\b${d}\\b`).test(t)) return d;
-  }
-  return null;
-}
-
-function detectStroke(text: string): string | null {
-  const t = normalizeText(text);
-  if (t.includes("freestyle") || t.includes(" free")) return "Freestyle";
-  if (t.includes("butterfly") || t.includes(" fly")) return "Butterfly";
-  if (t.includes("backstroke") || t.includes(" back")) return "Backstroke";
-  if (t.includes("breaststroke") || t.includes(" breast")) return "Breaststroke";
-  if (t.includes("individual medley") || t.includes(" medley") || t.includes(" im") || t.includes("i m")) return "IM";
-  return null;
-}
-
-function buildEvent(line: string): { event: string; distance: number; stroke: string } | null {
-  const distance = detectDistance(line, EVENT_DISTANCES);
-  const stroke = detectStroke(line);
-  if (!distance || !stroke) return null;
-  return { event: `${distance} ${stroke}`, distance, stroke };
-}
-
-function extractGlobalCourse(lines: string[]) {
-  for (const line of lines.slice(0, 30)) {
-    const course = detectCourse(line);
-    if (course !== "UNKNOWN") return course;
-  }
-  return "UNKNOWN";
-}
-
-function cleanLines(text: string) {
-  return text
-    .replace(/\r/g, "\n")
-    .split("\n")
-    .map((line) => line.trim())
-    .map((line) => line.replace(/\s+/g, " "))
-    .filter(Boolean);
-}
-
-function extractMeetDate(rawText: string): string | null {
-  const text = rawText.replace(/\r/g, "\n");
-  const monthMap: Record<string, number> = {
-    jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
-    jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
-  };
-
-  const monthMatch = text.match(
-    /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s.,|/-]*(\d{1,2})[\s,|/-]*(\d{4})\b/i
-  );
-  if (monthMatch) {
-    const monthText = monthMatch[1].slice(0, 3).toLowerCase();
-    const day = Number(monthMatch[2]);
-    const year = Number(monthMatch[3]);
-    const month = monthMap[monthText];
-    if (month != null && !Number.isNaN(day) && !Number.isNaN(year) && day >= 1 && day <= 31) {
-      return new Date(Date.UTC(year, month, day)).toISOString().split("T")[0];
-    }
-  }
-
-  const dmyMatch = text.match(/\b(\d{1,2})[/-](\d{1,2})[/-](\d{4})\b/);
-  if (dmyMatch) {
-    const day = Number(dmyMatch[1]);
-    const month = Number(dmyMatch[2]);
-    const year = Number(dmyMatch[3]);
-    if (!Number.isNaN(day) && !Number.isNaN(month) && !Number.isNaN(year) && day >= 1 && day <= 31 && month >= 1 && month <= 12) {
-      return new Date(Date.UTC(year, month - 1, day)).toISOString().split("T")[0];
-    }
-  }
-  return null;
-}
-
-function extractMeetName(rawText: string): string | null {
-  const lines = rawText
-    .replace(/\r/g, "\n")
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
-
-  for (const line of lines.slice(0, 10)) {
-    if (/\bNSG\b/i.test(line) || /\bSPSSC\b/i.test(line)) {
-      const cleaned = line.replace(/^[^A-Z0-9]*(?:EUS|EVENT)?\s*/i, "").trim();
-      if (cleaned.length >= 4) return cleaned;
-    }
-  }
-
-  for (const line of lines) {
-    const eventMatch = line.match(/^EVENT\s+(.+)$/i);
-    if (eventMatch) {
-      const candidate = eventMatch[1].trim();
-      if (/^\d+$/.test(candidate)) continue;
-      if (detectStroke(candidate) !== null && detectDistance(candidate) !== null) continue;
-      if (candidate.length < 4) continue;
-      if (/^(summary|details|results|splits|total|completed|entry|finals|heat|lane|status|dropped|seed)$/i.test(candidate)) continue;
-      return candidate;
-    }
-  }
-
-  for (const line of lines) {
-    const meetMatch = line.match(/^MEET\s+(.+)$/i);
-    if (meetMatch) {
-      const candidate = meetMatch[1].trim();
-      if (candidate.length >= 4) return candidate;
-    }
-  }
-
-  const meetKeywords = /championship|championships|open|invitational|junior|juniors|classic|cup|trophy|gala|relay|carnival|national|regional|age.?group|series|aquatic|swim.?meet|swimming/i;
-
-  for (const line of lines.slice(0, 20)) {
-    if (line.length < 5 || line.length > 100) continue;
-    if (/\b(am|pm)\b/i.test(line)) continue;
-    if (/^\d+$/.test(line)) continue;
-    if (/place|lane|heat|finals|entry|seed|status|dropped|completed|summary|split|total|result/i.test(line)) continue;
-    const words = line.split(/\s+/).filter(Boolean);
-    if (words.length < 2) continue;
-    if (/^\d+\s+(girls|boys|women|men)/i.test(line)) continue;
-    if (meetKeywords.test(line)) return line.trim();
-  }
-
-  return null;
-}
-
-function isLikelyPersonName(line: string): boolean {
-  const trimmed = line.trim().replace(/^[^A-Z]+/, "").trim();
-  if (!trimmed || trimmed.length < 5 || trimmed.length > 70) return false;
-  if (/\d/.test(trimmed)) return false;
-  if (/[|•·@#$%^&*()[\]{}\\/]/.test(trimmed)) return false;
-  const words = trimmed.split(/\s+/);
-  if (words.length < 2 || words.length > 7) return false;
-  if (words.length === 1 && words[0].length <= 3) return false;
-  if (words.every((w) => w === w.toUpperCase() && w.length <= 5)) return false;
-  if (!words.every((w) => /^[A-Z]/.test(w))) return false;
-  const KNOWN_BAD = [
-    "place", "finals", "entry", "heat", "lane", "split", "total",
-    "completed", "dropped", "status", "event", "summary", "seed",
-    "relay", "detail", "freestyle", "butterfly", "backstroke",
-    "breaststroke", "medley", "swim", "results", "schedule",
-    "points", "improvement", "girls", "boys", "women", "men",
-    "meter", "yard", "final", "semi", "prelim",
-  ];
-  const lower = trimmed.toLowerCase();
-  if (KNOWN_BAD.some((kw) => lower.includes(kw))) return false;
-  return true;
-}
-
-function extractSwimmerName(lines: string[]): string | null {
-  const CLUB_AGE_PATTERN = /^[A-Z]{2,10}\s*[|l\/\[]\s*\d{1,2}$/i;
-
-  for (let i = 1; i < lines.length; i++) {
-    const curr = lines[i].trim();
-    if (CLUB_AGE_PATTERN.test(curr)) {
-      const candidate = lines[i - 1].trim();
-      if (isLikelyPersonName(candidate)) return candidate;
-    }
-  }
-
-  let seenEventLine = false;
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!seenEventLine) {
-      const hasStroke = /freestyle|butterfly|backstroke|breaststroke|medley|\bfly\b|\bback\b|\bbreast\b|\bfree\b|\bim\b/i.test(trimmed);
-      const hasDistance = /\b(50|100|200|400|800|1500)\b/.test(trimmed);
-      if (hasStroke && hasDistance) {
-        seenEventLine = true;
-        continue;
-      }
-    } else {
-      if (!trimmed) continue;
-      if (/\b(am|pm)\b/i.test(trimmed)) continue;
-      if (/^\d/.test(trimmed)) continue;
-      if (isLikelyPersonName(trimmed)) return trimmed;
-    }
-  }
-
-  return null;
-}
-
-function isSplitScreen(lines: string[]) {
-  const joined = normalizeText(lines.join(" "));
-  return joined.includes("splits") && joined.includes("total");
-}
-
-function normalizeSplitLabel(cumulativeDistance: number, stroke: string) {
-  const strokeShort =
-    stroke === "Freestyle" ? "Free"
-    : stroke === "Backstroke" ? "Back"
-    : stroke === "Breaststroke" ? "Breast"
-    : stroke === "Butterfly" ? "Fly"
-    : stroke === "IM" ? "IM"
-    : stroke;
-  return `${cumulativeDistance} ${strokeShort}`;
-}
-
-function fillMissingLastSplit(
-  splits: ParsedSplit[],
-  eventDistance: number,
-  eventStroke: string,
-  finalTimeMs: number
-): ParsedSplit[] {
-  if (eventDistance % 50 !== 0) return splits;
-  const expectedLegCount = eventDistance / 50;
-  if (splits.length === 0 || splits.length !== expectedLegCount - 1) return splits;
-
-  const sumFound = splits.reduce((acc, s) => acc + s.splitMs, 0);
-  const missingMs = finalTimeMs - sumFound;
-  if (missingMs <= 0 || missingMs > finalTimeMs) return splits;
-
-  return [
-    ...splits,
-    {
-      label: normalizeSplitLabel(eventDistance, eventStroke),
-      order: splits.length + 1,
-      distance: eventDistance,
-      splitMs: missingMs,
-      cumulativeMs: finalTimeMs,
-    },
-  ];
-}
-
-function parseGenericSplitRows(lines: string[], eventDistance: number, eventStroke: string) {
-  const splits: ParsedSplit[] = [];
-
-  // ✅ Filter to just the lines between SPLITS header and Total
-  // This avoids false positives from event name lines above
-  const splitStart = lines.findIndex((l) => /^splits$/i.test(l.trim()));
-  const totalIdx = lines.findIndex((l) => /^total\b/i.test(l.trim()));
-  const workingLines = splitStart >= 0
-    ? lines.slice(splitStart + 1, totalIdx >= 0 ? totalIdx : undefined)
-    : lines;
-
-  for (let i = 0; i < workingLines.length; i++) {
-    const line = workingLines[i];
-    const norm = normalizeText(line);
-    if (!norm) continue;
-    if (norm.includes("total")) continue;
-    if (norm.includes("event summary")) continue;
-    if (norm.includes("heat place")) continue;
-    if (norm.includes("lane")) continue;
-    if (norm.includes("meet home")) continue;
-    if (/\b(am|pm)\b/i.test(line)) continue;
-    if (norm.includes("split")) continue;
-
-    const distance = detectDistance(line, SPLIT_DISTANCES);
-    const stroke = detectStroke(line);
-    if (!distance || !stroke) continue;
-    if (stroke !== eventStroke) continue;
-    if (distance > eventDistance) continue;
-
-    // Strategy 1: inline time on the same line e.g. "25 Fly  17.76"
-    const inlineTime = extractTime(line);
-    const inlineMs = inlineTime ? timeToMs(inlineTime) : null;
-
-    if (inlineMs && inlineMs > 5000 && inlineMs <= 120000) {
-      splits.push({
-        label: normalizeSplitLabel(distance, eventStroke),
-        order: splits.length + 1,
-        distance,
-        splitMs: inlineMs,
-        cumulativeMs: null,
-      });
-      continue;
-    }
-
-    // Strategy 2: time on the NEXT line e.g.
-    //   "25 Fly"
-    //   "17.76"
-    //   "17.76"   ← cumulative (skip)
-    const nextLine = workingLines[i + 1] ?? "";
-    const nextTime = extractTime(nextLine);
-    const nextMs = nextTime ? timeToMs(nextTime) : null;
-
-    if (nextMs && nextMs > 5000 && nextMs <= 120000) {
-      splits.push({
-        label: normalizeSplitLabel(distance, eventStroke),
-        order: splits.length + 1,
-        distance,
-        splitMs: nextMs,
-        cumulativeMs: null,
-      });
-      i++; // consume the time line so it's not re-processed
-      continue;
-    }
-  }
-
-  return splits.sort((a, b) => (a.distance ?? 9999) - (b.distance ?? 9999));
-}
-
-function parseIMSplitsFromDedicatedParser(rawText: string, eventDistance: number): ParsedSplit[] {
-  if (eventDistance !== 200) return [];
-  const parsed = parse200IMSplitsFromOCR(rawText);
-  return parsed.splits
-    .filter((split) => split.splitMs != null)
-    .map((split, index) => {
-      const label =
-        split.stroke === "FLY" ? `${split.distance} Fly`
-        : split.stroke === "BACK" ? `${split.distance} Back`
-        : split.stroke === "BREAST" ? `${split.distance} Breast`
-        : `${split.distance} Free`;
-      return { label, order: index + 1, distance: split.distance, splitMs: split.splitMs!, cumulativeMs: split.cumulativeMs ?? null };
-    });
-}
-
-// ─── ✅ Split-aware course correction ─────────────────────────────────────────
-//
-// Physics rule: if splits exist for an event, we can infer the pool length.
-//
-//   50m event  + any splits   → pool must be <50m  → SCM (not LCM)
-//   100m event + 4×25m splits → short course       → SCM
-//   100m event + 2×50m splits → long course        → LCM (keep as-is)
-//   200m event + 8×25m splits → SCM
-//   200m event + 4×50m splits → LCM
-//
-// We only override when we're confident — we never downgrade a correct SCM/SCY
-// detection, and we only upgrade UNKNOWN or incorrect LCM when splits prove it.
-
-function inferCourseFromSplits(
-  currentCourse: "LCM" | "SCM" | "SCY" | "UNKNOWN",
-  eventDistance: number,
-  splits: ParsedSplit[]
-): "LCM" | "SCM" | "SCY" | "UNKNOWN" {
-  if (splits.length === 0) return currentCourse;
-
-  // A 50m event cannot have splits in a 50m pool — splits mean it's short course.
-  if (eventDistance === 50) {
-    if (currentCourse === "LCM" || currentCourse === "UNKNOWN") {
-      return "SCM";
-    }
-    return currentCourse;
-  }
-
-  // For longer events, infer from the implied leg distance.
-  // implied leg = eventDistance / number of splits
-  const impliedLegDistance = eventDistance / splits.length;
-
-  // Legs of ~25m → short course pool
-  if (Math.abs(impliedLegDistance - 25) < 3) {
-    if (currentCourse === "LCM" || currentCourse === "UNKNOWN") {
-      return "SCM";
-    }
-  }
-
-  // Legs of ~50m → long course — only correct UNKNOWN, leave SCM alone
-  if (Math.abs(impliedLegDistance - 50) < 5) {
-    if (currentCourse === "UNKNOWN") {
-      return "LCM";
-    }
-  }
-
-  return currentCourse;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-
-function parseSingleSplitScreen(rawText: string, lines: string[], options: ParseOptions): ParsedSwimResult[] {
-  const extractedCourse = extractGlobalCourse(lines);
-  const globalCourse = extractedCourse !== "UNKNOWN" ? extractedCourse : options.defaultCourse ?? "LCM";
-  const swamAt = extractMeetDate(rawText);
-  const meetName = extractMeetName(rawText);
-
-  const resolvedName = options.swimmerName || extractSwimmerName(lines) || null;
-
-  let bestEvent: { event: string; distance: number; stroke: string } | null = null;
-
-  for (const line of lines) {
-    const built = buildEvent(line);
-    if (!built) continue;
-    const t = normalizeText(line);
-    if (t.includes("girls") || t.includes("boys") || t.includes("women") || t.includes("men") || t.includes("meter") || t.includes("yard")) {
-      bestEvent = built;
-      break;
-    }
-    if (!bestEvent || built.distance > bestEvent.distance) bestEvent = built;
-  }
-
-  if (!bestEvent) return [];
-
-  let place: number | null = null;
-  for (let li = 0; li < lines.length; li++) {
-    const line = lines[li];
-    const nextLineStr = li + 1 < lines.length ? lines[li + 1] : "";
-    const maybePlace = extractPlace(line, nextLineStr);
-    if (maybePlace != null) { place = maybePlace; break; }
-  }
-
-  let splits: ParsedSplit[] = [];
-  if (bestEvent.stroke === "IM" && bestEvent.distance === 200) {
-    splits = parseIMSplitsFromDedicatedParser(rawText, bestEvent.distance);
-  }
-  if (splits.length === 0) {
-    splits = parseGenericSplitRows(lines, bestEvent.distance, bestEvent.stroke);
-  }
-
-  let finalTimeStr: string | null = null;
-  let finalTimeMs = 0;
-
-  const totalLine = lines.find((line) => /^total\s+/i.test(line.trim()));
-  if (totalLine) {
-    const totalStr = extractTime(totalLine);
-    if (totalStr) { finalTimeStr = totalStr; finalTimeMs = timeToMs(totalStr); }
-  }
-
-  if (!finalTimeStr || finalTimeMs <= 0) {
-    const finalsLine = lines.find((l) => /finals/i.test(l));
-    if (finalsLine) {
-      const idx = lines.indexOf(finalsLine);
-      const nextLine = lines[idx + 1] ?? "";
-      const times = nextLine.match(/\b(\d{1,2}:\d{2}\.\d{2}|\d{1,2}\.\d{2})\b/g);
-      if (times && times.length >= 1) {
-        finalTimeStr = times[0];
-        finalTimeMs = timeToMs(times[0]);
-      }
-    }
-  }
-
-  if ((!finalTimeStr || finalTimeMs <= 0) && bestEvent.stroke === "IM") {
-    const parsedIM = parse200IMSplitsFromOCR(rawText);
-    if (parsedIM.totalMs != null) { finalTimeMs = parsedIM.totalMs; finalTimeStr = msToTime(parsedIM.totalMs); }
-  }
-
-  if (!finalTimeStr || finalTimeMs <= 0) return [];
-  if (finalTimeMs > 1800000) return [];
-
-  splits = fillMissingLastSplit(splits, bestEvent.distance, bestEvent.stroke, finalTimeMs);
-
-  // ✅ Correct course based on split evidence
-  const correctedCourse = inferCourseFromSplits(globalCourse, bestEvent.distance, splits);
-
-  return [{
-    event: bestEvent.event,
-    distance: bestEvent.distance,
-    stroke: bestEvent.stroke,
-    name: resolvedName,
-    timeStr: finalTimeStr,
-    timeMs: finalTimeMs,
-    course: correctedCourse,
-    confidence: splits.length > 0 ? 7 : 4,
-    rawBlock: lines,
-    swamAt: swamAt || null,
-    meetName: meetName || null,
-    place,
-    splits: splits.length > 0 ? splits : undefined,
-  }];
-}
-
-function looksLikeNormalEventLine(line: string) {
-  const t = normalizeText(line);
-  if (!t) return false;
-  const hasStroke =
-    t.includes("free") || t.includes("back") || t.includes("fly") ||
-    t.includes("breast") || t.includes("medley") || t.includes("im");
-  if (!hasStroke) return false;
-  const distance = detectDistance(t, EVENT_DISTANCES);
-  if (!distance) return false;
-  if (
-    t.includes("relay") || t.includes("split") || t.includes("total") ||
-    t.includes("improvement") || t.includes("points") || t.includes("summary") ||
-    t.includes("completed") || t.includes("entry") || t.includes("dropped")
-  ) return false;
-  const words = t.split(" ").filter(Boolean);
-  if (words.length <= 3) return false;
-  return true;
-}
-
-function isSkippableLine(line: string): boolean {
-  const norm = normalizeText(line);
-  return (
-    /completed/i.test(norm) ||
-    /dropped/i.test(norm) ||
-    /entry/i.test(norm) ||
-    /status/i.test(norm) ||
-    /^e /.test(norm) ||
-    /seed/i.test(norm) ||
-    /\b(am|pm)\b/i.test(line)
-  );
-}
-
-function parseNormalEventBlocks(rawText: string, lines: string[], options: ParseOptions): ParsedSwimResult[] {
-  const extractedCourse = extractGlobalCourse(lines);
-  const globalCourse = extractedCourse !== "UNKNOWN" ? extractedCourse : options.defaultCourse ?? "LCM";
-  const detectedDate = extractMeetDate(rawText);
-  const meetName = extractMeetName(rawText);
-
-  const resolvedName = options.swimmerName || extractSwimmerName(lines) || null;
-
-  const results: ParsedSwimResult[] = [];
-
-  for (let i = 0; i < lines.length; i++) {
-    const current = lines[i];
-    const currentNorm = normalizeText(current);
-
-    if (!looksLikeNormalEventLine(current)) continue;
-    if (currentNorm.includes("relay")) continue;
-
-    const built = buildEvent(current);
-    if (!built) continue;
-
-    let foundTime: string | null = null;
-    let foundPlace: number | null = null;
-    let foundCourse: "LCM" | "SCM" | "SCY" | "UNKNOWN" = globalCourse;
-    const rawBlock = [current];
-
-    for (let j = i + 1; j < Math.min(i + 12, lines.length); j++) {
-      const next = lines[j];
-      const nextNorm = normalizeText(next);
-      rawBlock.push(next);
-
-      const nextCourse = detectCourse(next);
-      if (nextCourse !== "UNKNOWN") foundCourse = nextCourse;
-
-      const maybePlace = extractPlace(next, j + 1 < lines.length ? lines[j + 1] : "");
-      if (maybePlace != null) foundPlace = maybePlace;
-
-      if (j > i + 1 && looksLikeNormalEventLine(next)) {
-        rawBlock.pop();
-        break;
-      }
-
-      if (isSkippableLine(next)) continue;
-
-      if (/^total\s+/i.test(next.trim())) {
-        const totalTime = extractTime(next);
-        if (totalTime) { foundTime = totalTime; break; }
-      }
-
-      if (
-        nextNorm.includes("finals") ||
-        nextNorm.includes("prelims") ||
-        nextNorm.includes("heat") ||
-        nextNorm.includes("lane")
-      ) {
-        const maybeTime = extractTime(next);
-        if (maybeTime) { foundTime = maybeTime; break; }
-        continue;
-      }
-
-      const time = extractTime(next);
-      if (time) { foundTime = time; break; }
-    }
-
-    if (!foundTime) continue;
-
-    const timeMs = timeToMs(foundTime);
-    if (built.distance === 100 && timeMs < 40000) continue;
-    if (built.distance === 200 && timeMs < 80000) continue;
-    if (built.distance === 50 && timeMs < 20000) continue;
-    if (timeMs > 1800000) continue;
-
-    results.push({
-      event: built.event,
-      distance: built.distance,
-      stroke: built.stroke,
-      name: resolvedName,
-      timeStr: foundTime,
-      timeMs,
-      course: foundCourse,
-      confidence: 4,
-      rawBlock,
-      swamAt: detectedDate || null,
-      meetName: meetName || null,
-      place: foundPlace,
-    });
-  }
-
-  return results;
-}
-
-export function parseSwimOCRText(rawText: string, options: ParseOptions = {}): ParsedSwimResult[] {
-  const lines = cleanLines(rawText);
-
-  const is400IM = /400\s*(meter|m)?\s*im/i.test(rawText);
-  if (is400IM) return [];
-
-  const results = isSplitScreen(lines)
-    ? parseSingleSplitScreen(rawText, lines, options)
-    : parseNormalEventBlocks(rawText, lines, options);
-
-  const deduped = new Map<string, ParsedSwimResult>();
-  for (const item of results) {
-    const key = `${item.event.toLowerCase()}|${item.timeStr}|${item.course}|${item.swamAt ?? ""}|${item.place ?? ""}`;
-    const existing = deduped.get(key);
-    if (!existing || item.confidence > existing.confidence) deduped.set(key, item);
-  }
-
-  return Array.from(deduped.values()).sort((a, b) => {
-    if (a.distance !== b.distance) return a.distance - b.distance;
-    return a.timeMs - b.timeMs;
-  });
-}
-</file>
-
 <file path="app/swimmers/[id]/page.tsx">
 "use client";
 
@@ -14702,12 +13803,32 @@ export default function ScanPage() {
       setMessage("This result is already saved."); setSavedSwimmer(swimmer); setShowPicker(false); setIsSaving(false); return;
     }
     const meetType = detectMeetType(rawText, parsedResult.meetName ?? null);
-    const { error } = await supabase.from("swim_times").insert({
+    const { data: swimRow, error } = await supabase.from("swim_times").insert({
       swimmer_id: swimmer.id, event: eventName, course: courseName,
       time_ms: confirmedMs, place: parsedResult.place ?? null,
       meet_name: parsedResult.meetName ?? null, swam_at: parsedResult.swamAt ?? null, meet_type: meetType,
-    });
+    }).select().single();
     if (error) { setMessage(`⚠️ ${error.message}`); } else {
+      // ✅ Save splits if present
+      const splits = parsedResult.splits;
+      if (swimRow && splits && splits.length > 0) {
+        const splitRows = splits
+          .filter((s) => typeof s.splitMs === "number" && s.splitMs > 0)
+          .map((s, idx) => ({
+            swim_time_id: swimRow.id,
+            swimmer_id: swimmer.id,
+            event: eventName,
+            course: courseName,
+            split_label: s.label,
+            split_order: idx + 1,
+            split_distance: s.distance,
+            split_time_ms: s.splitMs,
+            cumulative_time_ms: s.cumulativeMs ?? null,
+          }));
+        if (splitRows.length > 0) {
+          await supabase.from("swim_splits").insert(splitRows);
+        }
+      }
       setMessage(`✓ Saved to ${swimmer.name}`); setSavedSwimmer(swimmer); setShowPicker(false); setAutoMatchedSwimmer(swimmer);
     }
     setIsSaving(false);
@@ -15999,6 +15120,728 @@ export default function SwimmersPage() {
       </div>
     </div>
   );
+}
+</file>
+
+<file path="lib/ocrMultiEventParser.ts">
+import { parse200IMSplitsFromOCR } from "@/lib/ocrSplitParser";
+
+export type ParsedSplit = {
+  label: string;
+  order: number;
+  distance: number | null;
+  splitMs: number;
+  cumulativeMs?: number | null;
+};
+
+export type ParsedSwimResult = {
+  event: string;
+  distance: number;
+  stroke: string;
+  name: string | null;
+  timeStr: string;
+  timeMs: number;
+  course: "LCM" | "SCM" | "SCY" | "UNKNOWN";
+  confidence: number;
+  rawBlock: string[];
+  swamAt?: string | null;
+  meetName?: string | null;
+  place?: number | null;
+  splits?: ParsedSplit[];
+};
+
+type ParseOptions = {
+  swimmerName?: string;
+  defaultCourse?: "LCM" | "SCM" | "SCY" | "UNKNOWN";
+};
+
+type BuiltEvent = {
+  event: string;
+  distance: number;
+  stroke: string;
+};
+
+const EVENT_DISTANCES = [50, 100, 200, 400, 800, 1500];
+const SPLIT_DISTANCES = [
+  25, 50, 75, 100, 125, 150, 175, 200, 225, 250, 275, 300, 325, 350, 375, 400,
+  450, 500, 550, 600, 650, 700, 750, 800, 1500,
+];
+
+function normalizeText(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[|()[\]{}]/g, " ")
+    .replace(/[–—-]/g, " ")
+    .replace(/[^a-z0-9:.+\-/, ]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function cleanupRawLine(value: string) {
+  return value
+    .replace(/\u00a0/g, " ")
+    .replace(/[|]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function cleanLines(rawText: string) {
+  return rawText
+    .replace(/\r/g, "\n")
+    .split("\n")
+    .map(cleanupRawLine)
+    .filter(Boolean);
+}
+
+function timeToMs(timeStr: string) {
+  if (!timeStr) return 0;
+
+  if (timeStr.includes(":")) {
+    const [mm, ss] = timeStr.split(":");
+    const [sec, hundredths] = ss.split(".");
+    return (
+      Number(mm) * 60_000 +
+      Number(sec) * 1000 +
+      Number(hundredths ?? "0") * 10
+    );
+  }
+
+  const [sec, hundredths] = timeStr.split(".");
+  return Number(sec) * 1000 + Number(hundredths ?? "0") * 10;
+}
+
+export function msToTime(ms: number) {
+  if (!ms || Number.isNaN(ms)) return "";
+  const totalHundredths = Math.round(ms / 10);
+  const minutes = Math.floor(totalHundredths / 6000);
+  const secHundredths = totalHundredths % 6000;
+  const seconds = Math.floor(secHundredths / 100);
+  const hundredths = secHundredths % 100;
+
+  if (minutes > 0) {
+    return `${minutes}:${String(seconds).padStart(2, "0")}.${String(hundredths).padStart(2, "0")}`;
+  }
+
+  return `${seconds}.${String(hundredths).padStart(2, "0")}`;
+}
+
+function detectCourse(text: string): "LCM" | "SCM" | "SCY" | "UNKNOWN" {
+  const t = normalizeText(text);
+
+  const hasStroke =
+    /\b(freestyle|butterfly|backstroke|breaststroke|\bfly\b|\bback\b|\bbreast\b|\bfree\b|medley|\bim\b)\b/.test(
+      t
+    );
+  const hasEventDistance = /\b(50|100|200|400|800|1500)\b/.test(t);
+  if (hasStroke && hasEventDistance) return "UNKNOWN";
+
+  if (/\blcm\b|\blong course\b/.test(t)) return "LCM";
+  if (/\bscm\b|\bshort course meters?\b/.test(t)) return "SCM";
+  if (/\bscy\b|\bshort course yards?\b|\byards?\b/.test(t)) return "SCY";
+
+  return "UNKNOWN";
+}
+
+function detectStroke(text: string): string | null {
+  const t = normalizeText(text);
+
+  if (/\b(im|individual medley|medley)\b/.test(t)) return "IM";
+  if (/\b(freestyle|free)\b/.test(t)) return "FREE";
+  if (/\b(backstroke|back)\b/.test(t)) return "BACK";
+  if (/\b(breaststroke|breast)\b/.test(t)) return "BREAST";
+  if (/\b(butterfly|fly)\b/.test(t)) return "FLY";
+
+  return null;
+}
+
+function detectDistance(text: string, choices: number[]): number | null {
+  const t = normalizeText(text);
+
+  for (const value of choices) {
+    if (new RegExp(`\\b${value}\\b`).test(t)) return value;
+  }
+
+  return null;
+}
+
+function extractTime(line: string): string | null {
+  const matches =
+    line.match(/\b(\d{1,2}:\d{2}\.\d{2}|\d{1,2}\.\d{2})\b/g) ?? [];
+
+  if (matches.length === 0) return null;
+
+  return matches[0]!;
+}
+
+function extractAllTimes(line: string): string[] {
+  return line.match(/\b(\d{1,2}:\d{2}\.\d{2}|\d{1,2}\.\d{2})\b/g) ?? [];
+}
+
+function extractMeetDate(text: string): string | null {
+  const iso = text.match(/\b(20\d{2})-(\d{1,2})-(\d{1,2})\b/);
+  if (iso) {
+    const [, y, m, d] = iso;
+    return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+  }
+
+  const slash = text.match(/\b(\d{1,2})\/(\d{1,2})\/(20\d{2})\b/);
+  if (slash) {
+    const [, d, m, y] = slash;
+    return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+  }
+
+  const short = text.match(/\b(\d{1,2})[-/](\d{1,2})[-/](\d{2})\b/);
+  if (short) {
+    const [, d, m, y] = short;
+    return `20${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+  }
+
+  return null;
+}
+
+function detectPlace(line: string): number | null {
+  const t = normalizeText(line);
+
+  const match =
+    t.match(/\bplace[: ]+(\d{1,2})\b/) ||
+    t.match(/\bpos(?:ition)?[: ]+(\d{1,2})\b/) ||
+    t.match(/^(\d{1,2})\b/);
+
+  if (!match) return null;
+
+  const value = Number(match[1]);
+  return Number.isNaN(value) ? null : value;
+}
+
+function normalizeEventName(distance: number, stroke: string): string {
+  if (stroke === "IM") return `${distance} IM`;
+  if (stroke === "FREE") return `${distance} Freestyle`;
+  if (stroke === "BACK") return `${distance} Backstroke`;
+  if (stroke === "BREAST") return `${distance} Breaststroke`;
+  if (stroke === "FLY") return `${distance} Butterfly`;
+  return `${distance}`;
+}
+
+function normalizeSplitLabel(distance: number, stroke: string): string {
+  if (stroke === "IM") return `${distance} IM`;
+  if (stroke === "FREE") return `${distance} Free`;
+  if (stroke === "BACK") return `${distance} Back`;
+  if (stroke === "BREAST") return `${distance} Breast`;
+  if (stroke === "FLY") return `${distance} Fly`;
+  return `${distance}`;
+}
+
+function buildEventFromLine(line: string): BuiltEvent | null {
+  const distance = detectDistance(line, EVENT_DISTANCES);
+  const stroke = detectStroke(line);
+  if (!distance || !stroke) return null;
+
+  return {
+    event: normalizeEventName(distance, stroke),
+    distance,
+    stroke,
+  };
+}
+
+function isSkippableLine(line: string) {
+  const t = normalizeText(line);
+  if (!t) return true;
+
+  return (
+    t.includes("improvement") ||
+    t.includes("points") ||
+    t.includes("completed") ||
+    t.includes("entry") ||
+    t.includes("dropped") ||
+    t.includes("relay") ||
+    t.includes("summary")
+  );
+}
+
+function looksLikeNormalEventLine(line: string) {
+  const t = normalizeText(line);
+  if (!t) return false;
+
+  const hasStroke =
+    t.includes("free") ||
+    t.includes("back") ||
+    t.includes("fly") ||
+    t.includes("breast") ||
+    t.includes("medley") ||
+    t.includes("im");
+
+  if (!hasStroke) return false;
+
+  const distance = detectDistance(t, EVENT_DISTANCES);
+  if (!distance) return false;
+
+  if (
+    t.includes("relay") ||
+    t.includes("split") ||
+    t.includes("total") ||
+    t.includes("improvement") ||
+    t.includes("points") ||
+    t.includes("summary") ||
+    t.includes("completed") ||
+    t.includes("entry") ||
+    t.includes("dropped")
+  ) {
+    return false;
+  }
+
+  const words = t.split(" ").filter(Boolean);
+  if (words.length <= 3) return false;
+
+  return true;
+}
+
+function inferCourseFromSplits(
+  globalCourse: "LCM" | "SCM" | "SCY" | "UNKNOWN",
+  _eventDistance: number,
+  _splits: ParsedSplit[]
+) {
+  return globalCourse;
+}
+
+function parseIMSplitsFromDedicatedParser(rawText: string, distance: number): ParsedSplit[] {
+  if (distance !== 200) return [];
+
+  const parsed = parse200IMSplitsFromOCR(rawText);
+  if (!parsed?.splits?.length) return [];
+
+  return parsed.splits.map((s: any, idx: number) => ({
+    label: `${s.distance} ${s.stroke}`,
+    order: idx + 1,
+    distance: s.distance,
+    splitMs: s.splitMs,
+    cumulativeMs: s.cumulativeMs ?? null,
+  }));
+}
+
+function fillMissingLastSplit(
+  splits: ParsedSplit[],
+  eventDistance: number,
+  eventStroke: string,
+  finalTimeMs: number
+): ParsedSplit[] {
+  if (!splits.length) return splits;
+  if (splits.some((s) => s.distance === eventDistance)) return splits;
+
+  const last = splits[splits.length - 1];
+  const lastCum =
+    last.cumulativeMs ??
+    splits.reduce((sum, s) => sum + s.splitMs, 0);
+
+  const remaining = finalTimeMs - lastCum;
+  if (remaining <= 0) return splits;
+
+  return [
+    ...splits,
+    {
+      label: normalizeSplitLabel(eventDistance, eventStroke),
+      order: splits.length + 1,
+      distance: eventDistance,
+      splitMs: remaining,
+      cumulativeMs: finalTimeMs,
+    },
+  ];
+}
+
+function parseGenericSplitRows(
+  lines: string[],
+  eventDistance: number,
+  eventStroke: string
+): ParsedSplit[] {
+  const splits: ParsedSplit[] = [];
+  const MAX_LEG_MS = 90_000;
+  let pendingMs: number | null = null;
+
+  function remapSequentialDistances(rows: ParsedSplit[]): ParsedSplit[] {
+    if (!rows.length) return rows;
+    if (eventStroke === "IM") return rows;
+
+    const step = eventDistance / rows.length;
+    if (!Number.isInteger(step) || step <= 0) return rows;
+
+    const distances = rows.map((r) => r.distance ?? 0);
+    const hasDuplicates = new Set(distances).size !== distances.length;
+    const isOutOfOrder = distances.some((d, i) => i > 0 && d <= distances[i - 1]);
+
+    if (!hasDuplicates && !isOutOfOrder) return rows;
+
+    return rows.map((row, index) => {
+      const distance = step * (index + 1);
+      return {
+        ...row,
+        order: index + 1,
+        distance,
+        label: normalizeSplitLabel(distance, eventStroke),
+      };
+    });
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = cleanupRawLine(lines[i]);
+    if (!line) continue;
+
+    const norm = normalizeText(line);
+
+    if (norm === "splits" || norm === "split") {
+      pendingMs = null;
+      continue;
+    }
+
+    if (norm.includes("total")) {
+      pendingMs = null;
+      continue;
+    }
+
+    const distance = detectDistance(line, SPLIT_DISTANCES);
+    const stroke = detectStroke(line);
+    const timeStrings = extractAllTimes(line);
+    const timesOnLine = timeStrings.map((t) => timeToMs(t)).filter((ms) => ms > 0);
+
+    // Keep real rows like "100 Free Split 47.90 1:31.23"
+    // but skip headers/markers that say split(s) without usable timing data.
+    if (norm.includes("split") && (!distance || !stroke || timesOnLine.length === 0)) {
+      pendingMs = null;
+      continue;
+    }
+
+    const standaloneTime = extractTime(line);
+    if (standaloneTime && normalizeText(line) === normalizeText(standaloneTime)) {
+      const ms = timeToMs(standaloneTime);
+      if (ms > 5000 && ms <= MAX_LEG_MS) {
+        pendingMs = ms;
+      } else {
+        pendingMs = null;
+      }
+      continue;
+    }
+
+    if (!distance || !stroke) {
+      pendingMs = null;
+      continue;
+    }
+
+    if (stroke !== eventStroke) {
+      pendingMs = null;
+      continue;
+    }
+
+    if (distance > eventDistance) {
+      pendingMs = null;
+      continue;
+    }
+
+    const validTimes = timesOnLine.filter((ms) => ms > 5000);
+    const legMs = validTimes.find((ms) => ms <= MAX_LEG_MS) ?? null;
+    const cumulativeMs =
+      validTimes.find((ms) => legMs != null && ms > legMs) ??
+      validTimes.find((ms) => ms > MAX_LEG_MS) ??
+      null;
+
+    if (legMs != null) {
+      splits.push({
+        label: normalizeSplitLabel(distance, eventStroke),
+        order: splits.length + 1,
+        distance,
+        splitMs: legMs,
+        cumulativeMs,
+      });
+      pendingMs = null;
+      continue;
+    }
+
+    const nextLine = cleanupRawLine(lines[i + 1] ?? "");
+    const nextTimes = extractAllTimes(nextLine)
+      .map((t) => timeToMs(t))
+      .filter((ms) => ms > 5000);
+
+    const nextLeg = nextTimes.find((ms) => ms <= MAX_LEG_MS) ?? null;
+    if (nextLeg != null) {
+      const nextCumulative = nextTimes.find((ms) => ms > nextLeg) ?? null;
+
+      splits.push({
+        label: normalizeSplitLabel(distance, eventStroke),
+        order: splits.length + 1,
+        distance,
+        splitMs: nextLeg,
+        cumulativeMs: nextCumulative,
+      });
+
+      pendingMs = null;
+      i += 1;
+      continue;
+    }
+
+    if (pendingMs != null && pendingMs > 5000 && pendingMs <= MAX_LEG_MS) {
+      splits.push({
+        label: normalizeSplitLabel(distance, eventStroke),
+        order: splits.length + 1,
+        distance,
+        splitMs: pendingMs,
+        cumulativeMs: null,
+      });
+      pendingMs = null;
+      continue;
+    }
+
+    pendingMs = null;
+  }
+
+  return remapSequentialDistances(splits);
+}
+
+function guessMeetName(lines: string[]): string | null {
+  const meetLike = lines.find((line) =>
+    /\b(meet|cup|championship|championships|trials|league|invitational|swim)\b/i.test(
+      line
+    )
+  );
+  return meetLike ?? null;
+}
+
+function guessNameFromLines(lines: string[], options: ParseOptions): string | null {
+  if (options.swimmerName?.trim()) return options.swimmerName.trim();
+
+  const candidate = lines.find((line) => {
+    const t = normalizeText(line);
+    if (!t) return false;
+    if (looksLikeNormalEventLine(line)) return false;
+    if (extractTime(line)) return false;
+    if (detectCourse(line) !== "UNKNOWN") return false;
+    if (detectPlace(line) != null) return false;
+    if (isSkippableLine(line)) return false;
+    if (/\b(splits|total|finals|prelims|heat|lane)\b/i.test(line)) return false;
+    return /^[A-Za-z ,.'-]{4,}$/.test(line);
+  });
+
+  return candidate ?? null;
+}
+
+function isSplitScreen(lines: string[]) {
+  const hasSplitsHeader = lines.some((line) => /^splits$/i.test(line.trim()));
+  const hasTotal = lines.some((line) => /^total\b/i.test(line.trim()));
+  return hasSplitsHeader || hasTotal;
+}
+
+function parseSingleSplitScreen(
+  rawText: string,
+  lines: string[],
+  options: ParseOptions
+): ParsedSwimResult[] {
+  const globalCourse = detectCourse(rawText) || options.defaultCourse || "UNKNOWN";
+  const swamAt = extractMeetDate(rawText);
+  const meetName = guessMeetName(lines);
+  const place = lines.map(detectPlace).find((v) => v != null) ?? null;
+  const resolvedName = guessNameFromLines(lines, options);
+
+  const bestEventLine = lines.find(looksLikeNormalEventLine);
+  if (!bestEventLine) return [];
+
+  const bestEvent = buildEventFromLine(bestEventLine);
+  if (!bestEvent) return [];
+
+  let splits: ParsedSplit[] = [];
+  if (bestEvent.stroke === "IM" && bestEvent.distance === 200) {
+    splits = parseIMSplitsFromDedicatedParser(rawText, bestEvent.distance);
+  }
+  if (splits.length === 0) {
+    splits = parseGenericSplitRows(lines, bestEvent.distance, bestEvent.stroke);
+  }
+
+  let finalTimeStr: string | null = null;
+  let finalTimeMs = 0;
+
+  const totalLine = lines.find((line) => /^total\s+/i.test(line.trim()));
+  if (totalLine) {
+    const totalStr = extractTime(totalLine);
+    if (totalStr) {
+      finalTimeStr = totalStr;
+      finalTimeMs = timeToMs(totalStr);
+    }
+  }
+
+  if (!finalTimeStr || finalTimeMs <= 0) {
+    const finalsLine = lines.find((l) => /finals/i.test(l));
+    if (finalsLine) {
+      const idx = lines.indexOf(finalsLine);
+      const nextLine = lines[idx + 1] ?? "";
+      const times = extractAllTimes(nextLine);
+      if (times.length >= 1) {
+        finalTimeStr = times[0];
+        finalTimeMs = timeToMs(times[0]);
+      }
+    }
+  }
+
+  if ((!finalTimeStr || finalTimeMs <= 0) && bestEvent.stroke === "IM") {
+    const parsedIM = parse200IMSplitsFromOCR(rawText);
+    if (parsedIM.totalMs != null) {
+      finalTimeMs = parsedIM.totalMs;
+      finalTimeStr = msToTime(parsedIM.totalMs);
+    }
+  }
+
+  if (!finalTimeStr || finalTimeMs <= 0) return [];
+  if (finalTimeMs > 1_800_000) return [];
+
+  splits = fillMissingLastSplit(
+    splits,
+    bestEvent.distance,
+    bestEvent.stroke,
+    finalTimeMs
+  );
+
+  const correctedCourse = inferCourseFromSplits(
+    globalCourse,
+    bestEvent.distance,
+    splits
+  );
+
+  return [
+    {
+      event: bestEvent.event,
+      distance: bestEvent.distance,
+      stroke: bestEvent.stroke,
+      name: resolvedName,
+      timeStr: finalTimeStr,
+      timeMs: finalTimeMs,
+      course: correctedCourse,
+      confidence: splits.length > 0 ? 7 : 4,
+      rawBlock: lines,
+      swamAt: swamAt || null,
+      meetName: meetName || null,
+      place,
+      splits: splits.length > 0 ? splits : undefined,
+    },
+  ];
+}
+
+function parseNormalEventBlocks(
+  rawText: string,
+  lines: string[],
+  options: ParseOptions
+): ParsedSwimResult[] {
+  const results: ParsedSwimResult[] = [];
+  const detectedDate = extractMeetDate(rawText);
+  const foundCourse =
+    detectCourse(rawText) !== "UNKNOWN"
+      ? detectCourse(rawText)
+      : options.defaultCourse ?? "UNKNOWN";
+  const meetName = guessMeetName(lines);
+  const resolvedName = guessNameFromLines(lines, options);
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!looksLikeNormalEventLine(line)) continue;
+
+    const built = buildEventFromLine(line);
+    if (!built) continue;
+
+    const rawBlock = lines.slice(Math.max(0, i - 2), Math.min(lines.length, i + 8));
+    let foundTime: string | null = null;
+    let foundPlace: number | null = detectPlace(line);
+
+    for (let j = i; j < Math.min(lines.length, i + 8); j++) {
+      const next = lines[j];
+      const nextNorm = normalizeText(next);
+
+      const maybePlace = detectPlace(next);
+      if (maybePlace != null && foundPlace == null) foundPlace = maybePlace;
+
+      if (isSkippableLine(next)) continue;
+
+      if (/^total\s+/i.test(next.trim())) {
+        const totalTime = extractTime(next);
+        if (totalTime) {
+          foundTime = totalTime;
+          break;
+        }
+      }
+
+      if (
+        nextNorm.includes("finals") ||
+        nextNorm.includes("prelims") ||
+        nextNorm.includes("heat") ||
+        nextNorm.includes("lane")
+      ) {
+        const maybeTime = extractTime(next);
+        if (maybeTime) {
+          foundTime = maybeTime;
+          break;
+        }
+        continue;
+      }
+
+      const time = extractTime(next);
+      if (time) {
+        foundTime = time;
+        break;
+      }
+    }
+
+    if (!foundTime) continue;
+
+    const timeMs = timeToMs(foundTime);
+    if (built.distance === 100 && timeMs < 40_000) continue;
+    if (built.distance === 200 && timeMs < 80_000) continue;
+    if (built.distance === 50 && timeMs < 20_000) continue;
+    if (timeMs > 1_800_000) continue;
+
+    results.push({
+      event: built.event,
+      distance: built.distance,
+      stroke: built.stroke,
+      name: resolvedName,
+      timeStr: foundTime,
+      timeMs,
+      course: foundCourse,
+      confidence: 4,
+      rawBlock,
+      swamAt: detectedDate || null,
+      meetName: meetName || null,
+      place: foundPlace,
+    });
+  }
+
+  return results;
+}
+
+export function parseSwimOCRText(
+  rawText: string,
+  options: ParseOptions = {}
+): ParsedSwimResult[] {
+  const lines = cleanLines(rawText);
+
+  const is400IM = /400\s*(meter|m)?\s*im/i.test(rawText);
+  if (is400IM) return [];
+
+  const results = isSplitScreen(lines)
+    ? parseSingleSplitScreen(rawText, lines, options)
+    : parseNormalEventBlocks(rawText, lines, options);
+
+  const deduped = new Map<string, ParsedSwimResult>();
+  for (const item of results) {
+    const key = `${item.event.toLowerCase()}|${item.timeStr}|${item.course}|${item.swamAt ?? ""}|${item.place ?? ""}`;
+    const existing = deduped.get(key);
+    if (!existing || item.confidence > existing.confidence) {
+      deduped.set(key, item);
+    }
+  }
+
+  return Array.from(deduped.values()).sort((a, b) => {
+    if (a.distance !== b.distance) return a.distance - b.distance;
+    return a.timeMs - b.timeMs;
+  });
+}
+
+export function parseSingleSwimOCRText(
+  rawText: string,
+  options: ParseOptions = {}
+): ParsedSwimResult | null {
+  return parseSwimOCRText(rawText, options)[0] ?? null;
 }
 </file>
 
