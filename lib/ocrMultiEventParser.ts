@@ -348,16 +348,11 @@ function fillMissingLastSplit(
 function parseGenericSplitRows(lines: string[], eventDistance: number, eventStroke: string) {
   const splits: ParsedSplit[] = [];
 
-  // ✅ Filter to just the lines between SPLITS header and Total
-  // This avoids false positives from event name lines above
-  const splitStart = lines.findIndex((l) => /^splits$/i.test(l.trim()));
-  const totalIdx = lines.findIndex((l) => /^total\b/i.test(l.trim()));
-  const workingLines = splitStart >= 0
-    ? lines.slice(splitStart + 1, totalIdx >= 0 ? totalIdx : undefined)
-    : lines;
+  const MAX_LEG_MS = 90_000;
+  let pendingMs: number | null = null;
 
-  for (let i = 0; i < workingLines.length; i++) {
-    const line = workingLines[i];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
     const norm = normalizeText(line);
     if (!norm) continue;
     if (norm.includes("total")) continue;
@@ -368,46 +363,47 @@ function parseGenericSplitRows(lines: string[], eventDistance: number, eventStro
     if (/\b(am|pm)\b/i.test(line)) continue;
     if (norm.includes("split")) continue;
 
+    // Strategy A: standalone time before label
+    const standaloneTime = extractTime(line);
+    if (standaloneTime && normalizeText(line) === normalizeText(standaloneTime)) {
+      const ms = timeToMs(standaloneTime);
+      if (ms > 5000 && ms <= MAX_LEG_MS) pendingMs = ms;
+      continue;
+    }
+
     const distance = detectDistance(line, SPLIT_DISTANCES);
     const stroke = detectStroke(line);
-    if (!distance || !stroke) continue;
-    if (stroke !== eventStroke) continue;
-    if (distance > eventDistance) continue;
+    if (!distance || !stroke) { pendingMs = null; continue; }
+    if (stroke !== eventStroke) { pendingMs = null; continue; }
+    if (distance > eventDistance) { pendingMs = null; continue; }
 
-    // Strategy 1: inline time on the same line e.g. "25 Fly  17.76"
+    // Strategy B: inline time on same line e.g. "25 Fly  17.76"
     const inlineTime = extractTime(line);
     const inlineMs = inlineTime ? timeToMs(inlineTime) : null;
-
-    if (inlineMs && inlineMs > 5000 && inlineMs <= 120000) {
-      splits.push({
-        label: normalizeSplitLabel(distance, eventStroke),
-        order: splits.length + 1,
-        distance,
-        splitMs: inlineMs,
-        cumulativeMs: null,
-      });
+    if (inlineMs && inlineMs > 5000 && inlineMs <= MAX_LEG_MS) {
+      splits.push({ label: normalizeSplitLabel(distance, eventStroke), order: splits.length + 1, distance, splitMs: inlineMs, cumulativeMs: null });
+      pendingMs = null;
       continue;
     }
 
-    // Strategy 2: time on the NEXT line e.g.
-    //   "25 Fly"
-    //   "17.76"
-    //   "17.76"   ← cumulative (skip)
-    const nextLine = workingLines[i + 1] ?? "";
+    // Strategy C: time on next line
+    const nextLine = lines[i + 1] ?? "";
     const nextTime = extractTime(nextLine);
     const nextMs = nextTime ? timeToMs(nextTime) : null;
-
-    if (nextMs && nextMs > 5000 && nextMs <= 120000) {
-      splits.push({
-        label: normalizeSplitLabel(distance, eventStroke),
-        order: splits.length + 1,
-        distance,
-        splitMs: nextMs,
-        cumulativeMs: null,
-      });
-      i++; // consume the time line so it's not re-processed
+    if (nextMs && nextMs > 5000 && nextMs <= MAX_LEG_MS) {
+      splits.push({ label: normalizeSplitLabel(distance, eventStroke), order: splits.length + 1, distance, splitMs: nextMs, cumulativeMs: null });
+      i++;
+      pendingMs = null;
       continue;
     }
+
+    // Strategy D: pendingMs from previous line
+    if (pendingMs && pendingMs > 5000 && pendingMs <= MAX_LEG_MS) {
+      splits.push({ label: normalizeSplitLabel(distance, eventStroke), order: splits.length + 1, distance, splitMs: pendingMs, cumulativeMs: null });
+      pendingMs = null;
+      continue;
+    }
+    pendingMs = null;
   }
 
   return splits.sort((a, b) => (a.distance ?? 9999) - (b.distance ?? 9999));
