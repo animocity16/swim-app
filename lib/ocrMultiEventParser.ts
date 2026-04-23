@@ -72,7 +72,16 @@ function msToTime(ms: number) {
 
 function detectCourse(text: string): "LCM" | "SCM" | "SCY" | "UNKNOWN" {
   const t = normalizeText(text);
-  if (t.includes("50 meter") || t.includes("long course") || t === "lcm" || t.includes(" lcm") || t.includes("meter")) return "LCM";
+
+  // ✅ Skip event description lines — "50 Meter Fly" means race distance, NOT pool length.
+  // If a line has both a stroke name and an event distance, it's an event title, not a course indicator.
+  const hasStroke = /\b(freestyle|butterfly|backstroke|breaststroke|\bfly\b|\bback\b|\bbreast\b|\bfree\b|medley)\b/.test(t);
+  const hasEventDistance = /\b(50|100|200|400|800|1500)\b/.test(t);
+  if (hasStroke && hasEventDistance) return "UNKNOWN";
+
+  if (t.includes("long course") || t === "lcm" || t.includes(" lcm")) return "LCM";
+  if (t.includes("50 meter") || t.includes("50m")) return "LCM";
+  if (t.includes("meter")) return "LCM";
   if (t.includes("25 meter") || t.includes("short course meters") || t === "scm" || t.includes(" scm")) return "SCM";
   if (t.includes("25 yard") || t.includes("yard") || t.includes("short course yards") || t === "scy" || t.includes(" scy")) return "SCY";
   return "UNKNOWN";
@@ -371,14 +380,20 @@ function parseGenericSplitRows(lines: string[], eventDistance: number, eventStro
     if (stroke !== eventStroke) continue;
     if (distance > eventDistance) continue;
     if (norm.includes("split")) continue;
-    if (!pendingMs) continue;
-    if (pendingMs < 5000) { pendingMs = null; continue; }
+
+    // ✅ Meet Mobile shows "25 Fly  17.76" inline — check for inline time first,
+    // then fall back to a time that arrived on the previous line (pendingMs).
+    const inlineTime = extractTime(line);
+    const inlineMs = inlineTime ? timeToMs(inlineTime) : null;
+    const useMs = (inlineMs && inlineMs > 5000) ? inlineMs : pendingMs;
+
+    if (!useMs || useMs < 5000) { pendingMs = null; continue; }
 
     splits.push({
       label: normalizeSplitLabel(distance, eventStroke),
       order: splits.length + 1,
       distance,
-      splitMs: pendingMs,
+      splitMs: useMs,
       cumulativeMs: null,
     });
     pendingMs = null;
