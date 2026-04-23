@@ -251,12 +251,32 @@ export default function ScanPage() {
       setMessage("This result is already saved."); setSavedSwimmer(swimmer); setShowPicker(false); setIsSaving(false); return;
     }
     const meetType = detectMeetType(rawText, parsedResult.meetName ?? null);
-    const { error } = await supabase.from("swim_times").insert({
+    const { data: swimRow, error } = await supabase.from("swim_times").insert({
       swimmer_id: swimmer.id, event: eventName, course: courseName,
       time_ms: confirmedMs, place: parsedResult.place ?? null,
       meet_name: parsedResult.meetName ?? null, swam_at: parsedResult.swamAt ?? null, meet_type: meetType,
-    });
+    }).select().single();
     if (error) { setMessage(`⚠️ ${error.message}`); } else {
+      // ✅ Save splits if present
+      const splits = parsedResult.splits;
+      if (swimRow && splits && splits.length > 0) {
+        const splitRows = splits
+          .filter((s) => typeof s.splitMs === "number" && s.splitMs > 0)
+          .map((s, idx) => ({
+            swim_time_id: swimRow.id,
+            swimmer_id: swimmer.id,
+            event: eventName,
+            course: courseName,
+            split_label: s.label,
+            split_order: idx + 1,
+            split_distance: s.distance,
+            split_time_ms: s.splitMs,
+            cumulative_time_ms: s.cumulativeMs ?? null,
+          }));
+        if (splitRows.length > 0) {
+          await supabase.from("swim_splits").insert(splitRows);
+        }
+      }
       setMessage(`✓ Saved to ${swimmer.name}`); setSavedSwimmer(swimmer); setShowPicker(false); setAutoMatchedSwimmer(swimmer);
     }
     setIsSaving(false);
