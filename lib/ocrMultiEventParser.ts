@@ -348,17 +348,6 @@ function parseGenericSplitRows(lines: string[], eventDistance: number, eventStro
   const MAX_LEG_MS = 90_000;
   let pendingMs: number | null = null;
 
-  // ─── Extract raw label (text only, no numbers) from a line ───────────────
-  function rawLineLabel(line: string, fallback: string): string {
-    const stripped = line
-      .replace(/\b\d{1,2}:\d{2}\.\d{2}\b/g, "")
-      .replace(/\b\d{1,2}\.\d{2}\b/g, "")
-      .trim()
-      .replace(/\s+/g, " ");
-    return stripped.length > 1 ? stripped : fallback;
-  }
-
-  // ─── Extract all time values from a line ────────────────────────────────
   function allTimesFromLine(line: string): number[] {
     const matches = line.match(/\b(\d{1,2}:\d{2}\.\d{2}|\d{1,2}\.\d{2})\b/g) ?? [];
     return matches.map((t) => timeToMs(t)).filter((ms) => ms > 0);
@@ -374,8 +363,10 @@ function parseGenericSplitRows(lines: string[], eventDistance: number, eventStro
     if (norm.includes("lane")) continue;
     if (norm.includes("meet home")) continue;
     if (/\b(am|pm)\b/i.test(line)) continue;
+    // Skip "100 Free Split", "50 Back Split" etc — these are section markers not leg splits
+    if (norm.includes("split")) { pendingMs = null; continue; }
 
-    // Strategy A: standalone time line — save as pending
+    // Strategy A: standalone time line — save as pending for next label
     const standaloneTime = extractTime(line);
     if (standaloneTime && normalizeText(line) === normalizeText(standaloneTime)) {
       const ms = timeToMs(standaloneTime);
@@ -389,35 +380,19 @@ function parseGenericSplitRows(lines: string[], eventDistance: number, eventStro
     if (stroke !== eventStroke) { pendingMs = null; continue; }
     if (distance > eventDistance) { pendingMs = null; continue; }
 
-    const label = rawLineLabel(line, normalizeSplitLabel(distance, eventStroke));
     const times = allTimesFromLine(line);
+    const legMs = times.find((ms) => ms > 5000 && ms <= MAX_LEG_MS) ?? null;
+    const cumMs = times.find((ms) => ms > (legMs ?? 0) && ms > MAX_LEG_MS) ?? null;
 
-    // Strategy B: inline times — first is leg, second is cumulative
-    // For "100 Free Split  1:31.23" — single time is cumulative only
-    if (times.length >= 1) {
-      const firstMs = times[0];
-      const secondMs = times[1] ?? null;
-
-      if (firstMs <= MAX_LEG_MS) {
-        // Normal split: first = leg, second = cumulative
-        splits.push({
-          label,
-          order: splits.length + 1,
-          distance,
-          splitMs: firstMs,
-          cumulativeMs: secondMs && secondMs > firstMs ? secondMs : null,
-        });
-      } else {
-        // Cumulative-only row (e.g. "100 Free Split  1:31.23")
-        // Store cumulative as the split value so it shows up
-        splits.push({
-          label,
-          order: splits.length + 1,
-          distance,
-          splitMs: firstMs,
-          cumulativeMs: firstMs,
-        });
-      }
+    // Strategy B: inline leg time on same line
+    if (legMs) {
+      splits.push({
+        label: normalizeSplitLabel(distance, eventStroke),
+        order: splits.length + 1,
+        distance,
+        splitMs: legMs,
+        cumulativeMs: cumMs ?? null,
+      });
       pendingMs = null;
       continue;
     }
@@ -425,13 +400,15 @@ function parseGenericSplitRows(lines: string[], eventDistance: number, eventStro
     // Strategy C: time on next line
     const nextLine = lines[i + 1] ?? "";
     const nextTimes = allTimesFromLine(nextLine);
-    if (nextTimes.length >= 1 && nextTimes[0] > 5000 && nextTimes[0] <= MAX_LEG_MS) {
+    const nextLeg = nextTimes.find((ms) => ms > 5000 && ms <= MAX_LEG_MS) ?? null;
+    if (nextLeg) {
+      const nextCum = nextTimes.find((ms) => ms > nextLeg) ?? null;
       splits.push({
         label: normalizeSplitLabel(distance, eventStroke),
         order: splits.length + 1,
         distance,
-        splitMs: nextTimes[0],
-        cumulativeMs: nextTimes[1] ?? null,
+        splitMs: nextLeg,
+        cumulativeMs: nextCum ?? null,
       });
       i++;
       pendingMs = null;
@@ -440,7 +417,13 @@ function parseGenericSplitRows(lines: string[], eventDistance: number, eventStro
 
     // Strategy D: pendingMs from previous standalone line
     if (pendingMs && pendingMs > 5000 && pendingMs <= MAX_LEG_MS) {
-      splits.push({ label: normalizeSplitLabel(distance, eventStroke), order: splits.length + 1, distance, splitMs: pendingMs, cumulativeMs: null });
+      splits.push({
+        label: normalizeSplitLabel(distance, eventStroke),
+        order: splits.length + 1,
+        distance,
+        splitMs: pendingMs,
+        cumulativeMs: null,
+      });
       pendingMs = null;
       continue;
     }
