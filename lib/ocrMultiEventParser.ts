@@ -347,9 +347,17 @@ function fillMissingLastSplit(
 
 function parseGenericSplitRows(lines: string[], eventDistance: number, eventStroke: string) {
   const splits: ParsedSplit[] = [];
-  let pendingMs: number | null = null;
 
-  for (const line of lines) {
+  // ✅ Filter to just the lines between SPLITS header and Total
+  // This avoids false positives from event name lines above
+  const splitStart = lines.findIndex((l) => /^splits$/i.test(l.trim()));
+  const totalIdx = lines.findIndex((l) => /^total\b/i.test(l.trim()));
+  const workingLines = splitStart >= 0
+    ? lines.slice(splitStart + 1, totalIdx >= 0 ? totalIdx : undefined)
+    : lines;
+
+  for (let i = 0; i < workingLines.length; i++) {
+    const line = workingLines[i];
     const norm = normalizeText(line);
     if (!norm) continue;
     if (norm.includes("total")) continue;
@@ -358,45 +366,48 @@ function parseGenericSplitRows(lines: string[], eventDistance: number, eventStro
     if (norm.includes("lane")) continue;
     if (norm.includes("meet home")) continue;
     if (/\b(am|pm)\b/i.test(line)) continue;
-
-    const fourDigit = line.trim().match(/^(\d{4})$/);
-    if (fourDigit) {
-      const ms = fourDigitToMs(fourDigit[1]);
-      if (ms && ms > 5000 && ms < 120000) {
-        pendingMs = ms;
-        continue;
-      }
-    }
-
-    const standaloneTime = extractTime(line);
-    if (standaloneTime && normalizeText(line) === normalizeText(standaloneTime)) {
-      pendingMs = timeToMs(standaloneTime);
-      continue;
-    }
+    if (norm.includes("split")) continue;
 
     const distance = detectDistance(line, SPLIT_DISTANCES);
     const stroke = detectStroke(line);
     if (!distance || !stroke) continue;
     if (stroke !== eventStroke) continue;
     if (distance > eventDistance) continue;
-    if (norm.includes("split")) continue;
 
-    // ✅ Meet Mobile shows "25 Fly  17.76" inline — check for inline time first,
-    // then fall back to a time that arrived on the previous line (pendingMs).
+    // Strategy 1: inline time on the same line e.g. "25 Fly  17.76"
     const inlineTime = extractTime(line);
     const inlineMs = inlineTime ? timeToMs(inlineTime) : null;
-    const useMs = (inlineMs && inlineMs > 5000) ? inlineMs : pendingMs;
 
-    if (!useMs || useMs < 5000) { pendingMs = null; continue; }
+    if (inlineMs && inlineMs > 5000 && inlineMs <= 120000) {
+      splits.push({
+        label: normalizeSplitLabel(distance, eventStroke),
+        order: splits.length + 1,
+        distance,
+        splitMs: inlineMs,
+        cumulativeMs: null,
+      });
+      continue;
+    }
 
-    splits.push({
-      label: normalizeSplitLabel(distance, eventStroke),
-      order: splits.length + 1,
-      distance,
-      splitMs: useMs,
-      cumulativeMs: null,
-    });
-    pendingMs = null;
+    // Strategy 2: time on the NEXT line e.g.
+    //   "25 Fly"
+    //   "17.76"
+    //   "17.76"   ← cumulative (skip)
+    const nextLine = workingLines[i + 1] ?? "";
+    const nextTime = extractTime(nextLine);
+    const nextMs = nextTime ? timeToMs(nextTime) : null;
+
+    if (nextMs && nextMs > 5000 && nextMs <= 120000) {
+      splits.push({
+        label: normalizeSplitLabel(distance, eventStroke),
+        order: splits.length + 1,
+        distance,
+        splitMs: nextMs,
+        cumulativeMs: null,
+      });
+      i++; // consume the time line so it's not re-processed
+      continue;
+    }
   }
 
   return splits.sort((a, b) => (a.distance ?? 9999) - (b.distance ?? 9999));
