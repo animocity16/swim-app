@@ -1,699 +1,1134 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { createWorker } from "tesseract.js";
+import { parseSwimOCRText, type ParsedSwimResult } from "@/lib/ocrMultiEventParser";
+
+import {
+  parseEventResultsOCR,
+  isEventResultsPage,
+  type EventResultRow,
+} from "@/lib/ocrEventResultsParser";
+import {
+  parseSwimmerScheduleOCR,
+  isSwimmerSchedulePage,
+  type ScheduleResultRow,
+} from "@/lib/ocrSwimmerScheduleParser";
+import { canonicalCourse, canonicalEventName } from "@/lib/events";
 import { supabase } from "@/lib/supabaseClient";
-import { replayTutorial } from "@/app/components/TutorialOverlay";
-import SplashMediaUpload from "@/app/components/SplashMediaUpload";
-import { applyTheme } from "@/app/components/ThemeProvider";
-import Link from "next/link";
 
-const APP_VERSION = "1.0.0";
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-const FEATURE_REQUESTS = [
-  "AI nutrition guide",
-  "Meet calendar",
-  "Apple Watch support",
-  "Team / club dashboard",
-  "Relay tracking",
-  "Compare with teammates",
-  "Export to PDF / spreadsheet",
-  "Push notifications",
-  "Other",
+type Swimmer = {
+  id: number;
+  name: string;
+  age: number;
+  swim_club?: string | null;
+  school?: string | null;
+  group_type?: string | null;
+};
+
+type Step = "idle" | "scanning" | "done";
+type ScanMode = "single" | "event_results" | "swimmer_schedule" | null;
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function fuzzyMatchSwimmer(ocrName: string, swimmers: Swimmer[]): Swimmer | null {
+  const clean = ocrName.trim().toLowerCase();
+  const ocrWords = clean.split(/\s+/);
+  const exact = swimmers.find((s) => s.name.toLowerCase() === clean);
+  if (exact) return exact;
+  const bySubstring = swimmers.find((s) => clean.includes(s.name.toLowerCase()));
+  if (bySubstring) return bySubstring;
+  const byFirstName = swimmers.find((s) => {
+    const profileFirst = s.name.toLowerCase().split(/\s+/)[0];
+    return ocrWords.includes(profileFirst);
+  });
+  if (byFirstName) return byFirstName;
+  const ocrFirst = ocrWords[0];
+  const ocrSurnameInitial = ocrWords[1]?.[0] ?? null;
+  if (ocrFirst) {
+    const byInitial = swimmers.find((s) => {
+      const parts = s.name.toLowerCase().split(/\s+/);
+      const profileFirst = parts[0];
+      const profileSurnameInitial = parts[1]?.[0] ?? null;
+      if (profileFirst !== ocrFirst) return false;
+      if (!profileSurnameInitial || !ocrSurnameInitial) return true;
+      return profileSurnameInitial === ocrSurnameInitial;
+    });
+    if (byInitial) return byInitial;
+  }
+  return null;
+}
+
+function parseTimeStr(str: string): number | null {
+  const s = str.trim();
+  if (/^\d{1,2}:\d{2}\.\d{2}$/.test(s)) {
+    const [mm, rest] = s.split(":");
+    const [sec, hun] = rest.split(".");
+    return Number(mm) * 60_000 + Number(sec) * 1_000 + Number(hun) * 10;
+  }
+  if (/^\d{1,2}\.\d{2}$/.test(s)) {
+    const [sec, hun] = s.split(".");
+    return Number(sec) * 1_000 + Number(hun) * 10;
+  }
+  return null;
+}
+
+function getInitials(name: string) {
+  return name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
+}
+
+// Strip Meet Mobile / OCR prefixes like "INS", "SCR", "DNS" that appear before swimmer names
+function stripNamePrefix(name: string): string {
+  return name.replace(/^(INS|SCR|DNS|DNF|DQ|DSQ|NT|NS|HD|WD)\s+/i, "").trim();
+}
+
+// ── Secondary safety net ──────────────────────────────────────────────────────
+// Guards the UI from displaying OCR garbage (e.g. "nals PLACE TIME") as a
+// swimmer name even if the parser layer somehow lets it through.
+//
+// A "valid" person name must:
+//   - be 2–50 chars of letters, spaces, hyphens, apostrophes, commas
+//   - contain at least one space (first + last name)
+//   - NOT be all-uppercase (table headers like "PLACE TIME")
+//   - NOT contain known non-name keywords
+const GARBAGE_NAME_WORDS = /\b(place|time|heat|lane|finals?|nals|prelims?|rank|split|total|detail|result|event|swim)\b/i;
+
+function isValidPersonName(name: string): boolean {
+  const t = name.trim();
+  if (t.length < 3 || t.length > 50) return false;
+  if (!/^[A-Za-z ,.'"-]+$/.test(t)) return false;   // only name-safe chars
+  if (!t.includes(" ")) return false;                  // needs at least two words
+  if (/^[A-Z\s]+$/.test(t)) return false;             // all-caps → table header
+  if (GARBAGE_NAME_WORDS.test(t)) return false;        // contains non-name words
+  return true;
+}
+
+// ── Meet type detection ───────────────────────────────────────────────────────
+// Tags a saved result as NSG, SNAG, or CLUB based on OCR text + optional hint.
+// Sync/client-safe — no Supabase needed.
+function detectMeetType(rawText: string, hint: string | null): string {
+  const combined = ((hint ?? "") + " " + rawText).toLowerCase();
+  if (/\bnsg\b|national school games/i.test(combined)) return "NSG";
+  if (/\bsnag\b|singapore national age group|national age group/i.test(combined)) return "SNAG";
+  return "CLUB";
+}
+
+const AVATAR_COLORS = [
+  { bg: "#92400E", text: "#FDE68A" },
+  { bg: "#78350F", text: "#FCD34D" },
+  { bg: "#854F0B", text: "#FAC775" },
+  { bg: "#633806", text: "#EF9F27" },
+  { bg: "#412402", text: "#BA7517" },
 ];
+function avatarColor(index: number) {
+  return AVATAR_COLORS[index % AVATAR_COLORS.length];
+}
 
-// ─── Theme options — must match ThemeProvider.tsx ─────────────────────────────
+// ─── Upload slot ──────────────────────────────────────────────────────────────
 
-const THEMES = [
-  { id: "ocean",    label: "Ocean",    from: "#062840", to: "#0F4C75", accent: "#38BDF8" },
-  { id: "midnight", label: "Midnight", from: "#0D0D1A", to: "#1A1A3E", accent: "#A78BFA" },
-  { id: "forest",   label: "Forest",   from: "#051A10", to: "#0A3020", accent: "#34D399" },
-  { id: "sunset",   label: "Sunset",   from: "#C2390A", to: "#F59E0B", accent: "#FED7AA" },
-  { id: "cosmos",   label: "Cosmos",   from: "#0D0820", to: "#1E1040", accent: "#F472B6" },
-  { id: "slate",    label: "Slate",    from: "#0D1117", to: "#1C2333", accent: "#94A3B8" },
-];
+function SlotButton({
+  label, hint, preview, inputRef, required, onChange,
+}: {
+  label: string; hint: string; preview: string | null;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  required?: boolean; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+}) {
+  return (
+    <div
+      onClick={() => inputRef.current?.click()}
+      className="relative flex min-h-[140px] cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-white/20 bg-black/30 p-3 text-center transition hover:border-amber-400/50 hover:bg-white/5"
+    >
+      <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={onChange} />
+      {required && !preview && (
+        <span className="absolute right-2 top-2 rounded-full px-2 py-0.5 text-[9px] uppercase tracking-wider"
+          style={{ background: "rgba(186,117,23,0.2)", color: "#EF9F27" }}>
+          Required
+        </span>
+      )}
+      {preview ? (
+        <img src={preview} alt={label} className="max-h-44 rounded-xl object-contain" />
+      ) : (
+        <>
+          <span className="text-2xl text-white/20">📷</span>
+          <p className="mt-1 text-xs font-semibold text-white/55">{label}</p>
+          <p className="mt-0.5 text-[10px] text-white/30">{hint}</p>
+        </>
+      )}
+    </div>
+  );
+}
 
-export default function SettingsPage() {
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default function ScanPage() {
   const router = useRouter();
+  const [swimmers, setSwimmers] = useState<Swimmer[]>([]);
+  const [primarySwimmers, setPrimarySwimmers] = useState<Swimmer[]>([]);
+  const [loadingSwimmers, setLoadingSwimmers] = useState(true);
 
-  const [loading, setLoading] = useState(true);
-  const [email, setEmail] = useState("");
-  const [displayName, setDisplayName] = useState("");
+  const [file1, setFile1] = useState<File | null>(null);
+  const [file2, setFile2] = useState<File | null>(null);
+  const [preview1, setPreview1] = useState<string | null>(null);
+  const [preview2, setPreview2] = useState<string | null>(null);
+  const [step, setStep] = useState<Step>("idle");
+  const [progress, setProgress] = useState(0);
+  const [message, setMessage] = useState("");
+  const [rawText, setRawText] = useState("");
+  const [scanMode, setScanMode] = useState<ScanMode>(null);
+  const [showInfo, setShowInfo] = useState(false);
 
-  const [showPasswordForm, setShowPasswordForm] = useState(false);
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [passwordMsg, setPasswordMsg] = useState("");
-  const [savingPassword, setSavingPassword] = useState(false);
+  // ── Single mode ───────────────────────────────────────────────────────────
+  const [parsedResult, setParsedResult] = useState<ParsedSwimResult | null>(null);
+  const [detectedEvent, setDetectedEvent] = useState<string | null>(null);
+  const [editedTime, setEditedTime] = useState<string>("");
+  const [timeError, setTimeError] = useState<string | null>(null);
+  const [autoMatchedSwimmer, setAutoMatchedSwimmer] = useState<Swimmer | null>(null);
+  const [showPicker, setShowPicker] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [savedSwimmer, setSavedSwimmer] = useState<Swimmer | null>(null);
 
-  // Theme
-  const [activeTheme, setActiveTheme] = useState("ocean");
-  const [savingTheme, setSavingTheme] = useState(false);
-  const [themeSaved, setThemeSaved] = useState(false);
+  // ── Event results mode ────────────────────────────────────────────────────
+  const [eventRows, setEventRows] = useState<EventResultRow[]>([]);
+  const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
+  const [savingSelected, setSavingSelected] = useState(false);
+  const [savedNames, setSavedNames] = useState<string[]>([]);
+  const [rowTypes, setRowTypes] = useState<Record<number, "mine" | "follow">>({});
 
-  const [feedbackRating, setFeedbackRating] = useState(0);
-  const [feedbackMessage, setFeedbackMessage] = useState("");
-  const [feedbackFeature, setFeedbackFeature] = useState("");
-  const [savingFeedback, setSavingFeedback] = useState(false);
-  const [feedbackSent, setFeedbackSent] = useState(false);
-  const [feedbackError, setFeedbackError] = useState("");
+  // ── Swimmer schedule mode ─────────────────────────────────────────────────
+  const [scheduleResults, setScheduleResults] = useState<ScheduleResultRow[]>([]);
+  const [scheduleSwimmerName, setScheduleSwimmerName] = useState<string | null>(null);
+  const [scheduleMeetName, setScheduleMeetName] = useState<string | null>(null);
+  const [selectedScheduleRows, setSelectedScheduleRows] = useState<Set<number>>(new Set());
+  const [scheduleMatchedSwimmer, setScheduleMatchedSwimmer] = useState<Swimmer | null>(null);
+  const [showSchedulePicker, setShowSchedulePicker] = useState(false);
+  const [savingSchedule, setSavingSchedule] = useState(false);
 
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [deleteInput, setDeleteInput] = useState("");
-  const [deletingAccount, setDeletingAccount] = useState(false);
-  const [loggingOut, setLoggingOut] = useState(false);
-  const [deleteStatus, setDeleteStatus] = useState("");
+  // ── New swimmer creation ──────────────────────────────────────────────────
+  const [creatingNewSwimmer, setCreatingNewSwimmer] = useState(false);
+  const [newSwimmerName, setNewSwimmerName] = useState("");
+  const [newSwimmerAge, setNewSwimmerAge] = useState("");
+  const [newSwimmerClub, setNewSwimmerClub] = useState("");
+  const [showCreateForm, setShowCreateForm] = useState(false);
 
-  useEffect(() => {
-    void loadUser();
-  }, []);
+  // ── Manual meet metadata (schedule mode) ─────────────────────────────────
+  const [manualMeetName, setManualMeetName] = useState("");
+  const [manualMeetDate, setManualMeetDate] = useState("");
 
-  async function loadUser() {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
+  const ref1 = useRef<HTMLInputElement | null>(null);
+  const ref2 = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => { void loadSwimmers(); }, []);
+
+  async function loadSwimmers() {
+    let session = (await supabase.auth.getSession()).data.session;
     if (!session) {
-      router.replace("/login");
-      return;
+      await new Promise((r) => setTimeout(r, 800));
+      session = (await supabase.auth.getSession()).data.session;
     }
-    setEmail(session.user.email ?? "");
-    const meta = session.user.user_metadata;
-    setDisplayName(meta?.full_name ?? meta?.name ?? "");
-    setActiveTheme(meta?.app_theme ?? "ocean");
-    setLoading(false);
+    if (!session) { router.replace("/login"); return; }
+    const { data } = await supabase.from("swimmers")
+      .select("id, name, age, swim_club, group_type").order("name", { ascending: true });
+    const all = (data as Swimmer[]) || [];
+    setSwimmers(all);
+    setPrimarySwimmers(all.filter((s) => s.group_type === "primary"));
+    setLoadingSwimmers(false);
   }
 
-  async function handleSelectTheme(themeId: string) {
-    setActiveTheme(themeId);
-    // Apply instantly — user sees the change live
-    applyTheme(themeId);
-
-    setSavingTheme(true);
-    setThemeSaved(false);
-    await supabase.auth.updateUser({ data: { app_theme: themeId } });
-    setSavingTheme(false);
-    setThemeSaved(true);
-    setTimeout(() => setThemeSaved(false), 2000);
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>, setFile: (f: File | null) => void, setPreview: (s: string | null) => void) {
+    const f = e.target.files?.[0] ?? null;
+    setFile(f);
+    setPreview(f ? URL.createObjectURL(f) : null);
   }
 
-  async function handleChangePassword() {
-    if (!newPassword) {
-      setPasswordMsg("Please enter a new password.");
-      return;
-    }
-    if (newPassword.length < 8) {
-      setPasswordMsg("Password must be at least 8 characters.");
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setPasswordMsg("Passwords don't match.");
-      return;
-    }
-    setSavingPassword(true);
-    setPasswordMsg("");
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
-    if (error) {
-      setPasswordMsg(`Error: ${error.message}`);
-    } else {
-      setPasswordMsg("✓ Password updated successfully.");
-      setNewPassword("");
-      setConfirmPassword("");
-      setTimeout(() => {
-        setShowPasswordForm(false);
-        setPasswordMsg("");
-      }, 2000);
-    }
-    setSavingPassword(false);
+  function reset() {
+    setFile1(null); setFile2(null);
+    setPreview1(null); setPreview2(null);
+    setStep("idle"); setProgress(0); setMessage(""); setRawText("");
+    setScanMode(null);
+    setParsedResult(null); setDetectedEvent(null);
+    setEditedTime(""); setTimeError(null);
+    setAutoMatchedSwimmer(null); setShowPicker(false);
+    setIsSaving(false); setSavedSwimmer(null);
+    setEventRows([]); setSelectedRows(new Set());
+    setSavingSelected(false); setSavedNames([]); setRowTypes({});
+    setScheduleResults([]); setScheduleSwimmerName(null); setScheduleMeetName(null);
+    setSelectedScheduleRows(new Set()); setScheduleMatchedSwimmer(null);
+    setShowSchedulePicker(false); setSavingSchedule(false);
+    setManualMeetName(""); setManualMeetDate("");
+    setCreatingNewSwimmer(false); setNewSwimmerName(""); setNewSwimmerAge("");
+    setNewSwimmerClub(""); setShowCreateForm(false);
+    setShowInfo(false);
+    if (ref1.current) ref1.current.value = "";
+    if (ref2.current) ref2.current.value = "";
   }
 
-  async function handleSendFeedback() {
-    if (feedbackRating === 0) {
-      setFeedbackError("Please select a star rating.");
-      return;
+  // ── Save single result ────────────────────────────────────────────────────
+
+  async function saveSingleDirectly(swimmer: Swimmer) {
+    if (!parsedResult) return;
+    const confirmedMs = parseTimeStr(editedTime);
+    if (!confirmedMs) { setTimeError("Please enter a valid time (e.g. 35.76 or 1:27.54)"); return; }
+    setTimeError(null);
+    setIsSaving(true);
+    const eventName = canonicalEventName(parsedResult.event);
+    const courseName = canonicalCourse(parsedResult.course);
+    if (!eventName) { setMessage("⚠️ Could not determine event name."); setIsSaving(false); return; }
+    const { data: existing } = await supabase.from("swim_times").select("id")
+      .eq("swimmer_id", swimmer.id).eq("event", eventName).eq("course", courseName).eq("time_ms", confirmedMs).limit(1);
+    if (existing && existing.length > 0) {
+      setMessage("This result is already saved."); setSavedSwimmer(swimmer); setShowPicker(false); setIsSaving(false); return;
     }
-    if (!feedbackMessage.trim()) {
-      setFeedbackError("Please write something — even a sentence helps!");
-      return;
+    const meetType = detectMeetType(rawText, parsedResult.meetName ?? null);
+    const { data: swimRow, error } = await supabase.from("swim_times").insert({
+      swimmer_id: swimmer.id, event: eventName, course: courseName,
+      time_ms: confirmedMs, place: parsedResult.place ?? null,
+      meet_name: parsedResult.meetName ?? null, swam_at: parsedResult.swamAt ?? null, meet_type: meetType,
+    }).select().single();
+    if (error) { setMessage(`⚠️ ${error.message}`); } else {
+      const splits = parsedResult.splits;
+      if (swimRow && splits && splits.length > 0) {
+        const splitRows = splits
+          .filter((s) => typeof s.splitMs === "number" && s.splitMs > 0)
+          .map((s, idx) => ({
+            swim_time_id: swimRow.id,
+            swimmer_id: swimmer.id,
+            event: eventName,
+            course: courseName,
+            split_label: s.label,
+            split_order: idx + 1,
+            split_distance: s.distance,
+            split_time_ms: s.splitMs,
+            cumulative_time_ms: s.cumulativeMs ?? null,
+          }));
+        if (splitRows.length > 0) {
+          await supabase.from("swim_splits").insert(splitRows);
+        }
+      }
+      setMessage(`✓ Saved to ${swimmer.name}`); setSavedSwimmer(swimmer); setShowPicker(false); setAutoMatchedSwimmer(swimmer);
     }
-    setSavingFeedback(true);
-    setFeedbackError("");
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    const { error } = await supabase.from("feedback").insert([
-      {
-        user_id: session?.user?.id ?? null,
-        rating: feedbackRating,
-        message: feedbackMessage.trim(),
-        feature_request: feedbackFeature || null,
-      },
-    ]);
-    if (error) {
-      setFeedbackError(`Couldn't send feedback: ${error.message}`);
-    } else {
-      setFeedbackSent(true);
-      setFeedbackRating(0);
-      setFeedbackMessage("");
-      setFeedbackFeature("");
-    }
-    setSavingFeedback(false);
+    setIsSaving(false);
   }
 
-  async function handleLogout() {
-    setLoggingOut(true);
-    await supabase.auth.signOut();
-    router.replace("/login");
-  }
+  // ── Create new swimmer + save single result ───────────────────────────────
 
-  async function handleDeleteAccount() {
-    if (deleteInput !== "DELETE") {
-      setDeleteStatus("Please type DELETE to confirm.");
-      return;
+  async function handleCreateNewSwimmerAndSaveSingle() {
+    if (!parsedResult || !newSwimmerName.trim()) return;
+    const confirmedMs = parseTimeStr(editedTime);
+    if (!confirmedMs) { setTimeError("Please enter a valid time (e.g. 35.76 or 1:27.54)"); return; }
+    setCreatingNewSwimmer(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setMessage("⚠️ Not logged in."); setCreatingNewSwimmer(false); return; }
+
+    let schoolName: string | null = null;
+    let clubName: string | null = null;
+    if (newSwimmerClub.trim()) {
+      const { data: schoolRow } = await supabase.from("sg_schools").select("full_name")
+        .eq("code", newSwimmerClub.trim().toUpperCase()).maybeSingle();
+      if (schoolRow) { schoolName = schoolRow.full_name; } else { clubName = newSwimmerClub.trim(); }
     }
-    setDeletingAccount(true);
-    setDeleteStatus("Deleting account...");
-    await supabase.auth.signOut();
-    router.replace("/login");
+
+    const { data: newSwimmer, error: createErr } = await supabase.from("swimmers").insert({
+      user_id: user.id,
+      name: newSwimmerName.trim(),
+      age: newSwimmerAge ? Number(newSwimmerAge) : null,
+      swim_club: clubName,
+      school: schoolName,
+      group_type: "following",
+    }).select().single();
+
+    if (createErr || !newSwimmer) {
+      setMessage(`⚠️ Couldn't create swimmer: ${createErr?.message ?? "Unknown error"}`);
+      setCreatingNewSwimmer(false); return;
+    }
+
+    await loadSwimmers();
+
+    const eventName = canonicalEventName(parsedResult.event);
+    const courseName = canonicalCourse(parsedResult.course);
+    const meetType = detectMeetType(rawText, parsedResult.meetName ?? null);
+    const { error } = await supabase.from("swim_times").insert({
+      swimmer_id: newSwimmer.id, event: eventName, course: courseName,
+      time_ms: confirmedMs, place: parsedResult.place ?? null,
+      meet_name: parsedResult.meetName ?? null, swam_at: parsedResult.swamAt ?? null, meet_type: meetType,
+    });
+
+    if (error) { setMessage(`⚠️ ${error.message}`); } else {
+      setMessage(`✓ Created ${newSwimmer.name} and saved result`);
+      setSavedSwimmer(newSwimmer as Swimmer);
+      setShowPicker(false); setShowCreateForm(false);
+    }
+    setCreatingNewSwimmer(false);
   }
 
-  if (loading) {
-    return (
-      <div className="shell">
-        <div className="container-app">
-          <p className="muted">Loading...</p>
-        </div>
-      </div>
-    );
+  // ── Save event results ────────────────────────────────────────────────────
+
+  function toggleRow(index: number) {
+    setSelectedRows((prev) => { const next = new Set(prev); next.has(index) ? next.delete(index) : next.add(index); return next; });
   }
+
+  async function handleSaveSelected() {
+    if (selectedRows.size === 0) return;
+    setSavingSelected(true);
+    const saved: string[] = []; const errors: string[] = [];
+    const firstClub = eventRows[0]?.club ?? null;
+    const meetType = detectMeetType(rawText, firstClub);
+    for (const index of Array.from(selectedRows)) {
+      const row = eventRows[index];
+      if (!row) continue;
+      const matched = fuzzyMatchSwimmer(row.name, swimmers);
+      if (!matched) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) { errors.push(`${row.name}: not logged in`); continue; }
+        let schoolName: string | null = null; let clubName: string | null = null;
+        if (row.club) {
+          const { data: schoolRow } = await supabase.from("sg_schools").select("full_name")
+            .eq("code", row.club.trim().toUpperCase()).maybeSingle();
+          if (schoolRow) { schoolName = schoolRow.full_name; } else { clubName = row.club; }
+        }
+        const { data: newSwimmer, error: createErr } = await supabase.from("swimmers").insert({
+          user_id: user.id, name: row.name.trim(), age: row.age ?? null,
+          swim_club: clubName, school: schoolName,
+          group_type: rowTypes[index] === "mine" ? "primary" : "following",
+        }).select().single();
+        if (createErr || !newSwimmer) { errors.push(`${row.name}: couldn't create profile`); continue; }
+        await loadSwimmers();
+        const en2 = canonicalEventName(row.event ?? ""); const cn2 = canonicalCourse(row.course ?? "LCM");
+        if (!en2) { errors.push(`${row.name}: no event`); continue; }
+        await supabase.from("swim_times").insert({
+          swimmer_id: newSwimmer.id, event: en2, course: cn2, time_ms: row.timeMs,
+          place: row.place ?? null, meet_name: row.meetName ?? null, swam_at: row.swamAt ?? null, meet_type: meetType,
+        });
+        saved.push(`${row.name} (added)`); continue;
+      }
+      const eventName = canonicalEventName(row.event ?? ""); const courseName = canonicalCourse(row.course ?? "LCM");
+      if (!eventName) { errors.push(`${row.name}: no event`); continue; }
+      const { data: existing } = await supabase.from("swim_times").select("id")
+        .eq("swimmer_id", matched.id).eq("event", eventName).eq("course", courseName).eq("time_ms", row.timeMs).limit(1);
+      if (existing && existing.length > 0) { errors.push(`${row.name}: already saved`); continue; }
+      const { error } = await supabase.from("swim_times").insert({
+        swimmer_id: matched.id, event: eventName, course: courseName, time_ms: row.timeMs,
+        place: row.place ?? null, meet_name: row.meetName ?? null, swam_at: row.swamAt ?? null, meet_type: meetType,
+      });
+      error ? errors.push(`${row.name}: ${error.message}`) : saved.push(row.name);
+    }
+    setSavedNames((prev) => [...prev, ...saved]);
+    setMessage(saved.length > 0
+      ? `✓ Saved ${saved.length} result(s)${errors.length > 0 ? ` · Issues: ${errors.join(", ")}` : ""}`
+      : `⚠️ Nothing saved. ${errors.join(", ")}`);
+    setSavingSelected(false); setSelectedRows(new Set());
+  }
+
+  // ── Save swimmer schedule results ─────────────────────────────────────────
+
+  function toggleScheduleRow(index: number) {
+    setSelectedScheduleRows((prev) => { const next = new Set(prev); next.has(index) ? next.delete(index) : next.add(index); return next; });
+  }
+
+  async function handleSaveSchedule(swimmer: Swimmer) {
+    if (selectedScheduleRows.size === 0) return;
+    setSavingSchedule(true);
+    const saved: string[] = []; const errors: string[] = [];
+    const meetType = detectMeetType(rawText, null);
+    const resolvedMeetName = manualMeetName.trim() || scheduleMeetName || null;
+    const resolvedSwamAt = manualMeetDate.trim() || null;
+
+    for (const index of Array.from(selectedScheduleRows)) {
+      const row = scheduleResults[index];
+      if (!row) continue;
+      const eventName = canonicalEventName(row.event);
+      const courseName = canonicalCourse(row.course);
+      if (!eventName) { errors.push(`${row.event}: unknown event`); continue; }
+      const { data: existing } = await supabase.from("swim_times").select("id")
+        .eq("swimmer_id", swimmer.id).eq("event", eventName).eq("course", courseName).eq("time_ms", row.timeMs).limit(1);
+      if (existing && existing.length > 0) { errors.push(`${row.event}: already saved`); continue; }
+      const { error } = await supabase.from("swim_times").insert({
+        swimmer_id: swimmer.id, event: eventName, course: courseName,
+        time_ms: row.timeMs, place: row.place ?? null,
+        meet_name: resolvedMeetName,
+        swam_at: resolvedSwamAt ?? row.swamAt ?? null,
+        meet_type: meetType,
+      });
+      error ? errors.push(`${row.event}: ${error.message}`) : saved.push(row.event);
+    }
+
+    setMessage(saved.length > 0
+      ? `✓ Saved ${saved.length} result(s) for ${swimmer.name}${errors.length > 0 ? ` · Issues: ${errors.join(", ")}` : ""}`
+      : `⚠️ Nothing saved. ${errors.join(", ")}`);
+    setSavingSchedule(false);
+    setSelectedScheduleRows(new Set());
+    setScheduleMatchedSwimmer(swimmer);
+    setShowSchedulePicker(false);
+  }
+
+  // ── Create new swimmer + save schedule results ────────────────────────────
+
+  async function handleCreateNewSwimmerAndSaveSchedule() {
+    if (!newSwimmerName.trim() || selectedScheduleRows.size === 0) return;
+    setCreatingNewSwimmer(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setMessage("⚠️ Not logged in."); setCreatingNewSwimmer(false); return; }
+
+    let schoolName: string | null = null;
+    let clubName: string | null = null;
+    if (newSwimmerClub.trim()) {
+      const { data: schoolRow } = await supabase.from("sg_schools").select("full_name")
+        .eq("code", newSwimmerClub.trim().toUpperCase()).maybeSingle();
+      if (schoolRow) { schoolName = schoolRow.full_name; } else { clubName = newSwimmerClub.trim(); }
+    }
+
+    const { data: newSwimmer, error: createErr } = await supabase.from("swimmers").insert({
+      user_id: user.id,
+      name: newSwimmerName.trim(),
+      age: newSwimmerAge ? Number(newSwimmerAge) : null,
+      swim_club: clubName,
+      school: schoolName,
+      group_type: "following",
+    }).select().single();
+
+    if (createErr || !newSwimmer) {
+      setMessage(`⚠️ Couldn't create swimmer: ${createErr?.message ?? "Unknown error"}`);
+      setCreatingNewSwimmer(false); return;
+    }
+
+    await loadSwimmers();
+    setShowCreateForm(false);
+    await handleSaveSchedule(newSwimmer as Swimmer);
+    setCreatingNewSwimmer(false);
+  }
+
+  // ── Main scan ─────────────────────────────────────────────────────────────
+
+  async function handleScan() {
+    if (!file1) return;
+    setStep("scanning");
+    setProgress(0); setMessage(""); setRawText(""); setScanMode(null);
+    setParsedResult(null); setDetectedEvent(null); setEditedTime(""); setTimeError(null);
+    setAutoMatchedSwimmer(null); setShowPicker(false); setSavedSwimmer(null);
+    setEventRows([]); setSelectedRows(new Set()); setSavedNames([]); setRowTypes({});
+    setScheduleResults([]); setScheduleSwimmerName(null); setScheduleMeetName(null);
+    setSelectedScheduleRows(new Set()); setScheduleMatchedSwimmer(null); setShowSchedulePicker(false);
+    setManualMeetName(""); setManualMeetDate("");
+    setCreatingNewSwimmer(false); setNewSwimmerName(""); setNewSwimmerAge("");
+    setNewSwimmerClub(""); setShowCreateForm(false);
+
+    try {
+      const files = [file1, file2].filter(Boolean) as File[];
+      let combined = "";
+      for (let i = 0; i < files.length; i++) {
+        const worker = await createWorker("eng", 1, {
+          logger: (m: any) => {
+            if (m.status === "recognizing text") {
+              setProgress((i / files.length) * 100 + (m.progress * 100) / files.length);
+            }
+          },
+        });
+        try {
+          const { data: { text } } = await worker.recognize(files[i]);
+          combined += text + "\n\n";
+        } finally { await worker.terminate(); }
+      }
+
+      setRawText(combined);
+
+      if (isSwimmerSchedulePage(combined)) {
+        setScanMode("swimmer_schedule");
+        const parsed = parseSwimmerScheduleOCR(combined);
+        const nonRelayResults = parsed.results.filter((r) => !r.isRelay);
+        setScheduleResults(nonRelayResults);
+        setScheduleSwimmerName(parsed.swimmerName);
+        setScheduleMeetName(parsed.meetName);
+        if (parsed.meetName) setManualMeetName(parsed.meetName);
+        setSelectedScheduleRows(new Set(nonRelayResults.map((_, i) => i)));
+
+        if (parsed.swimmerName) {
+          const cleanedName = stripNamePrefix(parsed.swimmerName);
+          // ── Safety net: only use name if it looks like a real person ──
+          if (isValidPersonName(cleanedName)) {
+            const matched = fuzzyMatchSwimmer(cleanedName, swimmers);
+            if (matched) {
+              setScheduleMatchedSwimmer(matched);
+              setShowSchedulePicker(false);
+              setShowCreateForm(false);
+            } else {
+              setNewSwimmerName(cleanedName);
+              setNewSwimmerAge("");
+              setNewSwimmerClub("");
+              setShowSchedulePicker(true);
+              setShowCreateForm(false);
+            }
+          } else {
+            // Name looks like OCR garbage — skip it, show picker instead
+            setShowSchedulePicker(true);
+          }
+        } else {
+          setShowSchedulePicker(true);
+        }
+        setMessage(nonRelayResults.length === 0 ? "⚠️ No individual events detected." : "");
+
+      } else if (isEventResultsPage(combined)) {
+        setScanMode("event_results");
+        const parsed = parseEventResultsOCR(combined);
+        setEventRows(parsed.results);
+        const preSelected = new Set<number>();
+        parsed.results.forEach((row, idx) => { if (fuzzyMatchSwimmer(row.name, swimmers)) preSelected.add(idx); });
+        setSelectedRows(preSelected);
+        setMessage(parsed.results.length === 0 ? "⚠️ No results detected." : "");
+
+      } else {
+        setScanMode("single");
+        const results = parseSwimOCRText(combined, { swimmerName: "" });
+        const first = results[0];
+        if (!first) {
+          setMessage("⚠️ No result detected. Try again with a clearer screenshot.");
+        } else {
+          setParsedResult(first);
+          setDetectedEvent(first.event);
+          setEditedTime(first.timeStr ?? "");
+          const ocrName = first.name ?? null;
+          // ── Safety net: validate name before showing "create swimmer" prompt ──
+          if (ocrName && ocrName.trim().length > 0 && isValidPersonName(stripNamePrefix(ocrName))) {
+            const cleanedName = stripNamePrefix(ocrName);
+            const matched = fuzzyMatchSwimmer(cleanedName, swimmers);
+            if (matched) {
+              setAutoMatchedSwimmer(matched);
+              setShowPicker(false);
+              setShowCreateForm(false);
+            } else {
+              setNewSwimmerName(cleanedName);
+              setNewSwimmerAge("");
+              setNewSwimmerClub("");
+              setShowPicker(true);
+              setShowCreateForm(false);
+            }
+          } else {
+            // No valid name detected — just show the swimmer picker
+            setShowPicker(true);
+          }
+        }
+      }
+
+      setStep("done");
+    } catch (err: any) {
+      setMessage(`❌ ${err?.message ?? "Unknown error"}`);
+      setStep("done");
+    }
+  }
+
+  // ─── Render ───────────────────────────────────────────────────────────────
+
+  if (loadingSwimmers) return (
+    <div className="shell"><div className="container-app"><p className="muted">Loading...</p></div></div>
+  );
 
   return (
     <div className="shell">
       <div className="container-app space-y-5">
 
         {/* Header */}
-        <div className="pt-2">
-          <p
-            className="text-[10px] font-medium uppercase tracking-widest"
-            style={{ color: "#BA7517" }}
-          >
-            Natrix
-          </p>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight text-white">
-            Settings
-          </h1>
-        </div>
-
-        {/* ── Account ─────────────────────────────────────────────────────── */}
-        <div className="card space-y-4">
-          <p className="label">Account</p>
-
-          <div className="flex items-center gap-4">
-            <div
-              className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl text-lg font-bold"
-              style={{
-                background: "rgba(217,119,6,0.25)",
-                color: "#FDE68A",
-                border: "1px solid rgba(253,230,138,0.2)",
-              }}
-            >
-              {(displayName || email).slice(0, 1).toUpperCase()}
-            </div>
-            <div className="min-w-0">
-              {displayName && (
-                <p className="truncate text-base font-semibold text-white">
-                  {displayName}
-                </p>
-              )}
-              <p className="truncate text-sm text-white/50">{email}</p>
-            </div>
-          </div>
-
-          {/* Change password accordion */}
-          <div
-            className="overflow-hidden rounded-2xl"
-            style={{
-              border: "1px solid rgba(255,255,255,0.12)",
-              background: "rgba(255,255,255,0.05)",
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => {
-                setShowPasswordForm((v) => !v);
-                setPasswordMsg("");
-              }}
-              className="flex w-full items-center justify-between px-4 py-3 text-left"
-            >
-              <div className="flex items-center gap-3">
-                <LockIcon />
-                <span className="text-sm font-medium text-white">
-                  Change password
-                </span>
-              </div>
-              <ChevronIcon open={showPasswordForm} />
-            </button>
-            {showPasswordForm && (
-              <div className="space-y-3 border-t border-white/10 px-4 pb-4 pt-3">
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="New password"
-                  className="input"
-                />
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Confirm new password"
-                  className="input"
-                />
-                {passwordMsg && (
-                  <p
-                    className="text-sm"
-                    style={{
-                      color: passwordMsg.startsWith("✓")
-                        ? "#6EE7B7"
-                        : "#FCA5A5",
-                    }}
-                  >
-                    {passwordMsg}
-                  </p>
-                )}
-                <button
-                  type="button"
-                  onClick={handleChangePassword}
-                  disabled={savingPassword}
-                  className="w-full rounded-2xl py-3 text-sm font-semibold text-white transition disabled:opacity-50"
-                  style={{ background: "#D97706" }}
-                >
-                  {savingPassword ? "Saving..." : "Update password"}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* ── App Theme ───────────────────────────────────────────────────── */}
-        <div className="card space-y-4">
+        <div className="flex items-start justify-between pt-2">
           <div>
-            <p className="label">App Theme</p>
-            <p className="mt-1 text-xs text-white/40">
-              Changes the background colour throughout the app.
-            </p>
+            <p className="text-[10px] font-medium uppercase tracking-widest" style={{ color: "#BA7517" }}>SwimScan</p>
+            <h1 className="mt-1 text-3xl font-bold tracking-tight text-white">Scan result</h1>
           </div>
+          {step === "idle" && primarySwimmers.length > 0 && (
+            <button type="button" onClick={() => setShowInfo((v) => !v)}
+              className="mt-2 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/5 text-sm text-white/40 transition hover:bg-white/10">
+              ⓘ
+            </button>
+          )}
+        </div>
 
-          <div className="grid grid-cols-3 gap-3">
-            {THEMES.map((theme) => {
-              const isActive = activeTheme === theme.id;
-              return (
-                <button
-                  key={theme.id}
-                  type="button"
-                  onClick={() => void handleSelectTheme(theme.id)}
-                  disabled={savingTheme}
-                  className="relative overflow-hidden rounded-2xl transition disabled:opacity-60"
-                  style={{
-                    aspectRatio: "1",
-                    background: `linear-gradient(135deg, ${theme.from}, ${theme.to})`,
-                    border: isActive
-                      ? `2px solid ${theme.accent}`
-                      : "1px solid rgba(255,255,255,0.12)",
-                  }}
-                >
-                  {isActive && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div
-                        className="flex h-7 w-7 items-center justify-center rounded-full"
-                        style={{ background: theme.accent }}
-                      >
-                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                          <path
-                            d="M2 7l3.5 3.5L12 4"
-                            stroke="#000"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
+        {/* Info panel */}
+        {showInfo && step === "idle" && (
+          <div className="rounded-2xl p-4 space-y-2 text-sm text-white/55"
+            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+            <p className="font-medium text-white/70">Three scan modes — auto detected:</p>
+            <p>📋 <span className="text-white/70">Swim detail</span> — single result, review before saving</p>
+            <p>📊 <span className="text-white/70">Event results</span> — full rankings, tick who to save</p>
+            <p>🏊 <span className="text-white/70">Swimmer schedule</span> — all events for one swimmer, save whole meet at once</p>
+            <p className="pt-1 text-white/35 text-xs">Use Screen 2 for the schedule's second screenshot to capture all events.</p>
+          </div>
+        )}
+
+        {/* No swimmers */}
+        {primarySwimmers.length === 0 && (
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-8 text-center">
+            <p className="text-base font-semibold text-white">No swimmers added yet</p>
+            <p className="mt-1 text-sm text-white/40">Add a swimmer in My Kids first.</p>
+            <button type="button" onClick={() => router.push("/swimmers")}
+              className="mt-4 rounded-2xl px-5 py-2.5 text-sm font-semibold text-white" style={{ background: "#D97706" }}>
+              Go to My Kids
+            </button>
+          </div>
+        )}
+
+        {/* IDLE */}
+        {step === "idle" && primarySwimmers.length > 0 && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <SlotButton label="Screen 1" hint="Required" preview={preview1} inputRef={ref1} required
+                onChange={(e) => handleFile(e, setFile1, setPreview1)} />
+              <SlotButton label="Screen 2" hint="Optional" preview={preview2} inputRef={ref2}
+                onChange={(e) => handleFile(e, setFile2, setPreview2)} />
+            </div>
+            <button type="button" onClick={handleScan} disabled={!file1}
+              className="w-full rounded-2xl py-4 text-lg font-bold text-white transition disabled:opacity-40"
+              style={{ background: file1 ? "#D97706" : "rgba(255,255,255,0.1)" }}>
+              Scan
+            </button>
+          </div>
+        )}
+
+        {/* SCANNING */}
+        {step === "scanning" && (
+          <div className="space-y-4 pt-8">
+            <p className="text-center text-lg font-semibold text-white">Scanning… {Math.round(progress)}%</p>
+            <div className="h-2 overflow-hidden rounded-full bg-white/10">
+              <div className="h-full rounded-full transition-all duration-200"
+                style={{ width: `${progress}%`, background: "#D97706" }} />
+            </div>
+            <p className="text-center text-sm text-white/40">Reading screenshot</p>
+          </div>
+        )}
+
+        {/* DONE */}
+        {step === "done" && (
+          <div className="space-y-4">
+
+            {message && (
+              <div className="rounded-2xl border p-3 text-sm" style={
+                message.startsWith("✓")
+                  ? { background: "rgba(186,117,23,0.12)", border: "1px solid rgba(186,117,23,0.3)", color: "#EF9F27" }
+                  : { background: "rgba(226,75,74,0.1)", border: "1px solid rgba(226,75,74,0.2)", color: "#F09595" }
+              }>{message}</div>
+            )}
+
+            {/* ── SINGLE MODE ───────────────────────────────────────────────── */}
+            {scanMode === "single" && parsedResult && !savedSwimmer && (
+              <div className="space-y-3">
+                <div className="rounded-2xl p-4 space-y-3"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                  <div>
+                    <p className="text-xs uppercase tracking-widest text-white/40">Detected result</p>
+                    <p className="mt-1 text-base font-semibold text-white">{detectedEvent}</p>
+                    {parsedResult.meetName && <p className="text-xs text-white/35 mt-0.5">{parsedResult.meetName}</p>}
+                  </div>
+                  <div>
+                    <p className="text-xs text-white/40 mb-1.5">Time — tap to edit if incorrect</p>
+                    <input type="text" value={editedTime}
+                      onChange={(e) => { setEditedTime(e.target.value); setTimeError(null); }}
+                      placeholder="e.g. 35.76 or 1:27.54"
+                      className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-2xl font-bold text-white placeholder-white/20 outline-none focus:border-amber-400/50"
+                      style={{ fontVariantNumeric: "tabular-nums" }} />
+                    {timeError && <p className="mt-1 text-xs text-red-300">{timeError}</p>}
+                  </div>
+                </div>
+
+                {/* Auto-matched swimmer */}
+                {autoMatchedSwimmer && !showPicker && (
+                  <div className="space-y-2">
+                    <p className="text-sm text-white/50">Save to</p>
+                    <div className="flex items-center gap-3 rounded-2xl p-3"
+                      style={{ background: "rgba(186,117,23,0.1)", border: "1px solid rgba(186,117,23,0.3)" }}>
+                      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-xs font-bold"
+                        style={{ background: avatarColor(0).bg, color: avatarColor(0).text }}>
+                        {getInitials(autoMatchedSwimmer.name)}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-white">{autoMatchedSwimmer.name}</p>
+                        <p className="text-xs text-white/40">Age {autoMatchedSwimmer.age}{autoMatchedSwimmer.swim_club ? ` · ${autoMatchedSwimmer.swim_club}` : ""}</p>
+                      </div>
+                      <button type="button" onClick={() => { setAutoMatchedSwimmer(null); setShowPicker(true); }}
+                        className="text-xs text-white/35 underline">Change</button>
+                    </div>
+                    <button type="button" onClick={() => void saveSingleDirectly(autoMatchedSwimmer)}
+                      disabled={isSaving}
+                      className="w-full rounded-2xl py-4 text-base font-bold text-white transition disabled:opacity-50"
+                      style={{ background: "#D97706" }}>
+                      {isSaving ? "Saving…" : `Save to ${autoMatchedSwimmer.name}`}
+                    </button>
+                  </div>
+                )}
+
+                {/* Picker: no match found */}
+                {showPicker && !showCreateForm && (
+                  <div className="space-y-3">
+                    {/* Detected name not found — offer to create */}
+                    {newSwimmerName.trim().length > 0 && (
+                      <div className="rounded-2xl p-4 space-y-3"
+                        style={{ background: "rgba(186,117,23,0.08)", border: "1px solid rgba(186,117,23,0.25)" }}>
+                        <div className="flex items-start gap-2">
+                          <span className="mt-0.5 text-base">🔍</span>
+                          <div>
+                            <p className="text-sm font-semibold text-white">
+                              &quot;{newSwimmerName}&quot; isn&apos;t in your swimmers yet
+                            </p>
+                            <p className="mt-0.5 text-xs text-white/45">
+                              Create a new profile for them, or save to an existing swimmer below.
+                            </p>
+                          </div>
+                        </div>
+                        <button type="button"
+                          onClick={() => setShowCreateForm(true)}
+                          className="w-full rounded-xl py-3 text-sm font-bold text-white"
+                          style={{ background: "#D97706" }}>
+                          + Create &quot;{newSwimmerName}&quot;
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Show swimmer list */}
+                    {!newSwimmerName.trim() && (
+                      <>
+                        <p className="text-sm text-white/50">Save to an existing swimmer:</p>
+                        {swimmers.map((swimmer, index) => {
+                          const colors = avatarColor(index);
+                          return (
+                            <button key={swimmer.id} type="button" onClick={() => void saveSingleDirectly(swimmer)}
+                              disabled={isSaving}
+                              className="flex w-full items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-3 text-left transition hover:bg-white/10 disabled:opacity-50">
+                              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-xs font-bold"
+                                style={{ background: colors.bg, color: colors.text }}>{getInitials(swimmer.name)}</div>
+                              <div>
+                                <p className="text-sm font-semibold text-white">{swimmer.name}</p>
+                                <p className="text-xs text-white/40">Age {swimmer.age}{swimmer.swim_club ? ` · ${swimmer.swim_club}` : ""}</p>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* Create new swimmer form — single mode */}
+                {showPicker && showCreateForm && (
+                  <div className="rounded-2xl p-4 space-y-4"
+                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold text-white">New swimmer details</p>
+                      <button type="button" onClick={() => setShowCreateForm(false)}
+                        className="text-xs text-white/35 underline">Cancel</button>
+                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-xs text-white/40">Name</label>
+                        <input type="text" value={newSwimmerName}
+                          onChange={(e) => setNewSwimmerName(e.target.value)}
+                          className="mt-1 w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white outline-none focus:border-amber-400/50" />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs text-white/40">Age</label>
+                          <input type="number" value={newSwimmerAge}
+                            onChange={(e) => setNewSwimmerAge(e.target.value)}
+                            placeholder="e.g. 10"
+                            className="mt-1 w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white outline-none focus:border-amber-400/50" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-white/40">Club / School code</label>
+                          <input type="text" value={newSwimmerClub}
+                            onChange={(e) => setNewSwimmerClub(e.target.value)}
+                            placeholder="e.g. TLSC"
+                            className="mt-1 w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white outline-none focus:border-amber-400/50" />
+                        </div>
                       </div>
                     </div>
-                  )}
-                  <div className="absolute bottom-0 inset-x-0 p-2">
-                    <p className="text-center text-[10px] font-semibold text-white/80">
-                      {theme.label}
-                    </p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Save feedback */}
-          {themeSaved && (
-            <p className="text-center text-xs" style={{ color: "#6EE7B7" }}>
-              ✓ Theme saved
-            </p>
-          )}
-          {savingTheme && (
-            <p className="text-center text-xs text-white/30">Saving...</p>
-          )}
-        </div>
-
-        {/* ── Splash screen ───────────────────────────────────────────────── */}
-        <SplashMediaUpload />
-
-        {/* ── Help ────────────────────────────────────────────────────────── */}
-        <div className="card">
-          <p className="label mb-3">Help</p>
-
-          <button
-            type="button"
-            onClick={replayTutorial}
-            className="flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left transition"
-            style={{
-              background: "rgba(217,119,6,0.1)",
-              border: "1px solid rgba(253,230,138,0.2)",
-            }}
-          >
-            <div className="flex items-center gap-3">
-              <span style={{ fontSize: 18 }}>🎓</span>
-              <div>
-                <p className="text-sm font-semibold" style={{ color: "#FDE68A" }}>
-                  Replay tutorial
-                </p>
-                <p className="mt-0.5 text-xs text-white/40">
-                  Walk through the app step by step again
-                </p>
-              </div>
-            </div>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path
-                d="M6 3l5 5-5 5"
-                stroke="rgba(253,230,138,0.5)"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
-
-          {/* Import Data */}
-          <button
-            type="button"
-            onClick={() => router.push("/import")}
-            className="flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left transition mt-3"
-            style={{
-              background: "rgba(255,255,255,0.05)",
-              border: "1px solid rgba(255,255,255,0.12)",
-            }}
-          >
-            <div className="flex items-center gap-3">
-              <span style={{ fontSize: 18 }}>📥</span>
-              <div>
-                <p className="text-sm font-semibold text-white">Import swimmer data</p>
-                <p className="mt-0.5 text-xs text-white/40">
-                  Download template · upload your existing times
-                </p>
-              </div>
-            </div>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M6 3l5 5-5 5" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-
-          <div className="mt-4 space-y-2">
-            <p className="mb-2 text-[9px] uppercase tracking-wider text-white/30">
-              Quick reference
-            </p>
-            {[
-              { emoji: "👥", title: "Add a swimmer", desc: "Tap Brood → + button → fill in profile" },
-              { emoji: "📷", title: "Scan a result", desc: "Tap Scan → upload Meet Mobile screenshot" },
-              { emoji: "📈", title: "View progress", desc: "Swimmer profile → Progress tab" },
-              { emoji: "⭐", title: "Check standards", desc: "Swimmer profile → Standards tab" },
-            ].map((item) => (
-              <div
-                key={item.title}
-                className="flex items-start gap-3 rounded-2xl px-3 py-2.5"
-                style={{
-                  background: "rgba(255,255,255,0.05)",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                }}
-              >
-                <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>
-                  {item.emoji}
-                </span>
-                <div>
-                  <p className="text-sm font-medium text-white">{item.title}</p>
-                  <p className="text-xs text-white/40">{item.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* ── Feedback ────────────────────────────────────────────────────── */}
-        <div className="card space-y-4">
-          <div>
-            <p className="label">Feedback</p>
-            <p className="mt-1 text-xs text-white/40">
-              Help shape Natrix — every message goes straight to J.O.D.
-            </p>
-          </div>
-
-          {feedbackSent ? (
-            <div
-              className="space-y-2 rounded-2xl py-6 text-center"
-              style={{
-                background: "rgba(217,119,6,0.1)",
-                border: "1px solid rgba(253,230,138,0.2)",
-              }}
-            >
-              <p className="text-2xl">🙏</p>
-              <p className="text-sm font-semibold" style={{ color: "#FDE68A" }}>
-                Thank you!
-              </p>
-              <p className="text-xs text-white/40">
-                Your feedback means the world. We&apos;ll use it to make Natrix better.
-              </p>
-              <button
-                type="button"
-                onClick={() => setFeedbackSent(false)}
-                className="mt-2 text-xs text-white/30 underline"
-              >
-                Send another
-              </button>
-            </div>
-          ) : (
-            <>
-              <div>
-                <p className="mb-2 text-xs text-white/50">How are you finding Natrix?</p>
-                <div className="flex gap-2">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      key={star}
-                      type="button"
-                      onClick={() => setFeedbackRating(star)}
-                      className="text-2xl transition-transform active:scale-90"
-                      style={{
-                        opacity: feedbackRating >= star ? 1 : 0.25,
-                        filter: feedbackRating >= star ? "none" : "grayscale(1)",
-                      }}
-                    >
-                      ⭐
+                    <button type="button"
+                      onClick={() => void handleCreateNewSwimmerAndSaveSingle()}
+                      disabled={creatingNewSwimmer || !newSwimmerName.trim()}
+                      className="w-full rounded-2xl py-4 text-sm font-bold text-white transition disabled:opacity-50"
+                      style={{ background: "#D97706" }}>
+                      {creatingNewSwimmer ? "Creating…" : "Create swimmer & save result"}
                     </button>
-                  ))}
-                </div>
-                {feedbackRating > 0 && (
-                  <p className="mt-1.5 text-xs" style={{ color: "#FDE68A" }}>
-                    {feedbackRating === 5 ? "Love it! 🏊" : feedbackRating === 4 ? "Really good!" : feedbackRating === 3 ? "It's okay" : feedbackRating === 2 ? "Needs work" : "Not great"}
-                  </p>
+                  </div>
                 )}
               </div>
+            )}
 
-              <div>
-                <p className="mb-2 text-xs text-white/50">What would make Natrix better?</p>
-                <textarea
-                  value={feedbackMessage}
-                  onChange={(e) => setFeedbackMessage(e.target.value)}
-                  placeholder="Tell us anything — bugs, ideas, what you love, what's missing..."
-                  rows={3}
-                  className="w-full resize-none rounded-[20px] px-4 py-3 text-sm text-white outline-none placeholder:text-white/35"
-                  style={{
-                    background: "rgba(0,20,50,0.35)",
-                    border: "1px solid rgba(255,255,255,0.2)",
-                    backdropFilter: "blur(12px)",
-                    WebkitBackdropFilter: "blur(12px)",
-                  }}
-                />
+            {scanMode === "single" && savedSwimmer && (
+              <div className="rounded-2xl p-4 space-y-1"
+                style={{ background: "rgba(186,117,23,0.08)", border: "1px solid rgba(186,117,23,0.2)" }}>
+                <p className="text-xs text-white/40 uppercase tracking-widest">Saved to</p>
+                <p className="text-base font-semibold text-white">{savedSwimmer.name}</p>
+                {detectedEvent && <p className="text-sm text-white/50">{detectedEvent}</p>}
+                {editedTime && <p className="text-2xl font-bold text-white">{editedTime}</p>}
               </div>
+            )}
 
-              <div>
-                <p className="mb-2 text-xs text-white/50">Most wanted feature (optional)</p>
-                <select
-                  value={feedbackFeature}
-                  onChange={(e) => setFeedbackFeature(e.target.value)}
-                  className="input"
-                >
-                  <option value="">Pick one...</option>
-                  {FEATURE_REQUESTS.map((f) => (
-                    <option key={f} value={f}>{f}</option>
-                  ))}
-                </select>
+            {/* ── SWIMMER SCHEDULE MODE ─────────────────────────────────────── */}
+            {scanMode === "swimmer_schedule" && scheduleResults.length > 0 && (
+              <div className="space-y-4">
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-white">
+                      {scheduleSwimmerName ?? "Swimmer"}&apos;s meet results
+                    </p>
+                    <p className="mt-0.5 text-xs text-white/40">
+                      {scheduleResults.length} events · tick to select
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="button"
+                      onClick={() => setSelectedScheduleRows(new Set(scheduleResults.map((_, i) => i)))}
+                      className="rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white active:bg-white/20">
+                      All
+                    </button>
+                    <button type="button"
+                      onClick={() => setSelectedScheduleRows(new Set())}
+                      className="rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white active:bg-white/20">
+                      None
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  {scheduleResults.map((row, index) => {
+                    const isSelected = selectedScheduleRows.has(index);
+                    return (
+                      <button key={`${row.event}-${index}`} type="button"
+                        onClick={() => toggleScheduleRow(index)}
+                        className="w-full rounded-2xl border p-3 text-left transition"
+                        style={isSelected
+                          ? { background: "rgba(186,117,23,0.12)", border: "1px solid rgba(186,117,23,0.4)" }
+                          : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                        <div className="flex items-center gap-3">
+                          <div className="h-5 w-5 flex-shrink-0 rounded-md flex items-center justify-center"
+                            style={isSelected
+                              ? { background: "#D97706", border: "1px solid #D97706" }
+                              : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)" }}>
+                            {isSelected && (
+                              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                                <path d="M2 5L4 7L8 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-white">{row.event}</p>
+                            {row.place != null && <p className="text-xs text-white/40">Place #{row.place}</p>}
+                          </div>
+                          <p className="text-sm font-bold text-white flex-shrink-0">{row.timeStr}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="rounded-2xl p-4 space-y-3"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                  <p className="text-xs font-medium uppercase tracking-widest text-white/40">Meet details</p>
+                  <div className="space-y-1">
+                    <label className="text-xs text-white/40">Meet name</label>
+                    <input type="text" value={manualMeetName}
+                      onChange={(e) => setManualMeetName(e.target.value)}
+                      placeholder="e.g. Singapore Swim Series II"
+                      className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white placeholder-white/20 outline-none focus:border-amber-400/50" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-white/40">Date swum</label>
+                    <input type="date" value={manualMeetDate}
+                      onChange={(e) => setManualMeetDate(e.target.value)}
+                      className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white outline-none focus:border-amber-400/50"
+                      style={{ colorScheme: "dark" }} />
+                  </div>
+                </div>
+
+                {scheduleMatchedSwimmer && !showSchedulePicker && selectedScheduleRows.size > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-3 rounded-2xl p-3"
+                      style={{ background: "rgba(186,117,23,0.1)", border: "1px solid rgba(186,117,23,0.3)" }}>
+                      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-xs font-bold"
+                        style={{ background: avatarColor(0).bg, color: avatarColor(0).text }}>
+                        {getInitials(scheduleMatchedSwimmer.name)}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-white">{scheduleMatchedSwimmer.name}</p>
+                        <p className="text-xs text-white/40">Age {scheduleMatchedSwimmer.age}{scheduleMatchedSwimmer.swim_club ? ` · ${scheduleMatchedSwimmer.swim_club}` : ""}</p>
+                      </div>
+                      <button type="button"
+                        onClick={() => { setScheduleMatchedSwimmer(null); setShowSchedulePicker(true); }}
+                        className="text-xs text-white/35 underline">Change</button>
+                    </div>
+                    <button type="button"
+                      onClick={() => void handleSaveSchedule(scheduleMatchedSwimmer)}
+                      disabled={savingSchedule || selectedScheduleRows.size === 0}
+                      className="w-full rounded-2xl py-4 text-base font-bold text-white transition disabled:opacity-50"
+                      style={{ background: "#D97706" }}>
+                      {savingSchedule ? "Saving…" : `Save ${selectedScheduleRows.size} event${selectedScheduleRows.size === 1 ? "" : "s"} to ${scheduleMatchedSwimmer.name}`}
+                    </button>
+                  </div>
+                )}
+
+                {showSchedulePicker && selectedScheduleRows.size > 0 && !showCreateForm && (
+                  <div className="space-y-3">
+                    {newSwimmerName.trim().length > 0 && (
+                      <div className="rounded-2xl p-4 space-y-3"
+                        style={{ background: "rgba(186,117,23,0.08)", border: "1px solid rgba(186,117,23,0.25)" }}>
+                        <div className="flex items-start gap-2">
+                          <span className="mt-0.5 text-base">🔍</span>
+                          <div>
+                            <p className="text-sm font-semibold text-white">
+                              &quot;{newSwimmerName}&quot; isn&apos;t in your swimmers yet
+                            </p>
+                            <p className="mt-0.5 text-xs text-white/45">
+                              Create a new profile for them, or save to an existing swimmer below.
+                            </p>
+                          </div>
+                        </div>
+                        <button type="button"
+                          onClick={() => setShowCreateForm(true)}
+                          className="w-full rounded-xl py-3 text-sm font-bold text-white"
+                          style={{ background: "#D97706" }}>
+                          + Create &quot;{newSwimmerName}&quot;
+                        </button>
+                      </div>
+                    )}
+
+                    {!newSwimmerName.trim() && (
+                      <>
+                        <p className="text-sm text-white/50">Save to an existing swimmer:</p>
+                        {swimmers.map((swimmer, index) => {
+                          const colors = avatarColor(index);
+                          return (
+                            <button key={swimmer.id} type="button"
+                              onClick={() => void handleSaveSchedule(swimmer)}
+                              disabled={savingSchedule}
+                              className="flex w-full items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-3 text-left transition hover:bg-white/10 disabled:opacity-50">
+                              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-xs font-bold"
+                                style={{ background: colors.bg, color: colors.text }}>{getInitials(swimmer.name)}</div>
+                              <div>
+                                <p className="text-sm font-semibold text-white">{swimmer.name}</p>
+                                <p className="text-xs text-white/40">Age {swimmer.age}{swimmer.swim_club ? ` · ${swimmer.swim_club}` : ""}</p>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {showSchedulePicker && showCreateForm && (
+                  <div className="rounded-2xl p-4 space-y-4"
+                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold text-white">New swimmer details</p>
+                      <button type="button" onClick={() => setShowCreateForm(false)}
+                        className="text-xs text-white/35 underline">Cancel</button>
+                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-xs text-white/40">Name</label>
+                        <input type="text" value={newSwimmerName}
+                          onChange={(e) => setNewSwimmerName(e.target.value)}
+                          className="mt-1 w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white outline-none focus:border-amber-400/50" />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs text-white/40">Age</label>
+                          <input type="number" value={newSwimmerAge}
+                            onChange={(e) => setNewSwimmerAge(e.target.value)}
+                            placeholder="e.g. 10"
+                            className="mt-1 w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white outline-none focus:border-amber-400/50" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-white/40">Club / School code</label>
+                          <input type="text" value={newSwimmerClub}
+                            onChange={(e) => setNewSwimmerClub(e.target.value)}
+                            placeholder="e.g. TLSC"
+                            className="mt-1 w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white outline-none focus:border-amber-400/50" />
+                        </div>
+                      </div>
+                    </div>
+                    <button type="button"
+                      onClick={() => void handleCreateNewSwimmerAndSaveSchedule()}
+                      disabled={creatingNewSwimmer || !newSwimmerName.trim()}
+                      className="w-full rounded-2xl py-4 text-sm font-bold text-white transition disabled:opacity-50"
+                      style={{ background: "#D97706" }}>
+                      {creatingNewSwimmer ? "Creating…" : `Create swimmer & save ${selectedScheduleRows.size} event${selectedScheduleRows.size === 1 ? "" : "s"}`}
+                    </button>
+                  </div>
+                )}
               </div>
+            )}
 
-              {feedbackError && (
-                <p className="text-sm" style={{ color: "#FCA5A5" }}>{feedbackError}</p>
-              )}
+            {/* ── EVENT RESULTS MODE ────────────────────────────────────────── */}
+            {scanMode === "event_results" && eventRows.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-white">{eventRows[0]?.event ?? "Event"} results</p>
+                    <p className="mt-0.5 text-xs text-white/40">{eventRows.length} swimmers · tick who to save</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setSelectedRows(new Set(eventRows.map((_, i) => i)))}
+                      className="rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white active:bg-white/20">All</button>
+                    <button type="button" onClick={() => setSelectedRows(new Set())}
+                      className="rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white active:bg-white/20">None</button>
+                  </div>
+                </div>
+                {eventRows.map((row, index) => {
+                  const isSelected = selectedRows.has(index);
+                  const isSaved = savedNames.includes(row.name);
+                  return (
+                    <button key={`${row.name}-${index}`} type="button"
+                      onClick={() => !isSaved && toggleRow(index)}
+                      className="w-full rounded-2xl border p-3 text-left transition"
+                      style={isSaved
+                        ? { background: "rgba(186,117,23,0.06)", border: "1px solid rgba(186,117,23,0.2)", opacity: 0.6 }
+                        : isSelected
+                        ? { background: "rgba(186,117,23,0.12)", border: "1px solid rgba(186,117,23,0.4)" }
+                        : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                      <div className="flex items-center gap-3">
+                        <div className="h-5 w-5 flex-shrink-0 rounded-md flex items-center justify-center"
+                          style={isSelected && !isSaved
+                            ? { background: "#D97706", border: "1px solid #D97706" }
+                            : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)" }}>
+                          {(isSelected || isSaved) && (
+                            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                              <path d="M2 5L4 7L8 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-white truncate">{row.name}</p>
+                          {row.club && <p className="text-xs text-white/40">{row.club}{row.age ? ` · Age ${row.age}` : ""}</p>}
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-sm font-bold text-white">{row.timeStr}</p>
+                          {row.place != null && <p className="text-xs text-white/40">#{row.place}</p>}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+                {selectedRows.size > 0 && (
+                  <button type="button" onClick={() => void handleSaveSelected()}
+                    disabled={savingSelected}
+                    className="w-full rounded-2xl py-4 text-base font-bold text-white transition disabled:opacity-50"
+                    style={{ background: "#D97706" }}>
+                    {savingSelected ? "Saving…" : `Save ${selectedRows.size} result${selectedRows.size === 1 ? "" : "s"}`}
+                  </button>
+                )}
+              </div>
+            )}
 
-              <button
-                type="button"
-                onClick={handleSendFeedback}
-                disabled={savingFeedback}
-                className="w-full rounded-2xl py-3 text-sm font-semibold text-white transition disabled:opacity-50"
-                style={{ background: "#D97706" }}
-              >
-                {savingFeedback ? "Sending..." : "Send feedback 🚀"}
+            {/* Scan another */}
+            {step === "done" && (
+              <button type="button" onClick={reset}
+                className="w-full rounded-2xl border border-white/15 bg-white/5 py-4 text-base font-semibold text-white/60 transition hover:bg-white/10">
+                Scan another
               </button>
-            </>
-          )}
-        </div>
+            )}
 
-        {/* ── About ───────────────────────────────────────────────────────── */}
-        <div className="card">
-          <p className="label mb-3">About</p>
-          {[
-            { label: "Version", value: APP_VERSION, color: undefined },
-            { label: "Built for", value: "Southeast Asia · expanding globally", color: undefined },
-            { label: "Made with", value: "🏊 for swim parents", color: "#FDE68A" },
-            { label: "Developed by", value: "J.O.D — Just an Ordinary Dad", color: undefined },
-          ].map((row, i, arr) => (
-            <div key={row.label}>
-              <div className="flex items-center justify-between py-2">
-                <p className="text-sm text-white/60">{row.label}</p>
-                <p className="text-sm font-semibold text-white" style={row.color ? { color: row.color } : undefined}>
-                  {row.value}
-                </p>
-              </div>
-              {i < arr.length - 1 && (
-                <div style={{ height: 1, background: "rgba(255,255,255,0.08)" }} />
-              )}
-            </div>
-          ))}
-        </div>
+          </div>
+        )}
 
-        <Link
-          href="/privacy"
-          className="block w-full rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-sm text-white/50 transition hover:bg-white/10"
-        >
-          Privacy Policy
-        </Link>
-
-        {/* ── Sign out ────────────────────────────────────────────────────── */}
-        <button
-          type="button"
-          onClick={handleLogout}
-          disabled={loggingOut}
-          className="w-full rounded-2xl py-4 text-base font-semibold transition disabled:opacity-50"
-          style={{
-            background: "rgba(255,255,255,0.07)",
-            border: "1px solid rgba(255,255,255,0.15)",
-            color: "rgba(255,255,255,0.85)",
-          }}
-        >
-          {loggingOut ? "Signing out..." : "Sign out"}
-        </button>
-
-        {/* ── Delete account ───────────────────────────────────────────────── */}
-        <div
-          className="overflow-hidden rounded-3xl"
-          style={{
-            border: "1px solid rgba(239,68,68,0.2)",
-            background: "rgba(239,68,68,0.06)",
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => {
-              setShowDeleteConfirm((v) => !v);
-              setDeleteInput("");
-              setDeleteStatus("");
-            }}
-            className="flex w-full items-center justify-between px-5 py-4 text-left"
-          >
-            <div>
-              <p className="text-sm font-semibold" style={{ color: "#FCA5A5" }}>
-                Delete account
-              </p>
-              <p className="mt-0.5 text-xs text-white/35">
-                Permanently removes all your data
-              </p>
-            </div>
-            <ChevronIcon open={showDeleteConfirm} danger />
-          </button>
-          {showDeleteConfirm && (
-            <div className="space-y-3 border-t border-red-500/15 px-5 pb-5 pt-4">
-              <p className="text-sm leading-relaxed text-white/60">
-                This will permanently delete your account and all swimmer data. This cannot be undone. Type{" "}
-                <span className="font-bold text-white">DELETE</span> to confirm.
-              </p>
-              <input
-                value={deleteInput}
-                onChange={(e) => setDeleteInput(e.target.value)}
-                placeholder="Type DELETE to confirm"
-                className="input"
-                style={{ borderColor: "rgba(239,68,68,0.3)" }}
-              />
-              {deleteStatus && (
-                <p className="text-sm" style={{ color: "#FCA5A5" }}>{deleteStatus}</p>
-              )}
-              <button
-                type="button"
-                onClick={handleDeleteAccount}
-                disabled={deletingAccount || deleteInput !== "DELETE"}
-                className="w-full rounded-2xl py-3 text-sm font-semibold transition disabled:opacity-40"
-                style={{
-                  background: "rgba(239,68,68,0.25)",
-                  border: "1px solid rgba(239,68,68,0.4)",
-                  color: "#FCA5A5",
-                }}
-              >
-                {deletingAccount ? "Deleting..." : "Permanently delete account"}
-              </button>
-            </div>
-          )}
-        </div>
-
-        <div className="h-4" />
       </div>
     </div>
-  );
-}
-
-// ─── Icons ────────────────────────────────────────────────────────────────────
-
-function LockIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <rect x="3" y="7" width="10" height="8" rx="2" stroke="rgba(255,255,255,0.45)" strokeWidth="1.3" />
-      <path d="M5 7V5a3 3 0 0 1 6 0v2" stroke="rgba(255,255,255,0.45)" strokeWidth="1.3" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function ChevronIcon({ open, danger }: { open: boolean; danger?: boolean }) {
-  return (
-    <svg
-      width="16" height="16" viewBox="0 0 16 16" fill="none"
-      style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s ease" }}
-    >
-      <path
-        d="M4 6l4 4 4-4"
-        stroke={danger ? "rgba(252,165,165,0.6)" : "rgba(255,255,255,0.3)"}
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
   );
 }
