@@ -3562,354 +3562,6 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 }
 </file>
 
-<file path="app/components/OnboardingFlow.tsx">
-"use client";
-
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
-
-
-// ─── Theme options ─────────────────────────────────────────────────────────────
-
-const THEMES = [
-  { id: "ocean",    label: "Ocean",    from: "#062840", to: "#0F4C75", accent: "#38BDF8" },
-  { id: "midnight", label: "Midnight", from: "#0D0D1A", to: "#1A1A3E", accent: "#A78BFA" },
-  { id: "forest",   label: "Forest",   from: "#051A10", to: "#0A3020", accent: "#34D399" },
-  { id: "white",    label: "White",    from: "#C9D4DA", to: "#ECF0F3", accent: "#FFFFFF" },
-  { id: "cosmos",   label: "Cosmos",   from: "#0D0820", to: "#1E1040", accent: "#F472B6" },
-  { id: "slate",    label: "Slate",    from: "#0D1117", to: "#1C2333", accent: "#94A3B8" },
-];
-
-// ─── Step indicator ───────────────────────────────────────────────────────────
-
-function StepDots({ total, current }: { total: number; current: number }) {
-  return (
-    <div className="flex items-center justify-center gap-1.5 mb-6">
-      {Array.from({ length: total }).map((_, i) => (
-        <div key={i} className="rounded-full transition-all"
-          style={{
-            width: i === current ? 20 : 6,
-            height: 6,
-            background: i === current ? "#FDE68A" : "rgba(255,255,255,0.2)",
-          }} />
-      ))}
-    </div>
-  );
-}
-
-// ─── Main onboarding component ────────────────────────────────────────────────
-
-export default function OnboardingFlow({ userName }: { userName: string }) {
-  const router = useRouter();
-  const [step, setStep] = useState(0);
-  const TOTAL_STEPS = 5;
-
-  // Swimmer form
-  const [swimmerName, setSwimmerName] = useState("");
-  const [swimmerAge, setSwimmerAge] = useState("");
-  const [swimmerGender, setSwimmerGender] = useState<"Male" | "Female" | "">("");
-  const [swimmerClub, setSwimmerClub] = useState("");
-  const [swimmerSchool, setSwimmerSchool] = useState("");
-  const [savingSwimmer, setSavingSwimmer] = useState(false);
-  const [swimmerError, setSwimmerError] = useState("");
-  const [swimmerSaved, setSwimmerSaved] = useState(false);
-
-  // Theme
-  const [selectedTheme, setSelectedTheme] = useState("ocean");
-  const [saving, setSaving] = useState(false);
-
-  function next() { setStep((s) => Math.min(s + 1, TOTAL_STEPS - 1)); }
-
-  async function handleAddSwimmer() {
-    if (!swimmerName.trim()) { setSwimmerError("Please enter a name."); return; }
-    if (!swimmerAge || Number.isNaN(Number(swimmerAge))) { setSwimmerError("Please enter a valid age."); return; }
-    if (!swimmerGender) { setSwimmerError("Please select a gender."); return; }
-
-    setSavingSwimmer(true);
-    setSwimmerError("");
-
-    try {
-      const res = await fetch("/api/claim-swimmer", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: swimmerName.trim(),
-          age: Number(swimmerAge),
-          gender: swimmerGender,
-          swim_club: swimmerClub.trim() || null,
-          school: swimmerSchool.trim() || null,
-        }),
-      });
-
-      const result = await res.json();
-
-      if (!res.ok || !result.success) {
-        setSwimmerError(result.error ?? "Something went wrong. Please try again.");
-        setSavingSwimmer(false);
-        return;
-      }
-
-      setSwimmerSaved(true);
-      setSavingSwimmer(false);
-      next();
-    } catch {
-      setSwimmerError("Network error. Please try again.");
-      setSavingSwimmer(false);
-    }
-  }
-
-  async function finish() {
-    setSaving(true);
-    await supabase.auth.updateUser({ data: { app_theme: selectedTheme } });
-    await supabase.auth.updateUser({ data: { onboarding_complete: true } });
-    router.replace("/dashboard");
-  }
-
-  // ── Step 0: Welcome ──────────────────────────────────────────────────────
-
-  if (step === 0) return (
-    <div className="onb-screen">
-      <StepDots total={TOTAL_STEPS} current={0} />
-      <div className="text-center space-y-6 px-6">
-        <div className="text-6xl mb-2">🏊</div>
-        <div>
-          <h1 className="text-4xl font-bold text-white tracking-tight">
-            Welcome,<br />{userName}!
-          </h1>
-          <p className="mt-3 text-white/55 text-base leading-relaxed">
-            Natrix is your personal swim meet tracker — built by a swim parent, for swim parents.
-          </p>
-        </div>
-        <div className="space-y-3 text-left">
-          {[
-            { icon: "📷", title: "Scan results instantly", desc: "Screenshot Meet Mobile — times save automatically" },
-            { icon: "📈", title: "Track every PB", desc: "Progress charts for every event, every stroke" },
-            { icon: "⭐", title: "Check qualifying standards", desc: "SNAG, ETC and more — pre-loaded for Singapore" },
-          ].map((item) => (
-            <div key={item.title} className="flex gap-3 items-start rounded-2xl px-4 py-3"
-              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}>
-              <span style={{ fontSize: 22, flexShrink: 0 }}>{item.icon}</span>
-              <div>
-                <p className="text-sm font-semibold text-white">{item.title}</p>
-                <p className="text-xs text-white/45 mt-0.5">{item.desc}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-        <button type="button" onClick={next} className="onb-btn-primary w-full">
-          Let's get started →
-        </button>
-      </div>
-    </div>
-  );
-
-  // ── Step 1: How it works ─────────────────────────────────────────────────
-
-  if (step === 1) return (
-    <div className="onb-screen">
-      <StepDots total={TOTAL_STEPS} current={1} />
-      <div className="text-center px-6 space-y-5">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-widest text-white/35 mb-2">How it works</p>
-          <h2 className="text-3xl font-bold text-white">Three taps.<br />Times saved.</h2>
-        </div>
-        <div className="space-y-3">
-          {[
-            { n: "1", title: "After your child races", desc: "Open Meet Mobile and find their result on the screen.", color: "#38BDF8" },
-            { n: "2", title: "Screenshot and scan", desc: "Take a screenshot. Open Natrix, tap Scan, upload it.", color: "#FDE68A" },
-            { n: "3", title: "Done — time saved", desc: "Event, time, date and meet name all saved automatically. No typing.", color: "#6EE7B7" },
-          ].map((item) => (
-            <div key={item.n} className="flex gap-4 items-start rounded-2xl px-4 py-4 text-left"
-              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)" }}>
-              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-sm font-bold text-white"
-                style={{ background: item.color + "25", border: `1px solid ${item.color}40`, color: item.color }}>
-                {item.n}
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-white">{item.title}</p>
-                <p className="text-xs text-white/45 mt-0.5 leading-relaxed">{item.desc}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-        <button type="button" onClick={next} className="onb-btn-primary flex-1 w-full">
-          Got it →
-        </button>
-      </div>
-    </div>
-  );
-
-  // ── Step 2: Add swimmer ──────────────────────────────────────────────────
-
-  if (step === 2) return (
-    <div className="onb-screen">
-      <StepDots total={TOTAL_STEPS} current={2} />
-      <div className="px-6 space-y-5">
-        <div className="text-center">
-          <p className="text-xs font-medium uppercase tracking-widest text-white/35 mb-2">Your swimmer</p>
-          <h2 className="text-3xl font-bold text-white">Who are you<br />tracking?</h2>
-          <p className="mt-2 text-sm text-white/45">Add your primary swimmer — you can add more later.</p>
-        </div>
-
-        <div className="space-y-3">
-          <input
-            value={swimmerName}
-            onChange={(e) => setSwimmerName(e.target.value)}
-            placeholder="Swimmer's full name"
-            className="input"
-          />
-          <div className="grid grid-cols-2 gap-3">
-            <input
-              value={swimmerAge}
-              onChange={(e) => setSwimmerAge(e.target.value)}
-              placeholder="Age"
-              className="input text-center"
-              inputMode="numeric"
-            />
-            <div className="grid grid-cols-2 gap-2">
-              {(["Male", "Female"] as const).map((g) => (
-                <button key={g} type="button"
-                  onClick={() => setSwimmerGender(swimmerGender === g ? "" : g)}
-                  className="rounded-2xl border py-3 text-xs font-semibold transition"
-                  style={swimmerGender === g
-                    ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
-                    : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}>
-                  {g === "Male" ? "♂" : "♀"} {g}
-                </button>
-              ))}
-            </div>
-          </div>
-          <input
-            value={swimmerClub}
-            onChange={(e) => setSwimmerClub(e.target.value)}
-            placeholder="Swim club (optional)"
-            className="input"
-          />
-          <input
-            value={swimmerSchool}
-            onChange={(e) => setSwimmerSchool(e.target.value)}
-            placeholder="School (optional)"
-            className="input"
-          />
-        </div>
-
-        {swimmerError && (
-          <p className="text-sm text-red-300 text-center">{swimmerError}</p>
-        )}
-
-        <div className="flex gap-3">
-          <button type="button" onClick={next} className="onb-btn-secondary flex-1">
-            Skip for now
-          </button>
-          <button type="button" onClick={handleAddSwimmer} disabled={savingSwimmer}
-            className="onb-btn-primary flex-1 disabled:opacity-50">
-            {savingSwimmer ? "Setting up…" : "Add swimmer →"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-
-  // ── Step 3: Choose theme ─────────────────────────────────────────────────
-
-  if (step === 3) return (
-    <div className="onb-screen">
-      <StepDots total={TOTAL_STEPS} current={3} />
-      <div className="px-6 space-y-5">
-        <div className="text-center">
-          <p className="text-xs font-medium uppercase tracking-widest text-white/35 mb-2">Make it yours</p>
-          <h2 className="text-3xl font-bold text-white">Choose your<br />app theme</h2>
-          <p className="mt-2 text-sm text-white/45">Pick a colour that feels right. You can change it anytime in Settings.</p>
-        </div>
-
-        <div className="grid grid-cols-3 gap-3">
-          {THEMES.map((theme) => (
-            <button key={theme.id} type="button"
-              onClick={() => setSelectedTheme(theme.id)}
-              className="relative rounded-2xl overflow-hidden transition"
-              style={{
-                aspectRatio: "1",
-                background: `linear-gradient(135deg, ${theme.from}, ${theme.to})`,
-                border: selectedTheme === theme.id
-                  ? `2px solid ${theme.accent}`
-                  : "1px solid rgba(255,255,255,0.12)",
-              }}>
-              {selectedTheme === theme.id && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="rounded-full w-7 h-7 flex items-center justify-center"
-                    style={{ background: theme.accent }}>
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                      <path d="M2 7l3.5 3.5L12 4" stroke="#000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </div>
-                </div>
-              )}
-              <div className="absolute bottom-0 inset-x-0 p-2">
-                <p className="text-[10px] font-semibold text-white/80 text-center">{theme.label}</p>
-              </div>
-            </button>
-          ))}
-        </div>
-
-        <button type="button" onClick={next} className="onb-btn-primary w-full">
-          Looks great →
-        </button>
-      </div>
-    </div>
-  );
-
-  // ── Step 4: All set ──────────────────────────────────────────────────────
-
-  if (step === 4) return (
-    <div className="onb-screen">
-      <StepDots total={TOTAL_STEPS} current={4} />
-      <div className="text-center px-6 space-y-6">
-        <div className="text-6xl">🎉</div>
-        <div>
-          <h2 className="text-4xl font-bold text-white tracking-tight">You're all set!</h2>
-          <p className="mt-3 text-white/55 text-base leading-relaxed">
-            {swimmerSaved
-              ? `${swimmerName} has been added and we've found their competitors. Check Brood to see who they race against!`
-              : "Your account is ready. Add your swimmer and start tracking results."}
-          </p>
-        </div>
-
-        <div className="space-y-3">
-          {[
-            { icon: "📷", label: "Scan your child's latest 50M Free result", desc: "Take a screenshot from Meet Mobile and scan it here", primary: true },
-            { icon: "📥", label: "Import existing times", desc: "From a spreadsheet", primary: false },
-          ].map((item) => (
-            <div key={item.label} className="flex items-center gap-3 rounded-2xl px-4 py-3"
-              style={{
-                background: item.primary ? "rgba(217,119,6,0.12)" : "rgba(255,255,255,0.05)",
-                border: item.primary ? "1px solid rgba(253,230,138,0.25)" : "1px solid rgba(255,255,255,0.09)",
-              }}>
-              <span style={{ fontSize: 22 }}>{item.icon}</span>
-              <div className="text-left">
-                <p className="text-sm font-semibold text-white">{item.label}</p>
-                <p className="text-xs text-white/40 mt-0.5">{item.desc}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <button type="button" onClick={finish} disabled={saving}
-          className="onb-btn-primary w-full disabled:opacity-50 text-base">
-          {saving ? "Setting up…" : "Take me to Natrix 🏊"}
-        </button>
-
-        <p className="text-xs text-white/25">
-          You can always change your theme and settings later.
-        </p>
-      </div>
-    </div>
-  );
-
-  return null;
-}
-</file>
-
 <file path="app/components/ShareCardModal.tsx">
 "use client";
 
@@ -7984,6 +7636,499 @@ export default function ComparePage() {
       </div>
     </div>
   );
+}
+</file>
+
+<file path="app/components/OnboardingFlow.tsx">
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabaseClient";
+
+
+// ─── Theme options ─────────────────────────────────────────────────────────────
+
+const THEMES = [
+  { id: "ocean",    label: "Ocean",    from: "#062840", to: "#0F4C75", accent: "#38BDF8" },
+  { id: "midnight", label: "Midnight", from: "#0D0D1A", to: "#1A1A3E", accent: "#A78BFA" },
+  { id: "forest",   label: "Forest",   from: "#051A10", to: "#0A3020", accent: "#34D399" },
+  { id: "white",    label: "White",    from: "#C9D4DA", to: "#ECF0F3", accent: "#FFFFFF" },
+  { id: "cosmos",   label: "Cosmos",   from: "#0D0820", to: "#1E1040", accent: "#F472B6" },
+  { id: "slate",    label: "Slate",    from: "#0D1117", to: "#1C2333", accent: "#94A3B8" },
+];
+
+// ─── Step indicator ───────────────────────────────────────────────────────────
+
+function StepDots({ total, current }: { total: number; current: number }) {
+  return (
+    <div className="flex items-center justify-center gap-1.5 mb-6">
+      {Array.from({ length: total }).map((_, i) => (
+        <div key={i} className="rounded-full transition-all"
+          style={{
+            width: i === current ? 20 : 6,
+            height: 6,
+            background: i === current ? "#FDE68A" : "rgba(255,255,255,0.2)",
+          }} />
+      ))}
+    </div>
+  );
+}
+
+// ─── Race age helper ──────────────────────────────────────────────────────────
+// Swimming race age = age on 31 Dec of the current year = currentYear - birthYear
+
+function raceAgeFromBirthYear(birthYear: number): number {
+  return new Date().getFullYear() - birthYear;
+}
+
+// ─── Main onboarding component ────────────────────────────────────────────────
+
+export default function OnboardingFlow({ userName }: { userName: string }) {
+  const router = useRouter();
+  const [step, setStep] = useState(0);
+  const TOTAL_STEPS = 6;
+
+  // Swimmer form
+  const [swimmerName, setSwimmerName] = useState("");
+  const [birthYear, setBirthYear] = useState("");
+  const [swimmerGender, setSwimmerGender] = useState<"Male" | "Female" | "">("");
+  const [swimmerClub, setSwimmerClub] = useState("");
+  const [swimmerSchool, setSwimmerSchool] = useState("");
+  const [savingSwimmer, setSavingSwimmer] = useState(false);
+  const [swimmerError, setSwimmerError] = useState("");
+  const [swimmerSaved, setSwimmerSaved] = useState(false);
+  const [savedSwimmerName, setSavedSwimmerName] = useState("");
+
+  // Theme
+  const [selectedTheme, setSelectedTheme] = useState("ocean");
+  const [saving, setSaving] = useState(false);
+
+  // Install tab
+  const [installTab, setInstallTab] = useState<"iphone" | "android">("iphone");
+
+  function next() { setStep((s) => Math.min(s + 1, TOTAL_STEPS - 1)); }
+
+  // Live race age preview as parent types
+  const parsedBirthYear = Number(birthYear);
+  const currentYear = new Date().getFullYear();
+  const previewRaceAge =
+    birthYear.length === 4 &&
+    !Number.isNaN(parsedBirthYear) &&
+    parsedBirthYear > 2000 &&
+    parsedBirthYear <= currentYear
+      ? raceAgeFromBirthYear(parsedBirthYear)
+      : null;
+
+  async function handleAddSwimmer() {
+    if (!swimmerName.trim()) { setSwimmerError("Please enter a name."); return; }
+    if (
+      !birthYear ||
+      birthYear.length !== 4 ||
+      Number.isNaN(parsedBirthYear) ||
+      parsedBirthYear < 2000 ||
+      parsedBirthYear > currentYear
+    ) {
+      setSwimmerError("Please enter a valid 4-digit birth year e.g. 2013");
+      return;
+    }
+    if (!swimmerGender) { setSwimmerError("Please select a gender."); return; }
+
+    const age = raceAgeFromBirthYear(parsedBirthYear);
+    setSavingSwimmer(true);
+    setSwimmerError("");
+
+    try {
+      const res = await fetch("/api/claim-swimmer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: swimmerName.trim(),
+          age,
+          gender: swimmerGender,
+          swim_club: swimmerClub.trim() || null,
+          school: swimmerSchool.trim() || null,
+        }),
+      });
+
+      const result = await res.json();
+
+      if (!res.ok || !result.success) {
+        setSwimmerError(result.error ?? "Something went wrong. Please try again.");
+        setSavingSwimmer(false);
+        return;
+      }
+
+      setSwimmerSaved(true);
+      setSavedSwimmerName(swimmerName.trim());
+      setSavingSwimmer(false);
+      next();
+    } catch {
+      setSwimmerError("Network error. Please try again.");
+      setSavingSwimmer(false);
+    }
+  }
+
+  async function finish() {
+    setSaving(true);
+    await supabase.auth.updateUser({ data: { app_theme: selectedTheme } });
+    await supabase.auth.updateUser({ data: { onboarding_complete: true } });
+    router.replace("/dashboard");
+  }
+
+  // ── Step 0: Welcome ──────────────────────────────────────────────────────
+
+  if (step === 0) return (
+    <div className="onb-screen">
+      <StepDots total={TOTAL_STEPS} current={0} />
+      <div className="text-center space-y-6 px-6">
+        <div className="text-6xl mb-2">🏊</div>
+        <div>
+          <h1 className="text-4xl font-bold text-white tracking-tight">
+            Welcome,<br />{userName}!
+          </h1>
+          <p className="mt-3 text-white/55 text-base leading-relaxed">
+            Natrix is your personal swim meet tracker — built by a swim parent, for swim parents.
+          </p>
+        </div>
+        <div className="space-y-3 text-left">
+          {[
+            { icon: "📷", title: "Scan results instantly", desc: "Screenshot Meet Mobile — times save automatically" },
+            { icon: "📈", title: "Track every PB", desc: "Progress charts for every event, every stroke" },
+            { icon: "⭐", title: "Check qualifying standards", desc: "SNAG, ETC and more — pre-loaded for Singapore" },
+          ].map((item) => (
+            <div key={item.title} className="flex gap-3 items-start rounded-2xl px-4 py-3"
+              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}>
+              <span style={{ fontSize: 22, flexShrink: 0 }}>{item.icon}</span>
+              <div>
+                <p className="text-sm font-semibold text-white">{item.title}</p>
+                <p className="text-xs text-white/45 mt-0.5">{item.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        <button type="button" onClick={next} className="onb-btn-primary w-full">
+          Let's get started →
+        </button>
+      </div>
+    </div>
+  );
+
+  // ── Step 1: How it works ─────────────────────────────────────────────────
+
+  if (step === 1) return (
+    <div className="onb-screen">
+      <StepDots total={TOTAL_STEPS} current={1} />
+      <div className="text-center px-6 space-y-5">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-widest text-white/35 mb-2">How it works</p>
+          <h2 className="text-3xl font-bold text-white">Three taps.<br />Times saved.</h2>
+        </div>
+        <div className="space-y-3">
+          {[
+            { n: "1", title: "After your child races", desc: "Open Meet Mobile and find their result on the screen.", color: "#38BDF8" },
+            { n: "2", title: "Screenshot and scan", desc: "Take a screenshot. Open Natrix, tap Scan, upload it.", color: "#FDE68A" },
+            { n: "3", title: "Done — time saved", desc: "Event, time, date and meet name all saved automatically. No typing.", color: "#6EE7B7" },
+          ].map((item) => (
+            <div key={item.n} className="flex gap-4 items-start rounded-2xl px-4 py-4 text-left"
+              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)" }}>
+              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-sm font-bold text-white"
+                style={{ background: item.color + "25", border: `1px solid ${item.color}40`, color: item.color }}>
+                {item.n}
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-white">{item.title}</p>
+                <p className="text-xs text-white/45 mt-0.5 leading-relaxed">{item.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        <button type="button" onClick={next} className="onb-btn-primary flex-1 w-full">
+          Got it →
+        </button>
+      </div>
+    </div>
+  );
+
+  // ── Step 2: Add swimmer ──────────────────────────────────────────────────
+
+  if (step === 2) return (
+    <div className="onb-screen">
+      <StepDots total={TOTAL_STEPS} current={2} />
+      <div className="px-6 space-y-5">
+        <div className="text-center">
+          <p className="text-xs font-medium uppercase tracking-widest text-white/35 mb-2">Your swimmer</p>
+          <h2 className="text-3xl font-bold text-white">Who are you<br />tracking?</h2>
+          <p className="mt-2 text-sm text-white/45">Add your primary swimmer — you can add more later.</p>
+        </div>
+
+        <div className="space-y-3">
+          <input
+            value={swimmerName}
+            onChange={(e) => setSwimmerName(e.target.value)}
+            placeholder="Swimmer's full name"
+            className="input"
+          />
+
+          {/* Birth year with live race age preview */}
+          <div>
+            <input
+              value={birthYear}
+              onChange={(e) => setBirthYear(e.target.value.replace(/\D/g, "").slice(0, 4))}
+              placeholder="Year of birth e.g. 2013"
+              className="input"
+              inputMode="numeric"
+            />
+            {previewRaceAge !== null && previewRaceAge > 0 && previewRaceAge < 30 && (
+              <p className="mt-1.5 text-xs font-medium px-1" style={{ color: "#FDE68A" }}>
+                ✓ Race age this year: {previewRaceAge}
+              </p>
+            )}
+            {birthYear.length === 4 && (previewRaceAge === null || previewRaceAge <= 0 || previewRaceAge >= 30) && (
+              <p className="mt-1.5 text-xs text-red-300 px-1">
+                Please enter a valid birth year
+              </p>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            {(["Male", "Female"] as const).map((g) => (
+              <button key={g} type="button"
+                onClick={() => setSwimmerGender(swimmerGender === g ? "" : g)}
+                className="rounded-2xl border py-3 text-xs font-semibold transition"
+                style={swimmerGender === g
+                  ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
+                  : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}>
+                {g === "Male" ? "♂" : "♀"} {g}
+              </button>
+            ))}
+          </div>
+
+          <input
+            value={swimmerClub}
+            onChange={(e) => setSwimmerClub(e.target.value)}
+            placeholder="Swim club (optional)"
+            className="input"
+          />
+          <input
+            value={swimmerSchool}
+            onChange={(e) => setSwimmerSchool(e.target.value)}
+            placeholder="School (optional)"
+            className="input"
+          />
+        </div>
+
+        {swimmerError && (
+          <p className="text-sm text-red-300 text-center">{swimmerError}</p>
+        )}
+
+        <div className="flex gap-3">
+          <button type="button" onClick={next} className="onb-btn-secondary flex-1">
+            Skip for now
+          </button>
+          <button type="button" onClick={handleAddSwimmer} disabled={savingSwimmer}
+            className="onb-btn-primary flex-1 disabled:opacity-50">
+            {savingSwimmer ? "Setting up…" : "Add swimmer →"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── Step 3: Choose theme ─────────────────────────────────────────────────
+
+  if (step === 3) return (
+    <div className="onb-screen">
+      <StepDots total={TOTAL_STEPS} current={3} />
+      <div className="px-6 space-y-5">
+        <div className="text-center">
+          <p className="text-xs font-medium uppercase tracking-widest text-white/35 mb-2">Make it yours</p>
+          <h2 className="text-3xl font-bold text-white">Choose your<br />app theme</h2>
+          <p className="mt-2 text-sm text-white/45">Pick a colour that feels right. You can change it anytime in Settings.</p>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          {THEMES.map((theme) => (
+            <button key={theme.id} type="button"
+              onClick={() => setSelectedTheme(theme.id)}
+              className="relative rounded-2xl overflow-hidden transition"
+              style={{
+                aspectRatio: "1",
+                background: `linear-gradient(135deg, ${theme.from}, ${theme.to})`,
+                border: selectedTheme === theme.id
+                  ? `2px solid ${theme.accent}`
+                  : "1px solid rgba(255,255,255,0.12)",
+              }}>
+              {selectedTheme === theme.id && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="rounded-full w-7 h-7 flex items-center justify-center"
+                    style={{ background: theme.accent }}>
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <path d="M2 7l3.5 3.5L12 4" stroke="#000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                </div>
+              )}
+              <div className="absolute bottom-0 inset-x-0 p-2">
+                <p className="text-[10px] font-semibold text-white/80 text-center">{theme.label}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+
+        <button type="button" onClick={next} className="onb-btn-primary w-full">
+          Looks great →
+        </button>
+
+        <p className="text-xs text-white/25">
+          You can always change your theme and settings later.
+        </p>
+      </div>
+    </div>
+  );
+
+  // ── Step 4: Install on your phone ────────────────────────────────────────
+
+  if (step === 4) return (
+    <div className="onb-screen">
+      <StepDots total={TOTAL_STEPS} current={4} />
+      <div className="px-6 space-y-5">
+        <div className="text-center">
+          <p className="text-xs font-medium uppercase tracking-widest text-white/35 mb-2">One last thing</p>
+          <h2 className="text-3xl font-bold text-white">Add Natrix to<br />your home screen</h2>
+          <p className="mt-2 text-sm text-white/45">
+            It opens like a real app — no browser bar, full screen.
+          </p>
+        </div>
+
+        {/* iPhone / Android tab toggle */}
+        <div className="flex rounded-2xl overflow-hidden"
+          style={{ border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.04)" }}>
+          {(["iphone", "android"] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setInstallTab(tab)}
+              className="flex-1 py-2.5 text-xs font-semibold uppercase tracking-wider transition"
+              style={installTab === tab
+                ? { background: "rgba(217,119,6,0.25)", color: "#FDE68A" }
+                : { background: "transparent", color: "rgba(255,255,255,0.4)" }}
+            >
+              {tab === "iphone" ? "📱 iPhone" : "🤖 Android"}
+            </button>
+          ))}
+        </div>
+
+        {installTab === "iphone" && (
+          <div className="space-y-3">
+            <div className="rounded-2xl px-4 py-3 text-sm text-amber-200/80 font-medium"
+              style={{ background: "rgba(217,119,6,0.1)", border: "1px solid rgba(253,230,138,0.2)" }}>
+              ⚠️ Must be opened in <strong>Safari</strong> — not Chrome or another browser.
+            </div>
+            {[
+              { n: "1", icon: "🧭", title: "Open in Safari", desc: "Copy swimnatrix.vercel.app and paste it into Safari if you're not already there." },
+              { n: "2", icon: "⬆️", title: "Tap the Share button", desc: "The Share icon is at the bottom of Safari — a box with an arrow pointing up." },
+              { n: "3", icon: "➕", title: "Add to Home Screen", desc: 'Scroll down and tap "Add to Home Screen", then tap Add.' },
+              { n: "4", icon: "🏊", title: "Open Natrix from your home screen", desc: "Tap the Natrix icon — full screen, no browser bar!" },
+            ].map((item) => (
+              <div key={item.n} className="flex gap-3 items-start rounded-2xl px-4 py-3"
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl text-xs font-bold"
+                  style={{ background: "rgba(253,230,138,0.12)", border: "1px solid rgba(253,230,138,0.25)", color: "#FDE68A" }}>
+                  {item.n}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-white">{item.icon} {item.title}</p>
+                  <p className="text-xs text-white/45 mt-0.5 leading-relaxed">{item.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {installTab === "android" && (
+          <div className="space-y-3">
+            <div className="rounded-2xl px-4 py-3 text-sm text-amber-200/80 font-medium"
+              style={{ background: "rgba(217,119,6,0.1)", border: "1px solid rgba(253,230,138,0.2)" }}>
+              ⚠️ Must be opened in <strong>Chrome</strong> for the install option to appear.
+            </div>
+            {[
+              { n: "1", icon: "🌐", title: "Open in Chrome", desc: "Copy swimnatrix.vercel.app and paste it into Chrome if you're not already there." },
+              { n: "2", icon: "⋮", title: "Tap the three-dot menu", desc: "Tap the ⋮ menu in the top-right corner of Chrome." },
+              { n: "3", icon: "➕", title: "Add to Home screen", desc: 'Tap "Add to Home screen" and confirm by tapping Add.' },
+              { n: "4", icon: "🏊", title: "Open Natrix from your home screen", desc: "Tap the Natrix icon — it launches full screen. You're in!" },
+            ].map((item) => (
+              <div key={item.n} className="flex gap-3 items-start rounded-2xl px-4 py-3"
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl text-xs font-bold"
+                  style={{ background: "rgba(253,230,138,0.12)", border: "1px solid rgba(253,230,138,0.25)", color: "#FDE68A" }}>
+                  {item.n}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-white">{item.icon} {item.title}</p>
+                  <p className="text-xs text-white/45 mt-0.5 leading-relaxed">{item.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex gap-3">
+          <button type="button" onClick={next} className="onb-btn-secondary flex-1">
+            Skip for now
+          </button>
+          <button type="button" onClick={next} className="onb-btn-primary flex-1">
+            Done! →
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── Step 5: All set ──────────────────────────────────────────────────────
+
+  if (step === 5) return (
+    <div className="onb-screen">
+      <StepDots total={TOTAL_STEPS} current={5} />
+      <div className="text-center px-6 space-y-6">
+        <div className="text-6xl">🎉</div>
+        <div>
+          <h2 className="text-4xl font-bold text-white tracking-tight">You're all set!</h2>
+          <p className="mt-3 text-white/55 text-base leading-relaxed">
+            {swimmerSaved
+              ? `${savedSwimmerName} has been added. Start scanning their results!`
+              : "Your account is ready. Add your swimmer and start tracking results."}
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          {[
+            { icon: "📷", label: "Scan your child's latest result", desc: "Take a screenshot from Meet Mobile and scan it", primary: true },
+            
+          ].map((item) => (
+            <div key={item.label} className="flex items-center gap-3 rounded-2xl px-4 py-3"
+              style={{
+                background: item.primary ? "rgba(217,119,6,0.12)" : "rgba(255,255,255,0.05)",
+                border: item.primary ? "1px solid rgba(253,230,138,0.25)" : "1px solid rgba(255,255,255,0.09)",
+              }}>
+              <span style={{ fontSize: 22 }}>{item.icon}</span>
+              <div className="text-left">
+                <p className="text-sm font-semibold text-white">{item.label}</p>
+                <p className="text-xs text-white/40 mt-0.5">{item.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <button type="button" onClick={finish} disabled={saving}
+          className="onb-btn-primary w-full disabled:opacity-50 text-base">
+          {saving ? "Setting up…" : "Take me to Natrix 🏊"}
+        </button>
+      </div>
+    </div>
+  );
+
+  return null;
 }
 </file>
 
@@ -12735,770 +12880,6 @@ export default function LoginPage() {
 }
 </file>
 
-<file path="app/swimmers/[id]/page.tsx">
-"use client";
-
-
-import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { useParams, useSearchParams, useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
-import SwimTimesSection from "./SwimTimesSection";
-import ProgressTab from "./ProgressTab";
-import { canonicalCourse, canonicalEventName, eventKey } from "@/lib/events";
-import { seedETCStandard, etcStandardExists } from "@/lib/emergingTalentsStandards";
-import { seedSNAGStandard, snagStandardExists, getSNAGQualifyingTime } from "@/lib/snagStandards";
-
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type Swimmer = {
-  id: number | string;
-  name: string;
-  age: number;
-  group_type?: string | null;
-  created_at?: string | null;
-  swim_club?: string | null;
-  school?: string | null;
-  status?: string | null;
-  gender?: string | null;
-};
-
-type SwimTimeRow = {
-  id?: number;
-  swimmer_id?: number | string;
-  event: string;
-  course: string;
-  time_ms: number;
-  swam_at?: string | null;
-  created_at?: string | null;
-  place?: number | null;
-};
-
-type StandardSet = {
-  id: number;
-  name: string;
-  type: "UPGRADING" | "IMPORTANT_MEET";
-  created_at?: string | null;
-};
-
-type StandardItem = {
-  id: number;
-  standard_set_id: number;
-  event: string;
-  course: string;
-  gender?: string | null;
-  min_age?: number | null;
-  max_age?: number | null;
-  qualifying_time_ms: number;
-  created_at?: string | null;
-};
-
-type StandardsRow = StandardItem & {
-  pbMs: number | null;
-  pbSwamAt: string | null;
-  gapMs: number | null;
-  pctNeeded: number | null;
-  status: "Qualified" | "In progress" | "No PB yet" | "Age not in range";
-};
-
-type TabKey = "swimTimes" | "progress" | "standards";
-
-type EditProfileForm = {
-  name: string;
-  age: string;
-  club: string;
-  school: string;
-  status: string;
-  gender: string;
-  groupType: string;
-};
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const TAB_LABELS: Record<TabKey, string> = {
-  swimTimes: "Times",
-  progress: "Progress",
-  standards: "Standards",
-};
-
-const TAB_ORDER: TabKey[] = ["swimTimes", "progress", "standards"];
-
-const STROKE_ORDER = ["Freestyle", "Backstroke", "Breaststroke", "Butterfly", "IM"];
-
-function formatSwamAt(value?: string | null) {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-}
-
-function formatMs(ms?: number | null) {
-  if (ms == null || Number.isNaN(ms)) return "-";
-  const totalSeconds = ms / 1000;
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds - minutes * 60;
-  return minutes > 0
-    ? `${minutes}:${seconds.toFixed(2).padStart(5, "0")}`
-    : seconds.toFixed(2);
-}
-
-function keyOf(event: string, course: string) {
-  return eventKey(canonicalEventName(event), canonicalCourse(course));
-}
-
-function getPBMap(swimTimes: SwimTimeRow[]) {
-  const map = new Map<string, SwimTimeRow>();
-  for (const row of swimTimes) {
-    const key = keyOf(row.event, row.course);
-    const existing = map.get(key);
-    if (!existing || row.time_ms < existing.time_ms) map.set(key, row);
-  }
-  return map;
-}
-
-function getStrokeName(event: string): string {
-  const e = event.toLowerCase();
-  if (e.includes("breaststroke") || e.includes("breast")) return "Breaststroke";
-  if (e.includes("backstroke") || e.includes("back")) return "Backstroke";
-  if (e.includes("butterfly") || e.includes("fly")) return "Butterfly";
-  if (e.includes("freestyle") || e.includes("free")) return "Freestyle";
-  if (e.includes("medley") || e.endsWith(" im") || e === "im") return "IM";
-  return "Other";
-}
-
-function getEventDistance(event: string) {
-  const match = canonicalEventName(event).match(/\d+/);
-  return match ? Number(match[0]) : 9999;
-}
-
-function createEditForm(swimmer: Swimmer | null): EditProfileForm {
-  return {
-    name: swimmer?.name ?? "",
-    age: swimmer?.age != null ? String(swimmer.age) : "",
-    club: swimmer?.swim_club ?? "",
-    school: swimmer?.school ?? "",
-    status: swimmer?.status ?? "Active",
-    gender: swimmer?.gender ?? "",
-    groupType: swimmer?.group_type ?? "primary",
-  };
-}
-
-function FieldLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <label className="mb-1.5 block text-[10px] uppercase tracking-[0.2em] text-white/35">
-      {children}
-    </label>
-  );
-}
-
-function StatPill({ label, value, accent = false }: { label: string; value: React.ReactNode; accent?: boolean }) {
-  return (
-    <div className={`rounded-2xl border px-4 py-3 ${accent ? "border-amber-400/20 bg-amber-500/10" : "border-white/8 bg-white/[0.03]"}`}>
-      <p className={`text-[10px] uppercase tracking-[0.2em] ${accent ? "text-amber-200/60" : "text-white/35"}`}>{label}</p>
-      <p className={`mt-1.5 text-2xl font-bold ${accent ? "text-amber-300" : "text-white"}`}>{value}</p>
-    </div>
-  );
-}
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
-
-export default function SwimmerProfilePage() {
-  const params = useParams();
-const router = useRouter();
-  const searchParams = useSearchParams();
-  const swimmerId = Number(params?.id);
-
-  const tabParam = searchParams.get("tab") as TabKey | null;
-  const validTabs: TabKey[] = ["swimTimes", "progress", "standards"];
-  const initialTab: TabKey = tabParam && validTabs.includes(tabParam) ? tabParam : "swimTimes";
-
-  const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
-  const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState("Loading swimmer...");
-
-  const [swimmer, setSwimmer] = useState<Swimmer | null>(null);
-  const [swimTimes, setSwimTimes] = useState<SwimTimeRow[]>([]);
-  const [standardSets, setStandardSets] = useState<StandardSet[]>([]);
-  const [selectedSetId, setSelectedSetId] = useState<number | null>(null);
-  const [standardItems, setStandardItems] = useState<StandardItem[]>([]);
-
-  const [isEditingProfile, setIsEditingProfile] = useState(false);
-  const [savingProfile, setSavingProfile] = useState(false);
-  const [editForm, setEditForm] = useState<EditProfileForm>(createEditForm(null));
-
-  // Standards UI
-  const [showNextAge, setShowNextAge] = useState(false);
-
-  // ETC standards
-  const [seedingETC, setSeedingETC] = useState(false);
-  const [etcMessage, setEtcMessage] = useState("");
-  const [etcAlreadyExists, setEtcAlreadyExists] = useState(false);
-
-  // SNAG standards
-  const [seedingSNAG, setSeedingSNAG] = useState(false);
-  const [snagMessage, setSnagMessage] = useState("");
-  const [snagAlreadyExists, setSnagAlreadyExists] = useState(false);
-
-  useEffect(() => { void loadPage(); }, [swimmerId]);
-  useEffect(() => { void loadStandardItems(selectedSetId); }, [selectedSetId]);
-
-  async function loadPage() {
-    if (!swimmerId || Number.isNaN(swimmerId)) { setStatus("Invalid swimmer id."); setLoading(false); return; }
-    setLoading(true);
-
-    const [swimmerRes, swimTimesRes, standardSetsRes] = await Promise.all([
-      supabase.from("swimmers").select("id, name, age, group_type, created_at, swim_club, school, status, gender").eq("id", swimmerId).limit(1),
-      supabase.from("swim_times").select("id, swimmer_id, event, course, time_ms, swam_at, created_at, place").eq("swimmer_id", swimmerId).order("event", { ascending: true }),
-      supabase.from("standard_sets").select("id, name, type, created_at").order("created_at", { ascending: false }),
-    ]);
-
-    if (swimmerRes.error || swimTimesRes.error || standardSetsRes.error) {
-      const err = swimmerRes.error?.message || swimTimesRes.error?.message || standardSetsRes.error?.message;
-      setStatus(`Error: ${err}`); setLoading(false); return;
-    }
-
-    const swimmerRows = (swimmerRes.data as Swimmer[]) || [];
-    if (swimmerRows.length === 0) {
-      setSwimmer(null); setStatus("Swimmer not found."); setLoading(false); return;
-    }
-
-    const swimmerData = swimmerRows[0];
-    const swimTimesData = (swimTimesRes.data as SwimTimeRow[]) || [];
-    const standardSetsData = (standardSetsRes.data as StandardSet[]) || [];
-
-    setSwimmer(swimmerData);
-    setEditForm(createEditForm(swimmerData));
-    setSwimTimes(swimTimesData);
-    setStandardSets(standardSetsData);
-
-    const firstSet = standardSetsData[0] ?? null;
-    setSelectedSetId(firstSet?.id ?? null);
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const [etcExists, snagExists] = await Promise.all([
-        etcStandardExists(user.id),
-        snagStandardExists(user.id),
-      ]);
-      setEtcAlreadyExists(etcExists);
-      setSnagAlreadyExists(snagExists);
-    }
-
-    setStatus("Ready");
-    setLoading(false);
-  }
-
-  async function loadStandardItems(setId: number | null) {
-    if (!setId) { setStandardItems([]); return; }
-    const { data, error } = await supabase
-      .from("standard_items")
-      .select("id, standard_set_id, event, course, gender, min_age, max_age, qualifying_time_ms, created_at")
-      .eq("standard_set_id", setId).order("event", { ascending: true });
-    if (error) { setStandardItems([]); return; }
-    setStandardItems((data as StandardItem[]) || []);
-  }
-
-  async function handleSaveProfile() {
-    if (!swimmer) return;
-    const trimmedName = editForm.name.trim();
-    const parsedAge = Number(editForm.age);
-    if (!trimmedName) { setStatus("Name is required."); return; }
-    if (!editForm.age || Number.isNaN(parsedAge) || parsedAge < 0) { setStatus("Please enter a valid age."); return; }
-    setSavingProfile(true);
-    try {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) { setStatus("Not logged in."); return; }
-      const { data, error } = await supabase.from("swimmers").update({
-        name: trimmedName, age: parsedAge,
-        swim_club: editForm.club.trim() || null,
-        school: editForm.school.trim() || null,
-        status: editForm.status.trim() || "Active",
-        gender: editForm.gender || null,
-        group_type: editForm.groupType || "primary",
-      }).eq("id", Number(swimmer.id)).eq("user_id", user.id).select();
-      if (error) { setStatus(`Error: ${error.message}`); return; }
-      if (!data || data.length === 0) { setStatus("⚠️ No rows updated."); return; }
-      setIsEditingProfile(false);
-      await loadPage();
-    } finally {
-      setSavingProfile(false);
-    }
-  }
-
-  function handleCancelEdit() {
-    setEditForm(createEditForm(swimmer));
-    setIsEditingProfile(false);
-    setStatus("");
-  }
-
-  async function handleSeedETC() {
-    if (!swimmer?.gender || !swimmer?.age) { setEtcMessage("Set age and gender first."); return; }
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    setSeedingETC(true); setEtcMessage("");
-    const result = await seedETCStandard(user.id, swimmer.age, swimmer.gender as "Male" | "Female");
-    setEtcMessage(result.message);
-    if (result.success) { setEtcAlreadyExists(true); await loadPage(); }
-    setSeedingETC(false);
-  }
-
-  async function handleSeedSNAG() {
-    if (!swimmer?.gender || !swimmer?.age) { setSnagMessage("Set age and gender first."); return; }
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    setSeedingSNAG(true); setSnagMessage("");
-    const result = await seedSNAGStandard(user.id, swimmer.age, swimmer.gender as "Male" | "Female");
-    setSnagMessage(result.message);
-    if (result.success) { setSnagAlreadyExists(true); await loadPage(); }
-    setSeedingSNAG(false);
-  }
-
-  const pbMap = useMemo(() => getPBMap(swimTimes), [swimTimes]);
-
-  const standardsRows = useMemo<StandardsRow[]>(() => {
-    return standardItems.map((item) => {
-      const pb = pbMap.get(keyOf(item.event, item.course));
-      const swimmerAge = swimmer?.age ?? null;
-      const ageTooYoung = swimmerAge != null && item.min_age != null && swimmerAge < item.min_age;
-      const ageTooOld = swimmerAge != null && item.max_age != null && swimmerAge > item.max_age;
-      if (ageTooYoung || ageTooOld) return { ...item, pbMs: null, pbSwamAt: null, gapMs: null, pctNeeded: null, status: "Age not in range" };
-      if (!pb) return { ...item, pbMs: null, pbSwamAt: null, gapMs: null, pctNeeded: null, status: "No PB yet" };
-      const gapMs = pb.time_ms - item.qualifying_time_ms;
-      const pctNeeded = gapMs > 0 ? (gapMs / pb.time_ms) * 100 : null;
-      return {
-        ...item,
-        pbMs: pb.time_ms,
-        pbSwamAt: pb.swam_at ?? null,
-        gapMs,
-        pctNeeded,
-        status: gapMs <= 0 ? "Qualified" : "In progress",
-      };
-    });
-  }, [standardItems, pbMap, swimmer?.age]);
-
-  // Group by stroke
-  const strokeGroups = useMemo(() => {
-    const grouped = new Map<string, StandardsRow[]>();
-    for (const row of standardsRows) {
-      if (row.status === "Age not in range") continue;
-      const stroke = getStrokeName(row.event);
-      if (!grouped.has(stroke)) grouped.set(stroke, []);
-      grouped.get(stroke)!.push(row);
-    }
-    return STROKE_ORDER
-      .filter((s) => grouped.has(s))
-      .map((s) => ({
-        stroke: s,
-        rows: (grouped.get(s) ?? []).sort((a, b) => getEventDistance(a.event) - getEventDistance(b.event)),
-      }));
-  }, [standardsRows]);
-
-  const qualifiedCount = standardsRows.filter((r) => r.status === "Qualified").length;
-  const inProgressCount = standardsRows.filter((r) => r.status === "In progress").length;
-  const noPBCount = standardsRows.filter((r) => r.status === "No PB yet").length;
-
-  const latestResultDate = useMemo(() => {
-    const datedRows = swimTimes.filter((row) => row.swam_at);
-    if (datedRows.length === 0) return null;
-    return [...datedRows].sort((a, b) => new Date(b.swam_at || "").getTime() - new Date(a.swam_at || "").getTime())[0]?.swam_at ?? null;
-  }, [swimTimes]);
-
-  const totalUniqueEvents = useMemo(() => pbMap.size, [pbMap]);
-  const etcEligible = swimmer?.age != null && [10, 11, 12].includes(swimmer.age) && !!swimmer.gender;
-
-  if (loading) return <div className="shell"><div className="container-app"><p className="muted">Loading...</p></div></div>;
-
-  if (!swimmer) {
-    return (
-      <div className="shell">
-        <div className="container-app">
-          <p className="danger-text">{status || "Swimmer not found."}</p>
-          <Link href="/swimmers" className="btn-outline mt-4 inline-flex">← Back</Link>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="shell">
-      <div className="container-app space-y-5">
-
-        {/* Back nav */}
-        <div className="pt-2">
-          <button
-  type="button"
-  onClick={() => router.push("/swimmers")}
-  className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm text-white/40 transition hover:text-white/70 -ml-3"
->
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-    <path d="M10 3L5 8L10 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-  Swimmers
-</button>
-        </div>
-
-        {/* ── Profile header ─────────────────────────────────────────────── */}
-        {!isEditingProfile ? (
-          <div className="rounded-3xl border border-white/10 bg-white/5 p-5 space-y-4">
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">Profile</p>
-                <h1 className="mt-1 text-3xl font-bold tracking-tight text-white truncate">{swimmer.name}</h1>
-              </div>
-              <button
-                onClick={() => { setEditForm(createEditForm(swimmer)); setIsEditingProfile(true); }}
-                className="flex-shrink-0 flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-base transition hover:bg-white/10"
-              >
-                ✏️
-              </button>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              {swimmer.age != null && <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-white/70">Age {swimmer.age}</span>}
-              {swimmer.gender && <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-white/70">{swimmer.gender}</span>}
-              {swimmer.status && <span className="rounded-full border border-amber-400/25 bg-amber-500/10 px-3 py-1 text-sm text-amber-300">{swimmer.status}</span>}
-              {swimmer.swim_club && <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-white/70">{swimmer.swim_club}</span>}
-              {swimmer.school && <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-white/70">{swimmer.school}</span>}
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              <StatPill label="PB Events" value={totalUniqueEvents} accent />
-              <StatPill label="All Times" value={swimTimes.length} />
-              <StatPill label="Latest" value={latestResultDate ? <span className="text-lg">{formatSwamAt(latestResultDate)}</span> : <span className="text-base text-white/40">—</span>} />
-            </div>
-
-            <div className="flex gap-2 border-t border-white/8 pt-4">
-              {TAB_ORDER.map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={`flex-1 rounded-2xl border py-2.5 text-sm font-medium transition-colors ${
-                    activeTab === tab
-                      ? "border-amber-400/30 bg-amber-500/15 text-amber-300"
-                      : "border-white/10 bg-transparent text-white/45 hover:text-white/70"
-                  }`}
-                >
-                  {TAB_LABELS[tab]}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="rounded-3xl border border-white/10 bg-white/5 p-5 space-y-4">
-            <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">Editing profile</p>
-            <div className="grid grid-cols-[1fr_100px] gap-3">
-              <div>
-                <FieldLabel>Name</FieldLabel>
-                <input value={editForm.name} onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))} className="input text-lg font-semibold" placeholder="Full name" />
-              </div>
-              <div>
-                <FieldLabel>Race Age</FieldLabel>
-                <input value={editForm.age} onChange={(e) => setEditForm((p) => ({ ...p, age: e.target.value }))} className="input text-center text-lg font-semibold" inputMode="numeric" placeholder="—" />
-              </div>
-            </div>
-            <div>
-              <FieldLabel>Gender</FieldLabel>
-              <div className="grid grid-cols-2 gap-2">
-                {(["Male", "Female"] as const).map((g) => (
-                  <button key={g} type="button" onClick={() => setEditForm((p) => ({ ...p, gender: p.gender === g ? "" : g }))}
-                    className="rounded-2xl border py-2.5 text-sm font-medium transition"
-                    style={editForm.gender === g
-                      ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
-                      : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}
-                  >
-                    {g === "Male" ? "♂ Male" : "♀ Female"}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><FieldLabel>Club</FieldLabel><input value={editForm.club} onChange={(e) => setEditForm((p) => ({ ...p, club: e.target.value }))} className="input" placeholder="Swim club" /></div>
-              <div><FieldLabel>School</FieldLabel><input value={editForm.school} onChange={(e) => setEditForm((p) => ({ ...p, school: e.target.value }))} className="input" placeholder="School" /></div>
-            </div>
-            {/* My Swimmer vs Following toggle */}
-            <div>
-              <FieldLabel>Type</FieldLabel>
-              <div className="grid grid-cols-2 gap-2 mt-1">
-                {(["primary", "following"] as const).map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setEditForm((p) => ({ ...p, groupType: t }))}
-                    className="rounded-2xl py-3 text-sm font-semibold transition"
-                    style={editForm.groupType === t
-                      ? { background: "rgba(217,119,6,0.25)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
-                      : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}
-                  >
-                    {t === "primary" ? "👤 My swimmer" : "👁 Following"}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div><FieldLabel>Status</FieldLabel><input value={editForm.status} onChange={(e) => setEditForm((p) => ({ ...p, status: e.target.value }))} className="input" placeholder="Active" /></div>
-            {status && <p className="text-sm" style={{ color: status.startsWith("Error") ? "#F09595" : "#6EE7B7" }}>{status}</p>}
-            <div className="flex gap-2 border-t border-white/8 pt-4">
-              <button onClick={handleSaveProfile} disabled={savingProfile} className="btn">{savingProfile ? "Saving..." : "Save changes"}</button>
-              <button onClick={handleCancelEdit} disabled={savingProfile} className="btn-outline">Cancel</button>
-            </div>
-          </div>
-        )}
-
-        {/* ── Tab: Times ────────────────────────────────────────────────── */}
-        {!isEditingProfile && activeTab === "swimTimes" && (
-  <section className="card">
-    <SwimTimesSection swimmerId={Number(swimmer.id)} swimmerAge={swimmer.age} swimmerName={swimmer.name} />
-  </section>
-)}
-
-        {/* ── Tab: Progress ─────────────────────────────────────────────── */}
-        {!isEditingProfile && activeTab === "progress" && (
-          <ProgressTab swimmerId={Number(swimmer.id)} swimmerName={swimmer.name} />
-        )}
-
-        {/* ── Tab: Standards ────────────────────────────────────────────── */}
-        {!isEditingProfile && activeTab === "standards" && (
-          <section className="space-y-4">
-
-            {/* Seed banners */}
-            {etcEligible && !etcAlreadyExists && (
-              <div className="rounded-3xl p-5 space-y-3" style={{ background: "rgba(217,119,6,0.1)", border: "1px solid rgba(253,230,138,0.25)" }}>
-                <div>
-                  <p className="text-sm font-semibold text-white">🏊 Emerging Talents Championship 2026</p>
-                  <p className="mt-1 text-xs text-white/55">{swimmer.name} is age {swimmer.age} ({swimmer.gender}) — load qualifying standards in one tap.</p>
-                </div>
-                <button type="button" onClick={handleSeedETC} disabled={seedingETC}
-                  className="w-full rounded-2xl py-3 text-sm font-semibold text-white transition disabled:opacity-50"
-                  style={{ background: "#D97706" }}>
-                  {seedingETC ? "Loading…" : "Load ETC 2026 standards"}
-                </button>
-                {etcMessage && <p className="text-xs" style={{ color: etcMessage.startsWith("✓") ? "#6EE7B7" : "#FCA5A5" }}>{etcMessage}</p>}
-              </div>
-            )}
-
-            {swimmer.gender && swimmer.age && !snagAlreadyExists && (
-              <div className="rounded-3xl p-5 space-y-3" style={{ background: "rgba(24,95,165,0.1)", border: "1px solid rgba(147,197,253,0.25)" }}>
-                <div>
-                  <p className="text-sm font-semibold text-white">🏆 56th SNAG 2026</p>
-                  <p className="mt-1 text-xs text-white/55">National Age Group qualifying standards — age {swimmer.age} ({swimmer.gender}), LCM.</p>
-                </div>
-                <button type="button" onClick={handleSeedSNAG} disabled={seedingSNAG}
-                  className="w-full rounded-2xl py-3 text-sm font-semibold text-white transition disabled:opacity-50"
-                  style={{ background: "#185FA5" }}>
-                  {seedingSNAG ? "Loading…" : "Load SNAG 2026 standards"}
-                </button>
-                {snagMessage && <p className="text-xs" style={{ color: snagMessage.startsWith("✓") ? "#6EE7B7" : "#FCA5A5" }}>{snagMessage}</p>}
-              </div>
-            )}
-
-            {/* Standard set pill switcher */}
-            {standardSets.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {standardSets.map((set) => (
-                  <button
-                    key={set.id}
-                    type="button"
-                    onClick={() => setSelectedSetId(set.id)}
-                    className="rounded-2xl border px-3 py-2 text-xs font-semibold transition"
-                    style={selectedSetId === set.id
-                      ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
-                      : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}
-                  >
-                    {set.name}
-                  </button>
-                ))}
-                <Link
-                  href="/standards"
-                  className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white/40 transition hover:bg-white/10"
-                >
-                  Manage
-                </Link>
-              </div>
-            )}
-
-            {/* Nothing selected */}
-            {!selectedSetId && standardSets.length === 0 && (
-              <div className="rounded-3xl p-8 text-center" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                <p className="text-base font-semibold text-white">No standards yet</p>
-                <p className="mt-1 text-sm text-white/40">Load the SNAG or ETC standards above, or create your own.</p>
-              </div>
-            )}
-
-            {selectedSetId && standardItems.length > 0 && (
-              <>
-                {/* Summary stats + age toggle */}
-                <div className="rounded-3xl border border-white/10 bg-white/5 p-4 space-y-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex gap-3">
-                      <div className="text-center">
-                        <p className="text-2xl font-bold" style={{ color: "#6EE7B7" }}>{qualifiedCount}</p>
-                        <p className="text-[10px] uppercase tracking-wider text-white/35 mt-0.5">Qualified</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-2xl font-bold text-white">{inProgressCount}</p>
-                        <p className="text-[10px] uppercase tracking-wider text-white/35 mt-0.5">In progress</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-2xl font-bold text-white/40">{noPBCount}</p>
-                        <p className="text-[10px] uppercase tracking-wider text-white/35 mt-0.5">No PB</p>
-                      </div>
-                    </div>
-
-                    {/* Age toggle */}
-                    <div className="flex rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.12)" }}>
-                      <button
-                        type="button"
-                        onClick={() => setShowNextAge(false)}
-                        className="px-3 py-1.5 text-xs font-semibold transition"
-                        style={!showNextAge
-                          ? { background: "rgba(217,119,6,0.2)", color: "#FDE68A" }
-                          : { background: "transparent", color: "rgba(255,255,255,0.4)" }}
-                      >
-                        Age {swimmer.age}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setShowNextAge(true)}
-                        className="px-3 py-1.5 text-xs font-semibold transition"
-                        style={showNextAge
-                          ? { background: "rgba(24,95,165,0.3)", color: "#93C5FD" }
-                          : { background: "transparent", color: "rgba(255,255,255,0.4)" }}
-                      >
-                        Age {swimmer.age + 1} ↑
-                      </button>
-                    </div>
-                  </div>
-
-                  <p className="text-xs text-white/30">
-                    {swimmer.name} · {swimmer.gender} · {standardSets.find(s => s.id === selectedSetId)?.name}
-                  </p>
-                </div>
-
-                {/* Table */}
-                {!showNextAge ? (
-                  <div className="space-y-3">
-                    {strokeGroups.map(({ stroke, rows }) => (
-                      <div key={stroke} className="rounded-3xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.09)", background: "rgba(255,255,255,0.04)" }}>
-                        <p className="px-4 pt-3 pb-1 text-[10px] font-medium uppercase tracking-widest text-white/30">{stroke}</p>
-                        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                          <thead>
-                            <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
-                              <th style={{ padding: "6px 16px", textAlign: "left", fontSize: 10, color: "rgba(255,255,255,0.3)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>Event</th>
-                              <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 10, color: "rgba(255,255,255,0.3)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>PB</th>
-                              <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 10, color: "rgba(255,255,255,0.3)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>Target</th>
-                              <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 10, color: "rgba(255,255,255,0.3)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>Gap</th>
-                              <th style={{ padding: "6px 16px 6px 8px", textAlign: "right", fontSize: 10, color: "rgba(255,255,255,0.3)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>%</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {rows.map((row, i) => {
-                              const qualified = row.status === "Qualified";
-                              const noPB = row.status === "No PB yet";
-                              const isLast = i === rows.length - 1;
-                              return (
-                                <tr key={row.id} style={{ borderBottom: isLast ? "none" : "1px solid rgba(255,255,255,0.05)" }}>
-                                  <td style={{ padding: "10px 16px", fontSize: 13, fontWeight: 500, color: "white" }}>
-                                    {canonicalEventName(row.event).replace(` ${stroke}`, "").replace("Freestyle", "Free").replace("Backstroke", "Back").replace("Breaststroke", "Breast").replace("Butterfly", "Fly")}
-                                    <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", marginLeft: 4 }}>{canonicalCourse(row.course)}</span>
-                                  </td>
-                                  <td style={{ padding: "10px 8px", textAlign: "right", fontSize: 13, color: qualified ? "#6EE7B7" : noPB ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.8)" }}>
-                                    {row.pbMs == null ? "—" : formatMs(row.pbMs)}
-                                  </td>
-                                  <td style={{ padding: "10px 8px", textAlign: "right", fontSize: 13, color: "rgba(255,255,255,0.5)" }}>
-                                    {formatMs(row.qualifying_time_ms)}
-                                  </td>
-                                  <td style={{ padding: "10px 8px", textAlign: "right", fontSize: 12 }}>
-                                    {qualified ? (
-                                      <span style={{ background: "rgba(16,185,129,0.15)", color: "#6EE7B7", border: "1px solid rgba(110,231,183,0.25)", borderRadius: 10, padding: "2px 8px", fontSize: 10, fontWeight: 500 }}>✓ Done</span>
-                                    ) : noPB ? (
-                                      <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 11 }}>No PB</span>
-                                    ) : (
-                                      <span style={{ color: (row.pctNeeded ?? 0) < 3 ? "#FDE68A" : "rgba(255,255,255,0.55)" }}>
-                                        {formatMs(row.gapMs != null ? Math.abs(row.gapMs) : null)}
-                                      </span>
-                                    )}
-                                  </td>
-                                  <td style={{ padding: "10px 16px 10px 8px", textAlign: "right", fontSize: 12 }}>
-                                    {qualified || noPB ? (
-                                      <span style={{ color: "rgba(255,255,255,0.2)" }}>—</span>
-                                    ) : (
-                                      <span style={{ color: (row.pctNeeded ?? 0) < 2 ? "#FDE68A" : (row.pctNeeded ?? 0) < 5 ? "#FAC775" : "rgba(255,255,255,0.4)" }}>
-                                        {row.pctNeeded?.toFixed(1)}%
-                                      </span>
-                                    )}
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  /* Next age up view */
-                  <div className="rounded-3xl p-5 space-y-3" style={{ background: "rgba(24,95,165,0.08)", border: "1px solid rgba(147,197,253,0.2)" }}>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span style={{ background: "rgba(24,95,165,0.2)", color: "#93C5FD", border: "1px solid rgba(147,197,253,0.25)", borderRadius: 10, padding: "2px 10px", fontSize: 10, fontWeight: 500 }}>
-                        Age {swimmer.age + 1} targets
-                      </span>
-                      <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>Planning ahead for next year</span>
-                    </div>
-
-                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                      <thead>
-                        <tr style={{ borderBottom: "1px solid rgba(147,197,253,0.1)" }}>
-                          <th style={{ padding: "6px 0", textAlign: "left", fontSize: 10, color: "rgba(147,197,253,0.5)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>Event</th>
-                          <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 10, color: "rgba(147,197,253,0.5)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>Current PB</th>
-                          <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 10, color: "rgba(147,197,253,0.5)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>Age {swimmer.age + 1} target</th>
-                          <th style={{ padding: "6px 0", textAlign: "right", fontSize: 10, color: "rgba(147,197,253,0.5)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>Gap</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {standardsRows
-                          .filter((r) => r.pbMs != null && r.status !== "Age not in range")
-                          .map((row) => {
-                            if (!swimmer.gender) return null;
-                            const nextTarget = getSNAGQualifyingTime(row.event, swimmer.age + 1, swimmer.gender as "Male" | "Female");
-                            if (!nextTarget) return null;
-                            const nextTargetMs = parseFloat(nextTarget.includes(":") ?
-                              (() => { const [m, s] = nextTarget.split(":"); return (Number(m) * 60 + Number(s)).toString(); })()
-                              : nextTarget) * 1000;
-                            const gapToNext = row.pbMs! - nextTargetMs;
-                            return (
-                              <tr key={row.id} style={{ borderBottom: "1px solid rgba(147,197,253,0.06)" }}>
-                                <td style={{ padding: "9px 0", fontSize: 13, fontWeight: 500, color: "white" }}>
-                                  {canonicalEventName(row.event)}
-                                </td>
-                                <td style={{ padding: "9px 8px", textAlign: "right", fontSize: 13, color: "rgba(255,255,255,0.6)" }}>
-                                  {formatMs(row.pbMs)}
-                                </td>
-                                <td style={{ padding: "9px 8px", textAlign: "right", fontSize: 13, color: "#93C5FD" }}>
-                                  {nextTarget}
-                                </td>
-                                <td style={{ padding: "9px 0", textAlign: "right", fontSize: 12, color: gapToNext <= 0 ? "#6EE7B7" : "rgba(255,255,255,0.4)" }}>
-                                  {gapToNext <= 0 ? "✓ Ready" : formatMs(Math.abs(gapToNext)) + " off"}
-                                </td>
-                              </tr>
-                            );
-                          })
-                          .filter(Boolean)}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </>
-            )}
-          </section>
-        )}
-
-        <div className="h-4" />
-      </div>
-    </div>
-  );
-}
-</file>
-
 <file path="app/swimmers/[id]/SwimTimesSection.tsx">
 "use client";
 
@@ -13568,6 +12949,22 @@ function formatDate(value?: string | null) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+
+/** Extract the distance in metres from an event name, e.g. "100 Freestyle" → 100 */
+function getEventDistanceM(event: string): number | null {
+  const match = canonicalEventName(event).match(/\d+/);
+  return match ? Number(match[0]) : null;
+}
+
+/** Calculate speed in m/s and return as a formatted string, or null if not calculable */
+function formatSpeed(timeMs: number | null | undefined, event: string): string | null {
+  if (timeMs == null || timeMs <= 0) return null;
+  const distance = getEventDistanceM(event);
+  if (!distance) return null;
+  const seconds = timeMs / 1000;
+  const speed = distance / seconds;
+  return `${speed.toFixed(2)} m/s`;
 }
 
 function getStrokeKey(event: string) {
@@ -13928,6 +13325,7 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
               {/* Event rows — only show when stroke is expanded */}
               {isStrokeOpen && sg.events.map((eg) => {
                 const isOpen = !!expandedEvents[eg.key];
+                const pbSpeed = formatSpeed(eg.pb.time_ms, eg.event);
                 return (
                   <div key={eg.key} style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
 
@@ -13946,6 +13344,12 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
                         </div>
                         <div className="text-right flex-shrink-0">
                           <p className="text-sm font-bold" style={{ color: "#FDE68A" }}>{formatMs(eg.pb.time_ms)}</p>
+                          {/* ── Speed in m/s ── */}
+                          {pbSpeed && (
+                            <p className="text-[10px] font-medium mt-0.5" style={{ color: "rgba(253,230,138,0.5)" }}>
+                              {pbSpeed}
+                            </p>
+                          )}
                           <div className="flex items-center justify-end gap-1 mt-0.5">
                             {eg.pb.place != null && (
                               <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
@@ -13996,6 +13400,7 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
                           const showSplits = !!expandedSplits[time.id];
                           const isEditing = editingTime?.id === time.id;
                           const isLastTime = tIdx === eg.times.length - 1;
+                          const timeSpeed = formatSpeed(time.time_ms, eg.event);
 
                           return (
                             <div key={time.id}
@@ -14054,6 +13459,12 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
                                         <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
                                           style={{ background: "rgba(253,230,138,0.15)", color: "#FDE68A", border: "1px solid rgba(253,230,138,0.25)" }}>
                                           PB
+                                        </span>
+                                      )}
+                                      {/* Speed alongside each time in history */}
+                                      {timeSpeed && (
+                                        <span className="text-[10px] font-medium" style={{ color: "rgba(255,255,255,0.3)" }}>
+                                          {timeSpeed}
                                         </span>
                                       )}
                                     </div>
@@ -14127,6 +13538,865 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
         />
       )}
     </>
+  );
+}
+</file>
+
+<file path="app/swimmers/[id]/page.tsx">
+"use client";
+
+
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabaseClient";
+import SwimTimesSection from "./SwimTimesSection";
+import ProgressTab from "./ProgressTab";
+import { canonicalCourse, canonicalEventName, eventKey } from "@/lib/events";
+import { seedETCStandard, etcStandardExists } from "@/lib/emergingTalentsStandards";
+import { seedSNAGStandard, snagStandardExists, getSNAGQualifyingTime } from "@/lib/snagStandards";
+
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type Swimmer = {
+  id: number | string;
+  name: string;
+  age: number;
+  group_type?: string | null;
+  created_at?: string | null;
+  swim_club?: string | null;
+  school?: string | null;
+  status?: string | null;
+  gender?: string | null;
+};
+
+type SwimTimeRow = {
+  id?: number;
+  swimmer_id?: number | string;
+  event: string;
+  course: string;
+  time_ms: number;
+  swam_at?: string | null;
+  created_at?: string | null;
+  place?: number | null;
+};
+
+type StandardSet = {
+  id: number;
+  name: string;
+  type: "UPGRADING" | "IMPORTANT_MEET";
+  club?: string | null;
+  created_at?: string | null;
+};
+
+type StandardItem = {
+  id: number;
+  standard_set_id: number;
+  event: string;
+  course: string;
+  gender?: string | null;
+  min_age?: number | null;
+  max_age?: number | null;
+  qualifying_time_ms: number;
+  created_at?: string | null;
+};
+
+type StandardsRow = StandardItem & {
+  pbMs: number | null;
+  pbSwamAt: string | null;
+  gapMs: number | null;
+  pctNeeded: number | null;
+  status: "Qualified" | "In progress" | "No PB yet" | "Age not in range";
+};
+
+type TabKey = "swimTimes" | "progress" | "standards";
+
+type EditProfileForm = {
+  name: string;
+  age: string;
+  club: string;
+  school: string;
+  status: string;
+  gender: string;
+  groupType: string;
+};
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const TAB_LABELS: Record<TabKey, string> = {
+  swimTimes: "Times",
+  progress: "Progress",
+  standards: "Standards",
+};
+
+const TAB_ORDER: TabKey[] = ["swimTimes", "progress", "standards"];
+
+const STROKE_ORDER = ["Freestyle", "Backstroke", "Breaststroke", "Butterfly", "IM"];
+
+const STROKE_COLOR: Record<string, string> = {
+  Freestyle: "#38BDF8",
+  Backstroke: "#A78BFA",
+  Breaststroke: "#34D399",
+  Butterfly: "#FB923C",
+  IM: "#F472B6",
+  Other: "#94A3B8",
+};
+
+function formatSwamAt(value?: string | null) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+
+function formatMs(ms?: number | null) {
+  if (ms == null || Number.isNaN(ms)) return "-";
+  const totalSeconds = ms / 1000;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds - minutes * 60;
+  return minutes > 0
+    ? `${minutes}:${seconds.toFixed(2).padStart(5, "0")}`
+    : seconds.toFixed(2);
+}
+
+function keyOf(event: string, course: string) {
+  return eventKey(canonicalEventName(event), canonicalCourse(course));
+}
+
+function getPBMap(swimTimes: SwimTimeRow[]) {
+  const map = new Map<string, SwimTimeRow>();
+  for (const row of swimTimes) {
+    const key = keyOf(row.event, row.course);
+    const existing = map.get(key);
+    if (!existing || row.time_ms < existing.time_ms) map.set(key, row);
+  }
+  return map;
+}
+
+function getStrokeName(event: string): string {
+  const e = event.toLowerCase();
+  if (e.includes("breaststroke") || e.includes("breast")) return "Breaststroke";
+  if (e.includes("backstroke") || e.includes("back")) return "Backstroke";
+  if (e.includes("butterfly") || e.includes("fly")) return "Butterfly";
+  if (e.includes("freestyle") || e.includes("free")) return "Freestyle";
+  if (e.includes("medley") || e.endsWith(" im") || e === "im") return "IM";
+  return "Other";
+}
+
+function getEventDistance(event: string) {
+  const match = canonicalEventName(event).match(/\d+/);
+  return match ? Number(match[0]) : 9999;
+}
+
+function gapText(pbMs: number, targetMs: number) {
+  const diff = pbMs - targetMs;
+  const seconds = Math.abs(diff / 1000).toFixed(2);
+  if (diff <= 0) return `${seconds}s under ✅`;
+  return `${seconds}s to go`;
+}
+
+function createEditForm(swimmer: Swimmer | null): EditProfileForm {
+  return {
+    name: swimmer?.name ?? "",
+    age: swimmer?.age != null ? String(swimmer.age) : "",
+    club: swimmer?.swim_club ?? "",
+    school: swimmer?.school ?? "",
+    status: swimmer?.status ?? "Active",
+    gender: swimmer?.gender ?? "",
+    groupType: swimmer?.group_type ?? "primary",
+  };
+}
+
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <label className="mb-1.5 block text-[10px] uppercase tracking-[0.2em] text-white/35">
+      {children}
+    </label>
+  );
+}
+
+function StatPill({ label, value, accent = false }: { label: string; value: React.ReactNode; accent?: boolean }) {
+  return (
+    <div className={`rounded-2xl border px-4 py-3 ${accent ? "border-amber-400/20 bg-amber-500/10" : "border-white/8 bg-white/[0.03]"}`}>
+      <p className={`text-[10px] uppercase tracking-[0.2em] ${accent ? "text-amber-200/60" : "text-white/35"}`}>{label}</p>
+      <p className={`mt-1.5 text-2xl font-bold ${accent ? "text-amber-300" : "text-white"}`}>{value}</p>
+    </div>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default function SwimmerProfilePage() {
+  const params = useParams();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const swimmerId = Number(params?.id);
+
+  const tabParam = searchParams.get("tab") as TabKey | null;
+  const validTabs: TabKey[] = ["swimTimes", "progress", "standards"];
+  const initialTab: TabKey = tabParam && validTabs.includes(tabParam) ? tabParam : "swimTimes";
+
+  const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
+  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState("Loading swimmer...");
+
+  const [swimmer, setSwimmer] = useState<Swimmer | null>(null);
+  const [swimTimes, setSwimTimes] = useState<SwimTimeRow[]>([]);
+  const [standardSets, setStandardSets] = useState<StandardSet[]>([]);
+  const [selectedSetId, setSelectedSetId] = useState<number | null>(null);
+  const [standardItems, setStandardItems] = useState<StandardItem[]>([]);
+
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [editForm, setEditForm] = useState<EditProfileForm>(createEditForm(null));
+
+  // Standards UI
+  const [showNextAge, setShowNextAge] = useState(false);
+  const [expandedStrokes, setExpandedStrokes] = useState<Record<string, boolean>>({});
+
+  // ETC standards
+  const [seedingETC, setSeedingETC] = useState(false);
+  const [etcMessage, setEtcMessage] = useState("");
+  const [etcAlreadyExists, setEtcAlreadyExists] = useState(false);
+
+  // SNAG standards
+  const [seedingSNAG, setSeedingSNAG] = useState(false);
+  const [snagMessage, setSnagMessage] = useState("");
+  const [snagAlreadyExists, setSnagAlreadyExists] = useState(false);
+
+  useEffect(() => { void loadPage(); }, [swimmerId]);
+  useEffect(() => { void loadStandardItems(selectedSetId); }, [selectedSetId]);
+
+  async function loadPage() {
+    if (!swimmerId || Number.isNaN(swimmerId)) { setStatus("Invalid swimmer id."); setLoading(false); return; }
+    setLoading(true);
+
+    const [swimmerRes, swimTimesRes, standardSetsRes] = await Promise.all([
+      supabase.from("swimmers").select("id, name, age, group_type, created_at, swim_club, school, status, gender").eq("id", swimmerId).limit(1),
+      supabase.from("swim_times").select("id, swimmer_id, event, course, time_ms, swam_at, created_at, place").eq("swimmer_id", swimmerId).order("event", { ascending: true }),
+      supabase.from("standard_sets").select("id, name, type, club, created_at").order("created_at", { ascending: false }),
+    ]);
+
+    if (swimmerRes.error || swimTimesRes.error || standardSetsRes.error) {
+      const err = swimmerRes.error?.message || swimTimesRes.error?.message || standardSetsRes.error?.message;
+      setStatus(`Error: ${err}`); setLoading(false); return;
+    }
+
+    const swimmerRows = (swimmerRes.data as Swimmer[]) || [];
+    if (swimmerRows.length === 0) {
+      setSwimmer(null); setStatus("Swimmer not found."); setLoading(false); return;
+    }
+
+    const swimmerData = swimmerRows[0];
+    const swimTimesData = (swimTimesRes.data as SwimTimeRow[]) || [];
+    const allSets = (standardSetsRes.data as StandardSet[]) || [];
+
+    // Filter sets by club — null club = everyone, set club = only matching swimmers
+    const swimmerClubNorm = swimmerData.swim_club?.trim().toLowerCase() ?? null;
+    const standardSetsData = allSets.filter((s) =>
+      !s.club || s.club.trim().toLowerCase() === swimmerClubNorm
+    );
+
+    setSwimmer(swimmerData);
+    setEditForm(createEditForm(swimmerData));
+    setSwimTimes(swimTimesData);
+    setStandardSets(standardSetsData);
+
+    const firstSet = standardSetsData[0] ?? null;
+    setSelectedSetId(firstSet?.id ?? null);
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const [etcExists, snagExists] = await Promise.all([
+        etcStandardExists(user.id),
+        snagStandardExists(user.id),
+      ]);
+      setEtcAlreadyExists(etcExists);
+      setSnagAlreadyExists(snagExists);
+    }
+
+    setStatus("Ready");
+    setLoading(false);
+  }
+
+  async function loadStandardItems(setId: number | null) {
+    if (!setId) { setStandardItems([]); return; }
+    const { data, error } = await supabase
+      .from("standard_items")
+      .select("id, standard_set_id, event, course, gender, min_age, max_age, qualifying_time_ms, created_at")
+      .eq("standard_set_id", setId).order("event", { ascending: true });
+    if (error) { setStandardItems([]); return; }
+    setStandardItems((data as StandardItem[]) || []);
+  }
+
+  async function handleSaveProfile() {
+    if (!swimmer) return;
+    const trimmedName = editForm.name.trim();
+    const parsedAge = Number(editForm.age);
+    if (!trimmedName) { setStatus("Name is required."); return; }
+    if (!editForm.age || Number.isNaN(parsedAge) || parsedAge < 0) { setStatus("Please enter a valid age."); return; }
+    setSavingProfile(true);
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) { setStatus("Not logged in."); return; }
+      const { data, error } = await supabase.from("swimmers").update({
+        name: trimmedName, age: parsedAge,
+        swim_club: editForm.club.trim() || null,
+        school: editForm.school.trim() || null,
+        status: editForm.status.trim() || "Active",
+        gender: editForm.gender || null,
+        group_type: editForm.groupType || "primary",
+      }).eq("id", Number(swimmer.id)).eq("user_id", user.id).select();
+      if (error) { setStatus(`Error: ${error.message}`); return; }
+      if (!data || data.length === 0) { setStatus("⚠️ No rows updated."); return; }
+      setIsEditingProfile(false);
+      await loadPage();
+    } finally {
+      setSavingProfile(false);
+    }
+  }
+
+  function handleCancelEdit() {
+    setEditForm(createEditForm(swimmer));
+    setIsEditingProfile(false);
+    setStatus("");
+  }
+
+  async function handleSeedETC() {
+    if (!swimmer?.gender || !swimmer?.age) { setEtcMessage("Set age and gender first."); return; }
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    setSeedingETC(true); setEtcMessage("");
+    const result = await seedETCStandard(user.id, swimmer.age, swimmer.gender as "Male" | "Female");
+    setEtcMessage(result.message);
+    if (result.success) { setEtcAlreadyExists(true); await loadPage(); }
+    setSeedingETC(false);
+  }
+
+  async function handleSeedSNAG() {
+    if (!swimmer?.gender || !swimmer?.age) { setSnagMessage("Set age and gender first."); return; }
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    setSeedingSNAG(true); setSnagMessage("");
+    const result = await seedSNAGStandard(user.id, swimmer.age, swimmer.gender as "Male" | "Female");
+    setSnagMessage(result.message);
+    if (result.success) { setSnagAlreadyExists(true); await loadPage(); }
+    setSeedingSNAG(false);
+  }
+
+  function toggleStroke(stroke: string) {
+    setExpandedStrokes((p) => ({ ...p, [stroke]: !p[stroke] }));
+  }
+
+  const pbMap = useMemo(() => getPBMap(swimTimes), [swimTimes]);
+
+  const standardsRows = useMemo<StandardsRow[]>(() => {
+    return standardItems.map((item) => {
+      const pb = pbMap.get(keyOf(item.event, item.course));
+      const swimmerAge = swimmer?.age ?? null;
+      const ageTooYoung = swimmerAge != null && item.min_age != null && swimmerAge < item.min_age;
+      const ageTooOld = swimmerAge != null && item.max_age != null && swimmerAge > item.max_age;
+      if (ageTooYoung || ageTooOld) return { ...item, pbMs: null, pbSwamAt: null, gapMs: null, pctNeeded: null, status: "Age not in range" };
+      if (!pb) return { ...item, pbMs: null, pbSwamAt: null, gapMs: null, pctNeeded: null, status: "No PB yet" };
+      const gapMs = pb.time_ms - item.qualifying_time_ms;
+      const pctNeeded = gapMs > 0 ? (gapMs / pb.time_ms) * 100 : null;
+      return {
+        ...item,
+        pbMs: pb.time_ms,
+        pbSwamAt: pb.swam_at ?? null,
+        gapMs,
+        pctNeeded,
+        status: gapMs <= 0 ? "Qualified" : "In progress",
+      };
+    });
+  }, [standardItems, pbMap, swimmer?.age]);
+
+  // Group by stroke for collapsible view
+  const strokeGroups = useMemo(() => {
+    const grouped = new Map<string, StandardsRow[]>();
+    for (const row of standardsRows) {
+      if (row.status === "Age not in range") continue;
+      const stroke = getStrokeName(row.event);
+      if (!grouped.has(stroke)) grouped.set(stroke, []);
+      grouped.get(stroke)!.push(row);
+    }
+    return STROKE_ORDER
+      .filter((s) => grouped.has(s))
+      .map((s) => ({
+        stroke: s,
+        color: STROKE_COLOR[s] ?? "#94A3B8",
+        rows: (grouped.get(s) ?? []).sort((a, b) => getEventDistance(a.event) - getEventDistance(b.event)),
+      }));
+  }, [standardsRows]);
+
+  const qualifiedCount = standardsRows.filter((r) => r.status === "Qualified").length;
+  const closeCount = standardsRows.filter((r) => r.status === "In progress" && (r.gapMs ?? Infinity) <= 3000).length;
+  const noPBCount = standardsRows.filter((r) => r.status === "No PB yet").length;
+
+  // Next target = in-progress row with smallest gap
+  const nextTarget = useMemo(() => {
+    return standardsRows
+      .filter((r) => r.status === "In progress" && r.gapMs != null)
+      .sort((a, b) => (a.gapMs ?? Infinity) - (b.gapMs ?? Infinity))[0] ?? null;
+  }, [standardsRows]);
+
+  const latestResultDate = useMemo(() => {
+    const datedRows = swimTimes.filter((row) => row.swam_at);
+    if (datedRows.length === 0) return null;
+    return [...datedRows].sort((a, b) => new Date(b.swam_at || "").getTime() - new Date(a.swam_at || "").getTime())[0]?.swam_at ?? null;
+  }, [swimTimes]);
+
+  const totalUniqueEvents = useMemo(() => pbMap.size, [pbMap]);
+  const etcEligible = swimmer?.age != null && [10, 11, 12].includes(swimmer.age) && !!swimmer.gender;
+
+  if (loading) return <div className="shell"><div className="container-app"><p className="muted">Loading...</p></div></div>;
+
+  if (!swimmer) {
+    return (
+      <div className="shell">
+        <div className="container-app">
+          <p className="danger-text">{status || "Swimmer not found."}</p>
+          <Link href="/swimmers" className="btn-outline mt-4 inline-flex">← Back</Link>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="shell">
+      <div className="container-app space-y-5">
+
+        {/* Back nav */}
+        <div className="pt-2">
+          <button
+            type="button"
+            onClick={() => router.push("/swimmers")}
+            className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm text-white/40 transition hover:text-white/70 -ml-3"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M10 3L5 8L10 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Swimmers
+          </button>
+        </div>
+
+        {/* ── Profile header ─────────────────────────────────────────────── */}
+        {!isEditingProfile ? (
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-5 space-y-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">Profile</p>
+                <h1 className="mt-1 text-3xl font-bold tracking-tight text-white truncate">{swimmer.name}</h1>
+              </div>
+              <button
+                onClick={() => { setEditForm(createEditForm(swimmer)); setIsEditingProfile(true); }}
+                className="flex-shrink-0 flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-base transition hover:bg-white/10"
+              >
+                ✏️
+              </button>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {swimmer.age != null && <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-white/70">Age {swimmer.age}</span>}
+              {swimmer.gender && <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-white/70">{swimmer.gender}</span>}
+              {swimmer.status && <span className="rounded-full border border-amber-400/25 bg-amber-500/10 px-3 py-1 text-sm text-amber-300">{swimmer.status}</span>}
+              {swimmer.swim_club && <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-white/70">{swimmer.swim_club}</span>}
+              {swimmer.school && <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-white/70">{swimmer.school}</span>}
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              <StatPill label="PB Events" value={totalUniqueEvents} accent />
+              <StatPill label="All Times" value={swimTimes.length} />
+              <StatPill label="Latest" value={latestResultDate ? <span className="text-lg">{formatSwamAt(latestResultDate)}</span> : <span className="text-base text-white/40">—</span>} />
+            </div>
+
+            <div className="flex gap-2 border-t border-white/8 pt-4">
+              {TAB_ORDER.map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`flex-1 rounded-2xl border py-2.5 text-sm font-medium transition-colors ${
+                    activeTab === tab
+                      ? "border-amber-400/30 bg-amber-500/15 text-amber-300"
+                      : "border-white/10 bg-transparent text-white/45 hover:text-white/70"
+                  }`}
+                >
+                  {TAB_LABELS[tab]}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-5 space-y-4">
+            <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">Editing profile</p>
+            <div className="grid grid-cols-[1fr_100px] gap-3">
+              <div>
+                <FieldLabel>Name</FieldLabel>
+                <input value={editForm.name} onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))} className="input text-lg font-semibold" placeholder="Full name" />
+              </div>
+              <div>
+                <FieldLabel>Race Age</FieldLabel>
+                <input value={editForm.age} onChange={(e) => setEditForm((p) => ({ ...p, age: e.target.value }))} className="input text-center text-lg font-semibold" inputMode="numeric" placeholder="—" />
+              </div>
+            </div>
+            <div>
+              <FieldLabel>Gender</FieldLabel>
+              <div className="grid grid-cols-2 gap-2">
+                {(["Male", "Female"] as const).map((g) => (
+                  <button key={g} type="button" onClick={() => setEditForm((p) => ({ ...p, gender: p.gender === g ? "" : g }))}
+                    className="rounded-2xl border py-2.5 text-sm font-medium transition"
+                    style={editForm.gender === g
+                      ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
+                      : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}
+                  >
+                    {g === "Male" ? "♂ Male" : "♀ Female"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><FieldLabel>Club</FieldLabel><input value={editForm.club} onChange={(e) => setEditForm((p) => ({ ...p, club: e.target.value }))} className="input" placeholder="Swim club" /></div>
+              <div><FieldLabel>School</FieldLabel><input value={editForm.school} onChange={(e) => setEditForm((p) => ({ ...p, school: e.target.value }))} className="input" placeholder="School" /></div>
+            </div>
+            <div>
+              <FieldLabel>Type</FieldLabel>
+              <div className="grid grid-cols-2 gap-2 mt-1">
+                {(["primary", "following"] as const).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setEditForm((p) => ({ ...p, groupType: t }))}
+                    className="rounded-2xl py-3 text-sm font-semibold transition"
+                    style={editForm.groupType === t
+                      ? { background: "rgba(217,119,6,0.25)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
+                      : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}
+                  >
+                    {t === "primary" ? "👤 My swimmer" : "👁 Following"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div><FieldLabel>Status</FieldLabel><input value={editForm.status} onChange={(e) => setEditForm((p) => ({ ...p, status: e.target.value }))} className="input" placeholder="Active" /></div>
+            {status && <p className="text-sm" style={{ color: status.startsWith("Error") ? "#F09595" : "#6EE7B7" }}>{status}</p>}
+            <div className="flex gap-2 border-t border-white/8 pt-4">
+              <button onClick={handleSaveProfile} disabled={savingProfile} className="btn">{savingProfile ? "Saving..." : "Save changes"}</button>
+              <button onClick={handleCancelEdit} disabled={savingProfile} className="btn-outline">Cancel</button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Tab: Times ────────────────────────────────────────────────── */}
+        {!isEditingProfile && activeTab === "swimTimes" && (
+          <section className="card">
+            <SwimTimesSection swimmerId={Number(swimmer.id)} swimmerAge={swimmer.age} swimmerName={swimmer.name} />
+          </section>
+        )}
+
+        {/* ── Tab: Progress ─────────────────────────────────────────────── */}
+        {!isEditingProfile && activeTab === "progress" && (
+          <ProgressTab swimmerId={Number(swimmer.id)} swimmerName={swimmer.name} />
+        )}
+
+        {/* ── Tab: Standards ────────────────────────────────────────────── */}
+        {!isEditingProfile && activeTab === "standards" && (
+          <section className="space-y-4">
+
+            {/* Seed banners */}
+            {etcEligible && !etcAlreadyExists && (
+              <div className="rounded-3xl p-5 space-y-3" style={{ background: "rgba(217,119,6,0.1)", border: "1px solid rgba(253,230,138,0.25)" }}>
+                <div>
+                  <p className="text-sm font-semibold text-white">🏊 Emerging Talents Championship 2026</p>
+                  <p className="mt-1 text-xs text-white/55">{swimmer.name} is age {swimmer.age} ({swimmer.gender}) — load qualifying standards in one tap.</p>
+                </div>
+                <button type="button" onClick={handleSeedETC} disabled={seedingETC}
+                  className="w-full rounded-2xl py-3 text-sm font-semibold text-white transition disabled:opacity-50"
+                  style={{ background: "#D97706" }}>
+                  {seedingETC ? "Loading…" : "Load ETC 2026 standards"}
+                </button>
+                {etcMessage && <p className="text-xs" style={{ color: etcMessage.startsWith("✓") ? "#6EE7B7" : "#FCA5A5" }}>{etcMessage}</p>}
+              </div>
+            )}
+
+            {swimmer.gender && swimmer.age && !snagAlreadyExists && (
+              <div className="rounded-3xl p-5 space-y-3" style={{ background: "rgba(24,95,165,0.1)", border: "1px solid rgba(147,197,253,0.25)" }}>
+                <div>
+                  <p className="text-sm font-semibold text-white">🏆 56th SNAG 2026</p>
+                  <p className="mt-1 text-xs text-white/55">National Age Group qualifying standards — age {swimmer.age} ({swimmer.gender}), LCM.</p>
+                </div>
+                <button type="button" onClick={handleSeedSNAG} disabled={seedingSNAG}
+                  className="w-full rounded-2xl py-3 text-sm font-semibold text-white transition disabled:opacity-50"
+                  style={{ background: "#185FA5" }}>
+                  {seedingSNAG ? "Loading…" : "Load SNAG 2026 standards"}
+                </button>
+                {snagMessage && <p className="text-xs" style={{ color: snagMessage.startsWith("✓") ? "#6EE7B7" : "#FCA5A5" }}>{snagMessage}</p>}
+              </div>
+            )}
+
+            {/* No standards at all */}
+            {standardSets.length === 0 && (
+              <div className="rounded-3xl p-8 text-center" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                <p className="text-base font-semibold text-white">No standards yet</p>
+                <p className="mt-1 text-sm text-white/40">Load the SNAG or ETC standards above, or create your own.</p>
+              </div>
+            )}
+
+            {/* Standard set pill switcher */}
+            {standardSets.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {standardSets.map((set) => (
+                  <button
+                    key={set.id}
+                    type="button"
+                    onClick={() => setSelectedSetId(set.id)}
+                    className="rounded-full px-4 py-2 text-xs font-semibold transition"
+                    style={selectedSetId === set.id
+                      ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
+                      : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}
+                  >
+                    {set.name}
+                  </button>
+                ))}
+                <Link
+                  href="/standards"
+                  className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/40 transition hover:bg-white/10"
+                >
+                  Manage
+                </Link>
+              </div>
+            )}
+
+            {selectedSetId && standardItems.length > 0 && (
+              <>
+                {/* ── Hero: Next target ── */}
+                <div className="rounded-3xl p-5 space-y-4 relative overflow-hidden"
+                  style={{ background: "linear-gradient(135deg, rgba(217,119,6,0.18), rgba(217,119,6,0.06))", border: "1px solid rgba(253,230,138,0.2)" }}>
+                  <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "rgba(253,230,138,0.6)" }}>
+                    🎯 Next target to hit
+                  </p>
+
+                  {nextTarget ? (
+                    <>
+                      <div>
+                        <p className="text-2xl font-bold text-white">{canonicalEventName(nextTarget.event)}</p>
+                        <p className="text-xs mt-0.5 text-white/40">{canonicalCourse(nextTarget.course)}</p>
+                      </div>
+
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <span className="rounded-full px-3 py-1.5 text-xs font-bold"
+                          style={{ background: "rgba(253,230,138,0.15)", border: "1px solid rgba(253,230,138,0.3)", color: "#FDE68A" }}>
+                          {gapText(nextTarget.pbMs!, nextTarget.qualifying_time_ms)}
+                        </span>
+                        <div className="flex gap-2">
+                          {[
+                            { label: "Your PB", value: formatMs(nextTarget.pbMs) },
+                            { label: "Target", value: formatMs(nextTarget.qualifying_time_ms) },
+                          ].map((tile) => (
+                            <div key={tile.label} className="rounded-2xl px-3 py-2 text-center"
+                              style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                              <p className="text-[9px] uppercase tracking-wider text-white/35">{tile.label}</p>
+                              <p className="text-sm font-bold text-white mt-0.5 tabular-nums">{tile.value}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Progress bar */}
+                      {(() => {
+                        const baseline = nextTarget.qualifying_time_ms * 1.15;
+                        const range = baseline - nextTarget.qualifying_time_ms;
+                        const pct = Math.min(100, Math.max(0, Math.round(((baseline - nextTarget.pbMs!) / range) * 100)));
+                        return (
+                          <div>
+                            <div className="flex justify-between mb-1.5">
+                              <p className="text-[10px] text-white/35">How close is {swimmer.name.split(" ")[0]}?</p>
+                              <p className="text-[10px] font-bold" style={{ color: "#FDE68A" }}>{pct}% there</p>
+                            </div>
+                            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.08)" }}>
+                              <div className="h-full rounded-full" style={{ width: `${pct}%`, background: "linear-gradient(90deg, #D97706, #FDE68A)" }} />
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </>
+                  ) : qualifiedCount === standardsRows.filter((r) => r.status !== "Age not in range").length ? (
+                    <p className="text-lg font-bold text-white">All standards qualified! 🏆</p>
+                  ) : (
+                    <p className="text-sm text-white/50">Scan more results to see your next target.</p>
+                  )}
+                </div>
+
+                {/* ── Summary strip ── */}
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { n: qualifiedCount, label: "Qualified", bg: "rgba(110,231,183,0.08)", border: "rgba(110,231,183,0.2)", color: "#6EE7B7" },
+                    { n: closeCount, label: "Within 3s", bg: "rgba(252,211,77,0.08)", border: "rgba(252,211,77,0.2)", color: "#FCD34D" },
+                    { n: noPBCount, label: "No PB yet", bg: "rgba(255,255,255,0.04)", border: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.5)" },
+                  ].map((tile) => (
+                    <div key={tile.label} className="rounded-2xl py-3 text-center"
+                      style={{ background: tile.bg, border: `1px solid ${tile.border}` }}>
+                      <p className="text-2xl font-bold" style={{ color: tile.color }}>{tile.n}</p>
+                      <p className="text-[10px] mt-0.5 font-medium" style={{ color: tile.color, opacity: 0.7 }}>{tile.label}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* ── Age toggle ── */}
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-white/30 px-1">All events</p>
+                  <div className="flex rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.12)" }}>
+                    <button type="button" onClick={() => setShowNextAge(false)}
+                      className="px-3 py-1.5 text-xs font-semibold transition"
+                      style={!showNextAge
+                        ? { background: "rgba(217,119,6,0.2)", color: "#FDE68A" }
+                        : { background: "transparent", color: "rgba(255,255,255,0.4)" }}>
+                      Age {swimmer.age}
+                    </button>
+                    <button type="button" onClick={() => setShowNextAge(true)}
+                      className="px-3 py-1.5 text-xs font-semibold transition"
+                      style={showNextAge
+                        ? { background: "rgba(24,95,165,0.3)", color: "#93C5FD" }
+                        : { background: "transparent", color: "rgba(255,255,255,0.4)" }}>
+                      Age {swimmer.age + 1} ↑
+                    </button>
+                  </div>
+                </div>
+
+                {/* ── Collapsible stroke groups ── */}
+                {!showNextAge && (
+                  <div className="space-y-2">
+                    {strokeGroups.map(({ stroke, color, rows }) => {
+                      const isOpen = !!expandedStrokes[stroke];
+                      const strokeQualified = rows.filter((r) => r.status === "Qualified").length;
+                      return (
+                        <div key={stroke} className="rounded-2xl overflow-hidden"
+                          style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)" }}>
+
+                          {/* Stroke header */}
+                          <button type="button" onClick={() => toggleStroke(stroke)}
+                            className="w-full px-4 py-3 flex items-center gap-2 transition hover:bg-white/5">
+                            <div className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ background: color }} />
+                            <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color }}>{stroke}</p>
+                            <p className="text-[10px] text-white/25 ml-1">{rows.length} event{rows.length !== 1 ? "s" : ""}</p>
+                            {!isOpen && strokeQualified > 0 && (
+                              <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full"
+                                style={{ background: "rgba(110,231,183,0.12)", color: "#6EE7B7", border: "1px solid rgba(110,231,183,0.2)" }}>
+                                {strokeQualified} ✅
+                              </span>
+                            )}
+                            <svg width="12" height="12" viewBox="0 0 14 14" fill="none"
+                              className={`flex-shrink-0 text-white/20 transition-transform ${!isOpen && strokeQualified === 0 ? "ml-auto" : "ml-1"}`}
+                              style={{ transform: isOpen ? "rotate(90deg)" : "rotate(0deg)" }}>
+                              <path d="M5 3L9 7L5 11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          </button>
+
+                          {/* Event rows */}
+                          {isOpen && (
+                            <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                              {rows.map((row, idx) => {
+                                const isLast = idx === rows.length - 1;
+                                const qualified = row.status === "Qualified";
+                                const noPb = row.status === "No PB yet";
+                                const gapColor = qualified
+                                  ? "#6EE7B7"
+                                  : !noPb && (row.gapMs ?? Infinity) <= 3000
+                                  ? "#FCD34D"
+                                  : "rgba(255,255,255,0.35)";
+
+                                return (
+                                  <div key={row.id} className="flex items-center gap-3 px-4 py-3"
+                                    style={{
+                                      borderBottom: isLast ? "none" : "1px solid rgba(255,255,255,0.04)",
+                                      background: qualified ? "rgba(110,231,183,0.04)" : "transparent",
+                                    }}>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm font-semibold text-white">
+                                        {canonicalEventName(row.event)}
+                                      </p>
+                                      <p className="text-[11px] mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>
+                                        Target · {formatMs(row.qualifying_time_ms)} {canonicalCourse(row.course)}
+                                      </p>
+                                    </div>
+                                    <div className="text-right flex-shrink-0">
+                                      {noPb ? (
+                                        <p className="text-xs text-white/25">Scan a result first</p>
+                                      ) : (
+                                        <>
+                                          <p className="text-sm font-bold tabular-nums" style={{ color: qualified ? "#6EE7B7" : "white" }}>
+                                            {formatMs(row.pbMs)}
+                                          </p>
+                                          <p className="text-[11px] font-semibold mt-0.5" style={{ color: gapColor }}>
+                                            {gapText(row.pbMs!, row.qualifying_time_ms)}
+                                          </p>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* ── Next age up view ── */}
+                {showNextAge && (
+                  <div className="rounded-3xl p-5 space-y-3" style={{ background: "rgba(24,95,165,0.08)", border: "1px solid rgba(147,197,253,0.2)" }}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span style={{ background: "rgba(24,95,165,0.2)", color: "#93C5FD", border: "1px solid rgba(147,197,253,0.25)", borderRadius: 10, padding: "2px 10px", fontSize: 10, fontWeight: 500 }}>
+                        Age {swimmer.age + 1} targets
+                      </span>
+                      <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>Planning ahead for next year</span>
+                    </div>
+
+                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                      <thead>
+                        <tr style={{ borderBottom: "1px solid rgba(147,197,253,0.1)" }}>
+                          <th style={{ padding: "6px 0", textAlign: "left", fontSize: 10, color: "rgba(147,197,253,0.5)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>Event</th>
+                          <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 10, color: "rgba(147,197,253,0.5)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>Current PB</th>
+                          <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 10, color: "rgba(147,197,253,0.5)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>Age {swimmer.age + 1} target</th>
+                          <th style={{ padding: "6px 0", textAlign: "right", fontSize: 10, color: "rgba(147,197,253,0.5)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>Gap</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {standardsRows
+                          .filter((r) => r.pbMs != null && r.status !== "Age not in range")
+                          .map((row) => {
+                            if (!swimmer.gender) return null;
+                            const nextTarget = getSNAGQualifyingTime(row.event, swimmer.age + 1, swimmer.gender as "Male" | "Female");
+                            if (!nextTarget) return null;
+                            const nextTargetMs = parseFloat(nextTarget.includes(":") ?
+                              (() => { const [m, s] = nextTarget.split(":"); return (Number(m) * 60 + Number(s)).toString(); })()
+                              : nextTarget) * 1000;
+                            const gapToNext = row.pbMs! - nextTargetMs;
+                            return (
+                              <tr key={row.id} style={{ borderBottom: "1px solid rgba(147,197,253,0.06)" }}>
+                                <td style={{ padding: "9px 0", fontSize: 13, fontWeight: 500, color: "white" }}>{canonicalEventName(row.event)}</td>
+                                <td style={{ padding: "9px 8px", textAlign: "right", fontSize: 13, color: "rgba(255,255,255,0.6)" }}>{formatMs(row.pbMs)}</td>
+                                <td style={{ padding: "9px 8px", textAlign: "right", fontSize: 13, color: "#93C5FD" }}>{nextTarget}</td>
+                                <td style={{ padding: "9px 0", textAlign: "right", fontSize: 12, color: gapToNext <= 0 ? "#6EE7B7" : "rgba(255,255,255,0.4)" }}>
+                                  {gapToNext <= 0 ? "✓ Ready" : formatMs(Math.abs(gapToNext)) + " off"}
+                                </td>
+                              </tr>
+                            );
+                          })
+                          .filter(Boolean)}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
+            )}
+          </section>
+        )}
+
+        <div className="h-4" />
+      </div>
+    </div>
   );
 }
 </file>
@@ -15287,11 +15557,14 @@ function getInitials(name: string) {
   return name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 }
 
-// Assign a stable color per group name
 function groupColor(groupName: string) {
   let hash = 0;
   for (let i = 0; i < groupName.length; i++) hash = groupName.charCodeAt(i) + ((hash << 5) - hash);
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
+function raceAgeFromBirthYear(birthYear: number): number {
+  return new Date().getFullYear() - birthYear;
 }
 
 export default function SwimmersPage() {
@@ -15303,20 +15576,28 @@ export default function SwimmersPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [swimmers, setSwimmers] = useState<Swimmer[]>([]);
 
-  // Group toggle: club or school
   const [groupBy, setGroupBy] = useState<"club" | "school">("club");
-  // Track which groups are expanded — all open by default
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
   // Add form state
   const [name, setName] = useState("");
-  const [age, setAge] = useState("");
+  const [birthYear, setBirthYear] = useState("");
   const [birthMonth, setBirthMonth] = useState<number | "">("");
   const [country, setCountry] = useState("");
   const [swimClub, setSwimClub] = useState("");
   const [school, setSchool] = useState("");
   const [gender, setGender] = useState<"Male" | "Female" | "">("");
   const [groupType, setGroupType] = useState<"primary" | "following">("primary");
+
+  const currentYear = new Date().getFullYear();
+  const parsedBirthYear = Number(birthYear);
+  const previewRaceAge =
+    birthYear.length === 4 &&
+    !Number.isNaN(parsedBirthYear) &&
+    parsedBirthYear > 2000 &&
+    parsedBirthYear <= currentYear
+      ? raceAgeFromBirthYear(parsedBirthYear)
+      : null;
 
   useEffect(() => {
     let mounted = true;
@@ -15348,19 +15629,25 @@ export default function SwimmersPage() {
       .order("name", { ascending: true });
 
     if (error) { setStatus(`Error: ${error.message}`); }
-    else {
-      const rows = (data as Swimmer[]) || [];
-      setSwimmers(rows);
-    }
+    else { setSwimmers((data as Swimmer[]) || []); }
     setLoading(false);
   }
 
   async function addSwimmer() {
     const trimmedName = name.trim();
-    const parsedAge = Number(age);
     if (!trimmedName) { setStatus("Please enter swimmer name."); return; }
-    if (!age || Number.isNaN(parsedAge) || parsedAge <= 0) { setStatus("Please enter a valid age."); return; }
+    if (
+      !birthYear ||
+      birthYear.length !== 4 ||
+      Number.isNaN(parsedBirthYear) ||
+      parsedBirthYear < 2000 ||
+      parsedBirthYear > currentYear
+    ) {
+      setStatus("Please enter a valid 4-digit birth year e.g. 2013");
+      return;
+    }
 
+    const age = raceAgeFromBirthYear(parsedBirthYear);
     setLoading(true);
     setStatus("Adding...");
 
@@ -15369,7 +15656,7 @@ export default function SwimmersPage() {
 
     const { error } = await supabase.from("swimmers").insert([{
       name: trimmedName,
-      age: parsedAge,
+      age,
       birth_month: birthMonth === "" ? null : birthMonth,
       country: country.trim() || null,
       swim_club: swimClub.trim() || null,
@@ -15381,7 +15668,7 @@ export default function SwimmersPage() {
 
     if (error) { setStatus(`Error: ${error.message}`); setLoading(false); return; }
 
-    setName(""); setAge(""); setBirthMonth(""); setCountry("");
+    setName(""); setBirthYear(""); setBirthMonth(""); setCountry("");
     setSwimClub(""); setSchool(""); setGender(""); setGroupType("primary");
     setShowAddForm(false);
     setStatus("Swimmer added.");
@@ -15407,7 +15694,6 @@ export default function SwimmersPage() {
   const primarySwimmers = swimmers.filter((s) => s.group_type === "primary");
   const followingSwimmers = swimmers.filter((s) => s.group_type === "following");
 
-  // Group following swimmers by club or school
   const followingGroups = useMemo(() => {
     const map = new Map<string, Swimmer[]>();
     for (const s of followingSwimmers) {
@@ -15415,7 +15701,6 @@ export default function SwimmersPage() {
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(s);
     }
-    // Sort: alphabetical, but "Other" always last
     return Array.from(map.entries())
       .sort(([a], [b]) => {
         if (a === "Other") return 1;
@@ -15458,7 +15743,25 @@ export default function SwimmersPage() {
           <div className="rounded-3xl border border-white/10 bg-white/5 p-5 space-y-3">
             <h2 className="text-lg font-semibold text-white">Add swimmer</h2>
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" className="input" />
-            <input value={age} onChange={(e) => setAge(e.target.value)} placeholder="Race Age" inputMode="numeric" className="input" />
+
+            {/* Birth year with live race age preview */}
+            <div>
+              <input
+                value={birthYear}
+                onChange={(e) => setBirthYear(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                placeholder="Year of birth e.g. 2013"
+                inputMode="numeric"
+                className="input"
+              />
+              {previewRaceAge !== null && previewRaceAge > 0 && previewRaceAge < 30 && (
+                <p className="mt-1.5 text-xs font-medium px-1" style={{ color: "#FDE68A" }}>
+                  ✓ Race age this year: {previewRaceAge}
+                </p>
+              )}
+              {birthYear.length === 4 && (previewRaceAge === null || previewRaceAge <= 0 || previewRaceAge >= 30) && (
+                <p className="mt-1.5 text-xs text-red-300 px-1">Please enter a valid birth year</p>
+              )}
+            </div>
 
             <div className="grid grid-cols-2 gap-2">
               {(["Male", "Female"] as const).map((g) => (
@@ -15540,7 +15843,6 @@ export default function SwimmersPage() {
         {followingSwimmers.length > 0 && (
           <div className="space-y-3">
 
-            {/* Following header + group toggle */}
             <div className="flex items-center justify-between">
               <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">
                 Following · {followingSwimmers.length}
@@ -15569,15 +15871,13 @@ export default function SwimmersPage() {
               </div>
             </div>
 
-            {/* Group cards */}
             {followingGroups.map(([groupName, groupSwimmers]) => {
-                const isOpen = expandedGroups[groupName] === true;
+              const isOpen = expandedGroups[groupName] === true;
               const colors = groupColor(groupName);
 
               return (
                 <div key={groupName} className="rounded-3xl border border-white/10 bg-white/5 overflow-hidden">
 
-                  {/* Group header — tap to expand/collapse */}
                   <button
                     type="button"
                     onClick={() => toggleGroup(groupName)}
@@ -15603,7 +15903,6 @@ export default function SwimmersPage() {
                     </svg>
                   </button>
 
-                  {/* Swimmer rows */}
                   {isOpen && (
                     <div className="border-t border-white/8">
                       {groupSwimmers.map((swimmer, index) => (
