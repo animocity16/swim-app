@@ -35,7 +35,7 @@ const SPLIT_DISTANCES = [25, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 55
 function normalizeText(value: string) {
   return value
     .toLowerCase()
-    .replace(/[|()[\]{}]/g, " ")
+    .replace(/[|()[[\]{}]/g, " ")
     .replace(/[–—-]/g, " ")
     .replace(/[^a-z0-9:.+\-/, ]+/g, " ")
     .replace(/\s+/g, " ")
@@ -177,7 +177,7 @@ function extractMeetDate(rawText: string): string | null {
     }
   }
 
-  const dmyMatch = text.match(/\b(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})\b/);
+  const dmyMatch = text.match(/\b(\d{1,2})[/-](\d{1,2})[/-](\d{4})\b/);
   if (dmyMatch) {
     const day = Number(dmyMatch[1]);
     const month = Number(dmyMatch[2]);
@@ -239,39 +239,16 @@ function extractMeetName(rawText: string): string | null {
   return null;
 }
 
-// ─── ✅ NEW: Swimmer name extraction from Meet Mobile detail screen ────────────
-//
-// Meet Mobile swim detail layout (from OCR):
-//   EVENT 505
-//   Singapore Swim Series II February 2026
-//   Girls 9-10 100 Meter Fly
-//   Fri | Feb 6, 2026 | 4:44 PM | Finals
-//   EC                          ← avatar initials (skip this)
-//   Elizabeth Le Xuan Chiu      ← ✅ THIS is the name we want
-//   CSC | 10                    ← club code | age
-//   PLACE  FINALS  ENTRY
-//   ...
-//
-// Strategy 1: Find a name-like line immediately before "CLUB | AGE" pattern
-// Strategy 2: Find first name-like line appearing after the event description line
-
 function isLikelyPersonName(line: string): boolean {
-  // Strip leading OCR noise like "(cc) ", "& ", "< " before testing
   const trimmed = line.trim().replace(/^[^A-Z]+/, "").trim();
   if (!trimmed || trimmed.length < 5 || trimmed.length > 70) return false;
   if (/\d/.test(trimmed)) return false;
-  if (/[|•·@#$%^&*()\[\]{}\\/]/.test(trimmed)) return false;
-  // No special characters
-  if (/[|•·@#$%^&*()\[\]{}\\/]/.test(trimmed)) return false;
+  if (/[|•·@#$%^&*()[\]{}\\/]/.test(trimmed)) return false;
   const words = trimmed.split(/\s+/);
   if (words.length < 2 || words.length > 7) return false;
-  // Skip 2-letter avatar initials like "EC", "ML"
   if (words.length === 1 && words[0].length <= 3) return false;
-  // Skip all-caps abbreviations (e.g. "CSC", "MGS", "SSC")
   if (words.every((w) => w === w.toUpperCase() && w.length <= 5)) return false;
-  // Each word should start with uppercase
   if (!words.every((w) => /^[A-Z]/.test(w))) return false;
-  // Not a known swim/admin keyword
   const KNOWN_BAD = [
     "place", "finals", "entry", "heat", "lane", "split", "total",
     "completed", "dropped", "status", "event", "summary", "seed",
@@ -286,9 +263,6 @@ function isLikelyPersonName(line: string): boolean {
 }
 
 function extractSwimmerName(lines: string[]): string | null {
-  // Strategy 1: Look for a line immediately before "CLUB | AGE" pattern
-  // e.g., "CSC | 10", "SSC | 12", "AQGOLDS | 14"
-  // OCR may render "|" as "l", "1", "/" — be flexible
   const CLUB_AGE_PATTERN = /^[A-Z]{2,10}\s*[|l\/\[]\s*\d{1,2}$/i;
 
   for (let i = 1; i < lines.length; i++) {
@@ -299,8 +273,6 @@ function extractSwimmerName(lines: string[]): string | null {
     }
   }
 
-  // Strategy 2: Find first name-like line after the event description line
-  // Event description has distance + stroke (e.g., "Girls 9-10 100 Meter Fly")
   let seenEventLine = false;
   for (const line of lines) {
     const trimmed = line.trim();
@@ -313,16 +285,14 @@ function extractSwimmerName(lines: string[]): string | null {
       }
     } else {
       if (!trimmed) continue;
-      if (/\b(am|pm)\b/i.test(trimmed)) continue; // skip time-of-day
-      if (/^\d/.test(trimmed)) continue;           // skip lines starting with numbers
+      if (/\b(am|pm)\b/i.test(trimmed)) continue;
+      if (/^\d/.test(trimmed)) continue;
       if (isLikelyPersonName(trimmed)) return trimmed;
     }
   }
 
   return null;
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
 
 function isSplitScreen(lines: string[]) {
   const joined = normalizeText(lines.join(" "));
@@ -432,14 +402,63 @@ function parseIMSplitsFromDedicatedParser(rawText: string, eventDistance: number
     });
 }
 
+// ─── ✅ Split-aware course correction ─────────────────────────────────────────
+//
+// Physics rule: if splits exist for an event, we can infer the pool length.
+//
+//   50m event  + any splits   → pool must be <50m  → SCM (not LCM)
+//   100m event + 4×25m splits → short course       → SCM
+//   100m event + 2×50m splits → long course        → LCM (keep as-is)
+//   200m event + 8×25m splits → SCM
+//   200m event + 4×50m splits → LCM
+//
+// We only override when we're confident — we never downgrade a correct SCM/SCY
+// detection, and we only upgrade UNKNOWN or incorrect LCM when splits prove it.
+
+function inferCourseFromSplits(
+  currentCourse: "LCM" | "SCM" | "SCY" | "UNKNOWN",
+  eventDistance: number,
+  splits: ParsedSplit[]
+): "LCM" | "SCM" | "SCY" | "UNKNOWN" {
+  if (splits.length === 0) return currentCourse;
+
+  // A 50m event cannot have splits in a 50m pool — splits mean it's short course.
+  if (eventDistance === 50) {
+    if (currentCourse === "LCM" || currentCourse === "UNKNOWN") {
+      return "SCM";
+    }
+    return currentCourse;
+  }
+
+  // For longer events, infer from the implied leg distance.
+  // implied leg = eventDistance / number of splits
+  const impliedLegDistance = eventDistance / splits.length;
+
+  // Legs of ~25m → short course pool
+  if (Math.abs(impliedLegDistance - 25) < 3) {
+    if (currentCourse === "LCM" || currentCourse === "UNKNOWN") {
+      return "SCM";
+    }
+  }
+
+  // Legs of ~50m → long course — only correct UNKNOWN, leave SCM alone
+  if (Math.abs(impliedLegDistance - 50) < 5) {
+    if (currentCourse === "UNKNOWN") {
+      return "LCM";
+    }
+  }
+
+  return currentCourse;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 function parseSingleSplitScreen(rawText: string, lines: string[], options: ParseOptions): ParsedSwimResult[] {
   const extractedCourse = extractGlobalCourse(lines);
   const globalCourse = extractedCourse !== "UNKNOWN" ? extractedCourse : options.defaultCourse ?? "LCM";
   const swamAt = extractMeetDate(rawText);
   const meetName = extractMeetName(rawText);
 
-  // ✅ Try to extract swimmer name from OCR text (e.g. from Meet Mobile swim detail)
-  // Fall back to whatever was passed in from the UI (e.g. from the swimmer profile tab)
   const resolvedName = options.swimmerName || extractSwimmerName(lines) || null;
 
   let bestEvent: { event: string; distance: number; stroke: string } | null = null;
@@ -505,6 +524,9 @@ function parseSingleSplitScreen(rawText: string, lines: string[], options: Parse
 
   splits = fillMissingLastSplit(splits, bestEvent.distance, bestEvent.stroke, finalTimeMs);
 
+  // ✅ Correct course based on split evidence
+  const correctedCourse = inferCourseFromSplits(globalCourse, bestEvent.distance, splits);
+
   return [{
     event: bestEvent.event,
     distance: bestEvent.distance,
@@ -512,7 +534,7 @@ function parseSingleSplitScreen(rawText: string, lines: string[], options: Parse
     name: resolvedName,
     timeStr: finalTimeStr,
     timeMs: finalTimeMs,
-    course: globalCourse,
+    course: correctedCourse,
     confidence: splits.length > 0 ? 7 : 4,
     rawBlock: lines,
     swamAt: swamAt || null,
@@ -560,7 +582,6 @@ function parseNormalEventBlocks(rawText: string, lines: string[], options: Parse
   const detectedDate = extractMeetDate(rawText);
   const meetName = extractMeetName(rawText);
 
-  // ✅ Try to read swimmer name from OCR text if none was passed in
   const resolvedName = options.swimmerName || extractSwimmerName(lines) || null;
 
   const results: ParsedSwimResult[] = [];
