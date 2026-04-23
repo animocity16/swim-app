@@ -73,8 +73,6 @@ function msToTime(ms: number) {
 function detectCourse(text: string): "LCM" | "SCM" | "SCY" | "UNKNOWN" {
   const t = normalizeText(text);
 
-  // ✅ Skip event description lines — "50 Meter Fly" means race distance, NOT pool length.
-  // If a line has both a stroke name and an event distance, it's an event title, not a course indicator.
   const hasStroke = /\b(freestyle|butterfly|backstroke|breaststroke|\bfly\b|\bback\b|\bbreast\b|\bfree\b|medley)\b/.test(t);
   const hasEventDistance = /\b(50|100|200|400|800|1500)\b/.test(t);
   if (hasStroke && hasEventDistance) return "UNKNOWN";
@@ -348,19 +346,18 @@ function fillMissingLastSplit(
 function parseGenericSplitRows(lines: string[], eventDistance: number, eventStroke: string) {
   const splits: ParsedSplit[] = [];
 
-  // ✅ Filter to just the lines between SPLITS header and Total
-  // This avoids false positives from event name lines above
-  const splitStart = lines.findIndex((l) => /^splits$/i.test(l.trim()));
-  const totalIdx = lines.findIndex((l) => /^total\b/i.test(l.trim()));
-  const workingLines = splitStart >= 0
-    ? lines.slice(splitStart + 1, totalIdx >= 0 ? totalIdx : undefined)
-    : lines;
+  // Max plausible leg split: 90s covers all events including slow 1500m legs.
+  // Prevents cumulative times (e.g. 1:54 total) being saved as leg splits.
+  const MAX_LEG_MS = 90_000;
 
-  for (let i = 0; i < workingLines.length; i++) {
-    const line = workingLines[i];
+  // pendingMs: a standalone time seen on a line before a label line
+  let pendingMs: number | null = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
     const norm = normalizeText(line);
     if (!norm) continue;
-    if (norm.includes("total")) continue;
+    if (norm.includes("total")) { pendingMs = null; continue; }
     if (norm.includes("event summary")) continue;
     if (norm.includes("heat place")) continue;
     if (norm.includes("lane")) continue;
@@ -368,17 +365,26 @@ function parseGenericSplitRows(lines: string[], eventDistance: number, eventStro
     if (/\b(am|pm)\b/i.test(line)) continue;
     if (norm.includes("split")) continue;
 
+    // Strategy A: standalone time line — save as pending for next label
+    // Handles OCR format: "17.76" then "25 Fly" on separate lines
+    const standaloneTime = extractTime(line);
+    if (standaloneTime && normalizeText(line) === normalizeText(standaloneTime)) {
+      const ms = timeToMs(standaloneTime);
+      if (ms > 5000 && ms <= MAX_LEG_MS) pendingMs = ms;
+      continue;
+    }
+
     const distance = detectDistance(line, SPLIT_DISTANCES);
     const stroke = detectStroke(line);
-    if (!distance || !stroke) continue;
-    if (stroke !== eventStroke) continue;
-    if (distance > eventDistance) continue;
+    if (!distance || !stroke) { pendingMs = null; continue; }
+    if (stroke !== eventStroke) { pendingMs = null; continue; }
+    if (distance > eventDistance) { pendingMs = null; continue; }
 
-    // Strategy 1: inline time on the same line e.g. "25 Fly  17.76"
+    // Strategy B: inline time on same line — e.g. "25 Fly  17.76"
+    // extractTime returns the FIRST time match = leg split (cumulative comes after)
     const inlineTime = extractTime(line);
     const inlineMs = inlineTime ? timeToMs(inlineTime) : null;
-
-    if (inlineMs && inlineMs > 5000 && inlineMs <= 120000) {
+    if (inlineMs && inlineMs > 5000 && inlineMs <= MAX_LEG_MS) {
       splits.push({
         label: normalizeSplitLabel(distance, eventStroke),
         order: splits.length + 1,
@@ -386,18 +392,15 @@ function parseGenericSplitRows(lines: string[], eventDistance: number, eventStro
         splitMs: inlineMs,
         cumulativeMs: null,
       });
+      pendingMs = null;
       continue;
     }
 
-    // Strategy 2: time on the NEXT line e.g.
-    //   "25 Fly"
-    //   "17.76"
-    //   "17.76"   ← cumulative (skip)
-    const nextLine = workingLines[i + 1] ?? "";
+    // Strategy C: time on NEXT line — e.g. "25 Fly" then "17.76"
+    const nextLine = lines[i + 1] ?? "";
     const nextTime = extractTime(nextLine);
     const nextMs = nextTime ? timeToMs(nextTime) : null;
-
-    if (nextMs && nextMs > 5000 && nextMs <= 120000) {
+    if (nextMs && nextMs > 5000 && nextMs <= MAX_LEG_MS) {
       splits.push({
         label: normalizeSplitLabel(distance, eventStroke),
         order: splits.length + 1,
@@ -405,9 +408,25 @@ function parseGenericSplitRows(lines: string[], eventDistance: number, eventStro
         splitMs: nextMs,
         cumulativeMs: null,
       });
-      i++; // consume the time line so it's not re-processed
+      i++; // consume the time line
+      pendingMs = null;
       continue;
     }
+
+    // Strategy D: pendingMs from a previous standalone time line
+    if (pendingMs && pendingMs > 5000 && pendingMs <= MAX_LEG_MS) {
+      splits.push({
+        label: normalizeSplitLabel(distance, eventStroke),
+        order: splits.length + 1,
+        distance,
+        splitMs: pendingMs,
+        cumulativeMs: null,
+      });
+      pendingMs = null;
+      continue;
+    }
+
+    pendingMs = null;
   }
 
   return splits.sort((a, b) => (a.distance ?? 9999) - (b.distance ?? 9999));
@@ -428,19 +447,6 @@ function parseIMSplitsFromDedicatedParser(rawText: string, eventDistance: number
     });
 }
 
-// ─── ✅ Split-aware course correction ─────────────────────────────────────────
-//
-// Physics rule: if splits exist for an event, we can infer the pool length.
-//
-//   50m event  + any splits   → pool must be <50m  → SCM (not LCM)
-//   100m event + 4×25m splits → short course       → SCM
-//   100m event + 2×50m splits → long course        → LCM (keep as-is)
-//   200m event + 8×25m splits → SCM
-//   200m event + 4×50m splits → LCM
-//
-// We only override when we're confident — we never downgrade a correct SCM/SCY
-// detection, and we only upgrade UNKNOWN or incorrect LCM when splits prove it.
-
 function inferCourseFromSplits(
   currentCourse: "LCM" | "SCM" | "SCY" | "UNKNOWN",
   eventDistance: number,
@@ -448,7 +454,6 @@ function inferCourseFromSplits(
 ): "LCM" | "SCM" | "SCY" | "UNKNOWN" {
   if (splits.length === 0) return currentCourse;
 
-  // A 50m event cannot have splits in a 50m pool — splits mean it's short course.
   if (eventDistance === 50) {
     if (currentCourse === "LCM" || currentCourse === "UNKNOWN") {
       return "SCM";
@@ -456,18 +461,14 @@ function inferCourseFromSplits(
     return currentCourse;
   }
 
-  // For longer events, infer from the implied leg distance.
-  // implied leg = eventDistance / number of splits
   const impliedLegDistance = eventDistance / splits.length;
 
-  // Legs of ~25m → short course pool
   if (Math.abs(impliedLegDistance - 25) < 3) {
     if (currentCourse === "LCM" || currentCourse === "UNKNOWN") {
       return "SCM";
     }
   }
 
-  // Legs of ~50m → long course — only correct UNKNOWN, leave SCM alone
   if (Math.abs(impliedLegDistance - 50) < 5) {
     if (currentCourse === "UNKNOWN") {
       return "LCM";
@@ -476,8 +477,6 @@ function inferCourseFromSplits(
 
   return currentCourse;
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
 
 function parseSingleSplitScreen(rawText: string, lines: string[], options: ParseOptions): ParsedSwimResult[] {
   const extractedCourse = extractGlobalCourse(lines);
@@ -550,7 +549,6 @@ function parseSingleSplitScreen(rawText: string, lines: string[], options: Parse
 
   splits = fillMissingLastSplit(splits, bestEvent.distance, bestEvent.stroke, finalTimeMs);
 
-  // ✅ Correct course based on split evidence
   const correctedCourse = inferCourseFromSplits(globalCourse, bestEvent.distance, splits);
 
   return [{
