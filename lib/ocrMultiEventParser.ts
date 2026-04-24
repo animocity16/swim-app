@@ -728,10 +728,14 @@ for (const line of lines) {
   }
 
   if (!inSplits) continue;
-  if (/\btotal\b/i.test(line)) break;
-  if (isSplitRow(line)) continue;
+if (/\btotal\b/i.test(line)) break;
+if (isSplitRow(line)) continue;
 
-  const m = line.match(/\b(\d{1,2}\.\d{2})\b/);
+// skip labelled rows like "50 Free" / "100 Free"
+// so we only collect true standalone leg lines like "49.06"
+if (detectDistance(line, SPLIT_DISTANCES)) continue;
+
+const m = line.match(/\b(\d{1,2}\.\d{2})\b/);
   if (!m) continue;
 
   const ms = parseAnyTime(m[1]);
