@@ -622,12 +622,19 @@ function parseSplitsFromCumulatives(
     const dist = detectDistFromLine(line);
     const tMatch = line.match(/\b(\d{1,2}[:.]\d{2}[:.]\d{2})\b/);
     if (dist && tMatch) {
-      const ms = parseAnyTime(tMatch[1]);
-      if (ms > 0 && ms < finalMs) {
-        const existing = cumMap.get(dist);
-        if (!existing || ms < existing) cumMap.set(dist, ms);
-      }
-    }
+  const ms = parseAnyTime(tMatch[1]);
+
+  // ignore obviously invalid or too-large "split" times
+  if (ms <= 0 || ms >= finalMs) continue;
+
+  const existing = cumMap.get(dist);
+
+  // KEY RULE:
+  // always keep the SMALLER time (true cumulative)
+  if (!existing || ms < existing) {
+    cumMap.set(dist, ms);
+  }
+}
   }
 
   // Pass 1b: "N Stroke M:SS.HH" labeled lines (works for both IM and non-IM)
