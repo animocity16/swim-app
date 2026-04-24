@@ -775,20 +775,24 @@ if (explicitLeg) {
 
   // Derive leg times from sorted cumulatives
   const sorted = Array.from(cumMap.entries()).sort((a, b) => a[1] - b[1]);
-  const splits: ParsedSplit[] = [];
-  
-  for (const [dist, cumMs] of sorted) {
-    const stroke = distStrokeMap.get(dist) ?? strokeLabelFor(dist, null);
-    splits.push({
-      label: `${dist} ${eventStroke}`,
-      order: splits.length + 1,
-      distance: dist,
-      splitMs: cumMs,
-      cumulativeMs: cumMs,
-    });
-    
-  }
-  return splits;
+const splits: ParsedSplit[] = [];
+let prevMs = 0;
+
+for (const [dist, cumMs] of sorted) {
+  const stroke = distStrokeMap.get(dist) ?? strokeLabelFor(dist, null);
+
+  splits.push({
+    label: `${dist} ${stroke}`,
+    order: splits.length + 1,
+    distance: dist,
+    splitMs: cumMs - prevMs,
+    cumulativeMs: cumMs,
+  });
+
+  prevMs = cumMs;
+}
+
+return splits;
 }
 
 function parseSingleSplitScreen(
