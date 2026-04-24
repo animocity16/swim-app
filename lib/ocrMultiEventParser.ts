@@ -711,6 +711,61 @@ function parseSplitsFromCumulatives(
     }
   }
 
+  // Pass 4: fill missing middle cumulative using standalone leg times
+// Example: 100 cum 1:31.23 + 49.06 = 150 cum 2:20.29
+const expectedDistances: number[] = [];
+for (let d = stepSize; d <= eventDistance; d += stepSize) {
+  expectedDistances.push(d);
+}
+
+const standaloneLegs: number[] = [];
+inSplits = false;
+
+for (const line of lines) {
+  if (/^splits?$/i.test(line)) {
+    inSplits = true;
+    continue;
+  }
+
+  if (!inSplits) continue;
+  if (/\btotal\b/i.test(line)) break;
+  if (isSplitRow(line)) continue;
+
+  const m = line.match(/\b(\d{1,2}\.\d{2})\b/);
+  if (!m) continue;
+
+  const ms = parseAnyTime(m[1]);
+  if (ms > 5_000 && ms <= 90_000) {
+    standaloneLegs.push(ms);
+  }
+}
+
+for (const dist of expectedDistances) {
+  if (cumMap.has(dist)) continue;
+
+  const prevDist = dist - stepSize;
+  const nextDist = dist + stepSize;
+
+  const prevCum = cumMap.get(prevDist);
+  const nextCum = cumMap.get(nextDist);
+
+  if (prevCum == null || nextCum == null) continue;
+
+  for (const leg of standaloneLegs) {
+    const candidateCum = prevCum + leg;
+
+    if (candidateCum > prevCum && candidateCum < nextCum) {
+      cumMap.set(dist, candidateCum);
+
+      if (!distStrokeMap.has(dist)) {
+        distStrokeMap.set(dist, strokeLabelFor(dist, null));
+      }
+
+      break;
+    }
+  }
+}
+
   // Derive leg times from sorted cumulatives
   const sorted = Array.from(cumMap.entries()).sort((a, b) => a[1] - b[1]);
   const splits: ParsedSplit[] = [];
