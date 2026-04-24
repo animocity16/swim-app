@@ -365,6 +365,13 @@ function parseGenericSplitRows(
       continue;
     }
 
+    // Skip Meet Mobile's intermediate cumulative rows e.g. "100 Free Split 1:31.23"
+    // These are labelled "X [stroke] Split" and are cumulative markers, not leg times
+    if (/\bsplit\b/i.test(line) && detectDistance(line, SPLIT_DISTANCES)) {
+      pendingMs = null;
+      continue;
+    }
+
     if (norm.includes("total")) {
       pendingMs = null;
       continue;
