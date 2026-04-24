@@ -17,6 +17,7 @@ import {
 } from "@/lib/ocrSwimmerScheduleParser";
 import { canonicalCourse, canonicalEventName } from "@/lib/events";
 import { supabase } from "@/lib/supabaseClient";
+import SwimCloudScan from "../components/SwimCloudScan";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
