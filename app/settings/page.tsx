@@ -184,6 +184,7 @@ export default function ScanPage() {
   const [parsedResult, setParsedResult] = useState<ParsedSwimResult | null>(null);
   const [detectedEvent, setDetectedEvent] = useState<string | null>(null);
   const [editedTime, setEditedTime] = useState<string>("");
+  const [editedCourse, setEditedCourse] = useState<"LCM" | "SCM" | "SCY">("LCM");
   const [timeError, setTimeError] = useState<string | null>(null);
   const [autoMatchedSwimmer, setAutoMatchedSwimmer] = useState<Swimmer | null>(null);
   const [showPicker, setShowPicker] = useState(false);
@@ -249,7 +250,7 @@ export default function ScanPage() {
     setStep("idle"); setProgress(0); setMessage(""); setRawText("");
     setScanMode(null);
     setParsedResult(null); setDetectedEvent(null);
-    setEditedTime(""); setTimeError(null);
+    setEditedTime(""); setEditedCourse("LCM"); setTimeError(null);
     setAutoMatchedSwimmer(null); setShowPicker(false);
     setIsSaving(false); setSavedSwimmer(null);
     setEventRows([]); setSelectedRows(new Set());
@@ -274,7 +275,7 @@ export default function ScanPage() {
     setTimeError(null);
     setIsSaving(true);
     const eventName = canonicalEventName(parsedResult.event);
-    const courseName = canonicalCourse(parsedResult.course);
+    const courseName = canonicalCourse(editedCourse);
     if (!eventName) { setMessage("⚠️ Could not determine event name."); setIsSaving(false); return; }
     const { data: existing } = await supabase.from("swim_times").select("id")
       .eq("swimmer_id", swimmer.id).eq("event", eventName).eq("course", courseName).eq("time_ms", confirmedMs).limit(1);
@@ -347,7 +348,7 @@ export default function ScanPage() {
     await loadSwimmers();
 
     const eventName = canonicalEventName(parsedResult.event);
-    const courseName = canonicalCourse(parsedResult.course);
+    const courseName = canonicalCourse(editedCourse);
     const meetType = detectMeetType(rawText, parsedResult.meetName ?? null);
     const { error } = await supabase.from("swim_times").insert({
       swimmer_id: newSwimmer.id, event: eventName, course: courseName,
@@ -587,6 +588,9 @@ export default function ScanPage() {
           setParsedResult(first);
           setDetectedEvent(first.event);
           setEditedTime(first.timeStr ?? "");
+          // Default UNKNOWN course to LCM (most SG meets are long course)
+          const detectedCourse = first.course === "UNKNOWN" ? "LCM" : first.course as "LCM" | "SCM" | "SCY";
+          setEditedCourse(detectedCourse);
           const ocrName = first.name ?? null;
           // ── Safety net: validate name before showing "create swimmer" prompt ──
           if (ocrName && ocrName.trim().length > 0 && isValidPersonName(stripNamePrefix(ocrName))) {
@@ -725,6 +729,21 @@ export default function ScanPage() {
                       style={{ fontVariantNumeric: "tabular-nums" }} />
                     {timeError && <p className="mt-1 text-xs text-red-300">{timeError}</p>}
                   </div>
+                  {/* Course selector — shown always so user can correct UNKNOWN */}
+                  <div>
+                    <p className="text-xs text-white/40 mb-1.5">Course</p>
+                    <div className="flex gap-2">
+                      {(["LCM", "SCM", "SCY"] as const).map((c) => (
+                        <button key={c} type="button" onClick={() => setEditedCourse(c)}
+                          className="flex-1 rounded-xl py-2 text-sm font-bold transition"
+                          style={editedCourse === c
+                            ? { background: "#D97706", color: "#fff" }
+                            : { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.4)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                          {c}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
 
                 {/* Auto-matched swimmer */}
@@ -784,7 +803,7 @@ export default function ScanPage() {
                     {!newSwimmerName.trim() && (
                       <>
                         <p className="text-sm text-white/50">Save to an existing swimmer:</p>
-                        {swimmers.map((swimmer, index) => {
+                        {primarySwimmers.map((swimmer, index) => {
                           const colors = avatarColor(index);
                           return (
                             <button key={swimmer.id} type="button" onClick={() => void saveSingleDirectly(swimmer)}
@@ -991,7 +1010,7 @@ export default function ScanPage() {
                     {!newSwimmerName.trim() && (
                       <>
                         <p className="text-sm text-white/50">Save to an existing swimmer:</p>
-                        {swimmers.map((swimmer, index) => {
+                        {primarySwimmers.map((swimmer, index) => {
                           const colors = avatarColor(index);
                           return (
                             <button key={swimmer.id} type="button"
