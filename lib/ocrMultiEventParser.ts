@@ -718,29 +718,32 @@ for (let d = stepSize; d <= eventDistance; d += stepSize) {
   expectedDistances.push(d);
 }
 
-const standaloneLegs: number[] = [];
+const standaloneLegByDistance = new Map<number, number>();
 inSplits = false;
 
-for (const line of lines) {
+for (let i = 0; i < lines.length; i++) {
+  const line = lines[i];
+
   if (/^splits?$/i.test(line)) {
     inSplits = true;
     continue;
   }
 
   if (!inSplits) continue;
-if (/\btotal\b/i.test(line)) break;
-if (isSplitRow(line)) continue;
+  if (/\btotal\b/i.test(line)) break;
+  if (isSplitRow(line)) continue;
 
-// skip labelled rows like "50 Free" / "100 Free"
-// so we only collect true standalone leg lines like "49.06"
-if (detectDistance(line, SPLIT_DISTANCES)) continue;
+  const dist = detectDistFromLine(line);
+  if (!dist || dist >= eventDistance) continue;
 
-const m = line.match(/\b(\d{1,2}\.\d{2})\b/);
+  const nextLine = lines[i + 1] ?? "";
+  const m = nextLine.match(/^\s*(\d{1,2}\.\d{2})\s*$/);
   if (!m) continue;
 
   const ms = parseAnyTime(m[1]);
+
   if (ms > 5_000 && ms <= 90_000) {
-    standaloneLegs.push(ms);
+    standaloneLegByDistance.set(dist, ms);
   }
 }
 
@@ -755,19 +758,19 @@ for (const dist of expectedDistances) {
 
   if (prevCum == null || nextCum == null) continue;
 
-  for (const leg of standaloneLegs) {
-    const candidateCum = prevCum + leg;
+  const explicitLeg = standaloneLegByDistance.get(dist);
 
-    if (candidateCum > prevCum && candidateCum < nextCum) {
-      cumMap.set(dist, candidateCum);
+if (explicitLeg) {
+  const candidateCum = prevCum + explicitLeg;
 
-      if (!distStrokeMap.has(dist)) {
-        distStrokeMap.set(dist, strokeLabelFor(dist, null));
-      }
+  if (candidateCum > prevCum && candidateCum < nextCum) {
+    cumMap.set(dist, candidateCum);
 
-      break;
+    if (!distStrokeMap.has(dist)) {
+      distStrokeMap.set(dist, strokeLabelFor(dist, null));
     }
   }
+}
 }
 
   // Derive leg times from sorted cumulatives
