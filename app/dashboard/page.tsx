@@ -339,7 +339,7 @@ export default function DashboardPage() {
             </div>
             {[
               { n: "1", t: "Add your swimmer", d: "Name, age, gender and club", href: "/swimmers" },
-              { n: "2", t: "Import existing times", d: "Download template, fill in, upload", href: "/import" },
+              { n: "2", t: "Import existing times", d: "Download template, fill in, upload", href: "/scan" },
               { n: "3", t: "Scan a result", d: "Screenshot Meet Mobile after a race", href: "/scan" },
             ].map((item) => (
               <Link key={item.n} href={item.href}
@@ -599,7 +599,7 @@ export default function DashboardPage() {
               <p className="mt-1 text-sm text-white/40">Import existing times or scan a Meet Mobile result.</p>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <Link href="/import"
+              <Link href="/scan"
                 className="flex items-center justify-center gap-2 rounded-2xl py-3 text-sm font-semibold text-white/70 transition"
                 style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)" }}>
                 Import

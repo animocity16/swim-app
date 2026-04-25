@@ -401,7 +401,7 @@ export default function SettingsPage() {
           {/* Import Data */}
           <button
             type="button"
-            onClick={() => router.push("/import")}
+            onClick={() => router.push("/scan")}
             className="flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left transition mt-3"
             style={{
               background: "rgba(255,255,255,0.05)",
