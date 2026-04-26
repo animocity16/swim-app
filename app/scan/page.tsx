@@ -553,18 +553,22 @@ export default function ScanPage() {
     try {
       const files = [file1, file2].filter(Boolean) as File[];
       let combined = "";
-      for (let i = 0; i < files.length; i++) {
-        const worker = await createWorker("eng", 1, {
-          logger: (m: any) => {
-            if (m.status === "recognizing text") {
-              setProgress((i / files.length) * 100 + (m.progress * 100) / files.length);
-            }
-          },
-        });
-        try {
+      let currentFileIdx = 0;
+      const worker = await createWorker("eng", 1, {
+        logger: (m: any) => {
+          if (m.status === "recognizing text") {
+            setProgress((currentFileIdx / files.length) * 100 + (m.progress * 100) / files.length);
+          }
+        },
+      });
+      try {
+        for (let i = 0; i < files.length; i++) {
+          currentFileIdx = i;
           const { data: { text } } = await worker.recognize(files[i]);
           combined += text + "\n\n";
-        } finally { await worker.terminate(); }
+        }
+      } finally {
+        await worker.terminate();
       }
 
       setRawText(combined);
