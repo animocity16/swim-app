@@ -337,6 +337,6 @@ export default function TutorialOverlay() {
 }
 
 export function replayTutorial() {
-  localStorage.removeAll(TUTORIAL_KEY);
+  localStorage.removeItem(TUTORIAL_KEY);
   window.dispatchEvent(new Event("natrix_replay_tutorial"));
 }
