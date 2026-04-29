@@ -1,4 +1,4 @@
-import { parse200IMSplitsFromOCR } from "@/lib/ocrSplitParser";
+import { parse200IMSplitsFromOCR, parse400IMSplitsFromOCR } from "@/lib/ocrSplitParser";
 
 export type ParsedSplit = {
   label: string;
@@ -278,10 +278,12 @@ function inferCourseFromSplits(
 }
 
 function parseIMSplitsFromDedicatedParser(rawText: string, distance: number): ParsedSplit[] {
-  if (distance !== 200) return [];
+  if (distance !== 200 && distance !== 400) return [];
 
-  const parsed = parse200IMSplitsFromOCR(rawText);
-  if (!parsed?.splits?.length) return [];
+  const parsed = distance === 400
+    ? parse400IMSplitsFromOCR(rawText)
+    : parse200IMSplitsFromOCR(rawText);
+    if (!parsed?.splits?.length) return [];
 
   return parsed.splits.map((s: any, idx: number) => ({
     label: `${s.distance} ${s.stroke}`,
