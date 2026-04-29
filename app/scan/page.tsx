@@ -122,6 +122,33 @@ function avatarColor(index: number) {
   return AVATAR_COLORS[index % AVATAR_COLORS.length];
 }
 
+// ── Stronger dedup ────────────────────────────────────────────────────────────
+// Checks swimmer_id + event + course + time_ms as the base.
+// When swam_at and/or meet_name are available, adds them to the check so that
+// the same time at a different meet is correctly allowed through.
+async function isDuplicate(
+  swimmerId: number,
+  eventName: string,
+  courseName: string,
+  timeMs: number,
+  swamAt: string | null,
+  meetName: string | null
+): Promise<boolean> {
+  let query = supabase
+    .from("swim_times")
+    .select("id", { count: "exact", head: true })
+    .eq("swimmer_id", swimmerId)
+    .eq("event", eventName)
+    .eq("course", courseName)
+    .eq("time_ms", timeMs);
+
+  if (swamAt) query = query.eq("swam_at", swamAt);
+  if (meetName) query = query.eq("meet_name", meetName);
+
+  const { count } = await query.limit(1);
+  return (count ?? 0) > 0;
+}
+
 // ─── Upload slot ──────────────────────────────────────────────────────────────
 
 function SlotButton({
@@ -312,16 +339,19 @@ export default function ScanPage() {
     const eventName = canonicalEventName(parsedResult.event);
     const courseName = canonicalCourse(editedCourse);
     if (!eventName) { setMessage("⚠️ Could not determine event name."); setIsSaving(false); return; }
-    const { data: existing } = await supabase.from("swim_times").select("id")
-      .eq("swimmer_id", swimmer.id).eq("event", eventName).eq("course", courseName).eq("time_ms", confirmedMs).limit(1);
-    if (existing && existing.length > 0) {
+
+    const swamAt = parsedResult.swamAt ?? null;
+    const meetName = parsedResult.meetName ?? null;
+    const alreadySaved = await isDuplicate(swimmer.id, eventName, courseName, confirmedMs, swamAt, meetName);
+    if (alreadySaved) {
       setMessage("This result is already saved."); setSavedSwimmer(swimmer); setShowPicker(false); setIsSaving(false); return;
     }
-    const meetType = detectMeetType(rawText, parsedResult.meetName ?? null);
+
+    const meetType = detectMeetType(rawText, meetName);
     const { data: swimRow, error } = await supabase.from("swim_times").insert({
       swimmer_id: swimmer.id, event: eventName, course: courseName,
       time_ms: confirmedMs, place: parsedResult.place ?? null,
-      meet_name: parsedResult.meetName ?? null, swam_at: parsedResult.swamAt ?? null, meet_type: meetType,
+      meet_name: meetName, swam_at: swamAt, meet_type: meetType,
     }).select().single();
     if (error) { setMessage(`⚠️ ${error.message}`); } else {
       const splits = parsedResult.splits;
@@ -441,9 +471,10 @@ export default function ScanPage() {
       }
       const eventName = canonicalEventName(row.event ?? ""); const courseName = canonicalCourse(row.course ?? "LCM");
       if (!eventName) { errors.push(`${row.name}: no event`); continue; }
-      const { data: existing } = await supabase.from("swim_times").select("id")
-        .eq("swimmer_id", matched.id).eq("event", eventName).eq("course", courseName).eq("time_ms", row.timeMs).limit(1);
-      if (existing && existing.length > 0) { errors.push(`${row.name}: already saved`); continue; }
+
+      const alreadySaved = await isDuplicate(matched.id, eventName, courseName, row.timeMs, row.swamAt ?? null, row.meetName ?? null);
+      if (alreadySaved) { errors.push(`${row.name}: already saved`); continue; }
+
       const { error } = await supabase.from("swim_times").insert({
         swimmer_id: matched.id, event: eventName, course: courseName, time_ms: row.timeMs,
         place: row.place ?? null, meet_name: row.meetName ?? null, swam_at: row.swamAt ?? null, meet_type: meetType,
@@ -477,14 +508,16 @@ export default function ScanPage() {
       const eventName = canonicalEventName(row.event);
       const courseName = canonicalCourse(row.course);
       if (!eventName) { errors.push(`${row.event}: unknown event`); continue; }
-      const { data: existing } = await supabase.from("swim_times").select("id")
-        .eq("swimmer_id", swimmer.id).eq("event", eventName).eq("course", courseName).eq("time_ms", row.timeMs).limit(1);
-      if (existing && existing.length > 0) { errors.push(`${row.event}: already saved`); continue; }
+
+      const swamAt = resolvedSwamAt ?? row.swamAt ?? null;
+      const alreadySaved = await isDuplicate(swimmer.id, eventName, courseName, row.timeMs, swamAt, resolvedMeetName);
+      if (alreadySaved) { errors.push(`${row.event}: already saved`); continue; }
+
       const { error } = await supabase.from("swim_times").insert({
         swimmer_id: swimmer.id, event: eventName, course: courseName,
         time_ms: row.timeMs, place: row.place ?? null,
         meet_name: resolvedMeetName,
-        swam_at: resolvedSwamAt ?? row.swamAt ?? null,
+        swam_at: swamAt,
         meet_type: meetType,
       });
       error ? errors.push(`${row.event}: ${error.message}`) : saved.push(row.event);
@@ -839,31 +872,27 @@ export default function ScanPage() {
                             </button>
                           </div>
                         )}
-
-                        {!newSwimmerName.trim() && (
-                          <>
-                            <p className="text-sm text-white/50">Save to an existing swimmer:</p>
-                            {primarySwimmers.map((swimmer, index) => {
-                              const colors = avatarColor(index);
-                              return (
-                                <button key={swimmer.id} type="button" onClick={() => void saveSingleDirectly(swimmer)}
-                                  disabled={isSaving}
-                                  className="flex w-full items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-3 text-left transition hover:bg-white/10 disabled:opacity-50">
-                                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-xs font-bold"
-                                    style={{ background: colors.bg, color: colors.text }}>{getInitials(swimmer.name)}</div>
-                                  <div>
-                                    <p className="text-sm font-semibold text-white">{swimmer.name}</p>
-                                    <p className="text-xs text-white/40">Age {swimmer.age}{swimmer.swim_club ? ` · ${swimmer.swim_club}` : ""}</p>
-                                  </div>
-                                </button>
-                              );
-                            })}
-                          </>
-                        )}
+                        <p className="text-sm text-white/50">Save to an existing swimmer:</p>
+                        {primarySwimmers.map((swimmer, index) => {
+                          const colors = avatarColor(index);
+                          return (
+                            <button key={swimmer.id} type="button"
+                              onClick={() => void saveSingleDirectly(swimmer)}
+                              disabled={isSaving}
+                              className="flex w-full items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-3 text-left transition hover:bg-white/10 disabled:opacity-50">
+                              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-xs font-bold"
+                                style={{ background: colors.bg, color: colors.text }}>{getInitials(swimmer.name)}</div>
+                              <div>
+                                <p className="text-sm font-semibold text-white">{swimmer.name}</p>
+                                <p className="text-xs text-white/40">Age {swimmer.age}{swimmer.swim_club ? ` · ${swimmer.swim_club}` : ""}</p>
+                              </div>
+                            </button>
+                          );
+                        })}
                       </div>
                     )}
 
-                    {/* Create new swimmer form — single mode */}
+                    {/* Create form — single mode */}
                     {showPicker && showCreateForm && (
                       <div className="rounded-2xl p-4 space-y-4"
                         style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
@@ -901,35 +930,22 @@ export default function ScanPage() {
                           disabled={creatingNewSwimmer || !newSwimmerName.trim()}
                           className="w-full rounded-2xl py-4 text-sm font-bold text-white transition disabled:opacity-50"
                           style={{ background: "#D97706" }}>
-                          {creatingNewSwimmer ? "Creating…" : "Create swimmer & save result"}
+                          {creatingNewSwimmer ? "Creating…" : `Create & save result`}
                         </button>
                       </div>
                     )}
                   </div>
                 )}
 
-                {scanMode === "single" && savedSwimmer && (
-                  <div className="rounded-2xl p-4 space-y-1"
-                    style={{ background: "rgba(186,117,23,0.08)", border: "1px solid rgba(186,117,23,0.2)" }}>
-                    <p className="text-xs text-white/40 uppercase tracking-widest">Saved to</p>
-                    <p className="text-base font-semibold text-white">{savedSwimmer.name}</p>
-                    {detectedEvent && <p className="text-sm text-white/50">{detectedEvent}</p>}
-                    {editedTime && <p className="text-2xl font-bold text-white">{editedTime}</p>}
-                  </div>
-                )}
-
                 {/* ── SWIMMER SCHEDULE MODE ─────────────────────────────────────── */}
                 {scanMode === "swimmer_schedule" && scheduleResults.length > 0 && (
-                  <div className="space-y-4">
-
+                  <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-semibold text-white">
-                          {scheduleSwimmerName ?? "Swimmer"}&apos;s meet results
+                          {scheduleSwimmerName ?? "Swimmer"}&apos;s schedule
                         </p>
-                        <p className="mt-0.5 text-xs text-white/40">
-                          {scheduleResults.length} events · tick to select
-                        </p>
+                        <p className="mt-0.5 text-xs text-white/40">{scheduleResults.length} event{scheduleResults.length === 1 ? "" : "s"} detected</p>
                       </div>
                       <div className="flex gap-2">
                         <button type="button"
