@@ -165,15 +165,41 @@ export default function SettingsPage() {
     router.replace("/login");
   }
 
+  // ─── Real account deletion ────────────────────────────────────────────────
   async function handleDeleteAccount() {
     if (deleteInput !== "DELETE") {
       setDeleteStatus("Please type DELETE to confirm.");
       return;
     }
     setDeletingAccount(true);
-    setDeleteStatus("Deleting account...");
-    await supabase.auth.signOut();
-    router.replace("/login");
+    setDeleteStatus("Deleting your data...");
+
+    try {
+      const res = await fetch("/api/delete-account", { method: "POST" });
+      const json = await res.json() as { success?: boolean; dryRun?: boolean; error?: string; log?: string[] };
+
+      if (!res.ok) {
+        setDeleteStatus(`Error: ${json.error ?? "Something went wrong. Please try again."}`);
+        setDeletingAccount(false);
+        return;
+      }
+
+      // Dry-run mode — SAFETY_LOCK is still true on the server
+      if (json.dryRun) {
+        console.log("🔒 Dry run log:", json.log);
+        setDeleteStatus("Dry run complete — check browser console for details. (SAFETY_LOCK is still on)");
+        setDeletingAccount(false);
+        return;
+      }
+
+      // Real deletion succeeded — sign out and redirect
+      await supabase.auth.signOut();
+      router.replace("/login");
+
+    } catch {
+      setDeleteStatus("Network error. Please try again.");
+      setDeletingAccount(false);
+    }
   }
 
   if (loading) {
