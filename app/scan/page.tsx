@@ -67,10 +67,21 @@ function normName(s: string): string {
 }
 
 // ─── Fuzzy swimmer match ──────────────────────────────────────────────────────
+//
+// KEY INSIGHT: OCR often picks up garbage tokens from Meet Mobile UI chrome
+// (e.g. "ZINE Ena Ang" when the real name is "Ena Ang"). The fix is to check
+// whether ALL *swimmer* name tokens appear in the OCR tokens — not the other
+// way around. If the swimmer's full name is a subset of the OCR blob, it's a
+// strong match regardless of what other junk surrounds it.
 
 function fuzzyMatchSwimmer(ocrName: string | null, swimmers: Swimmer[]): MatchResult {
   const none: MatchResult = { swimmer: null, confidence: 0, method: "none" };
   if (!ocrName || !swimmers.length) return none;
+
+  // If there is exactly one swimmer, always return them — no ambiguity possible
+  if (swimmers.length === 1) {
+    return { swimmer: swimmers[0], confidence: 1, method: "exact" };
+  }
 
   const raw = normName(ocrName);
   const tokens = raw.split(" ").filter(Boolean);
@@ -82,17 +93,33 @@ function fuzzyMatchSwimmer(ocrName: string | null, swimmers: Swimmer[]): MatchRe
     const sName = normName(swimmer.name);
     const sTokens = sName.split(" ").filter(Boolean);
 
-    // Exact
+    // Exact full match
     if (raw === sName) return { swimmer, confidence: 1, method: "exact" };
 
-    // All OCR tokens present in swimmer name tokens (fuzzy substring)
-    const allPresent =
-      tokens.length >= 2 &&
-      tokens.every((t) => sTokens.some((st) => st.startsWith(t) || t.startsWith(st)));
-    if (allPresent) {
-      const conf = tokens.length === sTokens.length ? 0.92 : 0.82;
-      if (conf > best.confidence) best = { swimmer, confidence: conf, method: "full_fuzzy" };
-      continue;
+    // ✅ KEY FIX: All *swimmer* tokens found in OCR tokens (handles garbage prefix/suffix)
+    // e.g. "ZINE Ena Ang" → ocrTokens has "ena" and "ang" → matches "Ena Ang" ✓
+    if (sTokens.length >= 2) {
+      const allSwimmerTokensFound = sTokens.every((st) =>
+        tokens.some((t) => t === st || t.startsWith(st) || st.startsWith(t))
+      );
+      if (allSwimmerTokensFound) {
+        // Perfect token-for-token → 0.95, OCR had extra garbage → 0.89
+        const conf = tokens.length === sTokens.length ? 0.95 : 0.89;
+        if (conf > best.confidence) best = { swimmer, confidence: conf, method: "full_fuzzy" };
+        continue;
+      }
+    }
+
+    // All OCR tokens found in swimmer name (clean subset match, no garbage)
+    if (tokens.length >= 2) {
+      const allOcrTokensFound = tokens.every((t) =>
+        sTokens.some((st) => st.startsWith(t) || t.startsWith(st))
+      );
+      if (allOcrTokensFound) {
+        const conf = 0.88;
+        if (conf > best.confidence) best = { swimmer, confidence: conf, method: "full_fuzzy" };
+        continue;
+      }
     }
 
     // Initial match: "J Loh" → "Julian Loh"
@@ -106,7 +133,7 @@ function fuzzyMatchSwimmer(ocrName: string | null, swimmers: Swimmer[]): MatchRe
       }
     }
 
-    // First name match only (single token or OCR missed last name)
+    // First name only (OCR missed last name)
     if (tokens[0] && tokens[0].length >= 3 && sTokens[0] === tokens[0]) {
       const conf = 0.55;
       if (conf > best.confidence) best = { swimmer, confidence: conf, method: "first_name" };
@@ -580,10 +607,10 @@ export default function ScanPage() {
                           </p>
                           <select
                             className="input text-sm"
-                            value={pr.swimmerId ?? ""}
+                            value={pr.swimmerId ?? (swimmers.length === 1 ? swimmers[0].id : "")}
                             onChange={(e) => {
                               const id = Number(e.target.value) || null;
-                              updatePending(pr.key, { swimmerId: id, confirmed: !!id });
+                              updatePending(pr.key, { swimmerId: id, confirmed: false });
                             }}
                           >
                             <option value="">Assign to swimmer...</option>
@@ -591,6 +618,20 @@ export default function ScanPage() {
                               <option key={s.id} value={s.id}>{s.name}</option>
                             ))}
                           </select>
+                          {(pr.swimmerId || swimmers.length === 1) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const id = pr.swimmerId ?? swimmers[0]?.id ?? null;
+                                updatePending(pr.key, { swimmerId: id, confirmed: true });
+                              }}
+                              className="w-full rounded-xl py-2.5 text-sm font-bold text-white transition"
+                              style={{ background: "#D97706" }}
+                            >
+                              Yes, save to{" "}
+                              {swimmers.find((s) => s.id === (pr.swimmerId ?? swimmers[0]?.id))?.name}
+                            </button>
+                          )}
                         </div>
                       ) : isLow ? (
                         /* Low confidence — warn and require explicit confirmation */
