@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createWorker } from "tesseract.js";
 import { supabase } from "@/lib/supabaseClient";
-import { routeOCR } from "@/lib/ocrRouter";
+import { parseSwimOCRText } from "@/lib/ocrMultiEventParser";
 import type { ParsedSwimResult } from "@/lib/ocrMultiEventParser";
 import SpreadsheetImport from "./SpreadsheetImport";
 
@@ -250,7 +250,7 @@ export default function ScanPage() {
         if (!workerRef.current) workerRef.current = await createWorker("eng");
 
         const { data: { text } } = await workerRef.current.recognize(item.file);
-        const results = routeOCR(text);
+        const results = parseSwimOCRText(text, {});
 
         const newPending: PendingResult[] = results.map((r, i) => {
           const match = fuzzyMatchSwimmer(r.name, swimmersRef.current);
