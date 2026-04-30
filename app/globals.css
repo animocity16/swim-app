@@ -53,6 +53,7 @@ html, body {
   margin: 0;
   padding: 0;
   min-height: 100vh;
+  font-size: 100%;
   color: var(--foreground);
   font-family: -apple-system, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
