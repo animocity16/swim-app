@@ -383,16 +383,9 @@ export default function DashboardPage() {
       <div className="container-app space-y-6">
 
         {/* Header */}
-        <div className="pt-2 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-widest text-white/30">{greeting}</p>
-            <h1 className="mt-0.5 text-3xl font-bold tracking-tight text-white">{userName ?? "Home"}</h1>
-          </div>
-          <Link href="/scan"
-            className="flex items-center gap-1.5 rounded-2xl px-4 py-2.5 text-sm font-semibold text-white transition"
-            style={{ background: "#D97706" }}>
-            <span>📷</span> Scan
-          </Link>
+        <div className="pt-2">
+          <p className="text-xs font-medium uppercase tracking-widest text-white/30">{greeting}</p>
+          <h1 className="mt-0.5 text-3xl font-bold tracking-tight text-white">{userName ?? "Home"}</h1>
         </div>
 
         {/* ── Swimmer cards ──────────────────────────────────────────────────── */}
