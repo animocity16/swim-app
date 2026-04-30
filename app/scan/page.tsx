@@ -340,6 +340,7 @@ export default function ScanPage() {
           swam_at: pr.parsed.swamAt ?? null,
           meet_name: pr.parsed.meetName ?? null,
           place: pr.parsed.place ?? null,
+          age_band: pr.parsed.ageBand ?? null,
         })
         .select("id")
         .single();

@@ -1,4 +1,5 @@
 import { parse200IMSplitsFromOCR, parse400IMSplitsFromOCR } from "@/lib/ocrSplitParser";
+import { parseAgeBand } from "@/lib/ageBandParser";
 
 export type ParsedSplit = {
   label: string;
@@ -22,6 +23,7 @@ export type ParsedSwimResult = {
   meetName?: string | null;
   place?: number | null;
   splits?: ParsedSplit[];
+  ageBand?: string | null;
 };
 
 type ParseOptions = {
@@ -958,13 +960,14 @@ export function parseSwimOCRText(
   const results = isSplitScreen(lines)
     ? parseSingleSplitScreen(rawText, lines, options)
     : parseNormalEventBlocks(rawText, lines, options);
+   const ageBand = parseAgeBand(rawText);
 
   const deduped = new Map<string, ParsedSwimResult>();
   for (const item of results) {
     const key = `${item.event.toLowerCase()}|${item.timeStr}|${item.course}|${item.swamAt ?? ""}|${item.place ?? ""}`;
     const existing = deduped.get(key);
     if (!existing || item.confidence > existing.confidence) {
-      deduped.set(key, item);
+      deduped.set(key, { ...item, ageBand });
     }
   }
 
