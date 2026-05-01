@@ -195,6 +195,30 @@ function SourcePicker({ source, onChange }: { source: Source; onChange: (s: Sour
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+// Crops the top 40% of an image to remove UI chrome (blue header in Meet Mobile)
+// that confuses Tesseract PSM 12 when reading the white splits section below.
+async function cropBottomHalf(file: File): Promise<File> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      const cropTop = Math.floor(img.height * 0.38);
+      canvas.width = img.width;
+      canvas.height = img.height - cropTop;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, -cropTop);
+      URL.revokeObjectURL(url);
+      canvas.toBlob((blob) => {
+        if (blob) resolve(new File([blob], file.name, { type: file.type }));
+        else resolve(file);
+      }, file.type);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
+}
+
 export default function ScanPage() {
   const router = useRouter();
   const [swimmers, setSwimmers] = useState<Swimmer[]>([]);
@@ -568,10 +592,13 @@ export default function ScanPage() {
       try {
         // PSM 12 (sparse text with OSD) reads two-column layouts like Meet Mobile
         // splits screens much better than the default PSM 3 — gets all 4 split times
-        await (worker as any).setParameters({ tessedit_pageseg_mode: "12" });
+        await worker.setParameters({ tessedit_pageseg_mode: "12" });
         for (let i = 0; i < files.length; i++) {
           currentFileIdx = i;
-          const { data: { text } } = await worker.recognize(files[i]);
+          // Crop the top 40% of Meet Mobile screenshots to remove the blue header
+          // which confuses PSM 12 and causes it to miss split times in the white section
+          const croppedFile = await cropBottomHalf(files[i]);
+          const { data: { text } } = await worker.recognize(croppedFile);
           combined += text + "\n\n";
         }
       } finally {
