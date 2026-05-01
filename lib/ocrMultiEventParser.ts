@@ -1,5 +1,4 @@
-import { parse200IMSplitsFromOCR, parse400IMSplitsFromOCR } from "@/lib/ocrSplitParser";
-import { parseAgeBand } from "@/lib/ageBandParser";
+import { parse200IMSplitsFromOCR } from "@/lib/ocrSplitParser";
 
 export type ParsedSplit = {
   label: string;
@@ -23,7 +22,6 @@ export type ParsedSwimResult = {
   meetName?: string | null;
   place?: number | null;
   splits?: ParsedSplit[];
-  ageBand?: string | null;
 };
 
 type ParseOptions = {
@@ -280,12 +278,10 @@ function inferCourseFromSplits(
 }
 
 function parseIMSplitsFromDedicatedParser(rawText: string, distance: number): ParsedSplit[] {
-  if (distance !== 200 && distance !== 400) return [];
+  if (distance !== 200) return [];
 
-  const parsed = distance === 400
-    ? parse400IMSplitsFromOCR(rawText)
-    : parse200IMSplitsFromOCR(rawText);
-    if (!parsed?.splits?.length) return [];
+  const parsed = parse200IMSplitsFromOCR(rawText);
+  if (!parsed?.splits?.length) return [];
 
   return parsed.splits.map((s: any, idx: number) => ({
     label: `${s.distance} ${s.stroke}`,
@@ -485,11 +481,9 @@ function guessMeetName(lines: string[]): string | null {
 
   const meetLike = lines.find((line) => {
     if (UI_LABELS.test(line)) return false;
-    // Reject obvious table headers
+    // Also reject lines that are obviously table headers (e.g. "& SWIM DETAIL <")
     if (/^[&<>|*#]+/.test(line.trim())) return false;
-    // Reject short UI chrome lines
-    if (line.trim().length < 6) return false;
-    return /\b(meet|cup|championship|championships|trials|league|invitational|swim|awards|aquatics|swimfaster|series|open|classic|nationals|juniors|masters)\b/i.test(line);
+    return /\b(meet|cup|championship|championships|trials|league|invitational|swim)\b/i.test(line);
   });
   return meetLike ?? null;
 }
@@ -662,94 +656,12 @@ function parseSplitsFromCumulatives(
       .map((m) => parseAnyTime(m[1])).filter((ms) => ms > 30_000 && ms < finalMs);
     const cumOnLine = allTimes[allTimes.length - 1];
     if (cumOnLine) { cumMap.set(dist, cumOnLine); continue; }
-    // Cumulative on one of the next few lines (PSM 12 may have leg time between label and cumulative)
-    for (let ahead = 1; ahead <= 3; ahead++) {
-      const aheadLine = lines[i + ahead] ?? "";
-      if (!aheadLine) break;
-      // Stop if we hit another label line
-      if (detectDistFromLine(aheadLine) && detectStrokeFromLine(aheadLine)) break;
-      // Match mm:ss.hh or mm:ss:hh (3-colon format)
-      const nm = aheadLine.match(/^(\d{1,2}[:.:]\d{2}[:.\.]\d{2})$/);
-      if (nm) {
-        const ms = parseAnyTime(nm[1]);
-        if (ms > 30_000 && ms < finalMs) { cumMap.set(dist, ms); i += ahead; break; }
-      }
-    }
-  }
-
-  // Pass 1c: "N Free Split M:SS.HH" — 100m segment times for freestyle events
-  // Meet Mobile shows these for 400/800/1500 Free. Each segment = time for 100m interval.
-  // If we know cumMap[100], we can derive cumMap[200] = cumMap[100] + segment2, etc.
-  if (!isIM) {
-    const segmentSplits: number[] = [];
-    inSplits = false;
-    for (const line of lines) {
-      if (/^splits?$/i.test(line)) { inSplits = true; continue; }
-      if (!inSplits) continue;
-      if (/\btotal\b/i.test(line)) break;
-      if (!isSplitRow(line)) continue;
-      // Match "100 Free Split M:SS.HH" or "N Free Split M:SS.HH"
-      if (!/\bfree\b/i.test(line) && !/\bback\b/i.test(line) && !/\bbreast\b/i.test(line)) continue;
-      const tMatch = line.match(/\b(\d{1,2}[:.:]\d{2}[:.\.]\d{2})\b/);
-      if (tMatch) {
-        const ms = parseAnyTime(tMatch[1]);
-        // Segment times for 400 Free should be roughly 60-200 seconds
-        if (ms > 60_000 && ms < 250_000) segmentSplits.push(ms);
-      } else {
-        // Time is on the next line (common in PSM 12 output)
-        // Find this line's index in the lines array
-        const lineIdx = lines.indexOf(line);
-        const nextLine = lineIdx >= 0 ? (lines[lineIdx + 1] ?? "") : "";
-        const ntMatch = nextLine.match(/^(\d{1,2}[:.:]\d{2}[:.\.]\d{2})$/);
-        if (ntMatch) {
-          const ms = parseAnyTime(ntMatch[1]);
-          if (ms > 60_000 && ms < 250_000) segmentSplits.push(ms);
-        }
-      }
-    }
-
-    if (segmentSplits.length >= 2) {
-      // Find the highest known 100m-interval cumulative to start from
-      const known100mCums = Array.from(cumMap.entries())
-        .filter(([d]) => d % 100 === 0 && d > 0)
-        .sort((a, b) => a[0] - b[0]);
-
-      if (known100mCums.length > 0) {
-        // Figure out which segment index corresponds to our starting cumulative
-        const [startDist, startCum] = known100mCums[0];
-        const startSegIdx = startDist / 100; // 100m → segment index 1, 200m → 2, etc.
-
-        let currentCum = startCum;
-        let currentDist = startDist;
-
-        for (let si = startSegIdx; si < segmentSplits.length; si++) {
-          const nextDist = currentDist + 100;
-          if (nextDist > eventDistance) break;
-          const segMs = segmentSplits[si];
-          const derivedCum = currentCum + segMs;
-          if (!cumMap.has(nextDist) && derivedCum > currentCum && derivedCum < finalMs) {
-            cumMap.set(nextDist, derivedCum);
-            if (!distStrokeMap.has(nextDist)) distStrokeMap.set(nextDist, strokeLabelFor(nextDist, null));
-          }
-          currentCum = cumMap.get(nextDist) ?? currentCum + segMs;
-          currentDist = nextDist;
-        }
-      }
-    }
-  }
-
-    // Pass 1d: linear interpolation for missing midpoints between known 100m cumulatives
-  // Handles 250m, 350m in 400 Free when individual 50m legs aren't in OCR
-  for (let d = stepSize; d < eventDistance; d += stepSize) {
-    if (cumMap.has(d)) continue;
-    const prevD = d - stepSize;
-    const nextD = d + stepSize;
-    if (!cumMap.has(prevD) || !cumMap.has(nextD)) continue;
-    // Simple midpoint interpolation
-    const interpMs = Math.round((cumMap.get(prevD)! + cumMap.get(nextD)!) / 2);
-    if (interpMs > cumMap.get(prevD)! && interpMs < cumMap.get(nextD)!) {
-      cumMap.set(d, interpMs);
-      if (!distStrokeMap.has(d)) distStrokeMap.set(d, strokeLabelFor(d, null));
+    // Cumulative on next standalone line
+    const nextLine = lines[i + 1] ?? "";
+    const nm = nextLine.match(/^(\d{1,2}:\d{2}\.\d{2})$/);
+    if (nm) {
+      const ms = parseAnyTime(nm[1]);
+      if (ms > 30_000 && ms < finalMs) { cumMap.set(dist, ms); i++; }
     }
   }
 
@@ -780,7 +692,7 @@ function parseSplitsFromCumulatives(
     if (!inSplits) continue;
     if (/\btotal\b/i.test(line)) break;
     if (isSplitRow(line)) continue; // skip split rows here
-    for (const m of line.matchAll(/\b(\d{1,2}[:.:]\d{2}[:.\.]\d{2})\b/g)) {
+    for (const m of line.matchAll(/\b(\d{1,2}:\d{2}\.\d{2})\b/g)) {
       const ms = parseAnyTime(m[1]);
       if (ms > 30_000 && ms < finalMs) mmSsTimes.push(ms);
     }
@@ -824,22 +736,14 @@ for (let i = 0; i < lines.length; i++) {
   const dist = detectDistFromLine(line);
   if (!dist || dist >= eventDistance) continue;
 
-  // Check next line (normal pattern: label then leg)
   const nextLine = lines[i + 1] ?? "";
-  const mNext = nextLine.match(/^\s*(\d{1,2}\.\d{2})\s*$/);
-  if (mNext) {
-    const ms = parseAnyTime(mNext[1]);
-    if (ms > 5_000 && ms <= 90_000) standaloneLegByDistance.set(dist, ms);
-    continue;
-  }
-  // Also check previous line (PSM 12 pattern: leg then label)
-  const prevLine = lines[i - 1] ?? "";
-  const mPrev = prevLine.match(/^\s*(\d{1,2}\.\d{2})\s*$/);
-  if (mPrev) {
-    const ms = parseAnyTime(mPrev[1]);
-    if (ms > 5_000 && ms <= 90_000 && !standaloneLegByDistance.has(dist)) {
-      standaloneLegByDistance.set(dist, ms);
-    }
+  const m = nextLine.match(/^\s*(\d{1,2}\.\d{2})\s*$/);
+  if (!m) continue;
+
+  const ms = parseAnyTime(m[1]);
+
+  if (ms > 5_000 && ms <= 90_000) {
+    standaloneLegByDistance.set(dist, ms);
   }
 }
 
@@ -891,39 +795,6 @@ for (const [dist, cumMs] of sorted) {
 return splits;
 }
 
-// ─── Place extraction for Meet Mobile detail screen ──────────────────────────
-// Meet Mobile detail screen has:  "PLACE  FINALS  ENTRY\n34  3:11.68  3:14.32"
-// The naive detectPlace grabs the first 1-2 digit number it sees, which with
-// PSM 12 OCR is often "1" from the status bar time "1:04". This function
-// specifically looks for the number after the PLACE/FINALS/ENTRY header row.
-function extractPlaceFromDetailScreen(rawText: string, lines: string[]): number | null {
-  // Pattern 1: "PLACE FINALS ENTRY" followed by "34 3:11.68 ..."
-  const placeBlock = rawText.match(/PLACE\s+FINALS\s+ENTRY[\r\n]+\s*(\d{1,3})\b/i);
-  if (placeBlock) {
-    const p = Number(placeBlock[1]);
-    if (p >= 1 && p <= 999) return p;
-  }
-
-  // Pattern 2: "Finals  34  3:11.68" or "Final  34  3:11.68" (EVENT SUMMARY section)
-  const finalsLine = rawText.match(/\bfinals?\s+(\d{1,3})\s+\d+[:.]/i);
-  if (finalsLine) {
-    const p = Number(finalsLine[1]);
-    if (p >= 1 && p <= 999) return p;
-  }
-
-  // Pattern 3: Scan lines for "PLACE" keyword explicitly (not just any leading number)
-  for (const line of lines) {
-    const t = line.toLowerCase().replace(/[|()\[\]{}]/g, ' ').replace(/[–—-]/g, ' ').trim();
-    const m = t.match(/\bplace[: ]+(\d{1,3})\b/);
-    if (m) {
-      const p = Number(m[1]);
-      if (p >= 1 && p <= 999) return p;
-    }
-  }
-
-  return null;
-}
-
 function parseSingleSplitScreen(
   rawText: string,
   lines: string[],
@@ -932,7 +803,7 @@ function parseSingleSplitScreen(
   const globalCourse = detectCourse(rawText) || options.defaultCourse || "UNKNOWN";
   const swamAt = extractMeetDate(rawText);
   const meetName = guessMeetName(lines);
-  const place = extractPlaceFromDetailScreen(rawText, lines);
+  const place = lines.map(detectPlace).find((v) => v != null) ?? null;
   const resolvedName = guessNameFromLines(lines, options);
 
   const bestEventLine = lines.find(looksLikeNormalEventLine);
@@ -1085,14 +956,13 @@ export function parseSwimOCRText(
   const results = isSplitScreen(lines)
     ? parseSingleSplitScreen(rawText, lines, options)
     : parseNormalEventBlocks(rawText, lines, options);
-   const ageBand = parseAgeBand(rawText);
 
   const deduped = new Map<string, ParsedSwimResult>();
   for (const item of results) {
     const key = `${item.event.toLowerCase()}|${item.timeStr}|${item.course}|${item.swamAt ?? ""}|${item.place ?? ""}`;
     const existing = deduped.get(key);
     if (!existing || item.confidence > existing.confidence) {
-      deduped.set(key, { ...item, ageBand });
+      deduped.set(key, item);
     }
   }
 
