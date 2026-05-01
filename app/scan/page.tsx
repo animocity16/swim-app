@@ -568,7 +568,7 @@ export default function ScanPage() {
       try {
         // PSM 12 (sparse text with OSD) reads two-column layouts like Meet Mobile
         // splits screens much better than the default PSM 3 — gets all 4 split times
-        await worker.setParameters({ tessedit_pageseg_mode: "12" });
+        await (worker as any).setParameters({ tessedit_pageseg_mode: "12" });
         for (let i = 0; i < files.length; i++) {
           currentFileIdx = i;
           const { data: { text } } = await worker.recognize(files[i]);
