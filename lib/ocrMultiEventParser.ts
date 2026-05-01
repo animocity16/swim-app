@@ -662,12 +662,94 @@ function parseSplitsFromCumulatives(
       .map((m) => parseAnyTime(m[1])).filter((ms) => ms > 30_000 && ms < finalMs);
     const cumOnLine = allTimes[allTimes.length - 1];
     if (cumOnLine) { cumMap.set(dist, cumOnLine); continue; }
-    // Cumulative on next standalone line
-    const nextLine = lines[i + 1] ?? "";
-    const nm = nextLine.match(/^(\d{1,2}:\d{2}\.\d{2})$/);
-    if (nm) {
-      const ms = parseAnyTime(nm[1]);
-      if (ms > 30_000 && ms < finalMs) { cumMap.set(dist, ms); i++; }
+    // Cumulative on one of the next few lines (PSM 12 may have leg time between label and cumulative)
+    for (let ahead = 1; ahead <= 3; ahead++) {
+      const aheadLine = lines[i + ahead] ?? "";
+      if (!aheadLine) break;
+      // Stop if we hit another label line
+      if (detectDistFromLine(aheadLine) && detectStrokeFromLine(aheadLine)) break;
+      // Match mm:ss.hh or mm:ss:hh (3-colon format)
+      const nm = aheadLine.match(/^(\d{1,2}[:.:]\d{2}[:.\.]\d{2})$/);
+      if (nm) {
+        const ms = parseAnyTime(nm[1]);
+        if (ms > 30_000 && ms < finalMs) { cumMap.set(dist, ms); i += ahead; break; }
+      }
+    }
+  }
+
+  // Pass 1c: "N Free Split M:SS.HH" — 100m segment times for freestyle events
+  // Meet Mobile shows these for 400/800/1500 Free. Each segment = time for 100m interval.
+  // If we know cumMap[100], we can derive cumMap[200] = cumMap[100] + segment2, etc.
+  if (!isIM) {
+    const segmentSplits: number[] = [];
+    inSplits = false;
+    for (const line of lines) {
+      if (/^splits?$/i.test(line)) { inSplits = true; continue; }
+      if (!inSplits) continue;
+      if (/\btotal\b/i.test(line)) break;
+      if (!isSplitRow(line)) continue;
+      // Match "100 Free Split M:SS.HH" or "N Free Split M:SS.HH"
+      if (!/\bfree\b/i.test(line) && !/\bback\b/i.test(line) && !/\bbreast\b/i.test(line)) continue;
+      const tMatch = line.match(/\b(\d{1,2}[:.:]\d{2}[:.\.]\d{2})\b/);
+      if (tMatch) {
+        const ms = parseAnyTime(tMatch[1]);
+        // Segment times for 400 Free should be roughly 60-200 seconds
+        if (ms > 60_000 && ms < 250_000) segmentSplits.push(ms);
+      } else {
+        // Time is on the next line (common in PSM 12 output)
+        // Find this line's index in the lines array
+        const lineIdx = lines.indexOf(line);
+        const nextLine = lineIdx >= 0 ? (lines[lineIdx + 1] ?? "") : "";
+        const ntMatch = nextLine.match(/^(\d{1,2}[:.:]\d{2}[:.\.]\d{2})$/);
+        if (ntMatch) {
+          const ms = parseAnyTime(ntMatch[1]);
+          if (ms > 60_000 && ms < 250_000) segmentSplits.push(ms);
+        }
+      }
+    }
+
+    if (segmentSplits.length >= 2) {
+      // Find the highest known 100m-interval cumulative to start from
+      const known100mCums = Array.from(cumMap.entries())
+        .filter(([d]) => d % 100 === 0 && d > 0)
+        .sort((a, b) => a[0] - b[0]);
+
+      if (known100mCums.length > 0) {
+        // Figure out which segment index corresponds to our starting cumulative
+        const [startDist, startCum] = known100mCums[0];
+        const startSegIdx = startDist / 100; // 100m → segment index 1, 200m → 2, etc.
+
+        let currentCum = startCum;
+        let currentDist = startDist;
+
+        for (let si = startSegIdx; si < segmentSplits.length; si++) {
+          const nextDist = currentDist + 100;
+          if (nextDist > eventDistance) break;
+          const segMs = segmentSplits[si];
+          const derivedCum = currentCum + segMs;
+          if (!cumMap.has(nextDist) && derivedCum > currentCum && derivedCum < finalMs) {
+            cumMap.set(nextDist, derivedCum);
+            if (!distStrokeMap.has(nextDist)) distStrokeMap.set(nextDist, strokeLabelFor(nextDist, null));
+          }
+          currentCum = cumMap.get(nextDist) ?? currentCum + segMs;
+          currentDist = nextDist;
+        }
+      }
+    }
+  }
+
+    // Pass 1d: linear interpolation for missing midpoints between known 100m cumulatives
+  // Handles 250m, 350m in 400 Free when individual 50m legs aren't in OCR
+  for (let d = stepSize; d < eventDistance; d += stepSize) {
+    if (cumMap.has(d)) continue;
+    const prevD = d - stepSize;
+    const nextD = d + stepSize;
+    if (!cumMap.has(prevD) || !cumMap.has(nextD)) continue;
+    // Simple midpoint interpolation
+    const interpMs = Math.round((cumMap.get(prevD)! + cumMap.get(nextD)!) / 2);
+    if (interpMs > cumMap.get(prevD)! && interpMs < cumMap.get(nextD)!) {
+      cumMap.set(d, interpMs);
+      if (!distStrokeMap.has(d)) distStrokeMap.set(d, strokeLabelFor(d, null));
     }
   }
 
@@ -698,7 +780,7 @@ function parseSplitsFromCumulatives(
     if (!inSplits) continue;
     if (/\btotal\b/i.test(line)) break;
     if (isSplitRow(line)) continue; // skip split rows here
-    for (const m of line.matchAll(/\b(\d{1,2}:\d{2}\.\d{2})\b/g)) {
+    for (const m of line.matchAll(/\b(\d{1,2}[:.:]\d{2}[:.\.]\d{2})\b/g)) {
       const ms = parseAnyTime(m[1]);
       if (ms > 30_000 && ms < finalMs) mmSsTimes.push(ms);
     }
@@ -742,14 +824,22 @@ for (let i = 0; i < lines.length; i++) {
   const dist = detectDistFromLine(line);
   if (!dist || dist >= eventDistance) continue;
 
+  // Check next line (normal pattern: label then leg)
   const nextLine = lines[i + 1] ?? "";
-  const m = nextLine.match(/^\s*(\d{1,2}\.\d{2})\s*$/);
-  if (!m) continue;
-
-  const ms = parseAnyTime(m[1]);
-
-  if (ms > 5_000 && ms <= 90_000) {
-    standaloneLegByDistance.set(dist, ms);
+  const mNext = nextLine.match(/^\s*(\d{1,2}\.\d{2})\s*$/);
+  if (mNext) {
+    const ms = parseAnyTime(mNext[1]);
+    if (ms > 5_000 && ms <= 90_000) standaloneLegByDistance.set(dist, ms);
+    continue;
+  }
+  // Also check previous line (PSM 12 pattern: leg then label)
+  const prevLine = lines[i - 1] ?? "";
+  const mPrev = prevLine.match(/^\s*(\d{1,2}\.\d{2})\s*$/);
+  if (mPrev) {
+    const ms = parseAnyTime(mPrev[1]);
+    if (ms > 5_000 && ms <= 90_000 && !standaloneLegByDistance.has(dist)) {
+      standaloneLegByDistance.set(dist, ms);
+    }
   }
 }
 
