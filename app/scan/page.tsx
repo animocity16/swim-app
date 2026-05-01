@@ -592,14 +592,18 @@ export default function ScanPage() {
       try {
         // PSM 12 (sparse text with OSD) reads two-column layouts like Meet Mobile
         // splits screens much better than the default PSM 3 — gets all 4 split times
-        await worker.setParameters({ tessedit_pageseg_mode: "12" });
         for (let i = 0; i < files.length; i++) {
           currentFileIdx = i;
-          // Crop the top 40% of Meet Mobile screenshots to remove the blue header
-          // which confuses PSM 12 and causes it to miss split times in the white section
-          const croppedFile = await cropBottomHalf(files[i]);
-          const { data: { text } } = await worker.recognize(croppedFile);
-          combined += text + "\n\n";
+          // Pass 1: Full image with PSM 3 (default) — gets meet name, swimmer, place, final time
+          await (worker as any).setParameters({ tessedit_pageseg_mode: "3" });
+          const { data: { text: fullText } } = await worker.recognize(files[i]);
+          // Pass 2: Bottom 62% only with PSM 12 — gets split times from white section
+          // without the blue header confusing the layout detector
+          const splitsFile = await cropBottomHalf(files[i]);
+          await (worker as any).setParameters({ tessedit_pageseg_mode: "12" });
+          const { data: { text: splitsText } } = await worker.recognize(splitsFile);
+          // Combine: full text first (for header info), then splits text (for split times)
+          combined += fullText + "\n\n" + splitsText + "\n\n";
         }
       } finally {
         await worker.terminate();
