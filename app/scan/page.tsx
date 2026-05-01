@@ -143,7 +143,29 @@ function fuzzyMatchSwimmer(ocrName: string | null, swimmers: Swimmer[]): MatchRe
   return best;
 }
 
-// ─── Duplicate check ──────────────────────────────────────────────────────────
+// ─── Full-text swimmer search (fallback when name extraction fails) ───────────
+// Searches the entire raw OCR text for any swimmer name from the database.
+// Handles cases where Tesseract merges lines and the name regex fails.
+
+function findSwimmerInText(rawText: string, swimmers: Swimmer[]): MatchResult {
+  const none: MatchResult = { swimmer: null, confidence: 0, method: "none" };
+  if (!rawText || !swimmers.length) return none;
+
+  const textNorm = rawText.toLowerCase().replace(/[^a-z ]/g, " ").replace(/\s+/g, " ").trim();
+
+  for (const swimmer of swimmers) {
+    const nameNorm = swimmer.name.toLowerCase().replace(/[^a-z ]/g, " ").replace(/\s+/g, " ").trim();
+    if (textNorm.includes(nameNorm)) {
+      return { swimmer, confidence: 0.85, method: "full_fuzzy" };
+    }
+    const tokens = nameNorm.split(" ").filter((t) => t.length >= 3);
+    if (tokens.length >= 2 && tokens.every((t) => textNorm.includes(t))) {
+      return { swimmer, confidence: 0.78, method: "full_fuzzy" };
+    }
+  }
+
+  return none;
+}
 
 async function isDuplicate(swimmerId: number, r: ParsedSwimResult): Promise<boolean> {
   let q = supabase
@@ -253,13 +275,18 @@ export default function ScanPage() {
         const results = parseSwimOCRText(text, {});
 
         const newPending: PendingResult[] = results.map((r, i) => {
+          // Primary match: use name extracted by parser
           const match = fuzzyMatchSwimmer(r.name, swimmersRef.current);
-          const autoConfirm = match.confidence >= AUTO_CONF_THRESHOLD;
+          // Fallback: search full OCR text for any swimmer name (handles merged lines)
+          const finalMatch = match.swimmer
+            ? match
+            : findSwimmerInText(text, swimmersRef.current);
+          const autoConfirm = finalMatch.confidence >= AUTO_CONF_THRESHOLD;
           return {
             key: `${item.id}-${i}`,
             parsed: r,
-            match,
-            swimmerId: autoConfirm ? (match.swimmer?.id ?? null) : null,
+            match: finalMatch,
+            swimmerId: autoConfirm ? (finalMatch.swimmer?.id ?? null) : null,
             confirmed: autoConfirm,
             saved: false,
             skipped: false,
