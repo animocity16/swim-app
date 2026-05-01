@@ -186,7 +186,7 @@ async function isDuplicate(swimmerId: number, r: ParsedSwimResult): Promise<bool
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const LOW_CONF_THRESHOLD = 0.80; // below this → warn + require confirmation
-const AUTO_CONF_THRESHOLD = 0.88; // at or above → auto-confirmed
+const AUTO_CONF_THRESHOLD = 0.75; // at or above → auto-confirmed
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
