@@ -195,30 +195,6 @@ function SourcePicker({ source, onChange }: { source: Source; onChange: (s: Sour
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-// Crops the top 40% of an image to remove UI chrome (blue header in Meet Mobile)
-// that confuses Tesseract PSM 12 when reading the white splits section below.
-async function cropBottomHalf(file: File): Promise<File> {
-  return new Promise((resolve) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
-      const cropTop = Math.floor(img.height * 0.38);
-      canvas.width = img.width;
-      canvas.height = img.height - cropTop;
-      const ctx = canvas.getContext("2d")!;
-      ctx.drawImage(img, 0, -cropTop);
-      URL.revokeObjectURL(url);
-      canvas.toBlob((blob) => {
-        if (blob) resolve(new File([blob], file.name, { type: file.type }));
-        else resolve(file);
-      }, file.type);
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
-    img.src = url;
-  });
-}
-
 export default function ScanPage() {
   const router = useRouter();
   const [swimmers, setSwimmers] = useState<Swimmer[]>([]);
@@ -230,10 +206,8 @@ export default function ScanPage() {
 
   const [file1, setFile1] = useState<File | null>(null);
   const [file2, setFile2] = useState<File | null>(null);
-  const [file3, setFile3] = useState<File | null>(null);
   const [preview1, setPreview1] = useState<string | null>(null);
   const [preview2, setPreview2] = useState<string | null>(null);
-  const [preview3, setPreview3] = useState<string | null>(null);
   const [step, setStep] = useState<Step>("idle");
   const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState("");
@@ -281,7 +255,6 @@ export default function ScanPage() {
 
   const ref1 = useRef<HTMLInputElement | null>(null);
   const ref2 = useRef<HTMLInputElement | null>(null);
-  const ref3 = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => { void loadSwimmers(); }, []);
 
@@ -307,8 +280,8 @@ export default function ScanPage() {
   }
 
   function reset() {
-    setFile1(null); setFile2(null); setFile3(null);
-    setPreview1(null); setPreview2(null); setPreview3(null);
+    setFile1(null); setFile2(null);
+    setPreview1(null); setPreview2(null);
     setStep("idle"); setProgress(0); setMessage(""); setRawText("");
     setScanMode(null);
     setParsedResult(null); setDetectedEvent(null);
@@ -326,7 +299,6 @@ export default function ScanPage() {
     setShowInfo(false);
     if (ref1.current) ref1.current.value = "";
     if (ref2.current) ref2.current.value = "";
-    if (ref3.current) ref3.current.value = "";
   }
 
   // ── Save single result ────────────────────────────────────────────────────
@@ -579,7 +551,7 @@ export default function ScanPage() {
     setNewSwimmerClub(""); setShowCreateForm(false);
 
     try {
-      const files = [file1, file2, file3].filter(Boolean) as File[];
+      const files = [file1, file2].filter(Boolean) as File[];
       let combined = "";
       let currentFileIdx = 0;
       const worker = await createWorker("eng", 1, {
@@ -590,20 +562,11 @@ export default function ScanPage() {
         },
       });
       try {
-        // PSM 12 (sparse text with OSD) reads two-column layouts like Meet Mobile
-        // splits screens much better than the default PSM 3 — gets all 4 split times
+        await (worker as any).setParameters({ tessedit_pageseg_mode: "12" });
         for (let i = 0; i < files.length; i++) {
           currentFileIdx = i;
-          // Pass 1: Full image with PSM 3 (default) — gets meet name, swimmer, place, final time
-          await (worker as any).setParameters({ tessedit_pageseg_mode: "3" });
-          const { data: { text: fullText } } = await worker.recognize(files[i]);
-          // Pass 2: Bottom 62% only with PSM 12 — gets split times from white section
-          // without the blue header confusing the layout detector
-          const splitsFile = await cropBottomHalf(files[i]);
-          await (worker as any).setParameters({ tessedit_pageseg_mode: "12" });
-          const { data: { text: splitsText } } = await worker.recognize(splitsFile);
-          // Combine: full text first (for header info), then splits text (for split times)
-          combined += fullText + "\n\n" + splitsText + "\n\n";
+          const { data: { text } } = await worker.recognize(files[i]);
+          combined += text + "\n\n";
         }
       } finally {
         await worker.terminate();
@@ -757,11 +720,6 @@ export default function ScanPage() {
                     onChange={(e) => handleFile(e, setFile1, setPreview1)} />
                   <SlotButton label="Screen 2" hint="Optional" preview={preview2} inputRef={ref2}
                     onChange={(e) => handleFile(e, setFile2, setPreview2)} />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <SlotButton label="Screen 3" hint="Optional" preview={preview3} inputRef={ref3}
-                    onChange={(e) => handleFile(e, setFile3, setPreview3)} />
-                  <div /> {/* spacer */}
                 </div>
                 <button type="button" onClick={handleScan} disabled={!file1}
                   className="w-full rounded-2xl py-4 text-lg font-bold text-white transition disabled:opacity-40"
