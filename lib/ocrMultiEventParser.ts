@@ -485,9 +485,11 @@ function guessMeetName(lines: string[]): string | null {
 
   const meetLike = lines.find((line) => {
     if (UI_LABELS.test(line)) return false;
-    // Also reject lines that are obviously table headers (e.g. "& SWIM DETAIL <")
+    // Reject obvious table headers
     if (/^[&<>|*#]+/.test(line.trim())) return false;
-    return /\b(meet|cup|championship|championships|trials|league|invitational|swim)\b/i.test(line);
+    // Reject short UI chrome lines
+    if (line.trim().length < 6) return false;
+    return /\b(meet|cup|championship|championships|trials|league|invitational|swim|awards|aquatics|swimfaster|series|open|classic|nationals|juniors|masters)\b/i.test(line);
   });
   return meetLike ?? null;
 }
@@ -799,6 +801,39 @@ for (const [dist, cumMs] of sorted) {
 return splits;
 }
 
+// ─── Place extraction for Meet Mobile detail screen ──────────────────────────
+// Meet Mobile detail screen has:  "PLACE  FINALS  ENTRY\n34  3:11.68  3:14.32"
+// The naive detectPlace grabs the first 1-2 digit number it sees, which with
+// PSM 12 OCR is often "1" from the status bar time "1:04". This function
+// specifically looks for the number after the PLACE/FINALS/ENTRY header row.
+function extractPlaceFromDetailScreen(rawText: string, lines: string[]): number | null {
+  // Pattern 1: "PLACE FINALS ENTRY" followed by "34 3:11.68 ..."
+  const placeBlock = rawText.match(/PLACE\s+FINALS\s+ENTRY[\r\n]+\s*(\d{1,3})\b/i);
+  if (placeBlock) {
+    const p = Number(placeBlock[1]);
+    if (p >= 1 && p <= 999) return p;
+  }
+
+  // Pattern 2: "Finals  34  3:11.68" or "Final  34  3:11.68" (EVENT SUMMARY section)
+  const finalsLine = rawText.match(/\bfinals?\s+(\d{1,3})\s+\d+[:.]/i);
+  if (finalsLine) {
+    const p = Number(finalsLine[1]);
+    if (p >= 1 && p <= 999) return p;
+  }
+
+  // Pattern 3: Scan lines for "PLACE" keyword explicitly (not just any leading number)
+  for (const line of lines) {
+    const t = line.toLowerCase().replace(/[|()\[\]{}]/g, ' ').replace(/[–—-]/g, ' ').trim();
+    const m = t.match(/\bplace[: ]+(\d{1,3})\b/);
+    if (m) {
+      const p = Number(m[1]);
+      if (p >= 1 && p <= 999) return p;
+    }
+  }
+
+  return null;
+}
+
 function parseSingleSplitScreen(
   rawText: string,
   lines: string[],
@@ -807,7 +842,7 @@ function parseSingleSplitScreen(
   const globalCourse = detectCourse(rawText) || options.defaultCourse || "UNKNOWN";
   const swamAt = extractMeetDate(rawText);
   const meetName = guessMeetName(lines);
-  const place = lines.map(detectPlace).find((v) => v != null) ?? null;
+  const place = extractPlaceFromDetailScreen(rawText, lines);
   const resolvedName = guessNameFromLines(lines, options);
 
   const bestEventLine = lines.find(looksLikeNormalEventLine);
