@@ -31,9 +31,9 @@ export const viewport: Viewport = {
   themeColor: "#063554",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
   viewportFit: "cover",
+  // maximumScale and userScalable intentionally removed —
+  // letting the phone's system text size setting work as expected.
 };
 
 export default function RootLayout({
