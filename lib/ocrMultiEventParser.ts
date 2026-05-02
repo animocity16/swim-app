@@ -575,9 +575,11 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
     if (!inSplits) continue;
     if (/\btotal\b/i.test(line)) break;
 
-    // Must contain a recognisable split distance
+    // Must contain a recognisable split distance.
+    // Negative lookbehind (?<![.\d]) prevents matching distances inside time
+    // values — e.g. "49.25" or "46.75" would falsely match 25 / 75 without it.
     const distMatch = line.match(
-      /\b(25|50|75|100|125|150|175|200|225|250|275|300|325|350|375|400|450|500|800|1500)\b/
+      /(?<![.\d])\b(25|50|75|100|125|150|175|200|225|250|275|300|325|350|375|400|450|500|800|1500)\b/
     );
     if (!distMatch) continue;
     const dist = Number(distMatch[1]);
