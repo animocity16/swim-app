@@ -62,17 +62,27 @@ function timeToMs(timeStr: string): number {
 
 // Repair times:
 //   "36.76"  → "36.76"   (valid as-is)
+//   "36,76"  → "36.76"   (OCR reads decimal point as comma)
+//   "3676"   → "36.76"   (OCR drops the decimal point — common for sub-minute times)
 //   "118.03" → "1:18.03" (3 digits before dot = m:ss.hh)
 //   "215.72" → "2:15.72"
 //   "11803"  → "1:18.03" (5 raw digits)
 function repairTime(raw: string): string | null {
-  const s = raw.trim();
+  // Normalize comma-as-decimal first (OCR reads "47,53" instead of "47.53")
+  const s = raw.trim().replace(/,/g, ".");
   if (/^\d{1,2}:\d{2}\.\d{2}$/.test(s)) {
     const sec = Number(s.split(":")[1].split(".")[0]);
     if (sec >= 60) return null;
     return s;
   }
   if (/^\d{2}\.\d{2}$/.test(s)) return s;
+  // "4753" → "47.53" (4-digit: OCR dropped the decimal point for sub-minute times)
+  if (/^\d{4}$/.test(s)) {
+    const sec = Number(s.slice(0, 2));
+    const hun = Number(s.slice(2));
+    if (sec >= 60 || hun > 99) return null;
+    return `${s.slice(0, 2)}.${s.slice(2)}`;
+  }
   if (/^\d{5}$/.test(s)) {
     const sec = Number(s.slice(1, 3));
     if (sec >= 60) return null;
@@ -176,12 +186,21 @@ function isEventDescriptionLine(line: string): boolean {
 //   "36.76 | Place: 18"
 //   "118.03 | Place: 11"
 //   "3:02.40 | Place:"   (place missing)
+//   "3676 | Place: 18"   (OCR drops decimal → 4-digit raw time)
+//   "47,53 | Place: 29"  (OCR reads decimal as comma)
+//
+// FIX 1: pipe character is now optional and accepts OCR alternatives (l, 1, I).
+// FIX 2: 4-digit raw times (e.g. "4753") now accepted for sub-minute events.
+// FIX 3: comma-decimal (e.g. "47,53") now accepted.
 
 function extractTimePlaceFromLine(line: string): {
   timeStr: string; timeMs: number; place: number | null;
 } | null {
+  // Allow pipe alternatives: |  l  1  I  (or no separator at all before "Place")
+  // Accept: mm:ss.hh, 3-digit decimal (118.03), 2-digit decimal (47.53),
+  //         5-digit raw (11803), 4-digit raw (4753), comma-decimal variants
   const m = line.match(
-    /(\d{1,2}:\d{2}\.\d{2}|\d{3}\.\d{2}|\d{2}\.\d{2}|\d{5})\s*\|\s*Place:\s*(\d+|EXH)?/i
+    /(\d{1,2}:\d{2}[.,]\d{2}|\d{3}[.,]\d{2}|\d{2}[.,]\d{2}|\d{5}|\d{4})\s*[|lI1]?\s*Place\s*:\s*(\d+|EXH)?/i
   );
   if (!m) return null;
 
@@ -285,20 +304,29 @@ export function parseSwimmerScheduleOCR(rawText: string): ParsedSwimmerSchedule 
 // Key signals:
 // - "Full schedule" — unique to this screen
 // - Multiple "Place:" with colon — unique to swimmer schedule format
-// NOT checking COMPLETED — OCR doesn't read it reliably on this screen type
+//
+// FIX: made "FULL SCHEDULE" detection fuzzier to handle OCR garbles
+// (e.g. "FULL SCHEDUL", "FULL SCHED"), and "PLACE:" check ignores spaces
+// between PLACE and the colon.
 
 export function isSwimmerSchedulePage(rawText: string): boolean {
   const flat = rawText.replace(/\s+/g, " ").toUpperCase();
 
+  // Hard exclusions — these are definitely NOT a schedule page
   if (flat.includes("SWIM DETAIL")) return false;
   if (flat.includes("EVENT SUMMARY")) return false;
   if (flat.includes("EVENT DETAILS")) return false;
 
-  // "FULL SCHEDULE" is the strongest unique signal
-  if (!flat.includes("FULL SCHEDULE")) return false;
+  // "FULL SCHEDULE" is the strongest unique signal.
+  // Accept common OCR garbles: "FULL SCHEDUL", "FULL SCHED", "FULL SCH"
+  const hasFullSchedule =
+    flat.includes("FULL SCHEDULE") ||
+    flat.includes("FULL SCHEDUL") ||
+    /FULL\s+SCH[A-Z]{0,5}/.test(flat);
+  if (!hasFullSchedule) return false;
 
-  // Multiple "PLACE:" with colon
-  const placeColonCount = (flat.match(/PLACE:/g) ?? []).length;
+  // Multiple "PLACE:" entries (accept optional space before colon, OCR noise)
+  const placeColonCount = (flat.match(/PLACE\s*:/g) ?? []).length;
   if (placeColonCount < 2) return false;
 
   return true;

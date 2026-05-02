@@ -365,8 +365,6 @@ function parseGenericSplitRows(
       continue;
     }
 
-    // Skip Meet Mobile's intermediate cumulative rows e.g. "100 Free Split 1:31.23"
-    // These are labelled "X [stroke] Split" and are cumulative markers, not leg times
     if (/\bsplit\b/i.test(line) && detectDistance(line, SPLIT_DISTANCES)) {
       pendingMs = null;
       continue;
@@ -473,15 +471,11 @@ function parseGenericSplitRows(
 }
 
 // ─── FIX 1: guessMeetName ────────────────────────────────────────────────────
-// Previously matched ANY line containing "swim", which caught Meet Mobile's
-// "SWIM DETAIL" UI label. Now we explicitly reject those UI strings first.
 function guessMeetName(lines: string[]): string | null {
-  // Known Meet Mobile UI labels that contain "swim" but are NOT meet names
   const UI_LABELS = /swim\s*detail|swim\s*scan|swim\s*meet\s*detail/i;
 
   const meetLike = lines.find((line) => {
     if (UI_LABELS.test(line)) return false;
-    // Also reject lines that are obviously table headers (e.g. "& SWIM DETAIL <")
     if (/^[&<>|*#]+/.test(line.trim())) return false;
     return /\b(meet|cup|championship|championships|trials|league|invitational|swim|awards|aquatics|swimfaster|series|juniors|nationals|classic|open)\b/i.test(line);
   });
@@ -489,9 +483,6 @@ function guessMeetName(lines: string[]): string | null {
 }
 
 // ─── FIX 2: guessNameFromLines ────────────────────────────────────────────────
-// Previously "nals PLACE TIME" passed the filter because "nals" isn't the full
-// word "finals". Now we block: any line containing "place" or "time" as words,
-// lines that appear to be truncated "finals" ("nals"), and all-caps header lines.
 function guessNameFromLines(lines: string[], options: ParseOptions): string | null {
   if (options.swimmerName?.trim()) return options.swimmerName.trim();
 
@@ -503,11 +494,8 @@ function guessNameFromLines(lines: string[], options: ParseOptions): string | nu
     if (detectCourse(line) !== "UNKNOWN") return false;
     if (detectPlace(line) != null) return false;
     if (isSkippableLine(line)) return false;
-    // Existing filter: common table-row keywords
     if (/\b(splits|total|finals|prelims|heat|lane)\b/i.test(line)) return false;
-    // NEW: reject lines with "place" or "time" as standalone words (table headers)
     if (/\b(place|time|rank|nals)\b/i.test(line)) return false;
-    // NEW: reject lines that are ALL-CAPS only (table headers like "PLACE TIME")
     if (/^[A-Z\s&<>|]+$/.test(line.trim()) && line.trim().length > 3) return false;
     return /^[A-Za-z ,.'-]{4,}$/.test(line);
   });
@@ -518,31 +506,31 @@ function guessNameFromLines(lines: string[], options: ParseOptions): string | nu
 function isSplitScreen(lines: string[]) {
   const hasSplitsHeader = lines.some((line) => /^splits$/i.test(line.trim()));
   const hasTotal = lines.some((line) => /^total\b/i.test(line.trim()));
-  return hasSplitsHeader || hasTotal;
+  // "PLACE FINALS ENTRY" is the header row on every Meet Mobile swim detail screen,
+  // including 50m events which have no splits section.
+  // Routing these through parseSingleSplitScreen lets extractFinalTimeMs search
+  // the full text — critical because PSM 12 sparse-text may emit the result block
+  // before the event name, outside parseNormalEventBlocks' 8-line look-ahead window.
+  const hasPlaceFinalsEntry = lines.some((line) =>
+    /place\s+finals\s+entry/i.test(line)
+  );
+  return hasSplitsHeader || hasTotal || hasPlaceFinalsEntry;
 }
-
-// ── extractFinalTimeMs ────────────────────────────────────────────────────────
-// Extracts the authoritative final time from a SWIM DETAIL OCR block.
-// Handles garbled formats like "3:19:19" (colon instead of dot) that Tesseract
-// commonly produces on Meet Mobile's result screens.
 
 function extractFinalTimeMs(rawText: string): number {
   function parseAnyTime(t: string): number {
     const parts = t.split(":");
     if (parts.length === 3) {
-      // "m:ss:hh" — OCR used colon instead of decimal
       return Number(parts[0]) * 60_000 + Number(parts[1]) * 1_000 + Number(parts[2]) * 10;
     }
     return timeToMs(t);
   }
 
-  // "PLACE FINALS ENTRY\n1 3:04.78 ..." — grab first time after the header row
   const placeBlock = rawText.match(/PLACE\s+FINALS\s+ENTRY[\r\n]+\s*\d+\s+([\d:.]+)/i);
   if (placeBlock) {
     const ms = parseAnyTime(placeBlock[1]);
     if (ms > 30_000) return ms;
   }
-  // "Total 3:04.78" or "Total 3:19:19"
   const totalMatch = rawText.match(/Total\s+([\d:.]+)/i);
   if (totalMatch) {
     const ms = parseAnyTime(totalMatch[1]);
@@ -552,16 +540,11 @@ function extractFinalTimeMs(rawText: string): number {
 }
 
 // ── parseSplitsFromCumulatives ────────────────────────────────────────────────
-// NEW STRATEGY: instead of trying to parse leg times directly (which Tesseract
-// garbles badly — e.g. "4790" for "47.90", "13677" for "1:36.77"), we extract
-// the CUMULATIVE times which OCR reads much more reliably, then derive each
+// Extracts the CUMULATIVE times (which OCR reads reliably), then derives each
 // leg split as the difference between consecutive cumulatives.
 //
-// Cumulative sources (in priority order):
-//   1. "N [Stroke] Split M:SS.HH" rows — always clearly labelled by Meet Mobile
-//   2. "N [Stroke] M:SS.HH" label lines where the cumulative is on the right
-//   3. The first standalone ss.hh time after "SPLITS" = 50m cumulative (= leg)
-//   4. Standalone M:SS.HH times that fall between known cumulatives (gap fill)
+// FIX: splitStep = 50 for all non-IM events (Meet Mobile always shows 50m splits).
+//      imStep = eventDistance/4 is only used for IM leg-label computation.
 
 function parseSplitsFromCumulatives(
   rawText: string,
@@ -570,8 +553,10 @@ function parseSplitsFromCumulatives(
   finalMs: number
 ): ParsedSplit[] {
   const lines = rawText.split("\n").map((l) => l.trim()).filter(Boolean);
-  const stepSize = eventDistance / 4;
+  const imStep = eventDistance / 4;          // IM: one leg = eventDistance/4
   const isIM = eventStroke === "IM";
+  // Non-IM events always split every 50m; IM splits every imStep (quarter-distance)
+  const splitStep = isIM ? imStep : 50;
   const IM_STROKES = ["Fly", "Back", "Breast", "Free"] as const;
 
   function parseAnyTime(t: string): number {
@@ -583,7 +568,8 @@ function parseSplitsFromCumulatives(
   }
 
   function strokeLabelFor(dist: number, s: string | null): string {
-    if (isIM) return IM_STROKES[dist / stepSize - 1] ?? "Free";
+    // For IM, use imStep (not splitStep) to compute which leg we're on
+    if (isIM) return IM_STROKES[dist / imStep - 1] ?? "Free";
     return s ?? normalizeSplitLabel(dist, eventStroke).split(" ").slice(1).join(" ");
   }
 
@@ -622,23 +608,16 @@ function parseSplitsFromCumulatives(
     const dist = detectDistFromLine(line);
     const tMatch = line.match(/\b(\d{1,2}[:.]\d{2}[:.]\d{2})\b/);
     if (dist && tMatch) {
-  const ms = parseAnyTime(tMatch[1]);
-
-  // ignore obviously invalid or too-large "split" times
-  if (ms <= 0 || ms >= finalMs) continue;
-
-  const existing = cumMap.get(dist);
-
-  // KEY RULE:
-  // always keep the SMALLER time (true cumulative)
-  if (!existing || ms < existing) {
-    cumMap.set(dist, ms);
-  }
-}
+      const ms = parseAnyTime(tMatch[1]);
+      if (ms <= 0 || ms >= finalMs) continue;
+      const existing = cumMap.get(dist);
+      if (!existing || ms < existing) {
+        cumMap.set(dist, ms);
+      }
+    }
   }
 
   // Pass 1b: "N Stroke M:SS.HH" labeled lines (works for both IM and non-IM)
-  // The rightmost mm:ss.hh on the line is the cumulative
   inSplits = false;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -665,7 +644,9 @@ function parseSplitsFromCumulatives(
     }
   }
 
-  // Pass 2: first standalone ss.hh after SPLITS = 50m cumulative (= first leg)
+  // Pass 2: first standalone ss.hh after SPLITS = first leg cumulative (= splitStep distance)
+  // FIX: store at splitStep (50 for non-IM), not stepSize (which was eventDistance/4).
+  // This is what was causing the missing 50m split for 400 Free.
   inSplits = false;
   for (const line of lines) {
     if (/^splits?$/i.test(line)) { inSplits = true; continue; }
@@ -675,23 +656,24 @@ function parseSplitsFromCumulatives(
     const m = line.match(/\b(\d{1,2}\.\d{2})\b/);
     if (m) {
       const ms = parseAnyTime(m[1]);
-      if (ms > 5_000 && ms <= 90_000 && !cumMap.has(stepSize)) {
-        cumMap.set(stepSize, ms);
-        if (!distStrokeMap.has(stepSize)) distStrokeMap.set(stepSize, strokeLabelFor(stepSize, isIM ? "Fly" : null));
+      if (ms > 5_000 && ms <= 90_000 && !cumMap.has(splitStep)) {
+        cumMap.set(splitStep, ms);
+        if (!distStrokeMap.has(splitStep)) {
+          distStrokeMap.set(splitStep, strokeLabelFor(splitStep, isIM ? "Fly" : null));
+        }
         break;
       }
     }
   }
 
   // Pass 3: gap-fill with mm:ss.hh from NON-split lines only
-  // CRITICAL: skip split rows to prevent "1:33.55 second-half" from poisoning the gap fill
   const mmSsTimes: number[] = [];
   inSplits = false;
   for (const line of lines) {
     if (/^splits?$/i.test(line)) { inSplits = true; continue; }
     if (!inSplits) continue;
     if (/\btotal\b/i.test(line)) break;
-    if (isSplitRow(line)) continue; // skip split rows here
+    if (isSplitRow(line)) continue;
     for (const m of line.matchAll(/\b(\d{1,2}:\d{2}\.\d{2})\b/g)) {
       const ms = parseAnyTime(m[1]);
       if (ms > 30_000 && ms < finalMs) mmSsTimes.push(ms);
@@ -704,107 +686,99 @@ function parseSplitsFromCumulatives(
       const [d1, c1] = sortedCums[i];
       const [d2] = sortedCums[i + 1];
       if (ms > c1 && ms < sortedCums[i + 1][1]) {
-        const midDist = Math.round(((d1 + d2) / 2) / stepSize) * stepSize;
+        // FIX: use splitStep for mid-distance snapping
+        const midDist = Math.round(((d1 + d2) / 2) / splitStep) * splitStep;
         if (!cumMap.has(midDist)) cumMap.set(midDist, ms);
         break;
       }
     }
   }
 
-  // Pass 4: fill missing middle cumulative using standalone leg times
-// Example: 100 cum 1:31.23 + 49.06 = 150 cum 2:20.29
-const expectedDistances: number[] = [];
-for (let d = stepSize; d <= eventDistance; d += stepSize) {
-  expectedDistances.push(d);
-}
-
-const standaloneLegByDistance = new Map<number, number>();
-inSplits = false;
-
-for (let i = 0; i < lines.length; i++) {
-  const line = lines[i];
-
-  if (/^splits?$/i.test(line)) {
-    inSplits = true;
-    continue;
+  // Pass 4: fill missing distances using standalone leg times
+  // FIX: expectedDistances now starts at splitStep (50 for non-IM), not imStep.
+  // This is what was causing distance=50 to never be checked for 400 Free.
+  const expectedDistances: number[] = [];
+  for (let d = splitStep; d <= eventDistance; d += splitStep) {
+    expectedDistances.push(d);
   }
 
-  if (!inSplits) continue;
-  if (/\btotal\b/i.test(line)) break;
-  if (isSplitRow(line)) continue;
+  const standaloneLegByDistance = new Map<number, number>();
+  inSplits = false;
 
-  const dist = detectDistFromLine(line);
-  if (!dist || dist >= eventDistance) continue;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^splits?$/i.test(line)) { inSplits = true; continue; }
+    if (!inSplits) continue;
+    if (/\btotal\b/i.test(line)) break;
+    if (isSplitRow(line)) continue;
 
-  const nextLine = lines[i + 1] ?? "";
-  const m = nextLine.match(/^\s*(\d{1,2}\.\d{2})\s*$/);
-  if (!m) continue;
+    const dist = detectDistFromLine(line);
+    if (!dist || dist >= eventDistance) continue;
 
-  const ms = parseAnyTime(m[1]);
+    const nextLine = lines[i + 1] ?? "";
+    const m = nextLine.match(/^\s*(\d{1,2}\.\d{2})\s*$/);
+    if (!m) continue;
 
-  if (ms > 5_000 && ms <= 90_000) {
-    standaloneLegByDistance.set(dist, ms);
-  }
-}
-
-for (const dist of expectedDistances) {
-  if (cumMap.has(dist)) continue;
-
-  const prevDist = dist - stepSize;
-  const nextDist = dist + stepSize;
-
-  const prevCum = cumMap.get(prevDist);
-  const nextCum = cumMap.get(nextDist);
-
-  if (prevCum == null || nextCum == null) continue;
-
-  const explicitLeg = standaloneLegByDistance.get(dist);
-
-if (explicitLeg) {
-  const candidateCum = prevCum + explicitLeg;
-
-  if (candidateCum > prevCum && candidateCum < nextCum) {
-    cumMap.set(dist, candidateCum);
-
-    if (!distStrokeMap.has(dist)) {
-      distStrokeMap.set(dist, strokeLabelFor(dist, null));
+    const ms = parseAnyTime(m[1]);
+    if (ms > 5_000 && ms <= 90_000) {
+      standaloneLegByDistance.set(dist, ms);
     }
   }
-}
-}
+
+  for (const dist of expectedDistances) {
+    if (cumMap.has(dist)) continue;
+
+    // FIX: use splitStep for prev/next distance computation
+    const prevDist = dist - splitStep;
+    const nextDist = dist + splitStep;
+
+    const prevCum = cumMap.get(prevDist);
+    const nextCum = cumMap.get(nextDist);
+
+    if (prevCum == null || nextCum == null) continue;
+
+    const explicitLeg = standaloneLegByDistance.get(dist);
+
+    if (explicitLeg) {
+      const candidateCum = prevCum + explicitLeg;
+      if (candidateCum > prevCum && candidateCum < nextCum) {
+        cumMap.set(dist, candidateCum);
+        if (!distStrokeMap.has(dist)) {
+          distStrokeMap.set(dist, strokeLabelFor(dist, null));
+        }
+      }
+    }
+  }
 
   // Derive leg times from sorted cumulatives
   const sorted = Array.from(cumMap.entries()).sort((a, b) => a[1] - b[1]);
-const splits: ParsedSplit[] = [];
-let prevMs = 0;
+  const splits: ParsedSplit[] = [];
+  let prevMs = 0;
 
-for (const [dist, cumMs] of sorted) {
-  const stroke = distStrokeMap.get(dist) ?? strokeLabelFor(dist, null);
+  for (const [dist, cumMs] of sorted) {
+    const stroke = distStrokeMap.get(dist) ?? strokeLabelFor(dist, null);
 
-  splits.push({
-    label: `${dist} ${stroke}`,
-    order: splits.length + 1,
-    distance: dist,
-    splitMs: cumMs - prevMs,
-    cumulativeMs: cumMs,
-  });
+    splits.push({
+      label: `${dist} ${stroke}`,
+      order: splits.length + 1,
+      distance: dist,
+      splitMs: cumMs - prevMs,
+      cumulativeMs: cumMs,
+    });
 
-  prevMs = cumMs;
-}
+    prevMs = cumMs;
+  }
 
-return splits;
+  return splits;
 }
 
 function extractPlaceFromDetailScreen(rawText: string, lines: string[]): number | null {
-  // "PLACE FINALS ENTRY\n21 6:13.92 NT" — look for number after this header
   const m1 = rawText.match(/PLACE\s+FINALS\s+ENTRY[\r\n]+\s*(\d{1,3})\b/i);
   if (m1) { const p = Number(m1[1]); if (p >= 1 && p <= 999) return p; }
 
-  // "Finals  21  6:13.92" in EVENT SUMMARY section
   const m2 = rawText.match(/\bfinals?\s+(\d{1,3})\s+\d+[:.]/i);
   if (m2) { const p = Number(m2[1]); if (p >= 1 && p <= 999) return p; }
 
-  // Explicit "place: N" keyword on any line
   for (const line of lines) {
     const t = line.toLowerCase().replace(/[|()\[\]{}]/g, " ").trim();
     const m = t.match(/\bplace[: ]+(\d{1,3})\b/);
@@ -831,10 +805,8 @@ function parseSingleSplitScreen(
   const bestEvent = buildEventFromLine(bestEventLine);
   if (!bestEvent) return [];
 
-  // Extract final time using robust multi-format parser
   let finalTimeMs = extractFinalTimeMs(rawText);
 
-  // Fallback: scan for any mm:ss.hh in the text near FINALS keyword
   if (finalTimeMs <= 0) {
     const finalsLine = lines.find((l) => /finals/i.test(l));
     if (finalsLine) {
@@ -849,7 +821,6 @@ function parseSingleSplitScreen(
 
   const finalTimeStr = msToTime(finalTimeMs);
 
-  // Use cumulative-based split extraction (much more reliable than leg-time parsing)
   const splits = parseSplitsFromCumulatives(rawText, bestEvent.distance, bestEvent.stroke, finalTimeMs);
 
   const correctedCourse = inferCourseFromSplits(globalCourse, bestEvent.distance, splits);
