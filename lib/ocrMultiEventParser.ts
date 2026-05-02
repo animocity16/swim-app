@@ -544,11 +544,20 @@ function extractFinalTimeMs(rawText: string): number {
 }
 
 // ── parseSplitsDirectly ───────────────────────────────────────────────────────
-// Reads every split row across ALL SPLITS sections in the combined OCR text.
-// Handles both same-line times ("50 Free  43.81  43.81") and next-line times
-// ("50 Free\n43.81\n43.81") — Meet Mobile stacks the two time values on the
-// right, which OCR often puts on separate lines from the label.
-// Collects from all SPLITS sections and deduplicates by label.
+// Reads splits matching the actual OCR output pattern from Meet Mobile:
+//
+//   SPLITS
+//   43.81            ← leg time
+//   50 Free          ← label
+//   43.81            ← cumulative time
+//   4937             ← next leg (sometimes OCR drops the decimal: "4937" = "49.37")
+//   100 Free
+//   1:33.18
+//   ...
+//
+// Strategy: find each "<dist> <stroke>" or "<dist> <stroke> Split" line, then
+// take the time on the line BEFORE it as splitMs and the line AFTER as cumulativeMs.
+// Handles OCR-dropped decimals ("4418" → "44.18", "4937" → "49.37").
 
 function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
   function parseAnyTime(t: string): number {
@@ -559,15 +568,24 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
     return timeToMs(t);
   }
 
-  function isTimeLine(line: string): boolean {
-    // A line that is ONLY a time value (leg or cumulative)
-    return /^\d{1,2}[:.]\d{2}[:.]\d{2}$/.test(line) || /^\d{1,2}\.\d{2}$/.test(line);
+  // Repair time strings — handles OCR-dropped decimal points
+  function repairTimeToMs(s: string): number {
+    const trimmed = s.trim();
+    // "1:33.18" or "1:33:18" — already minute-form
+    if (/^\d{1,2}[:.]\d{2}[:.]\d{2}$/.test(trimmed)) return parseAnyTime(trimmed);
+    // "44.18" — already second-form
+    if (/^\d{1,2}\.\d{2}$/.test(trimmed)) return parseAnyTime(trimmed);
+    // "4937" — OCR dropped the decimal, treat as "49.37"
+    if (/^\d{4}$/.test(trimmed)) {
+      const sec = Number(trimmed.slice(0, 2));
+      const hun = Number(trimmed.slice(2));
+      if (sec < 60 && hun < 100) return sec * 1000 + hun * 10;
+    }
+    return 0;
   }
 
-  function extractTimesFromLine(line: string): number[] {
-    return [...line.matchAll(/\b(\d{1,2}[:.]\d{2}[:.]\d{2}|\d{1,2}\.\d{2})\b/g)]
-      .map((m) => parseAnyTime(m[1]))
-      .filter((ms) => ms > 0 && ms <= finalMs + 10_000);
+  function isTimeLine(line: string): boolean {
+    return /^(\d{1,2}[:.]\d{2}[:.]\d{2}|\d{1,2}\.\d{2}|\d{4})$/.test(line.trim());
   }
 
   function strokeWordFromLine(line: string): string {
@@ -578,6 +596,20 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
     return "Free";
   }
 
+  // A label line looks like "50 Free" or "100 Free Split"
+  function parseLabelLine(line: string): { dist: number; stroke: string; isSplitRow: boolean } | null {
+    if (!/\b(free|back|fly|breast)\b/i.test(line)) return null;
+    const distMatch = line.match(
+      /(?<![.\d])\b(25|50|75|100|125|150|175|200|225|250|275|300|325|350|375|400|450|500|800|1500)\b/
+    );
+    if (!distMatch) return null;
+    return {
+      dist: Number(distMatch[1]),
+      stroke: strokeWordFromLine(line),
+      isSplitRow: /\bsplit\b/i.test(line),
+    };
+  }
+
   const lines = rawText.split("\n").map((l) => l.trim()).filter(Boolean);
   const seenLabels = new Map<string, ParsedSplit>();
   let inSplits = false;
@@ -585,63 +617,63 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
-    // SPLITS section header
+    // Detect SPLITS section header
     if (/\bsplits?\b/i.test(line) && !/\bfree\b|\bback\b|\bfly\b|\bbreast\b|\bim\b|\d{2,}/i.test(line)) {
       inSplits = true; continue;
     }
-    // Total ends current section — keep going for next SPLITS header
+    // Total ends current section, but keep going for next SPLITS header
     if (/\btotal\b/i.test(line)) { inSplits = false; continue; }
     if (!inSplits) continue;
 
-    // Must have a split distance — with negative lookbehind to avoid
-    // matching distances inside time values like "49.25" or "46.75"
-    const distMatch = line.match(
-      /(?<![.\d])\b(25|50|75|100|125|150|175|200|225|250|275|300|325|350|375|400|450|500|800|1500)\b/
-    );
-    if (!distMatch) continue;
-    const dist = Number(distMatch[1]);
+    const parsed = parseLabelLine(line);
+    if (!parsed) continue;
 
-    const isSplitRow = /\bsplit\b/i.test(line);
-    const stroke = strokeWordFromLine(line);
-    const label = isSplitRow ? `${dist} ${stroke} Split` : `${dist} ${stroke}`;
+    // Look for time on PREVIOUS line (leg time) and NEXT line (cumulative)
+    const prevLine = lines[i - 1] ?? "";
+    const nextLine = lines[i + 1] ?? "";
 
-    // Try to get times from the current line first
-    let timeParsed = extractTimesFromLine(line);
+    let splitMs = 0;
+    let cumulativeMs: number | null = null;
 
-    // If no times on this line, look ahead — OCR often puts the stacked
-    // right-side values ("43.81 / 43.81") on the lines immediately after the label
-    if (timeParsed.length === 0) {
-      const lookaheadTimes: number[] = [];
-      for (let j = i + 1; j <= Math.min(i + 3, lines.length - 1); j++) {
-        const nextLine = lines[j];
-        // Stop if we hit another split label or a section header
-        if (/(?<![.\d])\b(25|50|75|100|125|150|175|200|225|250|275|300|325|350|375|400|450|500|800|1500)\b/.test(nextLine) &&
-            /\b(free|back|fly|breast|split)\b/i.test(nextLine)) break;
-        if (/\bsplits?\b/i.test(nextLine) || /\btotal\b/i.test(nextLine)) break;
-        if (isTimeLine(nextLine)) {
-          const ms = parseAnyTime(nextLine);
-          if (ms > 0 && ms <= finalMs + 10_000) lookaheadTimes.push(ms);
-        } else {
-          // Non-time, non-label line — stop looking
-          if (lookaheadTimes.length === 0) break;
-        }
-      }
-      timeParsed = lookaheadTimes;
+    if (isTimeLine(prevLine)) {
+      const ms = repairTimeToMs(prevLine);
+      if (ms > 0 && ms <= finalMs + 10_000) splitMs = ms;
     }
 
-    if (timeParsed.length === 0) continue;
+    if (isTimeLine(nextLine)) {
+      const ms = repairTimeToMs(nextLine);
+      if (ms > 0 && ms <= finalMs + 10_000) cumulativeMs = ms;
+    }
 
-    const splitMs = timeParsed[0];
-    const cumulativeMs = timeParsed.length > 1 ? timeParsed[timeParsed.length - 1] : null;
+    // If "Split" row (single-time row), the next line is the split time itself, not cumulative
+    if (parsed.isSplitRow) {
+      if (cumulativeMs !== null && splitMs === 0) {
+        splitMs = cumulativeMs;
+        cumulativeMs = null;
+      }
+    }
 
-    // Keep the entry with the most data
+    if (splitMs === 0 && cumulativeMs === null) continue;
+    if (splitMs === 0 && cumulativeMs !== null) splitMs = cumulativeMs;
+
+    const label = parsed.isSplitRow
+      ? `${parsed.dist} ${parsed.stroke} Split`
+      : `${parsed.dist} ${parsed.stroke}`;
+
+    // Deduplicate — keep entry with the most data
     const existing = seenLabels.get(label);
     if (!existing || (cumulativeMs !== null && existing.cumulativeMs === null)) {
-      seenLabels.set(label, { label, order: 0, distance: dist, splitMs, cumulativeMs });
+      seenLabels.set(label, {
+        label,
+        order: 0,
+        distance: parsed.dist,
+        splitMs,
+        cumulativeMs,
+      });
     }
   }
 
-  // Sort by distance, Split rows after their matching distance row
+  // Sort by distance, "Split" rows after their matching distance row
   const sorted = Array.from(seenLabels.values()).sort((a, b) => {
     if ((a.distance ?? 0) !== (b.distance ?? 0)) return (a.distance ?? 0) - (b.distance ?? 0);
     return a.label.includes("Split") ? 1 : -1;
@@ -649,6 +681,7 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
 
   return sorted.map((s, i) => ({ ...s, order: i + 1 }));
 }
+
 
 function extractPlaceFromDetailScreen(rawText: string, lines: string[]): number | null {
   const m1 = rawText.match(/PLACE\s+FINALS\s+ENTRY[\r\n]+\s*(\d{1,3})\b/i);
@@ -818,8 +851,8 @@ export function parseSwimOCRText(
 ): ParsedSwimResult[] {
   const lines = cleanLines(rawText);
 
-  const is400IM = /400\s*(meter|m)?\s*im/i.test(rawText);
-  if (is400IM) return [];
+  // (400 IM was previously rejected outright — removing that block since the
+  // new parseSplitsDirectly handles all IM events including 400 IM correctly.)
 
   // Collapse ALL whitespace before checking for swim detail screen signals.
   // PSM 12 sparse-text mode often splits "PLACE FINALS ENTRY" across separate
