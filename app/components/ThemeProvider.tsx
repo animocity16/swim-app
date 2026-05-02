@@ -72,15 +72,26 @@ const THEMES: Record<string, ThemeVars> = {
   },
 };
 
-// ─── localStorage key ─────────────────────────────────────────────────────────
-const THEME_KEY = "natrix_theme";
+// ─── Font size options ─────────────────────────────────────────────────────────
 
-// ─── Public helper ─────────────────────────────────────────────────────────────
+export const FONT_SIZES = [
+  { id: "small",   label: "Small",   pct: 90  },
+  { id: "default", label: "Default", pct: 100 },
+  { id: "large",   label: "Large",   pct: 115 },
+  { id: "xl",      label: "XL",      pct: 130 },
+] as const;
+
+export type FontSizeId = (typeof FONT_SIZES)[number]["id"];
+
+// ─── localStorage keys ────────────────────────────────────────────────────────
+const THEME_KEY     = "natrix_theme";
+const FONT_SIZE_KEY = "natrix_font_size";
+
+// ─── Public helpers ────────────────────────────────────────────────────────────
 
 export function applyTheme(themeId: string) {
   const theme = THEMES[themeId] ?? THEMES.ocean;
 
-  // ✅ Always write to localStorage so the next app open is instant (no flash)
   try { localStorage.setItem(THEME_KEY, themeId); } catch {}
 
   const root = document.documentElement;
@@ -120,45 +131,54 @@ export function applyTheme(themeId: string) {
   `;
 }
 
+export function applyFontSize(sizeId: string) {
+  const size = FONT_SIZES.find((s) => s.id === sizeId) ?? FONT_SIZES[1];
+  try { localStorage.setItem(FONT_SIZE_KEY, sizeId); } catch {}
+  document.documentElement.style.fontSize = `${size.pct}%`;
+}
+
 // ─── ThemeProvider component ───────────────────────────────────────────────────
 
 export default function ThemeProvider() {
   useEffect(() => {
-    // ✅ Step 1: Read from localStorage INSTANTLY — synchronous, no network, no flash.
-    // This fires on the very first paint before any async call can resolve.
+    // ✅ Step 1: Read from localStorage INSTANTLY — no flash.
     try {
-      const cached = localStorage.getItem(THEME_KEY);
-      if (cached && THEMES[cached]) {
-        applyTheme(cached);
-      }
+      const cachedTheme = localStorage.getItem(THEME_KEY);
+      if (cachedTheme && THEMES[cachedTheme]) applyTheme(cachedTheme);
+
+      const cachedSize = localStorage.getItem(FONT_SIZE_KEY);
+      if (cachedSize) applyFontSize(cachedSize);
     } catch {}
 
     // ✅ Step 2: Verify with Supabase in background.
-    // If the server has a different value (e.g. changed on another device), sync it.
-    void loadThemeFromSupabase();
+    void loadFromSupabase();
 
     // ✅ Step 3: Keep in sync on login/logout/token refresh.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         const themeId = session?.user?.user_metadata?.app_theme;
-        if (themeId && THEMES[themeId]) {
-          applyTheme(themeId);
-        }
+        if (themeId && THEMES[themeId]) applyTheme(themeId);
+
+        const sizeId = session?.user?.user_metadata?.app_font_size;
+        if (sizeId) applyFontSize(sizeId);
       }
     );
 
     return () => subscription.unsubscribe();
   }, []);
 
-  async function loadThemeFromSupabase() {
+  async function loadFromSupabase() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const themeId = session?.user?.user_metadata?.app_theme;
-      if (themeId && THEMES[themeId]) {
-        applyTheme(themeId); // also updates localStorage for next open
-      }
+      const meta = session?.user?.user_metadata;
+
+      const themeId = meta?.app_theme;
+      if (themeId && THEMES[themeId]) applyTheme(themeId);
+
+      const sizeId = meta?.app_font_size;
+      if (sizeId) applyFontSize(sizeId);
     } catch {
-      // Offline or network error — localStorage backup already applied, all good
+      // Offline — localStorage fallback already applied
     }
   }
 
