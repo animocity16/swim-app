@@ -571,7 +571,10 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
   let inSplits = false;
 
   for (const line of lines) {
-    if (/^splits?$/i.test(line)) { inSplits = true; continue; }
+    // Detect the SPLITS section header — OCR may add noise around it
+    if (/\bsplits?\b/i.test(line) && !/\bfree\b|\bback\b|\bfly\b|\bbreast\b|\bim\b|\d{2,}/i.test(line)) {
+      inSplits = true; continue;
+    }
     if (!inSplits) continue;
     if (/\btotal\b/i.test(line)) break;
 
