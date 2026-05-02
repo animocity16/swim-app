@@ -544,15 +544,15 @@ function extractFinalTimeMs(rawText: string): number {
 }
 
 // ── parseSplitsDirectly ───────────────────────────────────────────────────────
-// Simple approach: read every split row in the SPLITS section directly.
-// Captures ALL rows — 50m splits AND 100m section splits — exactly as shown.
-// No cumulative-derivation complexity needed; Meet Mobile already shows everything.
+// Reads every split row across ALL SPLITS sections in the combined OCR text.
+// When multiple screenshots are scanned together, each produces its own
+// SPLITS header + Total footer. We collect from all of them and deduplicate
+// by label so overlapping rows (same split shown in two screenshots) don't double up.
 
 function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
   function parseAnyTime(t: string): number {
     const parts = t.split(":");
     if (parts.length === 3) {
-      // "m:ss:hh" — OCR used colon instead of decimal
       return Number(parts[0]) * 60_000 + Number(parts[1]) * 1_000 + Number(parts[2]) * 10;
     }
     return timeToMs(t);
@@ -567,16 +567,18 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
   }
 
   const lines = rawText.split("\n").map((l) => l.trim()).filter(Boolean);
-  const splits: ParsedSplit[] = [];
+  const allSplits: ParsedSplit[] = [];
+  const seenLabels = new Map<string, ParsedSplit>(); // deduplicate by label
   let inSplits = false;
 
   for (const line of lines) {
-    // Detect the SPLITS section header — OCR may add noise around it
+    // Detect SPLITS section header — reset inSplits for each new section
     if (/\bsplits?\b/i.test(line) && !/\bfree\b|\bback\b|\bfly\b|\bbreast\b|\bim\b|\d{2,}/i.test(line)) {
       inSplits = true; continue;
     }
+    // "Total" ends the current section but we keep going for the next SPLITS header
+    if (/\btotal\b/i.test(line)) { inSplits = false; continue; }
     if (!inSplits) continue;
-    if (/\btotal\b/i.test(line)) break;
 
     // Must contain a recognisable split distance.
     // Negative lookbehind (?<![.\d]) prevents matching distances inside time
@@ -587,8 +589,6 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
     if (!distMatch) continue;
     const dist = Number(distMatch[1]);
 
-    // Extract all time values from this line
-    // Handles: "43.81", "1:33.18", "5:29.74", "3:19:19" (OCR garble)
     const timeParsed = [
       ...line.matchAll(/\b(\d{1,2}[:.]\d{2}[:.]\d{2}|\d{1,2}\.\d{2})\b/g),
     ]
@@ -601,21 +601,30 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
     const stroke = strokeWordFromLine(line);
     const label = isSplitRow ? `${dist} ${stroke} Split` : `${dist} ${stroke}`;
 
-    // Two times on the row → first = leg split, last = cumulative
-    // One time → it's the section/split time itself
     const splitMs = timeParsed[0];
     const cumulativeMs = timeParsed.length > 1 ? timeParsed[timeParsed.length - 1] : null;
 
-    splits.push({
-      label,
-      order: splits.length + 1,
-      distance: dist,
-      splitMs,
-      cumulativeMs,
-    });
+    // Keep the entry with the most data (prefer rows with cumulative time)
+    const existing = seenLabels.get(label);
+    if (!existing || (cumulativeMs !== null && existing.cumulativeMs === null)) {
+      seenLabels.set(label, {
+        label,
+        order: 0, // renumbered below
+        distance: dist,
+        splitMs,
+        cumulativeMs,
+      });
+    }
   }
 
-  return splits;
+  // Sort by distance, with "Split" rows after their matching distance row
+  const sorted = Array.from(seenLabels.values()).sort((a, b) => {
+    if ((a.distance ?? 0) !== (b.distance ?? 0)) return (a.distance ?? 0) - (b.distance ?? 0);
+    // "Split" rows after the matching non-split row
+    return a.label.includes("Split") ? 1 : -1;
+  });
+
+  return sorted.map((s, i) => ({ ...s, order: i + 1 }));
 }
 
 function extractPlaceFromDetailScreen(rawText: string, lines: string[]): number | null {
