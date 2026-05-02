@@ -506,15 +506,7 @@ function guessNameFromLines(lines: string[], options: ParseOptions): string | nu
 function isSplitScreen(lines: string[]) {
   const hasSplitsHeader = lines.some((line) => /^splits$/i.test(line.trim()));
   const hasTotal = lines.some((line) => /^total\b/i.test(line.trim()));
-  // "PLACE FINALS ENTRY" is the header row on every Meet Mobile swim detail screen,
-  // including 50m events which have no splits section.
-  // Routing these through parseSingleSplitScreen lets extractFinalTimeMs search
-  // the full text — critical because PSM 12 sparse-text may emit the result block
-  // before the event name, outside parseNormalEventBlocks' 8-line look-ahead window.
-  const hasPlaceFinalsEntry = lines.some((line) =>
-    /place\s+finals\s+entry/i.test(line)
-  );
-  return hasSplitsHeader || hasTotal || hasPlaceFinalsEntry;
+  return hasSplitsHeader || hasTotal;
 }
 
 function extractFinalTimeMs(rawText: string): number {
@@ -526,16 +518,28 @@ function extractFinalTimeMs(rawText: string): number {
     return timeToMs(t);
   }
 
-  const placeBlock = rawText.match(/PLACE\s+FINALS\s+ENTRY[\r\n]+\s*\d+\s+([\d:.]+)/i);
+  // "PLACE FINALS ENTRY\n13 34.63 35.09" — grab first time after the header + place number.
+  // \s+ matches newlines so this works even when OCR splits the header across lines.
+  const placeBlock = rawText.match(/PLACE\s+FINALS\s+ENTRY\s+\d+\s+([\d:.]+)/i);
   if (placeBlock) {
     const ms = parseAnyTime(placeBlock[1]);
-    if (ms > 30_000) return ms;
+    if (ms > 5_000) return ms;
   }
+
+  // "Total 3:04.78" or "Total 3:19:19" — split-screen with splits section
   const totalMatch = rawText.match(/Total\s+([\d:.]+)/i);
   if (totalMatch) {
     const ms = parseAnyTime(totalMatch[1]);
-    if (ms > 30_000) return ms;
+    if (ms > 5_000) return ms;
   }
+
+  // Fallback: "FINALS\n34.63" — OCR split the column header from its value
+  const finalsCol = rawText.match(/\bFINALS\b\s+([\d:.]+)/i);
+  if (finalsCol) {
+    const ms = parseAnyTime(finalsCol[1]);
+    if (ms > 5_000 && ms < 1_800_000) return ms;
+  }
+
   return 0;
 }
 
@@ -943,7 +947,16 @@ export function parseSwimOCRText(
   const is400IM = /400\s*(meter|m)?\s*im/i.test(rawText);
   if (is400IM) return [];
 
-  const results = isSplitScreen(lines)
+  // Collapse ALL whitespace before checking for swim detail screen signals.
+  // PSM 12 sparse-text mode often splits "PLACE FINALS ENTRY" across separate
+  // lines ("PLACE" / "FINALS" / "ENTRY"), so a per-line check silently fails.
+  // Collapsing first is the same technique isEventResultsPage already uses.
+  const flatRaw = rawText.replace(/\s+/g, " ").toUpperCase();
+  const isSwimDetailScreen =
+    flatRaw.includes("PLACE FINALS ENTRY") ||
+    flatRaw.includes("SWIM DETAIL");
+
+  const results = (isSplitScreen(lines) || isSwimDetailScreen)
     ? parseSingleSplitScreen(rawText, lines, options)
     : parseNormalEventBlocks(rawText, lines, options);
 
