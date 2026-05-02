@@ -83,27 +83,22 @@ function getInitials(name: string) {
   return name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 }
 
-// Strip Meet Mobile / OCR prefixes like "INS", "SCR", "DNS" that appear before swimmer names
 function stripNamePrefix(name: string): string {
   return name.replace(/^(INS|SCR|DNS|DNF|DQ|DSQ|NT|NS|HD|WD)\s+/i, "").trim();
 }
 
-// ── Secondary safety net ──────────────────────────────────────────────────────
-// Guards the UI from displaying OCR garbage (e.g. "nals PLACE TIME") as a
-// swimmer name even if the parser layer somehow lets it through.
 const GARBAGE_NAME_WORDS = /\b(place|time|heat|lane|finals?|nals|prelims?|rank|split|total|detail|result|event|swim)\b/i;
 
 function isValidPersonName(name: string): boolean {
   const t = name.trim();
   if (t.length < 3 || t.length > 50) return false;
-  if (!/^[A-Za-z ,.'"-]+$/.test(t)) return false;   // only name-safe chars
-  if (!t.includes(" ")) return false;                  // needs at least two words
-  if (/^[A-Z\s]+$/.test(t)) return false;             // all-caps → table header
-  if (GARBAGE_NAME_WORDS.test(t)) return false;        // contains non-name words
+  if (!/^[A-Za-z ,.'"-]+$/.test(t)) return false;
+  if (!t.includes(" ")) return false;
+  if (/^[A-Z\s]+$/.test(t)) return false;
+  if (GARBAGE_NAME_WORDS.test(t)) return false;
   return true;
 }
 
-// ── Meet type detection ───────────────────────────────────────────────────────
 function detectMeetType(rawText: string, hint: string | null): string {
   const combined = ((hint ?? "") + " " + rawText).toLowerCase();
   if (/\bnsg\b|national school games/i.test(combined)) return "NSG";
@@ -134,22 +129,22 @@ function SlotButton({
   return (
     <div
       onClick={() => inputRef.current?.click()}
-      className="relative flex min-h-[140px] cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-white/20 bg-black/30 p-3 text-center transition hover:border-amber-400/50 hover:bg-white/5"
+      className="relative flex min-h-[120px] cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-white/20 bg-black/30 p-2 text-center transition hover:border-amber-400/50 hover:bg-white/5"
     >
       <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={onChange} />
       {required && !preview && (
-        <span className="absolute right-2 top-2 rounded-full px-2 py-0.5 text-[9px] uppercase tracking-wider"
+        <span className="absolute right-1.5 top-1.5 rounded-full px-1.5 py-0.5 text-[8px] uppercase tracking-wider"
           style={{ background: "rgba(186,117,23,0.2)", color: "#EF9F27" }}>
           Required
         </span>
       )}
       {preview ? (
-        <img src={preview} alt={label} className="max-h-44 rounded-xl object-contain" />
+        <img src={preview} alt={label} className="max-h-36 rounded-xl object-contain" />
       ) : (
         <>
-          <span className="text-2xl text-white/20">📷</span>
-          <p className="mt-1 text-xs font-semibold text-white/55">{label}</p>
-          <p className="mt-0.5 text-[10px] text-white/30">{hint}</p>
+          <span className="text-xl text-white/20">📷</span>
+          <p className="mt-1 text-[11px] font-semibold text-white/55">{label}</p>
+          <p className="mt-0.5 text-[9px] text-white/30">{hint}</p>
         </>
       )}
     </div>
@@ -201,13 +196,16 @@ export default function ScanPage() {
   const [primarySwimmers, setPrimarySwimmers] = useState<Swimmer[]>([]);
   const [loadingSwimmers, setLoadingSwimmers] = useState(true);
 
-  // ── Top-level source tab ──────────────────────────────────────────────────
   const [source, setSource] = useState<Source>("screenshot");
 
+  // ── File slots ────────────────────────────────────────────────────────────
   const [file1, setFile1] = useState<File | null>(null);
   const [file2, setFile2] = useState<File | null>(null);
+  const [file3, setFile3] = useState<File | null>(null);
   const [preview1, setPreview1] = useState<string | null>(null);
   const [preview2, setPreview2] = useState<string | null>(null);
+  const [preview3, setPreview3] = useState<string | null>(null);
+
   const [step, setStep] = useState<Step>("idle");
   const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState("");
@@ -249,12 +247,13 @@ export default function ScanPage() {
   const [newSwimmerClub, setNewSwimmerClub] = useState("");
   const [showCreateForm, setShowCreateForm] = useState(false);
 
-  // ── Manual meet metadata (schedule mode) ─────────────────────────────────
+  // ── Manual meet metadata ──────────────────────────────────────────────────
   const [manualMeetName, setManualMeetName] = useState("");
   const [manualMeetDate, setManualMeetDate] = useState("");
 
   const ref1 = useRef<HTMLInputElement | null>(null);
   const ref2 = useRef<HTMLInputElement | null>(null);
+  const ref3 = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => { void loadSwimmers(); }, []);
 
@@ -280,8 +279,8 @@ export default function ScanPage() {
   }
 
   function reset() {
-    setFile1(null); setFile2(null);
-    setPreview1(null); setPreview2(null);
+    setFile1(null); setFile2(null); setFile3(null);
+    setPreview1(null); setPreview2(null); setPreview3(null);
     setStep("idle"); setProgress(0); setMessage(""); setRawText("");
     setScanMode(null);
     setParsedResult(null); setDetectedEvent(null);
@@ -299,6 +298,7 @@ export default function ScanPage() {
     setShowInfo(false);
     if (ref1.current) ref1.current.value = "";
     if (ref2.current) ref2.current.value = "";
+    if (ref3.current) ref3.current.value = "";
   }
 
   // ── Save single result ────────────────────────────────────────────────────
@@ -367,12 +367,9 @@ export default function ScanPage() {
     }
 
     const { data: newSwimmer, error: createErr } = await supabase.from("swimmers").insert({
-      user_id: user.id,
-      name: newSwimmerName.trim(),
+      user_id: user.id, name: newSwimmerName.trim(),
       age: newSwimmerAge ? Number(newSwimmerAge) : null,
-      swim_club: clubName,
-      school: schoolName,
-      group_type: "following",
+      swim_club: clubName, school: schoolName, group_type: "following",
     }).select().single();
 
     if (createErr || !newSwimmer) {
@@ -381,7 +378,6 @@ export default function ScanPage() {
     }
 
     await loadSwimmers();
-
     const eventName = canonicalEventName(parsedResult.event);
     const courseName = canonicalCourse(editedCourse);
     const meetType = detectMeetType(rawText, parsedResult.meetName ?? null);
@@ -516,12 +512,9 @@ export default function ScanPage() {
     }
 
     const { data: newSwimmer, error: createErr } = await supabase.from("swimmers").insert({
-      user_id: user.id,
-      name: newSwimmerName.trim(),
+      user_id: user.id, name: newSwimmerName.trim(),
       age: newSwimmerAge ? Number(newSwimmerAge) : null,
-      swim_club: clubName,
-      school: schoolName,
-      group_type: "following",
+      swim_club: clubName, school: schoolName, group_type: "following",
     }).select().single();
 
     if (createErr || !newSwimmer) {
@@ -551,7 +544,8 @@ export default function ScanPage() {
     setNewSwimmerClub(""); setShowCreateForm(false);
 
     try {
-      const files = [file1, file2].filter(Boolean) as File[];
+      // All three slots — filter out nulls
+      const files = [file1, file2, file3].filter(Boolean) as File[];
       let combined = "";
       let currentFileIdx = 0;
       const worker = await createWorker("eng", 1, {
@@ -680,7 +674,7 @@ export default function ScanPage() {
           )}
         </div>
 
-        {/* Source picker — always visible */}
+        {/* Source picker */}
         <SourcePicker source={source} onChange={setSource} />
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
@@ -696,7 +690,7 @@ export default function ScanPage() {
                 <p>📋 <span className="text-white/70">Swim detail</span> — single result, review before saving</p>
                 <p>📊 <span className="text-white/70">Event results</span> — full rankings, tick who to save</p>
                 <p>🏊 <span className="text-white/70">Swimmer schedule</span> — all events for one swimmer, save whole meet at once</p>
-                <p className="pt-1 text-white/35 text-xs">Use Screen 2 for the schedule&apos;s second screenshot to capture all events.</p>
+                <p className="pt-1 text-white/35 text-xs">Use Screens 2 &amp; 3 for longer schedules that need multiple screenshots.</p>
               </div>
             )}
 
@@ -712,14 +706,16 @@ export default function ScanPage() {
               </div>
             )}
 
-            {/* IDLE */}
+            {/* IDLE — 3 slots in a row */}
             {step === "idle" && primarySwimmers.length > 0 && (
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-2">
                   <SlotButton label="Screen 1" hint="Required" preview={preview1} inputRef={ref1} required
                     onChange={(e) => handleFile(e, setFile1, setPreview1)} />
                   <SlotButton label="Screen 2" hint="Optional" preview={preview2} inputRef={ref2}
                     onChange={(e) => handleFile(e, setFile2, setPreview2)} />
+                  <SlotButton label="Screen 3" hint="Optional" preview={preview3} inputRef={ref3}
+                    onChange={(e) => handleFile(e, setFile3, setPreview3)} />
                 </div>
                 <button type="button" onClick={handleScan} disabled={!file1}
                   className="w-full rounded-2xl py-4 text-lg font-bold text-white transition disabled:opacity-40"
@@ -772,7 +768,6 @@ export default function ScanPage() {
                           style={{ fontVariantNumeric: "tabular-nums" }} />
                         {timeError && <p className="mt-1 text-xs text-red-300">{timeError}</p>}
                       </div>
-                      {/* Course selector */}
                       <div>
                         <p className="text-xs text-white/40 mb-1.5">Course</p>
                         <div className="flex gap-2">
@@ -789,7 +784,6 @@ export default function ScanPage() {
                       </div>
                     </div>
 
-                    {/* Auto-matched swimmer */}
                     {autoMatchedSwimmer && !showPicker && (
                       <div className="space-y-2">
                         <p className="text-sm text-white/50">Save to</p>
@@ -815,7 +809,6 @@ export default function ScanPage() {
                       </div>
                     )}
 
-                    {/* Picker: no match found */}
                     {showPicker && !showCreateForm && (
                       <div className="space-y-3">
                         {newSwimmerName.trim().length > 0 && (
@@ -824,23 +817,17 @@ export default function ScanPage() {
                             <div className="flex items-start gap-2">
                               <span className="mt-0.5 text-base">🔍</span>
                               <div>
-                                <p className="text-sm font-semibold text-white">
-                                  &quot;{newSwimmerName}&quot; isn&apos;t in your swimmers yet
-                                </p>
-                                <p className="mt-0.5 text-xs text-white/45">
-                                  Create a new profile for them, or save to an existing swimmer below.
-                                </p>
+                                <p className="text-sm font-semibold text-white">&quot;{newSwimmerName}&quot; isn&apos;t in your swimmers yet</p>
+                                <p className="mt-0.5 text-xs text-white/45">Create a new profile, or save to an existing swimmer below.</p>
                               </div>
                             </div>
-                            <button type="button"
-                              onClick={() => setShowCreateForm(true)}
+                            <button type="button" onClick={() => setShowCreateForm(true)}
                               className="w-full rounded-xl py-3 text-sm font-bold text-white"
                               style={{ background: "#D97706" }}>
                               + Create &quot;{newSwimmerName}&quot;
                             </button>
                           </div>
                         )}
-
                         {!newSwimmerName.trim() && (
                           <>
                             <p className="text-sm text-white/50">Save to an existing swimmer:</p>
@@ -864,41 +851,35 @@ export default function ScanPage() {
                       </div>
                     )}
 
-                    {/* Create new swimmer form — single mode */}
                     {showPicker && showCreateForm && (
                       <div className="rounded-2xl p-4 space-y-4"
                         style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
                         <div className="flex items-center justify-between">
                           <p className="text-sm font-semibold text-white">New swimmer details</p>
-                          <button type="button" onClick={() => setShowCreateForm(false)}
-                            className="text-xs text-white/35 underline">Cancel</button>
+                          <button type="button" onClick={() => setShowCreateForm(false)} className="text-xs text-white/35 underline">Cancel</button>
                         </div>
                         <div className="space-y-3">
                           <div>
                             <label className="text-xs text-white/40">Name</label>
-                            <input type="text" value={newSwimmerName}
-                              onChange={(e) => setNewSwimmerName(e.target.value)}
+                            <input type="text" value={newSwimmerName} onChange={(e) => setNewSwimmerName(e.target.value)}
                               className="mt-1 w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white outline-none focus:border-amber-400/50" />
                           </div>
                           <div className="grid grid-cols-2 gap-3">
                             <div>
                               <label className="text-xs text-white/40">Age</label>
-                              <input type="number" value={newSwimmerAge}
-                                onChange={(e) => setNewSwimmerAge(e.target.value)}
+                              <input type="number" value={newSwimmerAge} onChange={(e) => setNewSwimmerAge(e.target.value)}
                                 placeholder="e.g. 10"
                                 className="mt-1 w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white outline-none focus:border-amber-400/50" />
                             </div>
                             <div>
                               <label className="text-xs text-white/40">Club / School code</label>
-                              <input type="text" value={newSwimmerClub}
-                                onChange={(e) => setNewSwimmerClub(e.target.value)}
+                              <input type="text" value={newSwimmerClub} onChange={(e) => setNewSwimmerClub(e.target.value)}
                                 placeholder="e.g. TLSC"
                                 className="mt-1 w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white outline-none focus:border-amber-400/50" />
                             </div>
                           </div>
                         </div>
-                        <button type="button"
-                          onClick={() => void handleCreateNewSwimmerAndSaveSingle()}
+                        <button type="button" onClick={() => void handleCreateNewSwimmerAndSaveSingle()}
                           disabled={creatingNewSwimmer || !newSwimmerName.trim()}
                           className="w-full rounded-2xl py-4 text-sm font-bold text-white transition disabled:opacity-50"
                           style={{ background: "#D97706" }}>
@@ -922,27 +903,16 @@ export default function ScanPage() {
                 {/* ── SWIMMER SCHEDULE MODE ─────────────────────────────────────── */}
                 {scanMode === "swimmer_schedule" && scheduleResults.length > 0 && (
                   <div className="space-y-4">
-
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-semibold text-white">
-                          {scheduleSwimmerName ?? "Swimmer"}&apos;s meet results
-                        </p>
-                        <p className="mt-0.5 text-xs text-white/40">
-                          {scheduleResults.length} events · tick to select
-                        </p>
+                        <p className="text-sm font-semibold text-white">{scheduleSwimmerName ?? "Swimmer"}&apos;s meet results</p>
+                        <p className="mt-0.5 text-xs text-white/40">{scheduleResults.length} events · tick to select</p>
                       </div>
                       <div className="flex gap-2">
-                        <button type="button"
-                          onClick={() => setSelectedScheduleRows(new Set(scheduleResults.map((_, i) => i)))}
-                          className="rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white active:bg-white/20">
-                          All
-                        </button>
-                        <button type="button"
-                          onClick={() => setSelectedScheduleRows(new Set())}
-                          className="rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white active:bg-white/20">
-                          None
-                        </button>
+                        <button type="button" onClick={() => setSelectedScheduleRows(new Set(scheduleResults.map((_, i) => i)))}
+                          className="rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white active:bg-white/20">All</button>
+                        <button type="button" onClick={() => setSelectedScheduleRows(new Set())}
+                          className="rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white active:bg-white/20">None</button>
                       </div>
                     </div>
 
@@ -950,8 +920,7 @@ export default function ScanPage() {
                       {scheduleResults.map((row, index) => {
                         const isSelected = selectedScheduleRows.has(index);
                         return (
-                          <button key={`${row.event}-${index}`} type="button"
-                            onClick={() => toggleScheduleRow(index)}
+                          <button key={`${row.event}-${index}`} type="button" onClick={() => toggleScheduleRow(index)}
                             className="w-full rounded-2xl border p-3 text-left transition"
                             style={isSelected
                               ? { background: "rgba(186,117,23,0.12)", border: "1px solid rgba(186,117,23,0.4)" }
@@ -983,15 +952,13 @@ export default function ScanPage() {
                       <p className="text-xs font-medium uppercase tracking-widest text-white/40">Meet details</p>
                       <div className="space-y-1">
                         <label className="text-xs text-white/40">Meet name</label>
-                        <input type="text" value={manualMeetName}
-                          onChange={(e) => setManualMeetName(e.target.value)}
+                        <input type="text" value={manualMeetName} onChange={(e) => setManualMeetName(e.target.value)}
                           placeholder="e.g. Singapore Swim Series II"
                           className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white placeholder-white/20 outline-none focus:border-amber-400/50" />
                       </div>
                       <div className="space-y-1">
                         <label className="text-xs text-white/40">Date swum</label>
-                        <input type="date" value={manualMeetDate}
-                          onChange={(e) => setManualMeetDate(e.target.value)}
+                        <input type="date" value={manualMeetDate} onChange={(e) => setManualMeetDate(e.target.value)}
                           className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white outline-none focus:border-amber-400/50"
                           style={{ colorScheme: "dark" }} />
                       </div>
@@ -1009,12 +976,10 @@ export default function ScanPage() {
                             <p className="text-sm font-semibold text-white">{scheduleMatchedSwimmer.name}</p>
                             <p className="text-xs text-white/40">Age {scheduleMatchedSwimmer.age}{scheduleMatchedSwimmer.swim_club ? ` · ${scheduleMatchedSwimmer.swim_club}` : ""}</p>
                           </div>
-                          <button type="button"
-                            onClick={() => { setScheduleMatchedSwimmer(null); setShowSchedulePicker(true); }}
+                          <button type="button" onClick={() => { setScheduleMatchedSwimmer(null); setShowSchedulePicker(true); }}
                             className="text-xs text-white/35 underline">Change</button>
                         </div>
-                        <button type="button"
-                          onClick={() => void handleSaveSchedule(scheduleMatchedSwimmer)}
+                        <button type="button" onClick={() => void handleSaveSchedule(scheduleMatchedSwimmer)}
                           disabled={savingSchedule || selectedScheduleRows.size === 0}
                           className="w-full rounded-2xl py-4 text-base font-bold text-white transition disabled:opacity-50"
                           style={{ background: "#D97706" }}>
@@ -1031,31 +996,24 @@ export default function ScanPage() {
                             <div className="flex items-start gap-2">
                               <span className="mt-0.5 text-base">🔍</span>
                               <div>
-                                <p className="text-sm font-semibold text-white">
-                                  &quot;{newSwimmerName}&quot; isn&apos;t in your swimmers yet
-                                </p>
-                                <p className="mt-0.5 text-xs text-white/45">
-                                  Create a new profile for them, or save to an existing swimmer below.
-                                </p>
+                                <p className="text-sm font-semibold text-white">&quot;{newSwimmerName}&quot; isn&apos;t in your swimmers yet</p>
+                                <p className="mt-0.5 text-xs text-white/45">Create a new profile, or save to an existing swimmer below.</p>
                               </div>
                             </div>
-                            <button type="button"
-                              onClick={() => setShowCreateForm(true)}
+                            <button type="button" onClick={() => setShowCreateForm(true)}
                               className="w-full rounded-xl py-3 text-sm font-bold text-white"
                               style={{ background: "#D97706" }}>
                               + Create &quot;{newSwimmerName}&quot;
                             </button>
                           </div>
                         )}
-
                         {!newSwimmerName.trim() && (
                           <>
                             <p className="text-sm text-white/50">Save to an existing swimmer:</p>
                             {primarySwimmers.map((swimmer, index) => {
                               const colors = avatarColor(index);
                               return (
-                                <button key={swimmer.id} type="button"
-                                  onClick={() => void handleSaveSchedule(swimmer)}
+                                <button key={swimmer.id} type="button" onClick={() => void handleSaveSchedule(swimmer)}
                                   disabled={savingSchedule}
                                   className="flex w-full items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-3 text-left transition hover:bg-white/10 disabled:opacity-50">
                                   <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-xs font-bold"
@@ -1077,35 +1035,30 @@ export default function ScanPage() {
                         style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
                         <div className="flex items-center justify-between">
                           <p className="text-sm font-semibold text-white">New swimmer details</p>
-                          <button type="button" onClick={() => setShowCreateForm(false)}
-                            className="text-xs text-white/35 underline">Cancel</button>
+                          <button type="button" onClick={() => setShowCreateForm(false)} className="text-xs text-white/35 underline">Cancel</button>
                         </div>
                         <div className="space-y-3">
                           <div>
                             <label className="text-xs text-white/40">Name</label>
-                            <input type="text" value={newSwimmerName}
-                              onChange={(e) => setNewSwimmerName(e.target.value)}
+                            <input type="text" value={newSwimmerName} onChange={(e) => setNewSwimmerName(e.target.value)}
                               className="mt-1 w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white outline-none focus:border-amber-400/50" />
                           </div>
                           <div className="grid grid-cols-2 gap-3">
                             <div>
                               <label className="text-xs text-white/40">Age</label>
-                              <input type="number" value={newSwimmerAge}
-                                onChange={(e) => setNewSwimmerAge(e.target.value)}
+                              <input type="number" value={newSwimmerAge} onChange={(e) => setNewSwimmerAge(e.target.value)}
                                 placeholder="e.g. 10"
                                 className="mt-1 w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white outline-none focus:border-amber-400/50" />
                             </div>
                             <div>
                               <label className="text-xs text-white/40">Club / School code</label>
-                              <input type="text" value={newSwimmerClub}
-                                onChange={(e) => setNewSwimmerClub(e.target.value)}
+                              <input type="text" value={newSwimmerClub} onChange={(e) => setNewSwimmerClub(e.target.value)}
                                 placeholder="e.g. TLSC"
                                 className="mt-1 w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white outline-none focus:border-amber-400/50" />
                             </div>
                           </div>
                         </div>
-                        <button type="button"
-                          onClick={() => void handleCreateNewSwimmerAndSaveSchedule()}
+                        <button type="button" onClick={() => void handleCreateNewSwimmerAndSaveSchedule()}
                           disabled={creatingNewSwimmer || !newSwimmerName.trim()}
                           className="w-full rounded-2xl py-4 text-sm font-bold text-white transition disabled:opacity-50"
                           style={{ background: "#D97706" }}>
