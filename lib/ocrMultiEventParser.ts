@@ -483,7 +483,7 @@ function guessMeetName(lines: string[]): string | null {
     if (UI_LABELS.test(line)) return false;
     // Also reject lines that are obviously table headers (e.g. "& SWIM DETAIL <")
     if (/^[&<>|*#]+/.test(line.trim())) return false;
-    return /\b(meet|cup|championship|championships|trials|league|invitational|swim)\b/i.test(line);
+    return /\b(meet|cup|championship|championships|trials|league|invitational|swim|awards|aquatics|swimfaster|series|juniors|nationals|classic|open)\b/i.test(line);
   });
   return meetLike ?? null;
 }
@@ -795,6 +795,25 @@ for (const [dist, cumMs] of sorted) {
 return splits;
 }
 
+function extractPlaceFromDetailScreen(rawText: string, lines: string[]): number | null {
+  // "PLACE FINALS ENTRY\n21 6:13.92 NT" — look for number after this header
+  const m1 = rawText.match(/PLACE\s+FINALS\s+ENTRY[\r\n]+\s*(\d{1,3})\b/i);
+  if (m1) { const p = Number(m1[1]); if (p >= 1 && p <= 999) return p; }
+
+  // "Finals  21  6:13.92" in EVENT SUMMARY section
+  const m2 = rawText.match(/\bfinals?\s+(\d{1,3})\s+\d+[:.]/i);
+  if (m2) { const p = Number(m2[1]); if (p >= 1 && p <= 999) return p; }
+
+  // Explicit "place: N" keyword on any line
+  for (const line of lines) {
+    const t = line.toLowerCase().replace(/[|()\[\]{}]/g, " ").trim();
+    const m = t.match(/\bplace[: ]+(\d{1,3})\b/);
+    if (m) { const p = Number(m[1]); if (p >= 1 && p <= 999) return p; }
+  }
+
+  return null;
+}
+
 function parseSingleSplitScreen(
   rawText: string,
   lines: string[],
@@ -803,7 +822,7 @@ function parseSingleSplitScreen(
   const globalCourse = detectCourse(rawText) || options.defaultCourse || "UNKNOWN";
   const swamAt = extractMeetDate(rawText);
   const meetName = guessMeetName(lines);
-  const place = lines.map(detectPlace).find((v) => v != null) ?? null;
+  const place = extractPlaceFromDetailScreen(rawText, lines);
   const resolvedName = guessNameFromLines(lines, options);
 
   const bestEventLine = lines.find(looksLikeNormalEventLine);
