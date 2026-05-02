@@ -543,234 +543,71 @@ function extractFinalTimeMs(rawText: string): number {
   return 0;
 }
 
-// ── parseSplitsFromCumulatives ────────────────────────────────────────────────
-// Extracts the CUMULATIVE times (which OCR reads reliably), then derives each
-// leg split as the difference between consecutive cumulatives.
-//
-// FIX: splitStep = 50 for all non-IM events (Meet Mobile always shows 50m splits).
-//      imStep = eventDistance/4 is only used for IM leg-label computation.
+// ── parseSplitsDirectly ───────────────────────────────────────────────────────
+// Simple approach: read every split row in the SPLITS section directly.
+// Captures ALL rows — 50m splits AND 100m section splits — exactly as shown.
+// No cumulative-derivation complexity needed; Meet Mobile already shows everything.
 
-function parseSplitsFromCumulatives(
-  rawText: string,
-  eventDistance: number,
-  eventStroke: string,
-  finalMs: number
-): ParsedSplit[] {
-  const lines = rawText.split("\n").map((l) => l.trim()).filter(Boolean);
-  const imStep = eventDistance / 4;          // IM: one leg = eventDistance/4
-  const isIM = eventStroke === "IM";
-  // Non-IM events always split every 50m; IM splits every imStep (quarter-distance)
-  const splitStep = isIM ? imStep : 50;
-  const IM_STROKES = ["Fly", "Back", "Breast", "Free"] as const;
-
+function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
   function parseAnyTime(t: string): number {
     const parts = t.split(":");
     if (parts.length === 3) {
+      // "m:ss:hh" — OCR used colon instead of decimal
       return Number(parts[0]) * 60_000 + Number(parts[1]) * 1_000 + Number(parts[2]) * 10;
     }
     return timeToMs(t);
   }
 
-  function strokeLabelFor(dist: number, s: string | null): string {
-    // For IM, use imStep (not splitStep) to compute which leg we're on
-    if (isIM) return IM_STROKES[dist / imStep - 1] ?? "Free";
-    return s ?? normalizeSplitLabel(dist, eventStroke).split(" ").slice(1).join(" ");
-  }
-
-  function detectStrokeFromLine(line: string): string | null {
+  function strokeWordFromLine(line: string): string {
     const l = line.toLowerCase();
     if (l.includes("fly")) return "Fly";
     if (l.includes("back")) return "Back";
     if (l.includes("breast")) return "Breast";
-    if (l.includes("free")) return "Free";
-    return null;
+    return "Free";
   }
 
-  function detectDistFromLine(line: string): number | null {
-    const m = line.match(/\b(25|50|75|100|125|150|175|200|225|250|300|350|400|800|1500)\b/);
-    return m ? Number(m[1]) : null;
-  }
-
-  function isSplitRow(line: string): boolean {
-    return /\bsplit\b/i.test(line);
-  }
-
-  const cumMap = new Map<number, number>(); // distance → cumulativeMs
-  const distStrokeMap = new Map<number, string>(); // distance → stroke label
-  cumMap.set(eventDistance, finalMs);
-  distStrokeMap.set(eventDistance, isIM ? "Free" : strokeLabelFor(eventDistance, null));
-
+  const lines = rawText.split("\n").map((l) => l.trim()).filter(Boolean);
+  const splits: ParsedSplit[] = [];
   let inSplits = false;
 
-  // Pass 1a: "N Stroke Split M:SS.HH" — keep SMALLEST per distance
-  // (the larger duplicate is Meet Mobile's "second-half" segment, not a cumulative)
   for (const line of lines) {
     if (/^splits?$/i.test(line)) { inSplits = true; continue; }
     if (!inSplits) continue;
     if (/\btotal\b/i.test(line)) break;
-    if (!isSplitRow(line)) continue;
-    const dist = detectDistFromLine(line);
-    const tMatch = line.match(/\b(\d{1,2}[:.]\d{2}[:.]\d{2})\b/);
-    if (dist && tMatch) {
-      const ms = parseAnyTime(tMatch[1]);
-      if (ms <= 0 || ms >= finalMs) continue;
-      const existing = cumMap.get(dist);
-      if (!existing || ms < existing) {
-        cumMap.set(dist, ms);
-      }
-    }
-  }
 
-  // Pass 1b: "N Stroke M:SS.HH" labeled lines (works for both IM and non-IM)
-  inSplits = false;
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (/^splits?$/i.test(line)) { inSplits = true; continue; }
-    if (!inSplits) continue;
-    if (/\btotal\b/i.test(line)) break;
-    if (isSplitRow(line)) continue;
-    const dist = detectDistFromLine(line);
-    const stroke = detectStrokeFromLine(line);
-    if (!dist || !stroke || dist > eventDistance || dist === eventDistance) continue;
-    if (!distStrokeMap.has(dist)) distStrokeMap.set(dist, stroke);
-    if (cumMap.has(dist)) continue;
-    // Cumulative = last mm:ss.hh on the line
-    const allTimes = [...line.matchAll(/\b(\d{1,2}[:.]\d{2}[:.]\d{2})\b/g)]
-      .map((m) => parseAnyTime(m[1])).filter((ms) => ms > 30_000 && ms < finalMs);
-    const cumOnLine = allTimes[allTimes.length - 1];
-    if (cumOnLine) { cumMap.set(dist, cumOnLine); continue; }
-    // Cumulative on next standalone line
-    const nextLine = lines[i + 1] ?? "";
-    const nm = nextLine.match(/^(\d{1,2}:\d{2}\.\d{2})$/);
-    if (nm) {
-      const ms = parseAnyTime(nm[1]);
-      if (ms > 30_000 && ms < finalMs) { cumMap.set(dist, ms); i++; }
-    }
-  }
+    // Must contain a recognisable split distance
+    const distMatch = line.match(
+      /\b(25|50|75|100|125|150|175|200|225|250|275|300|325|350|375|400|450|500|800|1500)\b/
+    );
+    if (!distMatch) continue;
+    const dist = Number(distMatch[1]);
 
-  // Pass 2: first standalone ss.hh after SPLITS = first leg cumulative (= splitStep distance)
-  // FIX: store at splitStep (50 for non-IM), not stepSize (which was eventDistance/4).
-  // This is what was causing the missing 50m split for 400 Free.
-  inSplits = false;
-  for (const line of lines) {
-    if (/^splits?$/i.test(line)) { inSplits = true; continue; }
-    if (!inSplits) continue;
-    if (/\btotal\b/i.test(line)) break;
-    if (isSplitRow(line)) continue;
-    const m = line.match(/\b(\d{1,2}\.\d{2})\b/);
-    if (m) {
-      const ms = parseAnyTime(m[1]);
-      if (ms > 5_000 && ms <= 90_000 && !cumMap.has(splitStep)) {
-        cumMap.set(splitStep, ms);
-        if (!distStrokeMap.has(splitStep)) {
-          distStrokeMap.set(splitStep, strokeLabelFor(splitStep, isIM ? "Fly" : null));
-        }
-        break;
-      }
-    }
-  }
+    // Extract all time values from this line
+    // Handles: "43.81", "1:33.18", "5:29.74", "3:19:19" (OCR garble)
+    const timeParsed = [
+      ...line.matchAll(/\b(\d{1,2}[:.]\d{2}[:.]\d{2}|\d{1,2}\.\d{2})\b/g),
+    ]
+      .map((m) => parseAnyTime(m[1]))
+      .filter((ms) => ms > 0 && ms <= finalMs + 10_000);
 
-  // Pass 3: gap-fill with mm:ss.hh from NON-split lines only
-  const mmSsTimes: number[] = [];
-  inSplits = false;
-  for (const line of lines) {
-    if (/^splits?$/i.test(line)) { inSplits = true; continue; }
-    if (!inSplits) continue;
-    if (/\btotal\b/i.test(line)) break;
-    if (isSplitRow(line)) continue;
-    for (const m of line.matchAll(/\b(\d{1,2}:\d{2}\.\d{2})\b/g)) {
-      const ms = parseAnyTime(m[1]);
-      if (ms > 30_000 && ms < finalMs) mmSsTimes.push(ms);
-    }
-  }
-  for (const ms of [...new Set(mmSsTimes)].sort((a, b) => a - b)) {
-    if (Array.from(cumMap.values()).some((v) => Math.abs(v - ms) < 50)) continue;
-    const sortedCums = Array.from(cumMap.entries()).sort((a, b) => a[1] - b[1]);
-    for (let i = 0; i < sortedCums.length - 1; i++) {
-      const [d1, c1] = sortedCums[i];
-      const [d2] = sortedCums[i + 1];
-      if (ms > c1 && ms < sortedCums[i + 1][1]) {
-        // FIX: use splitStep for mid-distance snapping
-        const midDist = Math.round(((d1 + d2) / 2) / splitStep) * splitStep;
-        if (!cumMap.has(midDist)) cumMap.set(midDist, ms);
-        break;
-      }
-    }
-  }
+    if (timeParsed.length === 0) continue;
 
-  // Pass 4: fill missing distances using standalone leg times
-  // FIX: expectedDistances now starts at splitStep (50 for non-IM), not imStep.
-  // This is what was causing distance=50 to never be checked for 400 Free.
-  const expectedDistances: number[] = [];
-  for (let d = splitStep; d <= eventDistance; d += splitStep) {
-    expectedDistances.push(d);
-  }
+    const isSplitRow = /\bsplit\b/i.test(line);
+    const stroke = strokeWordFromLine(line);
+    const label = isSplitRow ? `${dist} ${stroke} Split` : `${dist} ${stroke}`;
 
-  const standaloneLegByDistance = new Map<number, number>();
-  inSplits = false;
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (/^splits?$/i.test(line)) { inSplits = true; continue; }
-    if (!inSplits) continue;
-    if (/\btotal\b/i.test(line)) break;
-    if (isSplitRow(line)) continue;
-
-    const dist = detectDistFromLine(line);
-    if (!dist || dist >= eventDistance) continue;
-
-    const nextLine = lines[i + 1] ?? "";
-    const m = nextLine.match(/^\s*(\d{1,2}\.\d{2})\s*$/);
-    if (!m) continue;
-
-    const ms = parseAnyTime(m[1]);
-    if (ms > 5_000 && ms <= 90_000) {
-      standaloneLegByDistance.set(dist, ms);
-    }
-  }
-
-  for (const dist of expectedDistances) {
-    if (cumMap.has(dist)) continue;
-
-    // FIX: use splitStep for prev/next distance computation
-    const prevDist = dist - splitStep;
-    const nextDist = dist + splitStep;
-
-    const prevCum = cumMap.get(prevDist);
-    const nextCum = cumMap.get(nextDist);
-
-    if (prevCum == null || nextCum == null) continue;
-
-    const explicitLeg = standaloneLegByDistance.get(dist);
-
-    if (explicitLeg) {
-      const candidateCum = prevCum + explicitLeg;
-      if (candidateCum > prevCum && candidateCum < nextCum) {
-        cumMap.set(dist, candidateCum);
-        if (!distStrokeMap.has(dist)) {
-          distStrokeMap.set(dist, strokeLabelFor(dist, null));
-        }
-      }
-    }
-  }
-
-  // Derive leg times from sorted cumulatives
-  const sorted = Array.from(cumMap.entries()).sort((a, b) => a[1] - b[1]);
-  const splits: ParsedSplit[] = [];
-  let prevMs = 0;
-
-  for (const [dist, cumMs] of sorted) {
-    const stroke = distStrokeMap.get(dist) ?? strokeLabelFor(dist, null);
+    // Two times on the row → first = leg split, last = cumulative
+    // One time → it's the section/split time itself
+    const splitMs = timeParsed[0];
+    const cumulativeMs = timeParsed.length > 1 ? timeParsed[timeParsed.length - 1] : null;
 
     splits.push({
-      label: `${dist} ${stroke}`,
+      label,
       order: splits.length + 1,
       distance: dist,
-      splitMs: cumMs - prevMs,
-      cumulativeMs: cumMs,
+      splitMs,
+      cumulativeMs,
     });
-
-    prevMs = cumMs;
   }
 
   return splits;
@@ -825,7 +662,7 @@ function parseSingleSplitScreen(
 
   const finalTimeStr = msToTime(finalTimeMs);
 
-  const splits = parseSplitsFromCumulatives(rawText, bestEvent.distance, bestEvent.stroke, finalTimeMs);
+  const splits = parseSplitsDirectly(rawText, finalTimeMs);
 
   const correctedCourse = inferCourseFromSplits(globalCourse, bestEvent.distance, splits);
 
