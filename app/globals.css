@@ -57,6 +57,9 @@ html, body {
   color: var(--foreground);
   font-family: -apple-system, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
+  /* Allow iPhone system text size setting to scale the app */
+  -webkit-text-size-adjust: auto;
+  text-size-adjust: auto;
 }
 
 a {
