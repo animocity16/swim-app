@@ -741,6 +741,19 @@ export default function ScanPage() {
             {step === "done" && (
               <div className="space-y-4">
 
+                {/* TEMP DEBUG — shows raw OCR text. Remove after fixing splits. */}
+                {rawText && (
+                  <div className="rounded-2xl p-3"
+                    style={{ background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.15)" }}>
+                    <p className="mb-2 text-[10px] uppercase tracking-widest" style={{ color: "#FDE68A" }}>
+                      🐛 Debug — raw OCR (screenshot this and send)
+                    </p>
+                    <pre className="overflow-auto whitespace-pre-wrap text-[10px] leading-tight text-white/70" style={{ maxHeight: "300px", fontFamily: "monospace" }}>
+                      {rawText}
+                    </pre>
+                  </div>
+                )}
+
                 {message && (
                   <div className="rounded-2xl border p-3 text-sm" style={
                     message.startsWith("✓")
