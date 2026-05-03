@@ -699,16 +699,23 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
       cumulativeMs = afterTimes[0];
     } else if (afterTimes.length >= 2) {
       // Both leg and cumulative came AFTER the label.
-      // Sanity check: leg should be smaller than cumulative.
       const a = afterTimes[0];
       const b = afterTimes[1];
-      if (a <= b) {
+      if (a === b) {
+        // Equal values — first split row of an event (leg = cum)
+        splitMs = a;
+        cumulativeMs = a;
+      } else if (a < b) {
         splitMs = a;
         cumulativeMs = b;
       } else {
         splitMs = b;
         cumulativeMs = a;
       }
+    } else if (beforeTime !== null && afterTimes.length === 1 && beforeTime === afterTimes[0]) {
+      // First split row: leg before, cumulative after, both same value
+      splitMs = beforeTime;
+      cumulativeMs = beforeTime;
     } else if (afterTimes.length === 1) {
       splitMs = afterTimes[0];
     } else if (beforeTime !== null) {
@@ -731,7 +738,7 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
       : `${parsed.dist} ${parsed.stroke}`;
 
     // Deduplicate — prefer the entry that makes sense.
-    // Two validity checks:
+    // Validity checks:
     //   1. leg < cumulative (when cumulative present)
     //   2. leg time is plausible for the distance (50m leg < 90s, etc.)
     // Multiple screenshots may produce conflicting splits for the same label;
@@ -749,8 +756,13 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
       existingIsValid = existingLegPlausible && existingCumOk;
     }
 
+    // Don't store the entry at all if it's invalid AND we have no existing
+    // (better to leave the row blank than show garbage).
     if (!existing) {
-      seenLabels.set(label, { label, order: 0, distance: parsed.dist, splitMs, cumulativeMs });
+      if (newIsValid) {
+        seenLabels.set(label, { label, order: 0, distance: parsed.dist, splitMs, cumulativeMs });
+      }
+      // else: skip — no valid data to record
     } else if (newIsValid && !existingIsValid) {
       seenLabels.set(label, { label, order: 0, distance: parsed.dist, splitMs, cumulativeMs });
     } else if (newIsValid && existingIsValid && cumulativeMs !== null && existing.cumulativeMs == null) {
