@@ -730,24 +730,30 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
       ? `${parsed.dist} ${parsed.stroke} Split`
       : `${parsed.dist} ${parsed.stroke}`;
 
-    // Deduplicate — prefer the entry that makes sense (leg < cumulative).
-    // Multiple screenshots may produce conflicting splits for the same label,
-    // we want to keep the one where the values are internally consistent.
-    const existing = seenLabels.get(label);
-    const newIsValid = cumulativeMs === null || splitMs < cumulativeMs;
+    // Deduplicate — prefer the entry that makes sense.
+    // Two validity checks:
+    //   1. leg < cumulative (when cumulative present)
+    //   2. leg time is plausible for the distance (50m leg < 90s, etc.)
+    // Multiple screenshots may produce conflicting splits for the same label;
+    // we keep the one that passes both checks.
+    const maxLegMs = parsed.dist <= 50 ? 90_000 : parsed.dist <= 100 ? 180_000 : parsed.dist * 2_000;
+    const newLegPlausible = splitMs > 0 && splitMs <= maxLegMs;
+    const newCumOk = cumulativeMs == null || splitMs < cumulativeMs;
+    const newIsValid = newLegPlausible && newCumOk;
 
+    const existing = seenLabels.get(label);
     let existingIsValid = false;
     if (existing) {
-      existingIsValid = existing.cumulativeMs == null || existing.splitMs < existing.cumulativeMs;
+      const existingLegPlausible = existing.splitMs > 0 && existing.splitMs <= maxLegMs;
+      const existingCumOk = existing.cumulativeMs == null || existing.splitMs < existing.cumulativeMs;
+      existingIsValid = existingLegPlausible && existingCumOk;
     }
 
     if (!existing) {
       seenLabels.set(label, { label, order: 0, distance: parsed.dist, splitMs, cumulativeMs });
     } else if (newIsValid && !existingIsValid) {
-      // Replace bad existing with valid new
       seenLabels.set(label, { label, order: 0, distance: parsed.dist, splitMs, cumulativeMs });
     } else if (newIsValid && existingIsValid && cumulativeMs !== null && existing.cumulativeMs == null) {
-      // Both valid but new has cumulative info, existing doesn't
       seenLabels.set(label, { label, order: 0, distance: parsed.dist, splitMs, cumulativeMs });
     }
   }
