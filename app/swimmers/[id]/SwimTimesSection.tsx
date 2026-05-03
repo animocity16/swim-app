@@ -612,24 +612,36 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
                                 </div>
                               )}
 
-                              {/* Splits */}
+                              {/* Splits — clean two-column table */}
                               {!isEditing && showSplits && splits.length > 0 && (
                                 <div className="mt-2 rounded-xl overflow-hidden"
-                                  style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                                  style={{ background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.06)" }}>
+
+                                  {/* Column headers */}
+                                  <div className="grid grid-cols-[1fr_72px_80px] gap-2 px-3 py-2 items-center"
+                                    style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                                    <span className="text-[9px] font-semibold uppercase tracking-widest text-white/30">Split</span>
+                                    <span className="text-[9px] font-semibold uppercase tracking-widest text-white/30 text-right">Leg</span>
+                                    <span className="text-[9px] font-semibold uppercase tracking-widest text-white/30 text-right">Cum.</span>
+                                  </div>
+
+                                  {/* Data rows */}
                                   {splits
                                     .sort((a, b) => (a.split_order ?? 0) - (b.split_order ?? 0))
-                                    .map((split) => (
-                                      <div key={split.id} className="flex items-center justify-between px-3 py-2"
-                                        style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                                        <p className="text-xs text-white/60">{split.split_label || "Split"}</p>
-                                        <div className="text-right">
-                                          <p className="text-xs font-semibold" style={{ color: "#FDE68A" }}>
-                                            {formatMs(split.split_time_ms)}
-                                          </p>
-                                          {split.cumulative_time_ms != null && (
-                                            <p className="text-[10px] text-white/30">{formatMs(split.cumulative_time_ms)} cum.</p>
-                                          )}
-                                        </div>
+                                    .map((split, sIdx, arr) => (
+                                      <div key={split.id}
+                                        className="grid grid-cols-[1fr_72px_80px] gap-2 px-3 py-2 items-center"
+                                        style={{ borderBottom: sIdx === arr.length - 1 ? "none" : "1px solid rgba(255,255,255,0.04)" }}>
+                                        <p className="text-xs font-medium text-white/75">
+                                          {split.split_label || "Split"}
+                                        </p>
+                                        <p className="text-xs font-bold tabular-nums text-right"
+                                          style={{ color: "#FDE68A" }}>
+                                          {formatMs(split.split_time_ms)}
+                                        </p>
+                                        <p className="text-xs tabular-nums text-right text-white/50">
+                                          {split.cumulative_time_ms != null ? formatMs(split.cumulative_time_ms) : "—"}
+                                        </p>
                                       </div>
                                     ))}
                                 </div>
