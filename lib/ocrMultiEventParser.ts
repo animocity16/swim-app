@@ -610,28 +610,26 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
     };
   }
 
-  // Pre-filter: remove all "<dist> <stroke> Split" rows entirely from the
-  // input lines, AND the standalone time line that immediately follows them.
-  // These are the 100m section splits Meet Mobile inserts between 50m rows.
-  // They duplicate info we already capture, and confuse lookahead.
-  // Drop both the label and its associated time line so no other code path
-  // can ever see them.
+  // Pre-filter: remove all "<dist> <stroke> Split" rows AND their associated
+  // time line. OCR places the Split time either BEFORE or AFTER the label
+  // depending on column-reading order — so we remove both adjacent time lines.
   const rawLines = rawText.split("\n").map((l) => l.trim()).filter(Boolean);
-  const lines: string[] = [];
+  const isTimeOnlyLine = (s: string) =>
+    /^(\d{1,2}[:.]\d{2}[:.]\d{2}|\d{1,2}\.\d{2}|\d{4})$/.test(s);
+  const isSplitLabelLine = (s: string) =>
+    /\bsplit\b/i.test(s) && /\b(free|back|fly|breast)\b/i.test(s);
+
+  // Mark every index to remove in one pass, then filter
+  const removeIdx = new Set<number>();
   for (let idx = 0; idx < rawLines.length; idx++) {
-    const line = rawLines[idx];
-    const isSplitLabel = /\bsplit\b/i.test(line) && /\b(free|back|fly|breast)\b/i.test(line);
-    if (isSplitLabel) {
-      // Skip this label
-      // Also skip the next line if it looks like a standalone time
-      // (e.g. "1:33.18" or "43.81" right under "100 Free Split")
-      const next = rawLines[idx + 1] ?? "";
-      const isTimeOnly = /^(\d{1,2}[:.]\d{2}[:.]\d{2}|\d{1,2}\.\d{2}|\d{4})$/.test(next);
-      if (isTimeOnly) idx++;
-      continue;
+    if (isSplitLabelLine(rawLines[idx])) {
+      removeIdx.add(idx);
+      if (idx > 0 && isTimeOnlyLine(rawLines[idx - 1])) removeIdx.add(idx - 1);
+      if (idx < rawLines.length - 1 && isTimeOnlyLine(rawLines[idx + 1])) removeIdx.add(idx + 1);
     }
-    lines.push(line);
   }
+  const lines = rawLines.filter((_, idx) => !removeIdx.has(idx));
+
   const seenLabels = new Map<string, ParsedSplit>();
   let inSplits = false;
 
