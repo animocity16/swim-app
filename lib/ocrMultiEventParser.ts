@@ -628,6 +628,12 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
     const parsed = parseLabelLine(line);
     if (!parsed) continue;
 
+    // Skip "Split" rows entirely — they're the 100m section splits that
+    // Meet Mobile inserts between 50m rows. They duplicate info already
+    // captured by the cumulative time of preceding rows AND they confuse
+    // the lookahead logic by sitting between real 50m split rows.
+    if (parsed.isSplitRow) continue;
+
     // Look at lines around this label for the leg time and cumulative time.
     // The OCR pattern is normally:  [leg]  label  [cumulative]
     // But sometimes both times appear AFTER the label:  label  [leg]  [cumulative]
@@ -639,16 +645,20 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
     let cumulativeMs: number | null = null;
 
     // First, gather any times that appear AFTER the label, until we hit
-    // another label or section end
+    // another label or section end. Skip past "Split" label rows since
+    // they're inserted between 50m splits and would otherwise stop us early.
     const afterTimes: number[] = [];
-    for (let k = i + 1; k <= Math.min(i + 3, lines.length - 1); k++) {
+    for (let k = i + 1; k <= Math.min(i + 5, lines.length - 1); k++) {
       const candidate = lines[k];
       if (!candidate) break;
-      if (parseLabelLine(candidate)) break;
+      const candidateLabel = parseLabelLine(candidate);
+      if (candidateLabel && !candidateLabel.isSplitRow) break; // real next row → stop
+      if (candidateLabel && candidateLabel.isSplitRow) continue; // Split row → skip past
       if (/\bsplits?\b/i.test(candidate) || /\btotal\b/i.test(candidate)) break;
       if (isTimeLine(candidate)) {
         const ms = repairTimeToMs(candidate);
         if (ms > 0 && ms <= finalMs + 10_000) afterTimes.push(ms);
+        if (afterTimes.length >= 2) break; // we have leg + cumulative, stop
       }
     }
 
