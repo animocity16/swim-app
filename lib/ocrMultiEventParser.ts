@@ -695,16 +695,18 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
     // we want to keep the one where the values are internally consistent.
     const existing = seenLabels.get(label);
     const newIsValid = cumulativeMs === null || splitMs < cumulativeMs;
-    const existingIsValid = existing == null
-      ? false
-      : existing.cumulativeMs === null || existing.splitMs < existing.cumulativeMs;
+
+    let existingIsValid = false;
+    if (existing) {
+      existingIsValid = existing.cumulativeMs == null || existing.splitMs < existing.cumulativeMs;
+    }
 
     if (!existing) {
       seenLabels.set(label, { label, order: 0, distance: parsed.dist, splitMs, cumulativeMs });
     } else if (newIsValid && !existingIsValid) {
       // Replace bad existing with valid new
       seenLabels.set(label, { label, order: 0, distance: parsed.dist, splitMs, cumulativeMs });
-    } else if (newIsValid && existingIsValid && cumulativeMs !== null && existing.cumulativeMs === null) {
+    } else if (newIsValid && existingIsValid && cumulativeMs !== null && existing.cumulativeMs == null) {
       // Both valid but new has cumulative info, existing doesn't
       seenLabels.set(label, { label, order: 0, distance: parsed.dist, splitMs, cumulativeMs });
     }
