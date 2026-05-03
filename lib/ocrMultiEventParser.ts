@@ -610,7 +610,28 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
     };
   }
 
-  const lines = rawText.split("\n").map((l) => l.trim()).filter(Boolean);
+  // Pre-filter: remove all "<dist> <stroke> Split" rows entirely from the
+  // input lines, AND the standalone time line that immediately follows them.
+  // These are the 100m section splits Meet Mobile inserts between 50m rows.
+  // They duplicate info we already capture, and confuse lookahead.
+  // Drop both the label and its associated time line so no other code path
+  // can ever see them.
+  const rawLines = rawText.split("\n").map((l) => l.trim()).filter(Boolean);
+  const lines: string[] = [];
+  for (let idx = 0; idx < rawLines.length; idx++) {
+    const line = rawLines[idx];
+    const isSplitLabel = /\bsplit\b/i.test(line) && /\b(free|back|fly|breast)\b/i.test(line);
+    if (isSplitLabel) {
+      // Skip this label
+      // Also skip the next line if it looks like a standalone time
+      // (e.g. "1:33.18" or "43.81" right under "100 Free Split")
+      const next = rawLines[idx + 1] ?? "";
+      const isTimeOnly = /^(\d{1,2}[:.]\d{2}[:.]\d{2}|\d{1,2}\.\d{2}|\d{4})$/.test(next);
+      if (isTimeOnly) idx++;
+      continue;
+    }
+    lines.push(line);
+  }
   const seenLabels = new Map<string, ParsedSplit>();
   let inSplits = false;
 
@@ -669,19 +690,28 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
       if (ms > 0 && ms <= finalMs + 10_000) beforeTime = ms;
     }
 
-    if (afterTimes.length >= 2) {
-      // Both leg and cumulative came AFTER the label
-      splitMs = afterTimes[0];
-      cumulativeMs = afterTimes[1];
-    } else if (afterTimes.length === 1 && beforeTime !== null) {
-      // Standard pattern: leg before, cumulative after
+    // Determine leg and cumulative based on what's available.
+    // The reliable invariant: leg time < cumulative time (always).
+    if (beforeTime !== null && afterTimes.length >= 1 && beforeTime < afterTimes[0]) {
+      // Standard pattern: leg before label, cumulative after.
+      // Validated by the leg<cum invariant.
       splitMs = beforeTime;
       cumulativeMs = afterTimes[0];
+    } else if (afterTimes.length >= 2) {
+      // Both leg and cumulative came AFTER the label.
+      // Sanity check: leg should be smaller than cumulative.
+      const a = afterTimes[0];
+      const b = afterTimes[1];
+      if (a <= b) {
+        splitMs = a;
+        cumulativeMs = b;
+      } else {
+        splitMs = b;
+        cumulativeMs = a;
+      }
     } else if (afterTimes.length === 1) {
-      // Only one time after — use it as the leg
       splitMs = afterTimes[0];
     } else if (beforeTime !== null) {
-      // Only a time before — use it as the leg
       splitMs = beforeTime;
     }
 
