@@ -628,21 +628,51 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
     const parsed = parseLabelLine(line);
     if (!parsed) continue;
 
-    // Look for time on PREVIOUS line (leg time) and NEXT line (cumulative)
+    // Look at lines around this label for the leg time and cumulative time.
+    // The OCR pattern is normally:  [leg]  label  [cumulative]
+    // But sometimes both times appear AFTER the label:  label  [leg]  [cumulative]
+    // We collect all time-only lines within a 3-line window around the label
+    // (preferring those after the label, falling back to the one before).
     const prevLine = lines[i - 1] ?? "";
-    const nextLine = lines[i + 1] ?? "";
 
     let splitMs = 0;
     let cumulativeMs: number | null = null;
 
-    if (isTimeLine(prevLine)) {
-      const ms = repairTimeToMs(prevLine);
-      if (ms > 0 && ms <= finalMs + 10_000) splitMs = ms;
+    // First, gather any times that appear AFTER the label, until we hit
+    // another label or section end
+    const afterTimes: number[] = [];
+    for (let k = i + 1; k <= Math.min(i + 3, lines.length - 1); k++) {
+      const candidate = lines[k];
+      if (!candidate) break;
+      if (parseLabelLine(candidate)) break;
+      if (/\bsplits?\b/i.test(candidate) || /\btotal\b/i.test(candidate)) break;
+      if (isTimeLine(candidate)) {
+        const ms = repairTimeToMs(candidate);
+        if (ms > 0 && ms <= finalMs + 10_000) afterTimes.push(ms);
+      }
     }
 
-    if (isTimeLine(nextLine)) {
-      const ms = repairTimeToMs(nextLine);
-      if (ms > 0 && ms <= finalMs + 10_000) cumulativeMs = ms;
+    // Time before the label (the leg time, when present)
+    let beforeTime: number | null = null;
+    if (isTimeLine(prevLine)) {
+      const ms = repairTimeToMs(prevLine);
+      if (ms > 0 && ms <= finalMs + 10_000) beforeTime = ms;
+    }
+
+    if (afterTimes.length >= 2) {
+      // Both leg and cumulative came AFTER the label
+      splitMs = afterTimes[0];
+      cumulativeMs = afterTimes[1];
+    } else if (afterTimes.length === 1 && beforeTime !== null) {
+      // Standard pattern: leg before, cumulative after
+      splitMs = beforeTime;
+      cumulativeMs = afterTimes[0];
+    } else if (afterTimes.length === 1) {
+      // Only one time after — use it as the leg
+      splitMs = afterTimes[0];
+    } else if (beforeTime !== null) {
+      // Only a time before — use it as the leg
+      splitMs = beforeTime;
     }
 
     // If "Split" row (single-time row), the next line is the split time itself, not cumulative
@@ -660,16 +690,23 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
       ? `${parsed.dist} ${parsed.stroke} Split`
       : `${parsed.dist} ${parsed.stroke}`;
 
-    // Deduplicate — keep entry with the most data
+    // Deduplicate — prefer the entry that makes sense (leg < cumulative).
+    // Multiple screenshots may produce conflicting splits for the same label,
+    // we want to keep the one where the values are internally consistent.
     const existing = seenLabels.get(label);
-    if (!existing || (cumulativeMs !== null && existing.cumulativeMs === null)) {
-      seenLabels.set(label, {
-        label,
-        order: 0,
-        distance: parsed.dist,
-        splitMs,
-        cumulativeMs,
-      });
+    const newIsValid = cumulativeMs === null || splitMs < cumulativeMs;
+    const existingIsValid = existing == null
+      ? false
+      : existing.cumulativeMs === null || existing.splitMs < existing.cumulativeMs;
+
+    if (!existing) {
+      seenLabels.set(label, { label, order: 0, distance: parsed.dist, splitMs, cumulativeMs });
+    } else if (newIsValid && !existingIsValid) {
+      // Replace bad existing with valid new
+      seenLabels.set(label, { label, order: 0, distance: parsed.dist, splitMs, cumulativeMs });
+    } else if (newIsValid && existingIsValid && cumulativeMs !== null && existing.cumulativeMs === null) {
+      // Both valid but new has cumulative info, existing doesn't
+      seenLabels.set(label, { label, order: 0, distance: parsed.dist, splitMs, cumulativeMs });
     }
   }
 
