@@ -562,17 +562,14 @@ function extractFinalTimeMs(rawText: string): number {
 function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
   // ── Strategy: Cumulative-sequence extraction via DP ───────────────────────
   //
-  // Rather than parsing individual label+time pairs (fragile due to OCR
-  // column-reading order and screenshot overlap), we:
-  //
-  //   1. Strip "X Stroke Split" rows and their associated times cleanly
-  //   2. Collect all standalone time values from SPLITS sections
-  //   3. Find the longest monotonically increasing subsequence ending at
-  //      finalMs, where each step (leg time) is between 25s and 120s
-  //   4. Derive leg times by subtraction
-  //   5. Map to labels in the order they appear in the OCR
-  //
-  // This is immune to whether times appear before or after their labels.
+  //  1. Strip "X Stroke Split" rows and their noise times carefully
+  //  2. Collect all standalone time values from SPLITS sections
+  //  3. Find ALL longest monotonically increasing subsequences ending at
+  //     finalMs, where each step (leg) is between 25s and 120s
+  //  4. Among equal-length chains, pick the one with minimum leg-time variance
+  //     (real splits are consistent; garbage data creates outliers)
+  //  5. Generate labels mathematically from the event name — not from OCR
+  //     label order (which breaks when screenshots are uploaded out of sequence)
 
   function repairTimeToMs(s: string): number {
     const t = s.trim();
@@ -585,7 +582,7 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
       const [sec, hun] = t.split(".");
       return Number(sec) * 1_000 + Number(hun) * 10;
     }
-    // OCR-dropped decimal e.g. "4937" → 49.37s, "4418" → 44.18s
+    // OCR-dropped decimal e.g. "4937" → 49.37s
     if (/^\d{4}$/.test(t)) {
       const sec = Number(t.slice(0, 2));
       const hun = Number(t.slice(2));
@@ -598,52 +595,38 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
     /^(\d{1,2}[:.]\d{2}[:.]\d{2}|\d{1,2}\.\d{2}|\d{4})$/.test(s.trim());
 
   const isSplitLabel = (s: string) =>
-    /\bsplit\b/i.test(s) && /\b(free|back|fly|breast)\b/i.test(s);
+    /\bsplit\b/i.test(s) && /\b(free|back|fly|butterfly|breast|backstroke|breaststroke)\b/i.test(s);
 
   const isValidLabel = (s: string) =>
     !isSplitLabel(s) &&
     /\b(free|back|fly|butterfly|breast|backstroke|breaststroke)\b/i.test(s) &&
     /\b\d+\b/.test(s);
 
-  function strokeFromLine(line: string): string {
-    const l = line.toLowerCase();
-    if (l.includes("fly") || l.includes("butterfly")) return "Fly";
-    if (l.includes("back") || l.includes("backstroke")) return "Back";
-    if (l.includes("breast") || l.includes("breaststroke")) return "Breast";
-    return "Free";
-  }
-
   const rawLines = rawText.split("\n").map((l) => l.trim());
 
-  // ── Step 1: Mark Split label lines AND their noise times for removal ───────
-  // A Split time is:
-  //   - The time AFTER the Split label if it is > 60s (a section cumulative)
-  //   - The time BEFORE the Split label ONLY IF the line before that time
-  //     is NOT a valid row label (meaning it's an orphaned inter-screenshot
-  //     time, not a legitimate row cumulative)
+  // ── Step 1: Mark Split label lines and their noise times for removal ───────
+  // Split times are section cumulatives (> 60s). Be careful not to remove
+  // legitimate row cumulatives that happen to precede a Split label.
   const removeIdx = new Set<number>();
   for (let i = 0; i < rawLines.length; i++) {
     if (!isSplitLabel(rawLines[i])) continue;
     removeIdx.add(i);
-
-    // Time BEFORE the Split label
+    // Time BEFORE the Split label: remove ONLY if the line before that time
+    // is NOT a valid row label (would mean it's an orphaned inter-screenshot
+    // cumulative, not a row's legitimate cumulative)
     if (i > 0 && isTimeOnly(rawLines[i - 1])) {
       const lineBeforeTime = rawLines[i - 2] ?? "";
-      // Remove only if no valid label precedes this time
       if (!isValidLabel(lineBeforeTime)) removeIdx.add(i - 1);
     }
-
-    // Time AFTER the Split label — remove only if it looks like a cumulative
+    // Time AFTER the Split label: remove if > 60s (it's the section cumulative)
     if (i < rawLines.length - 1 && isTimeOnly(rawLines[i + 1])) {
       const ms = repairTimeToMs(rawLines[i + 1]);
       if (ms > 60_000) removeIdx.add(i + 1);
     }
   }
 
-  // ── Step 2: Collect time values and labels from SPLITS sections ────────────
+  // ── Step 2: Collect time values from SPLITS sections ─────────────────────
   const collectedTimes: number[] = [];
-  const labelOrder: Array<{ dist: number; stroke: string }> = [];
-  const seenDists = new Set<number>();
   let inSplits = false;
 
   for (let i = 0; i < rawLines.length; i++) {
@@ -651,7 +634,11 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
     const line = rawLines[i];
     if (!line) continue;
 
-    if (/\bsplits?\b/i.test(line) && !/\b(free|back|fly|breast|im)\b/i.test(line) && !/\d{2,}/i.test(line)) {
+    if (
+      /\bsplits?\b/i.test(line) &&
+      !/\b(free|back|fly|breast|im)\b/i.test(line) &&
+      !/\d{2,}/i.test(line)
+    ) {
       inSplits = true; continue;
     }
     if (/\btotal\b/i.test(line)) { inSplits = false; continue; }
@@ -660,24 +647,12 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
     if (isTimeOnly(line)) {
       const ms = repairTimeToMs(line);
       if (ms > 0) collectedTimes.push(ms);
-      continue;
-    }
-
-    // Collect label order (for naming splits) — deduplicate by distance
-    const distMatch = line.match(/(?<![.\d])\b(25|50|75|100|125|150|175|200|225|250|275|300|325|350|375|400|450|500|800|1500)\b/);
-    if (distMatch && isValidLabel(line)) {
-      const dist = Number(distMatch[1]);
-      if (!seenDists.has(dist)) {
-        seenDists.add(dist);
-        labelOrder.push({ dist, stroke: strokeFromLine(line) });
-      }
     }
   }
 
   if (collectedTimes.length === 0) return [];
 
-  // ── Step 3: DP to find the longest monotonically increasing subsequence ───
-  // ending at finalMs, where each increment (leg time) is between 25s–120s.
+  // ── Step 3: DP — find ALL longest chains ending near finalMs ──────────────
   const MIN_LEG = 25_000;
   const MAX_LEG = 120_000;
   const TOLERANCE = 5_000;
@@ -687,30 +662,68 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
     .sort((a, b) => a - b);
 
   const withFinal = [...new Set([...candidates, finalMs])].sort((a, b) => a - b);
-  const dp: number[][] = withFinal.map((t) => [t]);
+
+  // Keep ALL equal-length chains at each position (not just the last one)
+  const dp: number[][][] = withFinal.map((t) => [[t]]);
 
   for (let i = 1; i < withFinal.length; i++) {
     for (let j = 0; j < i; j++) {
       const leg = withFinal[i] - withFinal[j];
-      if (leg >= MIN_LEG && leg <= MAX_LEG && dp[j].length + 1 > dp[i].length) {
-        dp[i] = [...dp[j], withFinal[i]];
+      if (leg < MIN_LEG || leg > MAX_LEG) continue;
+      for (const prevChain of dp[j]) {
+        const newLen = prevChain.length + 1;
+        const curBestLen = dp[i][0]?.length ?? 0;
+        if (newLen > curBestLen) {
+          dp[i] = [[...prevChain, withFinal[i]]];
+        } else if (newLen === curBestLen) {
+          dp[i].push([...prevChain, withFinal[i]]);
+        }
       }
     }
   }
 
-  const validChains = dp.filter(
+  // ── Step 4: Among longest chains, pick by: min first element, then min variance
+  const allValid = dp.flat().filter(
     (chain) => Math.abs(chain[chain.length - 1] - finalMs) <= TOLERANCE
   );
-  if (validChains.length === 0) return [];
+  if (allValid.length === 0) return [];
 
-  const best = validChains.reduce((b, c) => (c.length > b.length ? c : b), validChains[0]);
+  const maxLen = Math.max(...allValid.map((c) => c.length));
+  const longest = allValid.filter((c) => c.length === maxLen);
 
-  // ── Step 4: Build ParsedSplit array ───────────────────────────────────────
+  // Tiebreaker 1: minimum first cumulative (the 50m leg should be smallest)
+  const minFirst = Math.min(...longest.map((c) => c[0]));
+  const withMinFirst = longest.filter((c) => c[0] === minFirst);
+
+  // Tiebreaker 2: minimum leg-time variance (real splits are consistent)
+  function legVariance(chain: number[]): number {
+    const legs = chain.map((cum, i) => (i === 0 ? cum : cum - chain[i - 1]));
+    const mean = legs.reduce((a, b) => a + b, 0) / legs.length;
+    return legs.reduce((a, b) => a + (b - mean) ** 2, 0) / legs.length;
+  }
+
+  const best = withMinFirst.reduce(
+    (b, c) => (legVariance(c) < legVariance(b) ? c : b),
+    withMinFirst[0]
+  );
+
+  // ── Step 5: Generate labels from event name (not OCR order) ───────────────
+  // Extract stroke from the event name in rawText for labelling.
+  // This avoids label-order problems when screenshots are uploaded out of sequence.
+  function strokeLabelFromText(text: string): string {
+    const t = text.toLowerCase();
+    if (t.includes("butterfly") || t.includes(" fly ") || / fly\b/i.test(t)) return "Fly";
+    if (t.includes("backstroke") || t.includes(" back ") || / back\b/i.test(t)) return "Back";
+    if (t.includes("breaststroke") || t.includes(" breast ") || / breast\b/i.test(t)) return "Breast";
+    if (t.includes("medley") || / im\b/i.test(t)) return "Free"; // IM — label by final stroke
+    return "Free";
+  }
+
+  const stroke = strokeLabelFromText(rawText);
+
   return best.map((cumMs, idx) => {
     const legMs = idx === 0 ? cumMs : cumMs - best[idx - 1];
-    const labelInfo = labelOrder[idx];
-    const dist = labelInfo?.dist ?? (idx + 1) * 50;
-    const stroke = labelInfo?.stroke ?? "Free";
+    const dist = (idx + 1) * 50;
     return {
       label: `${dist} ${stroke}`,
       order: idx + 1,
@@ -720,7 +733,6 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
     };
   });
 }
-
 
 
 function extractPlaceFromDetailScreen(rawText: string, lines: string[]): number | null {
