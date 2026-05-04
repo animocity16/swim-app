@@ -564,12 +564,10 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
   //
   //  1. Strip "X Stroke Split" rows and their noise times carefully
   //  2. Collect all standalone time values from SPLITS sections
-  //  3. Find ALL longest monotonically increasing subsequences ending at
-  //     finalMs, where each step (leg) is between 25s and 120s
-  //  4. Among equal-length chains, pick the one with minimum leg-time variance
-  //     (real splits are consistent; garbage data creates outliers)
-  //  5. Generate labels mathematically from the event name — not from OCR
-  //     label order (which breaks when screenshots are uploaded out of sequence)
+  //  3. Detect target chain length from event distance (400 Free = 8 splits)
+  //  4. Find the chain of EXACTLY that length ending nearest finalMs,
+  //     with minimum leg-time variance as tiebreaker
+  //  5. Generate labels mathematically
 
   function repairTimeToMs(s: string): number {
     const t = s.trim();
@@ -604,28 +602,28 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
 
   const rawLines = rawText.split("\n").map((l) => l.trim());
 
-  // ── Step 1: Mark Split label lines and their noise times for removal ───────
-  // Split times are section cumulatives (> 60s). Be careful not to remove
-  // legitimate row cumulatives that happen to precede a Split label.
+  // ── Step 1: Detect event distance for target chain length ─────────────────
+  // 400 Free → 8 splits, 200 Free → 4 splits, 800 Free → 16 splits, etc.
+  const eventDistMatch = rawText.match(/\b(200|400|800|1500)\s*(meter|m)?\s*(free|freestyle|back|backstroke|fly|butterfly|breast|breaststroke|medley|im)\b/i);
+  const eventDist = eventDistMatch ? Number(eventDistMatch[1]) : 0;
+  const targetChainLength = eventDist > 0 ? eventDist / 50 : 0; // 0 = unconstrained
+
+  // ── Step 2: Mark Split label lines and their noise times for removal ───────
   const removeIdx = new Set<number>();
   for (let i = 0; i < rawLines.length; i++) {
     if (!isSplitLabel(rawLines[i])) continue;
     removeIdx.add(i);
-    // Time BEFORE the Split label: remove ONLY if the line before that time
-    // is NOT a valid row label (would mean it's an orphaned inter-screenshot
-    // cumulative, not a row's legitimate cumulative)
     if (i > 0 && isTimeOnly(rawLines[i - 1])) {
       const lineBeforeTime = rawLines[i - 2] ?? "";
       if (!isValidLabel(lineBeforeTime)) removeIdx.add(i - 1);
     }
-    // Time AFTER the Split label: remove if > 60s (it's the section cumulative)
     if (i < rawLines.length - 1 && isTimeOnly(rawLines[i + 1])) {
       const ms = repairTimeToMs(rawLines[i + 1]);
       if (ms > 60_000) removeIdx.add(i + 1);
     }
   }
 
-  // ── Step 2: Collect time values from SPLITS sections ─────────────────────
+  // ── Step 3: Collect time values from SPLITS sections ─────────────────────
   const collectedTimes: number[] = [];
   let inSplits = false;
 
@@ -633,17 +631,13 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
     if (removeIdx.has(i)) continue;
     const line = rawLines[i];
     if (!line) continue;
-
     if (
       /\bsplits?\b/i.test(line) &&
       !/\b(free|back|fly|breast|im)\b/i.test(line) &&
       !/\d{2,}/i.test(line)
-    ) {
-      inSplits = true; continue;
-    }
+    ) { inSplits = true; continue; }
     if (/\btotal\b/i.test(line)) { inSplits = false; continue; }
     if (!inSplits) continue;
-
     if (isTimeOnly(line)) {
       const ms = repairTimeToMs(line);
       if (ms > 0) collectedTimes.push(ms);
@@ -652,9 +646,12 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
 
   if (collectedTimes.length === 0) return [];
 
-  // ── Step 3: DP — find ALL longest chains ending near finalMs ──────────────
-  const MIN_LEG = 25_000;
-  const MAX_LEG = 120_000;
+  // ── Step 4: DP — keep ALL equal-length chains at each position ────────────
+  // MIN_LEG is deliberately low (8s) to allow unusual splits like 13.14s
+  // which can occur due to unusual pacing or OCR quirks.
+  const MIN_LEG = 8_000;
+  const MIN_FIRST = 20_000;  // first 50m leg must be ≥ 20s
+  const MAX_LEG = 130_000; // 2m10s maximum
   const TOLERANCE = 5_000;
 
   const candidates = [...new Set(collectedTimes)]
@@ -663,66 +660,106 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
 
   const withFinal = [...new Set([...candidates, finalMs])].sort((a, b) => a - b);
 
-  // Keep ALL equal-length chains at each position (not just the last one)
-  const dp: number[][][] = withFinal.map((t) => [[t]]);
-
-  for (let i = 1; i < withFinal.length; i++) {
-    for (let j = 0; j < i; j++) {
-      const leg = withFinal[i] - withFinal[j];
-      if (leg < MIN_LEG || leg > MAX_LEG) continue;
-      for (const prevChain of dp[j]) {
-        const newLen = prevChain.length + 1;
-        const curBestLen = dp[i][0]?.length ?? 0;
-        if (newLen > curBestLen) {
-          dp[i] = [[...prevChain, withFinal[i]]];
-        } else if (newLen === curBestLen) {
-          dp[i].push([...prevChain, withFinal[i]]);
-        }
-      }
-    }
+  // 2D DP: dp[k][i] = best chain of length k ending at withFinal[i]
+  // The anchor (first cumulative = 50m leg) is identified as the first time
+  // collected from SPLITS sections that is plausibly a 50m leg (≥ MIN_FIRST,
+  // ≤ 90s). This uses OCR order which reflects screenshot upload order.
+  // Fallback: allow any start ≥ MIN_FIRST if no anchor found.
+  const MAX_FIRST_LEG = 90_000; // 50m leg should be ≤ 90s
+  let anchorMs = 0;
+  for (const t of collectedTimes) {
+    if (t >= MIN_FIRST && t <= MAX_FIRST_LEG) { anchorMs = t; break; }
   }
 
-  // ── Step 4: Among longest chains, pick by: min first element, then min variance
-  const allValid = dp.flat().filter(
-    (chain) => Math.abs(chain[chain.length - 1] - finalMs) <= TOLERANCE
+  const maxChainLen = targetChainLength > 0 ? targetChainLength : 20;
+  const dp2d: (number[] | null)[][] = Array.from(
+    { length: maxChainLen + 1 },
+    () => Array(withFinal.length).fill(null)
   );
-  if (allValid.length === 0) return [];
 
-  const maxLen = Math.max(...allValid.map((c) => c.length));
-  const longest = allValid.filter((c) => c.length === maxLen);
+  // Length-1 chains: only start from the anchor (or any valid start if no anchor)
+  for (let i = 0; i < withFinal.length; i++) {
+    const isValidStart = anchorMs > 0
+      ? withFinal[i] === anchorMs  // use the anchor
+      : withFinal[i] >= MIN_FIRST; // fallback: any valid first leg
+    if (isValidStart) dp2d[1][i] = [withFinal[i]];
+  }
 
-  // Tiebreaker 1: minimum first cumulative (the 50m leg should be smallest)
-  const minFirst = Math.min(...longest.map((c) => c[0]));
-  const withMinFirst = longest.filter((c) => c[0] === minFirst);
-
-  // Tiebreaker 2: minimum leg-time variance (real splits are consistent)
   function legVariance(chain: number[]): number {
     const legs = chain.map((cum, i) => (i === 0 ? cum : cum - chain[i - 1]));
     const mean = legs.reduce((a, b) => a + b, 0) / legs.length;
     return legs.reduce((a, b) => a + (b - mean) ** 2, 0) / legs.length;
   }
 
-  const best = withMinFirst.reduce(
-    (b, c) => (legVariance(c) < legVariance(b) ? c : b),
-    withMinFirst[0]
-  );
-
-  // ── Step 5: Generate labels from event name (not OCR order) ───────────────
-  // Extract stroke from the event name in rawText for labelling.
-  // This avoids label-order problems when screenshots are uploaded out of sequence.
-  function strokeLabelFromText(text: string): string {
-    const t = text.toLowerCase();
-    if (t.includes("butterfly") || t.includes(" fly ") || / fly\b/i.test(t)) return "Fly";
-    if (t.includes("backstroke") || t.includes(" back ") || / back\b/i.test(t)) return "Back";
-    if (t.includes("breaststroke") || t.includes(" breast ") || / breast\b/i.test(t)) return "Breast";
-    if (t.includes("medley") || / im\b/i.test(t)) return "Free"; // IM — label by final stroke
-    return "Free";
+  function isBetter(candidate: number[], current: number[]): boolean {
+    // Primary: smaller first element (= smaller 50m leg, most reliable anchor)
+    if (candidate[0] !== current[0]) return candidate[0] < current[0];
+    // Secondary: lower leg-time variance
+    return legVariance(candidate) < legVariance(current);
   }
 
-  const stroke = strokeLabelFromText(rawText);
+  for (let k = 2; k <= maxChainLen; k++) {
+    for (let i = 0; i < withFinal.length; i++) {
+      for (let j = 0; j < i; j++) {
+        const leg = withFinal[i] - withFinal[j];
+        if (leg < MIN_LEG || leg > MAX_LEG) continue;
+        if (!dp2d[k - 1][j]) continue;
+        const prevChain = dp2d[k - 1][j] as number[];
+        const candidate = [...prevChain, withFinal[i]];
+        const current = dp2d[k][i];
+        if (!current || isBetter(candidate, current)) {
+          dp2d[k][i] = candidate;
+        }
+      }
+    }
+  }
 
-  return best.map((cumMs, idx) => {
-    const legMs = idx === 0 ? cumMs : cumMs - best[idx - 1];
+  // ── Step 5: Select best chain of target length ending near finalMs ─────────
+  let best: number[] | null = null;
+
+  // Try exact target length first
+  const tryLength = (len: number) => {
+    for (let i = 0; i < withFinal.length; i++) {
+      if (Math.abs(withFinal[i] - finalMs) <= TOLERANCE && dp2d[len]?.[i]) {
+        const c = dp2d[len][i]!;
+        if (!best || isBetter(c, best)) best = c;
+      }
+    }
+  };
+
+  if (targetChainLength > 0) {
+    tryLength(targetChainLength);
+    // Fallback: try adjacent lengths if exact doesn't work
+    if (!best) {
+      for (let delta = 1; delta <= 3; delta++) {
+        tryLength(targetChainLength - delta);
+        tryLength(targetChainLength + delta);
+        if (best) break;
+      }
+    }
+  } else {
+    // No target — use longest available
+    for (let k = maxChainLen; k >= 1; k--) {
+      tryLength(k);
+      if (best) break;
+    }
+  }
+
+  if (!best) return [];
+  const bestChain = best as number[];
+
+  // ── Step 6: Build splits with mathematical labels ─────────────────────────
+  function strokeLabel(text: string): string {
+    const t = text.toLowerCase();
+    if (t.includes("butterfly") || / fly\b/i.test(t)) return "Fly";
+    if (t.includes("backstroke") || / back\b/i.test(t)) return "Back";
+    if (t.includes("breaststroke") || / breast\b/i.test(t)) return "Breast";
+    return "Free";
+  }
+  const stroke = strokeLabel(rawText);
+
+  return bestChain.map((cumMs, idx) => {
+    const legMs = idx === 0 ? cumMs : cumMs - bestChain[idx - 1];
     const dist = (idx + 1) * 50;
     return {
       label: `${dist} ${stroke}`,
