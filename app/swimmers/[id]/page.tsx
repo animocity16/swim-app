@@ -12,7 +12,7 @@ import { seedSNAGStandard, snagStandardExists, getSNAGQualifyingTime } from "@/l
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const SSC_NAME = "Singapore Swimming Club";
+const SSC_ALIASES = ["singapore swimming club", "ssc"];
 const SSC_SQUADS = ["Elementary", "Intermediate", "Advanced", "Elite B", "Elite A"] as const;
 
 // Squad → target_squad of the standard set they need to hit to advance
@@ -275,7 +275,7 @@ export default function SwimmerProfilePage() {
     setStandardSets(relevantSets);
 
     // Auto-select set: SSC parents get their squad's progression set auto-loaded
-    const isSSC = swimmerData.swim_club?.trim().toLowerCase() === SSC_NAME.toLowerCase();
+    const isSSC = SSC_ALIASES.includes(swimmerData.swim_club?.trim().toLowerCase() ?? "");
     const swimmerSquad = swimmerData.squad?.trim() ?? null;
     const targetSquad = swimmerSquad ? SQUAD_TO_TARGET[swimmerSquad] ?? null : null;
 
@@ -456,7 +456,7 @@ export default function SwimmerProfilePage() {
   const selectedSet = standardSets.find((s) => s.id === selectedSetId);
   const isSSCSquadSet = !!selectedSet?.is_club_preset && !!selectedSet?.target_squad;
 
-  const isSSC = swimmer?.swim_club?.trim().toLowerCase() === SSC_NAME.toLowerCase();
+  const isSSC = SSC_ALIASES.includes(swimmer?.swim_club?.trim().toLowerCase() ?? "");
 
   if (loading) return <div className="shell"><div className="container-app"><p className="muted">Loading...</p></div></div>;
 
@@ -580,7 +580,7 @@ export default function SwimmerProfilePage() {
             {editForm.club.trim() && (
               <div>
                 <FieldLabel>Squad</FieldLabel>
-                {editForm.club.trim().toLowerCase() === SSC_NAME.toLowerCase() ? (
+                {SSC_ALIASES.includes(editForm.club.trim().toLowerCase()) ? (
                   <div className="grid grid-cols-3 gap-2">
                     {SSC_SQUADS.map((sq) => (
                       <button key={sq} type="button"

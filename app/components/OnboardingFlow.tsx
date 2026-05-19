@@ -15,7 +15,7 @@ const THEMES = [
   { id: "slate",    label: "Slate",    from: "#0D1117", to: "#1C2333", accent: "#94A3B8" },
 ];
 
-const SSC_NAME = "Singapore Swimming Club";
+const SSC_ALIASES = ["singapore swimming club", "ssc"];
 const SSC_SQUADS = ["Elementary", "Intermediate", "Advanced", "Elite B", "Elite A"] as const;
 
 // ─── Step indicator ───────────────────────────────────────────────────────────
@@ -80,7 +80,7 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
       ? raceAgeFromBirthYear(parsedBirthYear)
       : null;
 
-  const isSSC = swimmerClub.trim().toLowerCase() === SSC_NAME.toLowerCase();
+  const isSSC = SSC_ALIASES.includes(swimmerClub.trim().toLowerCase());
 
   async function handleAddSwimmer() {
     if (!swimmerName.trim()) { setSwimmerError("Please enter a name."); return; }
