@@ -6,7 +6,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 const SEED_USER_ID = process.env.SEED_USER_ID ?? "";
 
 export async function POST(req: NextRequest) {
-  // ── 1. Authenticate the calling parent ──────────────────────────────────
+  // ── 1. Authenticate the calling parent ──────────────────────────────────────
   const cookieStore = await cookies();
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { name, age, gender, swim_club, school } = await req.json();
+  const { name, age, gender, swim_club, school, squad } = await req.json();
   if (!name || !age) {
     return NextResponse.json({ error: "Name and age are required" }, { status: 400 });
   }
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
   let primarySwimmerId: number | null = null;
   let claimed = false;
 
-  // ── 2. Try to find matching seed swimmer ────────────────────────────────
+  // ── 2. Try to find matching seed swimmer ────────────────────────────────────
   if (SEED_USER_ID) {
     const { data: seedMatch } = await supabaseAdmin
       .from("swimmers")
@@ -57,6 +57,7 @@ export async function POST(req: NextRequest) {
           gender: gender || seedMatch.gender,
           swim_club: swim_club || seedMatch.swim_club,
           school: school || seedMatch.school,
+          squad: squad?.trim() || seedMatch.squad || null,
           status: "Active",
         })
         .eq("id", seedMatch.id)
@@ -70,7 +71,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── 3. Create fresh swimmer if not claimed from seed ────────────────────
+  // ── 3. Create fresh swimmer if not claimed from seed ────────────────────────
   if (!primarySwimmerId) {
     const { data: newSwimmer, error: insertError } = await supabaseAdmin
       .from("swimmers")
@@ -81,6 +82,7 @@ export async function POST(req: NextRequest) {
         gender: gender || null,
         swim_club: swim_club?.trim() || null,
         school: school?.trim() || null,
+        squad: squad?.trim() || null,
         group_type: "primary",
         status: "Active",
         country: "Singapore",
@@ -94,7 +96,7 @@ export async function POST(req: NextRequest) {
     primarySwimmerId = newSwimmer.id;
   }
 
-  // ── 4. Auto-follow seed competitors + copy their times ──────────────────
+  // ── 4. Auto-follow seed competitors + copy their times ──────────────────────
   let competitorsAdded = 0;
   if (SEED_USER_ID) {
     let query = supabaseAdmin
@@ -109,10 +111,8 @@ export async function POST(req: NextRequest) {
 
     if (competitors && competitors.length > 0) {
       for (const c of competitors) {
-        // Skip if same name as primary swimmer
         if (c.name.toLowerCase() === name.trim().toLowerCase()) continue;
 
-        // Check if already following
         const { data: existing } = await supabaseAdmin
           .from("swimmers")
           .select("id")
@@ -126,7 +126,6 @@ export async function POST(req: NextRequest) {
         if (existing) {
           newSwimmerId = existing.id;
         } else {
-          // Insert the following swimmer
           const { data: inserted } = await supabaseAdmin
             .from("swimmers")
             .insert({
@@ -148,14 +147,13 @@ export async function POST(req: NextRequest) {
           competitorsAdded++;
         }
 
-        // ── Copy swim times from seed swimmer to new following swimmer ──
+        // Copy swim times from seed swimmer to new following swimmer
         const { data: seedTimes } = await supabaseAdmin
           .from("swim_times")
           .select("event, course, time_ms, meet_name, meet_date, swam_at, place, meet_type, notes")
           .eq("swimmer_id", c.id);
 
         if (seedTimes && seedTimes.length > 0) {
-          // Only insert times that don't already exist
           const { data: existingTimes } = await supabaseAdmin
             .from("swim_times")
             .select("event, swam_at")

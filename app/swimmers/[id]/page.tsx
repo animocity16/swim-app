@@ -1,6 +1,5 @@
 "use client";
 
-
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
@@ -11,6 +10,18 @@ import { canonicalCourse, canonicalEventName, eventKey } from "@/lib/events";
 import { seedETCStandard, etcStandardExists } from "@/lib/emergingTalentsStandards";
 import { seedSNAGStandard, snagStandardExists, getSNAGQualifyingTime } from "@/lib/snagStandards";
 
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const SSC_NAME = "Singapore Swimming Club";
+const SSC_SQUADS = ["Elementary", "Intermediate", "Advanced", "Elite B", "Elite A"] as const;
+
+// Squad → target_squad of the standard set they need to hit to advance
+const SQUAD_TO_TARGET: Record<string, string> = {
+  Elementary:   "Intermediate",
+  Intermediate: "Advanced",
+  Advanced:     "Elite B",
+  "Elite B":    "Elite A",
+};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -24,6 +35,7 @@ type Swimmer = {
   school?: string | null;
   status?: string | null;
   gender?: string | null;
+  squad?: string | null;
 };
 
 type SwimTimeRow = {
@@ -42,6 +54,8 @@ type StandardSet = {
   name: string;
   type: "UPGRADING" | "IMPORTANT_MEET";
   club?: string | null;
+  target_squad?: string | null;
+  is_club_preset?: boolean | null;
   created_at?: string | null;
 };
 
@@ -54,6 +68,7 @@ type StandardItem = {
   min_age?: number | null;
   max_age?: number | null;
   qualifying_time_ms: number;
+  is_compulsory?: boolean | null;
   created_at?: string | null;
 };
 
@@ -75,6 +90,7 @@ type EditProfileForm = {
   status: string;
   gender: string;
   groupType: string;
+  squad: string;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -160,6 +176,7 @@ function createEditForm(swimmer: Swimmer | null): EditProfileForm {
     status: swimmer?.status ?? "Active",
     gender: swimmer?.gender ?? "",
     groupType: swimmer?.group_type ?? "primary",
+    squad: swimmer?.squad ?? "",
   };
 }
 
@@ -192,32 +209,31 @@ export default function SwimmerProfilePage() {
   const validTabs: TabKey[] = ["swimTimes", "progress", "standards"];
   const initialTab: TabKey = tabParam && validTabs.includes(tabParam) ? tabParam : "swimTimes";
 
-  const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
-  const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState("Loading swimmer...");
-
-  const [swimmer, setSwimmer] = useState<Swimmer | null>(null);
-  const [swimTimes, setSwimTimes] = useState<SwimTimeRow[]>([]);
-  const [standardSets, setStandardSets] = useState<StandardSet[]>([]);
+  const [activeTab, setActiveTab]         = useState<TabKey>(initialTab);
+  const [loading, setLoading]             = useState(true);
+  const [status, setStatus]               = useState("Loading swimmer...");
+  const [swimmer, setSwimmer]             = useState<Swimmer | null>(null);
+  const [swimTimes, setSwimTimes]         = useState<SwimTimeRow[]>([]);
+  const [standardSets, setStandardSets]   = useState<StandardSet[]>([]);
   const [selectedSetId, setSelectedSetId] = useState<number | null>(null);
   const [standardItems, setStandardItems] = useState<StandardItem[]>([]);
 
   const [isEditingProfile, setIsEditingProfile] = useState(false);
-  const [savingProfile, setSavingProfile] = useState(false);
-  const [editForm, setEditForm] = useState<EditProfileForm>(createEditForm(null));
+  const [savingProfile, setSavingProfile]       = useState(false);
+  const [editForm, setEditForm]                 = useState<EditProfileForm>(createEditForm(null));
 
   // Standards UI
-  const [showNextAge, setShowNextAge] = useState(false);
-  const [expandedStrokes, setExpandedStrokes] = useState<Record<string, boolean>>({});
+  const [showNextAge, setShowNextAge]           = useState(false);
+  const [expandedStrokes, setExpandedStrokes]   = useState<Record<string, boolean>>({});
 
   // ETC standards
-  const [seedingETC, setSeedingETC] = useState(false);
-  const [etcMessage, setEtcMessage] = useState("");
+  const [seedingETC, setSeedingETC]       = useState(false);
+  const [etcMessage, setEtcMessage]       = useState("");
   const [etcAlreadyExists, setEtcAlreadyExists] = useState(false);
 
   // SNAG standards
-  const [seedingSNAG, setSeedingSNAG] = useState(false);
-  const [snagMessage, setSnagMessage] = useState("");
+  const [seedingSNAG, setSeedingSNAG]       = useState(false);
+  const [snagMessage, setSnagMessage]       = useState("");
   const [snagAlreadyExists, setSnagAlreadyExists] = useState(false);
 
   useEffect(() => { void loadPage(); }, [swimmerId]);
@@ -228,9 +244,9 @@ export default function SwimmerProfilePage() {
     setLoading(true);
 
     const [swimmerRes, swimTimesRes, standardSetsRes] = await Promise.all([
-      supabase.from("swimmers").select("id, name, age, group_type, created_at, swim_club, school, status, gender").eq("id", swimmerId).limit(1),
+      supabase.from("swimmers").select("id, name, age, group_type, created_at, swim_club, school, status, gender, squad").eq("id", swimmerId).limit(1),
       supabase.from("swim_times").select("id, swimmer_id, event, course, time_ms, swam_at, created_at, place").eq("swimmer_id", swimmerId).order("event", { ascending: true }),
-      supabase.from("standard_sets").select("id, name, type, club, created_at").order("created_at", { ascending: false }),
+      supabase.from("standard_sets").select("id, name, type, club, target_squad, is_club_preset, created_at").order("created_at", { ascending: false }),
     ]);
 
     if (swimmerRes.error || swimTimesRes.error || standardSetsRes.error) {
@@ -247,19 +263,32 @@ export default function SwimmerProfilePage() {
     const swimTimesData = (swimTimesRes.data as SwimTimeRow[]) || [];
     const allSets = (standardSetsRes.data as StandardSet[]) || [];
 
-    // Filter sets by club — null club = everyone, set club = only matching swimmers
+    // Filter sets relevant to this swimmer (their club or no club restriction)
     const swimmerClubNorm = swimmerData.swim_club?.trim().toLowerCase() ?? null;
-    const standardSetsData = allSets.filter((s) =>
+    const relevantSets = allSets.filter((s) =>
       !s.club || s.club.trim().toLowerCase() === swimmerClubNorm
     );
 
     setSwimmer(swimmerData);
     setEditForm(createEditForm(swimmerData));
     setSwimTimes(swimTimesData);
-    setStandardSets(standardSetsData);
+    setStandardSets(relevantSets);
 
-    const firstSet = standardSetsData[0] ?? null;
-    setSelectedSetId(firstSet?.id ?? null);
+    // Auto-select set: SSC parents get their squad's progression set auto-loaded
+    const isSSC = swimmerData.swim_club?.trim().toLowerCase() === SSC_NAME.toLowerCase();
+    const swimmerSquad = swimmerData.squad?.trim() ?? null;
+    const targetSquad = swimmerSquad ? SQUAD_TO_TARGET[swimmerSquad] ?? null : null;
+
+    let autoSetId: number | null = null;
+    if (isSSC && targetSquad) {
+      const matchingSet = relevantSets.find(
+        (s) => s.is_club_preset && s.target_squad === targetSquad
+      );
+      autoSetId = matchingSet?.id ?? null;
+    }
+
+    // Fall back to first set if no auto-match
+    setSelectedSetId(autoSetId ?? relevantSets[0]?.id ?? null);
 
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
@@ -277,12 +306,26 @@ export default function SwimmerProfilePage() {
 
   async function loadStandardItems(setId: number | null) {
     if (!setId) { setStandardItems([]); return; }
+
+    // For gender-split sets (Elite A), filter by swimmer's gender
     const { data, error } = await supabase
       .from("standard_items")
-      .select("id, standard_set_id, event, course, gender, min_age, max_age, qualifying_time_ms, created_at")
-      .eq("standard_set_id", setId).order("event", { ascending: true });
+      .select("id, standard_set_id, event, course, gender, min_age, max_age, qualifying_time_ms, is_compulsory, created_at")
+      .eq("standard_set_id", setId)
+      .order("event", { ascending: true });
+
     if (error) { setStandardItems([]); return; }
-    setStandardItems((data as StandardItem[]) || []);
+
+    const items = (data as StandardItem[]) || [];
+
+    // If set has gender-specific rows, filter to swimmer's gender (or keep nulls = universal)
+    const hasGenderSplit = items.some((i) => i.gender != null);
+    if (hasGenderSplit && swimmer?.gender) {
+      const swimmerGender = swimmer.gender;
+      setStandardItems(items.filter((i) => i.gender === null || i.gender === swimmerGender));
+    } else {
+      setStandardItems(items);
+    }
   }
 
   async function handleSaveProfile() {
@@ -296,12 +339,14 @@ export default function SwimmerProfilePage() {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) { setStatus("Not logged in."); return; }
       const { data, error } = await supabase.from("swimmers").update({
-        name: trimmedName, age: parsedAge,
+        name: trimmedName,
+        age: parsedAge,
         swim_club: editForm.club.trim() || null,
         school: editForm.school.trim() || null,
         status: editForm.status.trim() || "Active",
         gender: editForm.gender || null,
         group_type: editForm.groupType || "primary",
+        squad: editForm.squad.trim() || null,
       }).eq("id", Number(swimmer.id)).eq("user_id", user.id).select();
       if (error) { setStatus(`Error: ${error.message}`); return; }
       if (!data || data.length === 0) { setStatus("⚠️ No rows updated."); return; }
@@ -367,7 +412,6 @@ export default function SwimmerProfilePage() {
     });
   }, [standardItems, pbMap, swimmer?.age]);
 
-  // Group by stroke for collapsible view
   const strokeGroups = useMemo(() => {
     const grouped = new Map<string, StandardsRow[]>();
     for (const row of standardsRows) {
@@ -386,15 +430,18 @@ export default function SwimmerProfilePage() {
   }, [standardsRows]);
 
   const qualifiedCount = standardsRows.filter((r) => r.status === "Qualified").length;
-  const closeCount = standardsRows.filter((r) => r.status === "In progress" && (r.gapMs ?? Infinity) <= 3000).length;
-  const noPBCount = standardsRows.filter((r) => r.status === "No PB yet").length;
+  const closeCount     = standardsRows.filter((r) => r.status === "In progress" && (r.gapMs ?? Infinity) <= 3000).length;
+  const noPBCount      = standardsRows.filter((r) => r.status === "No PB yet").length;
 
-  // Next target = in-progress row with smallest gap
   const nextTarget = useMemo(() => {
     return standardsRows
       .filter((r) => r.status === "In progress" && r.gapMs != null)
       .sort((a, b) => (a.gapMs ?? Infinity) - (b.gapMs ?? Infinity))[0] ?? null;
   }, [standardsRows]);
+
+  // Compulsory events progress (SSC squads only)
+  const compulsoryRows = useMemo(() => standardsRows.filter((r) => r.is_compulsory), [standardsRows]);
+  const compulsoryHit  = compulsoryRows.filter((r) => r.status === "Qualified").length;
 
   const latestResultDate = useMemo(() => {
     const datedRows = swimTimes.filter((row) => row.swam_at);
@@ -404,6 +451,12 @@ export default function SwimmerProfilePage() {
 
   const totalUniqueEvents = useMemo(() => pbMap.size, [pbMap]);
   const etcEligible = swimmer?.age != null && [10, 11, 12].includes(swimmer.age) && !!swimmer.gender;
+
+  // Is this the auto-loaded SSC squad set?
+  const selectedSet = standardSets.find((s) => s.id === selectedSetId);
+  const isSSCSquadSet = !!selectedSet?.is_club_preset && !!selectedSet?.target_squad;
+
+  const isSSC = swimmer?.swim_club?.trim().toLowerCase() === SSC_NAME.toLowerCase();
 
   if (loading) return <div className="shell"><div className="container-app"><p className="muted">Loading...</p></div></div>;
 
@@ -424,11 +477,8 @@ export default function SwimmerProfilePage() {
 
         {/* Back nav */}
         <div className="pt-2">
-          <button
-            type="button"
-            onClick={() => router.push("/swimmers")}
-            className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm text-white/40 transition hover:text-white/70 -ml-3"
-          >
+          <button type="button" onClick={() => router.push("/swimmers")}
+            className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm text-white/40 transition hover:text-white/70 -ml-3">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M10 3L5 8L10 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
@@ -436,7 +486,7 @@ export default function SwimmerProfilePage() {
           </button>
         </div>
 
-        {/* ── Profile header ─────────────────────────────────────────────── */}
+        {/* ── Profile header ────────────────────────────────────────────────── */}
         {!isEditingProfile ? (
           <div className="rounded-3xl border border-white/10 bg-white/5 p-5 space-y-4">
             <div className="flex items-start justify-between gap-4">
@@ -444,10 +494,8 @@ export default function SwimmerProfilePage() {
                 <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">Profile</p>
                 <h1 className="mt-1 text-3xl font-bold tracking-tight text-white truncate">{swimmer.name}</h1>
               </div>
-              <button
-                onClick={() => { setEditForm(createEditForm(swimmer)); setIsEditingProfile(true); }}
-                className="flex-shrink-0 flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-base transition hover:bg-white/10"
-              >
+              <button onClick={() => { setEditForm(createEditForm(swimmer)); setIsEditingProfile(true); }}
+                className="flex-shrink-0 flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-base transition hover:bg-white/10">
                 ✏️
               </button>
             </div>
@@ -457,6 +505,12 @@ export default function SwimmerProfilePage() {
               {swimmer.gender && <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-white/70">{swimmer.gender}</span>}
               {swimmer.status && <span className="rounded-full border border-amber-400/25 bg-amber-500/10 px-3 py-1 text-sm text-amber-300">{swimmer.status}</span>}
               {swimmer.swim_club && <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-white/70">{swimmer.swim_club}</span>}
+              {swimmer.squad && (
+                <span className="rounded-full border px-3 py-1 text-sm font-semibold"
+                  style={{ background: "rgba(217,119,6,0.12)", border: "1px solid rgba(253,230,138,0.3)", color: "#FDE68A" }}>
+                  {swimmer.squad} Squad
+                </span>
+              )}
               {swimmer.school && <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-white/70">{swimmer.school}</span>}
             </div>
 
@@ -468,15 +522,12 @@ export default function SwimmerProfilePage() {
 
             <div className="flex gap-2 border-t border-white/8 pt-4">
               {TAB_ORDER.map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
+                <button key={tab} onClick={() => setActiveTab(tab)}
                   className={`flex-1 rounded-2xl border py-2.5 text-sm font-medium transition-colors ${
                     activeTab === tab
                       ? "border-amber-400/30 bg-amber-500/15 text-amber-300"
                       : "border-white/10 bg-transparent text-white/45 hover:text-white/70"
-                  }`}
-                >
+                  }`}>
                   {TAB_LABELS[tab]}
                 </button>
               ))}
@@ -485,6 +536,7 @@ export default function SwimmerProfilePage() {
         ) : (
           <div className="rounded-3xl border border-white/10 bg-white/5 p-5 space-y-4">
             <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">Editing profile</p>
+
             <div className="grid grid-cols-[1fr_100px] gap-3">
               <div>
                 <FieldLabel>Name</FieldLabel>
@@ -495,6 +547,7 @@ export default function SwimmerProfilePage() {
                 <input value={editForm.age} onChange={(e) => setEditForm((p) => ({ ...p, age: e.target.value }))} className="input text-center text-lg font-semibold" inputMode="numeric" placeholder="—" />
               </div>
             </div>
+
             <div>
               <FieldLabel>Gender</FieldLabel>
               <div className="grid grid-cols-2 gap-2">
@@ -503,37 +556,71 @@ export default function SwimmerProfilePage() {
                     className="rounded-2xl border py-2.5 text-sm font-medium transition"
                     style={editForm.gender === g
                       ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
-                      : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}
-                  >
+                      : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}>
                     {g === "Male" ? "♂ Male" : "♀ Female"}
                   </button>
                 ))}
               </div>
             </div>
+
             <div className="grid grid-cols-2 gap-3">
-              <div><FieldLabel>Club</FieldLabel><input value={editForm.club} onChange={(e) => setEditForm((p) => ({ ...p, club: e.target.value }))} className="input" placeholder="Swim club" /></div>
-              <div><FieldLabel>School</FieldLabel><input value={editForm.school} onChange={(e) => setEditForm((p) => ({ ...p, school: e.target.value }))} className="input" placeholder="School" /></div>
+              <div>
+                <FieldLabel>Club</FieldLabel>
+                <input value={editForm.club}
+                  onChange={(e) => { setEditForm((p) => ({ ...p, club: e.target.value, squad: "" })); }}
+                  className="input" placeholder="Swim club" />
+              </div>
+              <div>
+                <FieldLabel>School</FieldLabel>
+                <input value={editForm.school} onChange={(e) => setEditForm((p) => ({ ...p, school: e.target.value }))} className="input" placeholder="School" />
+              </div>
             </div>
+
+            {/* Squad — SSC gets buttons, everyone else gets free text */}
+            {editForm.club.trim() && (
+              <div>
+                <FieldLabel>Squad</FieldLabel>
+                {editForm.club.trim().toLowerCase() === SSC_NAME.toLowerCase() ? (
+                  <div className="grid grid-cols-3 gap-2">
+                    {SSC_SQUADS.map((sq) => (
+                      <button key={sq} type="button"
+                        onClick={() => setEditForm((p) => ({ ...p, squad: p.squad === sq ? "" : sq }))}
+                        className="rounded-2xl border py-2.5 text-xs font-semibold transition"
+                        style={editForm.squad === sq
+                          ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
+                          : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}>
+                        {sq}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <input value={editForm.squad} onChange={(e) => setEditForm((p) => ({ ...p, squad: e.target.value }))} className="input" placeholder="e.g. Gold, Development…" />
+                )}
+              </div>
+            )}
+
             <div>
               <FieldLabel>Type</FieldLabel>
               <div className="grid grid-cols-2 gap-2 mt-1">
                 {(["primary", "following"] as const).map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setEditForm((p) => ({ ...p, groupType: t }))}
+                  <button key={t} type="button" onClick={() => setEditForm((p) => ({ ...p, groupType: t }))}
                     className="rounded-2xl py-3 text-sm font-semibold transition"
                     style={editForm.groupType === t
                       ? { background: "rgba(217,119,6,0.25)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
-                      : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}
-                  >
+                      : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}>
                     {t === "primary" ? "👤 My swimmer" : "👁 Following"}
                   </button>
                 ))}
               </div>
             </div>
-            <div><FieldLabel>Status</FieldLabel><input value={editForm.status} onChange={(e) => setEditForm((p) => ({ ...p, status: e.target.value }))} className="input" placeholder="Active" /></div>
+
+            <div>
+              <FieldLabel>Status</FieldLabel>
+              <input value={editForm.status} onChange={(e) => setEditForm((p) => ({ ...p, status: e.target.value }))} className="input" placeholder="Active" />
+            </div>
+
             {status && <p className="text-sm" style={{ color: status.startsWith("Error") ? "#F09595" : "#6EE7B7" }}>{status}</p>}
+
             <div className="flex gap-2 border-t border-white/8 pt-4">
               <button onClick={handleSaveProfile} disabled={savingProfile} className="btn">{savingProfile ? "Saving..." : "Save changes"}</button>
               <button onClick={handleCancelEdit} disabled={savingProfile} className="btn-outline">Cancel</button>
@@ -541,19 +628,19 @@ export default function SwimmerProfilePage() {
           </div>
         )}
 
-        {/* ── Tab: Times ────────────────────────────────────────────────── */}
+        {/* ── Tab: Times ──────────────────────────────────────────────────────── */}
         {!isEditingProfile && activeTab === "swimTimes" && (
           <section className="card">
             <SwimTimesSection swimmerId={Number(swimmer.id)} swimmerAge={swimmer.age} swimmerName={swimmer.name} />
           </section>
         )}
 
-        {/* ── Tab: Progress ─────────────────────────────────────────────── */}
+        {/* ── Tab: Progress ────────────────────────────────────────────────────── */}
         {!isEditingProfile && activeTab === "progress" && (
           <ProgressTab swimmerId={Number(swimmer.id)} swimmerName={swimmer.name} />
         )}
 
-        {/* ── Tab: Standards ────────────────────────────────────────────── */}
+        {/* ── Tab: Standards ───────────────────────────────────────────────────── */}
         {!isEditingProfile && activeTab === "standards" && (
           <section className="space-y-4">
 
@@ -588,6 +675,14 @@ export default function SwimmerProfilePage() {
               </div>
             )}
 
+            {/* No squad set for SSC swimmers who haven't picked a squad */}
+            {isSSC && !swimmer.squad && (
+              <div className="rounded-3xl p-5 text-center" style={{ background: "rgba(217,119,6,0.08)", border: "1px solid rgba(253,230,138,0.2)" }}>
+                <p className="text-sm font-semibold text-white">No squad set</p>
+                <p className="mt-1 text-xs text-white/50">Edit the profile and pick {swimmer.name.split(" ")[0]}'s current squad to auto-load upgrading targets.</p>
+              </div>
+            )}
+
             {/* No standards at all */}
             {standardSets.length === 0 && (
               <div className="rounded-3xl p-8 text-center" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
@@ -600,22 +695,16 @@ export default function SwimmerProfilePage() {
             {standardSets.length > 0 && (
               <div className="flex flex-wrap gap-2">
                 {standardSets.map((set) => (
-                  <button
-                    key={set.id}
-                    type="button"
-                    onClick={() => setSelectedSetId(set.id)}
+                  <button key={set.id} type="button" onClick={() => setSelectedSetId(set.id)}
                     className="rounded-full px-4 py-2 text-xs font-semibold transition"
                     style={selectedSetId === set.id
                       ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
-                      : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}
-                  >
+                      : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}>
                     {set.name}
                   </button>
                 ))}
-                <Link
-                  href="/standards"
-                  className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/40 transition hover:bg-white/10"
-                >
+                <Link href="/standards"
+                  className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/40 transition hover:bg-white/10">
                   Manage
                 </Link>
               </div>
@@ -623,6 +712,27 @@ export default function SwimmerProfilePage() {
 
             {selectedSetId && standardItems.length > 0 && (
               <>
+                {/* Compulsory events banner for SSC squad sets */}
+                {isSSCSquadSet && compulsoryRows.length > 0 && (
+                  <div className="rounded-2xl px-4 py-3 space-y-2"
+                    style={{ background: "rgba(217,119,6,0.08)", border: "1px solid rgba(253,230,138,0.15)" }}>
+                    <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "rgba(253,230,138,0.6)" }}>
+                      ⭐ Compulsory events — must hit both to qualify
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {compulsoryRows.map((r) => (
+                        <span key={r.id} className="rounded-full px-3 py-1 text-xs font-semibold"
+                          style={r.status === "Qualified"
+                            ? { background: "rgba(110,231,183,0.12)", border: "1px solid rgba(110,231,183,0.3)", color: "#6EE7B7" }
+                            : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.6)" }}>
+                          {r.status === "Qualified" ? "✅ " : ""}{canonicalEventName(r.event)} · {formatMs(r.qualifying_time_ms)}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-white/35">{compulsoryHit}/{compulsoryRows.length} compulsory events hit</p>
+                  </div>
+                )}
+
                 {/* ── Hero: Next target ── */}
                 <div className="rounded-3xl p-5 space-y-4 relative overflow-hidden"
                   style={{ background: "linear-gradient(135deg, rgba(217,119,6,0.18), rgba(217,119,6,0.06))", border: "1px solid rgba(253,230,138,0.2)" }}>
@@ -645,7 +755,7 @@ export default function SwimmerProfilePage() {
                         <div className="flex gap-2">
                           {[
                             { label: "Your PB", value: formatMs(nextTarget.pbMs) },
-                            { label: "Target", value: formatMs(nextTarget.qualifying_time_ms) },
+                            { label: "Target",  value: formatMs(nextTarget.qualifying_time_ms) },
                           ].map((tile) => (
                             <div key={tile.label} className="rounded-2xl px-3 py-2 text-center"
                               style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.08)" }}>
@@ -656,7 +766,6 @@ export default function SwimmerProfilePage() {
                         </div>
                       </div>
 
-                      {/* Progress bar */}
                       {(() => {
                         const baseline = nextTarget.qualifying_time_ms * 1.15;
                         const range = baseline - nextTarget.qualifying_time_ms;
@@ -685,8 +794,8 @@ export default function SwimmerProfilePage() {
                 <div className="grid grid-cols-3 gap-2">
                   {[
                     { n: qualifiedCount, label: "Qualified", bg: "rgba(110,231,183,0.08)", border: "rgba(110,231,183,0.2)", color: "#6EE7B7" },
-                    { n: closeCount, label: "Within 3s", bg: "rgba(252,211,77,0.08)", border: "rgba(252,211,77,0.2)", color: "#FCD34D" },
-                    { n: noPBCount, label: "No PB yet", bg: "rgba(255,255,255,0.04)", border: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.5)" },
+                    { n: closeCount,     label: "Within 3s", bg: "rgba(252,211,77,0.08)",  border: "rgba(252,211,77,0.2)",  color: "#FCD34D" },
+                    { n: noPBCount,      label: "No PB yet", bg: "rgba(255,255,255,0.04)", border: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.5)" },
                   ].map((tile) => (
                     <div key={tile.label} className="rounded-2xl py-3 text-center"
                       style={{ background: tile.bg, border: `1px solid ${tile.border}` }}>
@@ -702,16 +811,12 @@ export default function SwimmerProfilePage() {
                   <div className="flex rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.12)" }}>
                     <button type="button" onClick={() => setShowNextAge(false)}
                       className="px-3 py-1.5 text-xs font-semibold transition"
-                      style={!showNextAge
-                        ? { background: "rgba(217,119,6,0.2)", color: "#FDE68A" }
-                        : { background: "transparent", color: "rgba(255,255,255,0.4)" }}>
+                      style={!showNextAge ? { background: "rgba(217,119,6,0.2)", color: "#FDE68A" } : { background: "transparent", color: "rgba(255,255,255,0.4)" }}>
                       Age {swimmer.age}
                     </button>
                     <button type="button" onClick={() => setShowNextAge(true)}
                       className="px-3 py-1.5 text-xs font-semibold transition"
-                      style={showNextAge
-                        ? { background: "rgba(24,95,165,0.3)", color: "#93C5FD" }
-                        : { background: "transparent", color: "rgba(255,255,255,0.4)" }}>
+                      style={showNextAge ? { background: "rgba(24,95,165,0.3)", color: "#93C5FD" } : { background: "transparent", color: "rgba(255,255,255,0.4)" }}>
                       Age {swimmer.age + 1} ↑
                     </button>
                   </div>
@@ -726,8 +831,6 @@ export default function SwimmerProfilePage() {
                       return (
                         <div key={stroke} className="rounded-2xl overflow-hidden"
                           style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)" }}>
-
-                          {/* Stroke header */}
                           <button type="button" onClick={() => toggleStroke(stroke)}
                             className="w-full px-4 py-3 flex items-center gap-2 transition hover:bg-white/5">
                             <div className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ background: color }} />
@@ -746,7 +849,6 @@ export default function SwimmerProfilePage() {
                             </svg>
                           </button>
 
-                          {/* Event rows */}
                           {isOpen && (
                             <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
                               {rows.map((row, idx) => {
@@ -758,7 +860,6 @@ export default function SwimmerProfilePage() {
                                   : !noPb && (row.gapMs ?? Infinity) <= 3000
                                   ? "#FCD34D"
                                   : "rgba(255,255,255,0.35)";
-
                                 return (
                                   <div key={row.id} className="flex items-center gap-3 px-4 py-3"
                                     style={{
@@ -766,9 +867,15 @@ export default function SwimmerProfilePage() {
                                       background: qualified ? "rgba(110,231,183,0.04)" : "transparent",
                                     }}>
                                     <div className="flex-1 min-w-0">
-                                      <p className="text-sm font-semibold text-white">
-                                        {canonicalEventName(row.event)}
-                                      </p>
+                                      <div className="flex items-center gap-1.5">
+                                        <p className="text-sm font-semibold text-white">{canonicalEventName(row.event)}</p>
+                                        {row.is_compulsory && (
+                                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded"
+                                            style={{ background: "rgba(253,230,138,0.1)", color: "#FDE68A", border: "1px solid rgba(253,230,138,0.2)" }}>
+                                            ⭐
+                                          </span>
+                                        )}
+                                      </div>
                                       <p className="text-[11px] mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>
                                         Target · {formatMs(row.qualifying_time_ms)} {canonicalCourse(row.course)}
                                       </p>
@@ -807,7 +914,6 @@ export default function SwimmerProfilePage() {
                       </span>
                       <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>Planning ahead for next year</span>
                     </div>
-
                     <table style={{ width: "100%", borderCollapse: "collapse" }}>
                       <thead>
                         <tr style={{ borderBottom: "1px solid rgba(147,197,253,0.1)" }}>
@@ -822,17 +928,17 @@ export default function SwimmerProfilePage() {
                           .filter((r) => r.pbMs != null && r.status !== "Age not in range")
                           .map((row) => {
                             if (!swimmer.gender) return null;
-                            const nextTarget = getSNAGQualifyingTime(row.event, swimmer.age + 1, swimmer.gender as "Male" | "Female");
-                            if (!nextTarget) return null;
-                            const nextTargetMs = parseFloat(nextTarget.includes(":") ?
-                              (() => { const [m, s] = nextTarget.split(":"); return (Number(m) * 60 + Number(s)).toString(); })()
-                              : nextTarget) * 1000;
-                            const gapToNext = row.pbMs! - nextTargetMs;
+                            const nt = getSNAGQualifyingTime(row.event, swimmer.age + 1, swimmer.gender as "Male" | "Female");
+                            if (!nt) return null;
+                            const ntMs = parseFloat(nt.includes(":")
+                              ? (() => { const [m, s] = nt.split(":"); return (Number(m) * 60 + Number(s)).toString(); })()
+                              : nt) * 1000;
+                            const gapToNext = row.pbMs! - ntMs;
                             return (
                               <tr key={row.id} style={{ borderBottom: "1px solid rgba(147,197,253,0.06)" }}>
                                 <td style={{ padding: "9px 0", fontSize: 13, fontWeight: 500, color: "white" }}>{canonicalEventName(row.event)}</td>
                                 <td style={{ padding: "9px 8px", textAlign: "right", fontSize: 13, color: "rgba(255,255,255,0.6)" }}>{formatMs(row.pbMs)}</td>
-                                <td style={{ padding: "9px 8px", textAlign: "right", fontSize: 13, color: "#93C5FD" }}>{nextTarget}</td>
+                                <td style={{ padding: "9px 8px", textAlign: "right", fontSize: 13, color: "#93C5FD" }}>{nt}</td>
                                 <td style={{ padding: "9px 0", textAlign: "right", fontSize: 12, color: gapToNext <= 0 ? "#6EE7B7" : "rgba(255,255,255,0.4)" }}>
                                   {gapToNext <= 0 ? "✓ Ready" : formatMs(Math.abs(gapToNext)) + " off"}
                                 </td>

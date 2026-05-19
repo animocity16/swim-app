@@ -4,8 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
-
-// ─── Theme options ─────────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const THEMES = [
   { id: "ocean",    label: "Ocean",    from: "#062840", to: "#0F4C75", accent: "#38BDF8" },
@@ -15,6 +14,9 @@ const THEMES = [
   { id: "cosmos",   label: "Cosmos",   from: "#0D0820", to: "#1E1040", accent: "#F472B6" },
   { id: "slate",    label: "Slate",    from: "#0D1117", to: "#1C2333", accent: "#94A3B8" },
 ];
+
+const SSC_NAME = "Singapore Swimming Club";
+const SSC_SQUADS = ["Elementary", "Intermediate", "Advanced", "Elite B", "Elite A"] as const;
 
 // ─── Step indicator ───────────────────────────────────────────────────────────
 
@@ -34,13 +36,12 @@ function StepDots({ total, current }: { total: number; current: number }) {
 }
 
 // ─── Race age helper ──────────────────────────────────────────────────────────
-// Swimming race age = age on 31 Dec of the current year = currentYear - birthYear
 
 function raceAgeFromBirthYear(birthYear: number): number {
   return new Date().getFullYear() - birthYear;
 }
 
-// ─── Main onboarding component ────────────────────────────────────────────────
+// ─── Main component ───────────────────────────────────────────────────────────
 
 export default function OnboardingFlow({ userName }: { userName: string }) {
   const router = useRouter();
@@ -48,26 +49,27 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
   const TOTAL_STEPS = 6;
 
   // Swimmer form
-  const [swimmerName, setSwimmerName] = useState("");
-  const [birthYear, setBirthYear] = useState("");
+  const [swimmerName, setSwimmerName]     = useState("");
+  const [birthYear, setBirthYear]         = useState("");
   const [swimmerGender, setSwimmerGender] = useState<"Male" | "Female" | "">("");
-  const [swimmerClub, setSwimmerClub] = useState("");
+  const [swimmerClub, setSwimmerClub]     = useState("");
   const [swimmerSchool, setSwimmerSchool] = useState("");
+  const [swimmerSquad, setSwimmerSquad]   = useState("");
   const [savingSwimmer, setSavingSwimmer] = useState(false);
-  const [swimmerError, setSwimmerError] = useState("");
-  const [swimmerSaved, setSwimmerSaved] = useState(false);
+  const [swimmerError, setSwimmerError]   = useState("");
+  const [swimmerSaved, setSwimmerSaved]   = useState(false);
   const [savedSwimmerName, setSavedSwimmerName] = useState("");
 
   // Theme
   const [selectedTheme, setSelectedTheme] = useState("ocean");
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving]               = useState(false);
 
   // Install tab
   const [installTab, setInstallTab] = useState<"iphone" | "android">("iphone");
 
   function next() { setStep((s) => Math.min(s + 1, TOTAL_STEPS - 1)); }
 
-  // Live race age preview as parent types
+  // Live race age preview
   const parsedBirthYear = Number(birthYear);
   const currentYear = new Date().getFullYear();
   const previewRaceAge =
@@ -77,6 +79,8 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
     parsedBirthYear <= currentYear
       ? raceAgeFromBirthYear(parsedBirthYear)
       : null;
+
+  const isSSC = swimmerClub.trim().toLowerCase() === SSC_NAME.toLowerCase();
 
   async function handleAddSwimmer() {
     if (!swimmerName.trim()) { setSwimmerError("Please enter a name."); return; }
@@ -106,6 +110,7 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
           gender: swimmerGender,
           swim_club: swimmerClub.trim() || null,
           school: swimmerSchool.trim() || null,
+          squad: swimmerSquad.trim() || null,
         }),
       });
 
@@ -134,7 +139,7 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
     router.replace("/dashboard");
   }
 
-  // ── Step 0: Welcome ──────────────────────────────────────────────────────
+  // ── Step 0: Welcome ──────────────────────────────────────────────────────────
 
   if (step === 0) return (
     <div className="onb-screen">
@@ -151,9 +156,9 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
         </div>
         <div className="space-y-3 text-left">
           {[
-            { icon: "📷", title: "Scan results instantly", desc: "Screenshot Meet Mobile — times save automatically" },
-            { icon: "📈", title: "Track every PB", desc: "Progress charts for every event, every stroke" },
-            { icon: "⭐", title: "Check qualifying standards", desc: "SNAG, ETC and more — pre-loaded for Singapore" },
+            { icon: "📷", title: "Scan results instantly",       desc: "Screenshot Meet Mobile — times save automatically" },
+            { icon: "📈", title: "Track every PB",               desc: "Progress charts for every event, every stroke" },
+            { icon: "⭐", title: "Check qualifying standards",   desc: "Squad upgrading times — pre-loaded for Singapore" },
           ].map((item) => (
             <div key={item.title} className="flex gap-3 items-start rounded-2xl px-4 py-3"
               style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}>
@@ -172,7 +177,7 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
     </div>
   );
 
-  // ── Step 1: How it works ─────────────────────────────────────────────────
+  // ── Step 1: How it works ─────────────────────────────────────────────────────
 
   if (step === 1) return (
     <div className="onb-screen">
@@ -184,9 +189,9 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
         </div>
         <div className="space-y-3">
           {[
-            { n: "1", title: "After your child races", desc: "Open Meet Mobile and find their result on the screen.", color: "#38BDF8" },
-            { n: "2", title: "Screenshot and scan", desc: "Take a screenshot. Open Natrix, tap Scan, upload it.", color: "#FDE68A" },
-            { n: "3", title: "Done — time saved", desc: "Event, time, date and meet name all saved automatically. No typing.", color: "#6EE7B7" },
+            { n: "1", title: "After your child races",  desc: "Open Meet Mobile and find their result on the screen.", color: "#38BDF8" },
+            { n: "2", title: "Screenshot and scan",     desc: "Take a screenshot. Open Natrix, tap Scan, upload it.", color: "#FDE68A" },
+            { n: "3", title: "Done — time saved",       desc: "Event, time, date and meet name all saved automatically. No typing.", color: "#6EE7B7" },
           ].map((item) => (
             <div key={item.n} className="flex gap-4 items-start rounded-2xl px-4 py-4 text-left"
               style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)" }}>
@@ -208,7 +213,7 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
     </div>
   );
 
-  // ── Step 2: Add swimmer ──────────────────────────────────────────────────
+  // ── Step 2: Add swimmer ──────────────────────────────────────────────────────
 
   if (step === 2) return (
     <div className="onb-screen">
@@ -221,6 +226,7 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
         </div>
 
         <div className="space-y-3">
+          {/* Name */}
           <input
             value={swimmerName}
             onChange={(e) => setSwimmerName(e.target.value)}
@@ -228,7 +234,7 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
             className="input"
           />
 
-          {/* Birth year with live race age preview */}
+          {/* Birth year */}
           <div>
             <input
               value={birthYear}
@@ -243,12 +249,11 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
               </p>
             )}
             {birthYear.length === 4 && (previewRaceAge === null || previewRaceAge <= 0 || previewRaceAge >= 30) && (
-              <p className="mt-1.5 text-xs text-red-300 px-1">
-                Please enter a valid birth year
-              </p>
+              <p className="mt-1.5 text-xs text-red-300 px-1">Please enter a valid birth year</p>
             )}
           </div>
 
+          {/* Gender */}
           <div className="grid grid-cols-2 gap-2">
             {(["Male", "Female"] as const).map((g) => (
               <button key={g} type="button"
@@ -262,12 +267,45 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
             ))}
           </div>
 
+          {/* Club */}
           <input
             value={swimmerClub}
-            onChange={(e) => setSwimmerClub(e.target.value)}
+            onChange={(e) => { setSwimmerClub(e.target.value); setSwimmerSquad(""); }}
             placeholder="Swim club (optional)"
             className="input"
           />
+
+          {/* Squad — SSC gets buttons, everyone else gets free text */}
+          {swimmerClub.trim() && (
+            <div>
+              <p className="text-xs font-medium text-white/40 px-1 mb-2">
+                {isSSC ? "Which squad?" : "Squad (optional)"}
+              </p>
+              {isSSC ? (
+                <div className="grid grid-cols-3 gap-2">
+                  {SSC_SQUADS.map((sq) => (
+                    <button key={sq} type="button"
+                      onClick={() => setSwimmerSquad(swimmerSquad === sq ? "" : sq)}
+                      className="rounded-2xl border py-2.5 text-xs font-semibold transition"
+                      style={swimmerSquad === sq
+                        ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
+                        : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}>
+                      {sq}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <input
+                  value={swimmerSquad}
+                  onChange={(e) => setSwimmerSquad(e.target.value)}
+                  placeholder="e.g. Gold, Development…"
+                  className="input"
+                />
+              )}
+            </div>
+          )}
+
+          {/* School */}
           <input
             value={swimmerSchool}
             onChange={(e) => setSwimmerSchool(e.target.value)}
@@ -293,7 +331,7 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
     </div>
   );
 
-  // ── Step 3: Choose theme ─────────────────────────────────────────────────
+  // ── Step 3: Choose theme ─────────────────────────────────────────────────────
 
   if (step === 3) return (
     <div className="onb-screen">
@@ -337,15 +375,12 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
         <button type="button" onClick={next} className="onb-btn-primary w-full">
           Looks great →
         </button>
-
-        <p className="text-xs text-white/25">
-          You can always change your theme and settings later.
-        </p>
+        <p className="text-xs text-white/25">You can always change your theme and settings later.</p>
       </div>
     </div>
   );
 
-  // ── Step 4: Install on your phone ────────────────────────────────────────
+  // ── Step 4: Install on your phone ────────────────────────────────────────────
 
   if (step === 4) return (
     <div className="onb-screen">
@@ -354,24 +389,18 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
         <div className="text-center">
           <p className="text-xs font-medium uppercase tracking-widest text-white/35 mb-2">One last thing</p>
           <h2 className="text-3xl font-bold text-white">Add Natrix to<br />your home screen</h2>
-          <p className="mt-2 text-sm text-white/45">
-            It opens like a real app — no browser bar, full screen.
-          </p>
+          <p className="mt-2 text-sm text-white/45">It opens like a real app — no browser bar, full screen.</p>
         </div>
 
-        {/* iPhone / Android tab toggle */}
         <div className="flex rounded-2xl overflow-hidden"
           style={{ border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.04)" }}>
           {(["iphone", "android"] as const).map((tab) => (
-            <button
-              key={tab}
-              type="button"
+            <button key={tab} type="button"
               onClick={() => setInstallTab(tab)}
               className="flex-1 py-2.5 text-xs font-semibold uppercase tracking-wider transition"
               style={installTab === tab
                 ? { background: "rgba(217,119,6,0.25)", color: "#FDE68A" }
-                : { background: "transparent", color: "rgba(255,255,255,0.4)" }}
-            >
+                : { background: "transparent", color: "rgba(255,255,255,0.4)" }}>
               {tab === "iphone" ? "📱 iPhone" : "🤖 Android"}
             </button>
           ))}
@@ -384,10 +413,10 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
               ⚠️ Must be opened in <strong>Safari</strong> — not Chrome or another browser.
             </div>
             {[
-              { n: "1", icon: "🧭", title: "Open in Safari", desc: "Copy swimnatrix.vercel.app and paste it into Safari if you're not already there." },
-              { n: "2", icon: "⬆️", title: "Tap the Share button", desc: "The Share icon is at the bottom of Safari — a box with an arrow pointing up." },
-              { n: "3", icon: "➕", title: "Add to Home Screen", desc: 'Scroll down and tap "Add to Home Screen", then tap Add.' },
-              { n: "4", icon: "🏊", title: "Open Natrix from your home screen", desc: "Tap the Natrix icon — full screen, no browser bar!" },
+              { n: "1", icon: "🧭", title: "Open in Safari",             desc: "Copy swimnatrix.vercel.app and paste it into Safari if you're not already there." },
+              { n: "2", icon: "⬆️", title: "Tap the Share button",       desc: "The Share icon is at the bottom of Safari — a box with an arrow pointing up." },
+              { n: "3", icon: "➕", title: "Add to Home Screen",          desc: 'Scroll down and tap "Add to Home Screen", then tap Add.' },
+              { n: "4", icon: "🏊", title: "Open Natrix from home screen", desc: "Tap the Natrix icon — full screen, no browser bar!" },
             ].map((item) => (
               <div key={item.n} className="flex gap-3 items-start rounded-2xl px-4 py-3"
                 style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
@@ -411,10 +440,10 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
               ⚠️ Must be opened in <strong>Chrome</strong> for the install option to appear.
             </div>
             {[
-              { n: "1", icon: "🌐", title: "Open in Chrome", desc: "Copy swimnatrix.vercel.app and paste it into Chrome if you're not already there." },
-              { n: "2", icon: "⋮", title: "Tap the three-dot menu", desc: "Tap the ⋮ menu in the top-right corner of Chrome." },
-              { n: "3", icon: "➕", title: "Add to Home screen", desc: 'Tap "Add to Home screen" and confirm by tapping Add.' },
-              { n: "4", icon: "🏊", title: "Open Natrix from your home screen", desc: "Tap the Natrix icon — it launches full screen. You're in!" },
+              { n: "1", icon: "🌐", title: "Open in Chrome",              desc: "Copy swimnatrix.vercel.app and paste it into Chrome if you're not already there." },
+              { n: "2", icon: "⋮",  title: "Tap the three-dot menu",      desc: "Tap the ⋮ menu in the top-right corner of Chrome." },
+              { n: "3", icon: "➕", title: "Add to Home screen",           desc: 'Tap "Add to Home screen" and confirm by tapping Add.' },
+              { n: "4", icon: "🏊", title: "Open Natrix from home screen", desc: "Tap the Natrix icon — it launches full screen. You're in!" },
             ].map((item) => (
               <div key={item.n} className="flex gap-3 items-start rounded-2xl px-4 py-3"
                 style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
@@ -432,18 +461,14 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
         )}
 
         <div className="flex gap-3">
-          <button type="button" onClick={next} className="onb-btn-secondary flex-1">
-            Skip for now
-          </button>
-          <button type="button" onClick={next} className="onb-btn-primary flex-1">
-            Done! →
-          </button>
+          <button type="button" onClick={next} className="onb-btn-secondary flex-1">Skip for now</button>
+          <button type="button" onClick={next} className="onb-btn-primary flex-1">Done! →</button>
         </div>
       </div>
     </div>
   );
 
-  // ── Step 5: All set ──────────────────────────────────────────────────────
+  // ── Step 5: All set ──────────────────────────────────────────────────────────
 
   if (step === 5) return (
     <div className="onb-screen">
@@ -462,7 +487,6 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
         <div className="space-y-3">
           {[
             { icon: "📷", label: "Scan your child's latest result", desc: "Take a screenshot from Meet Mobile and scan it", primary: true },
-            
           ].map((item) => (
             <div key={item.label} className="flex items-center gap-3 rounded-2xl px-4 py-3"
               style={{

@@ -14,6 +14,7 @@ type Swimmer = {
   swim_club?: string | null;
   school?: string | null;
   gender?: string | null;
+  squad?: string | null;
   group_type?: "primary" | "following" | string | null;
   created_at?: string | null;
   user_id?: string | null;
@@ -36,45 +37,36 @@ const AVATAR_COLORS = [
   { bg: "#3C3489", text: "#CECBF6" },
 ];
 
-function avatarColor(index: number) {
-  return AVATAR_COLORS[index % AVATAR_COLORS.length];
-}
-
-function getInitials(name: string) {
-  return name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
-}
-
+function avatarColor(index: number) { return AVATAR_COLORS[index % AVATAR_COLORS.length]; }
+function getInitials(name: string) { return name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase(); }
 function groupColor(groupName: string) {
   let hash = 0;
   for (let i = 0; i < groupName.length; i++) hash = groupName.charCodeAt(i) + ((hash << 5) - hash);
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
-
-function raceAgeFromBirthYear(birthYear: number): number {
-  return new Date().getFullYear() - birthYear;
-}
+function raceAgeFromBirthYear(birthYear: number): number { return new Date().getFullYear() - birthYear; }
 
 export default function SwimmersPage() {
   const router = useRouter();
 
   const [authChecked, setAuthChecked] = useState(false);
-  const [status, setStatus] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [status, setStatus]           = useState("");
+  const [loading, setLoading]         = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [swimmers, setSwimmers] = useState<Swimmer[]>([]);
+  const [swimmers, setSwimmers]       = useState<Swimmer[]>([]);
 
-  const [groupBy, setGroupBy] = useState<"club" | "school">("club");
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  const [groupBy, setGroupBy]                 = useState<"club" | "school">("club");
+  const [expandedGroups, setExpandedGroups]   = useState<Record<string, boolean>>({});
 
   // Add form state
-  const [name, setName] = useState("");
-  const [birthYear, setBirthYear] = useState("");
-  const [birthMonth, setBirthMonth] = useState<number | "">("");
-  const [country, setCountry] = useState("");
-  const [swimClub, setSwimClub] = useState("");
-  const [school, setSchool] = useState("");
-  const [gender, setGender] = useState<"Male" | "Female" | "">("");
-  const [groupType, setGroupType] = useState<"primary" | "following">("primary");
+  const [name, setName]               = useState("");
+  const [birthYear, setBirthYear]     = useState("");
+  const [birthMonth, setBirthMonth]   = useState<number | "">("");
+  const [country, setCountry]         = useState("");
+  const [swimClub, setSwimClub]       = useState("");
+  const [school, setSchool]           = useState("");
+  const [gender, setGender]           = useState<"Male" | "Female" | "">("");
+  const [groupType, setGroupType]     = useState<"primary" | "following">("primary");
 
   const currentYear = new Date().getFullYear();
   const parsedBirthYear = Number(birthYear);
@@ -112,7 +104,7 @@ export default function SwimmersPage() {
     setLoading(true);
     const { data, error } = await supabase
       .from("swimmers")
-      .select("id, name, age, birth_month, country, swim_club, school, gender, group_type, created_at, user_id")
+      .select("id, name, age, birth_month, country, swim_club, school, gender, squad, group_type, created_at, user_id")
       .order("name", { ascending: true });
 
     if (error) { setStatus(`Error: ${error.message}`); }
@@ -178,7 +170,7 @@ export default function SwimmersPage() {
     setExpandedGroups((prev) => ({ ...prev, [groupName]: !prev[groupName] }));
   }
 
-  const primarySwimmers = swimmers.filter((s) => s.group_type === "primary");
+  const primarySwimmers   = swimmers.filter((s) => s.group_type === "primary");
   const followingSwimmers = swimmers.filter((s) => s.group_type === "following");
 
   const followingGroups = useMemo(() => {
@@ -216,11 +208,8 @@ export default function SwimmersPage() {
             <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">Swimmers</p>
             <h1 className="mt-1 text-3xl font-bold tracking-tight text-white">Brood</h1>
           </div>
-          <button
-            type="button"
-            onClick={() => setShowAddForm((prev) => !prev)}
-            className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-xl text-white transition hover:bg-white/10"
-          >
+          <button type="button" onClick={() => setShowAddForm((prev) => !prev)}
+            className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-xl text-white transition hover:bg-white/10">
             {showAddForm ? "×" : "+"}
           </button>
         </div>
@@ -231,7 +220,6 @@ export default function SwimmersPage() {
             <h2 className="text-lg font-semibold text-white">Add swimmer</h2>
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" className="input" />
 
-            {/* Birth year with live race age preview */}
             <div>
               <input
                 value={birthYear}
@@ -256,8 +244,7 @@ export default function SwimmersPage() {
                   className="rounded-2xl border py-2.5 text-sm font-medium transition"
                   style={gender === g
                     ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
-                    : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}
-                >
+                    : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}>
                   {g === "Male" ? "♂ Male" : "♀ Female"}
                 </button>
               ))}
@@ -307,6 +294,12 @@ export default function SwimmersPage() {
                         {swimmer.gender ? ` · ${swimmer.gender}` : ""}
                         {swimmer.swim_club ? ` · ${swimmer.swim_club}` : ""}
                       </p>
+                      {swimmer.squad && (
+                        <span className="mt-1.5 inline-block rounded-full px-2.5 py-0.5 text-[10px] font-semibold"
+                          style={{ background: "rgba(217,119,6,0.15)", border: "1px solid rgba(253,230,138,0.25)", color: "#FDE68A" }}>
+                          {swimmer.squad} Squad
+                        </span>
+                      )}
                     </div>
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="flex-shrink-0 text-white/20">
                       <path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -329,30 +322,23 @@ export default function SwimmersPage() {
         {/* Following — grouped & collapsible */}
         {followingSwimmers.length > 0 && (
           <div className="space-y-3">
-
             <div className="flex items-center justify-between">
               <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">
                 Following · {followingSwimmers.length}
               </p>
               <div className="flex rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.12)" }}>
-                <button
-                  type="button"
-                  onClick={() => setGroupBy("club")}
+                <button type="button" onClick={() => setGroupBy("club")}
                   className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider transition"
                   style={groupBy === "club"
                     ? { background: "rgba(217,119,6,0.2)", color: "#FDE68A" }
-                    : { background: "transparent", color: "rgba(255,255,255,0.35)" }}
-                >
+                    : { background: "transparent", color: "rgba(255,255,255,0.35)" }}>
                   Club
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setGroupBy("school")}
+                <button type="button" onClick={() => setGroupBy("school")}
                   className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider transition"
                   style={groupBy === "school"
                     ? { background: "rgba(217,119,6,0.2)", color: "#FDE68A" }
-                    : { background: "transparent", color: "rgba(255,255,255,0.35)" }}
-                >
+                    : { background: "transparent", color: "rgba(255,255,255,0.35)" }}>
                   School
                 </button>
               </div>
@@ -361,20 +347,13 @@ export default function SwimmersPage() {
             {followingGroups.map(([groupName, groupSwimmers]) => {
               const isOpen = expandedGroups[groupName] === true;
               const colors = groupColor(groupName);
-
               return (
                 <div key={groupName} className="rounded-3xl border border-white/10 bg-white/5 overflow-hidden">
-
-                  <button
-                    type="button"
-                    onClick={() => toggleGroup(groupName)}
-                    className="flex w-full items-center justify-between px-5 py-4 text-left transition hover:bg-white/5"
-                  >
+                  <button type="button" onClick={() => toggleGroup(groupName)}
+                    className="flex w-full items-center justify-between px-5 py-4 text-left transition hover:bg-white/5">
                     <div className="flex items-center gap-3">
-                      <div
-                        className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl text-[10px] font-bold"
-                        style={{ background: colors.bg, color: colors.text }}
-                      >
+                      <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl text-[10px] font-bold"
+                        style={{ background: colors.bg, color: colors.text }}>
                         {groupName.slice(0, 3).toUpperCase()}
                       </div>
                       <div>
@@ -382,10 +361,8 @@ export default function SwimmersPage() {
                         <p className="text-xs text-white/40">{groupSwimmers.length} swimmer{groupSwimmers.length === 1 ? "" : "s"}</p>
                       </div>
                     </div>
-                    <svg
-                      width="16" height="16" viewBox="0 0 16 16" fill="none"
-                      className={`text-white/30 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
-                    >
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"
+                      className={`text-white/30 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}>
                       <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   </button>
@@ -393,19 +370,11 @@ export default function SwimmersPage() {
                   {isOpen && (
                     <div className="border-t border-white/8">
                       {groupSwimmers.map((swimmer, index) => (
-                        <div
-                          key={swimmer.id}
-                          className="flex items-center gap-3 px-5 py-3 transition hover:bg-white/5"
-                          style={{ borderBottom: index < groupSwimmers.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none" }}
-                        >
-                          <Link
-                            href={`/swimmers/${swimmer.id}`}
-                            className="flex flex-1 items-center gap-3 min-w-0"
-                          >
-                            <div
-                              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-xs font-bold opacity-80"
-                              style={{ background: colors.bg, color: colors.text }}
-                            >
+                        <div key={swimmer.id} className="flex items-center gap-3 px-5 py-3 transition hover:bg-white/5"
+                          style={{ borderBottom: index < groupSwimmers.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
+                          <Link href={`/swimmers/${swimmer.id}`} className="flex flex-1 items-center gap-3 min-w-0">
+                            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-xs font-bold opacity-80"
+                              style={{ background: colors.bg, color: colors.text }}>
                               {getInitials(swimmer.name)}
                             </div>
                             <div className="min-w-0">
@@ -418,11 +387,8 @@ export default function SwimmersPage() {
                               </p>
                             </div>
                           </Link>
-                          <button
-                            type="button"
-                            onClick={() => void deleteSwimmer(swimmer.id, swimmer.name)}
-                            className="flex-shrink-0 rounded-xl border border-red-500/20 bg-red-500/10 px-2.5 py-1 text-xs text-red-300 transition hover:bg-red-500/20"
-                          >
+                          <button type="button" onClick={() => void deleteSwimmer(swimmer.id, swimmer.name)}
+                            className="flex-shrink-0 rounded-xl border border-red-500/20 bg-red-500/10 px-2.5 py-1 text-xs text-red-300 transition hover:bg-red-500/20">
                             Remove
                           </button>
                         </div>
