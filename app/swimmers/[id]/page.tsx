@@ -13,7 +13,13 @@ import { seedSNAGStandard, snagStandardExists, getSNAGQualifyingTime } from "@/l
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const SSC_ALIASES = ["singapore swimming club", "ssc"];
-const SSC_SQUADS = ["Elementary", "Intermediate", "Advanced", "Elite B", "Elite A"] as const;
+const SSC_SQUADS = [
+  { label: "Elem",    value: "Elementary" },
+  { label: "Inter",   value: "Intermediate" },
+  { label: "Adv",     value: "Advanced" },
+  { label: "Elite B", value: "Elite B" },
+  { label: "Elite A", value: "Elite A" },
+];
 
 // Squad → target_squad of the standard set they need to hit to advance
 const SQUAD_TO_TARGET: Record<string, string> = {
@@ -583,13 +589,13 @@ export default function SwimmerProfilePage() {
                 {SSC_ALIASES.includes(editForm.club.trim().toLowerCase()) ? (
                   <div className="grid grid-cols-3 gap-2">
                     {SSC_SQUADS.map((sq) => (
-                      <button key={sq} type="button"
-                        onClick={() => setEditForm((p) => ({ ...p, squad: p.squad === sq ? "" : sq }))}
-                        className="rounded-2xl border py-2.5 text-[10px] font-semibold transition"
-                        style={editForm.squad === sq
+                      <button key={sq.value} type="button"
+                        onClick={() => setEditForm((p) => ({ ...p, squad: p.squad === sq.value ? "" : sq.value }))}
+                        className="rounded-2xl border py-2.5 text-xs font-semibold transition"
+                        style={editForm.squad === sq.value
                           ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
                           : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}>
-                        {sq}
+                        {sq.label}
                       </button>
                     ))}
                   </div>
