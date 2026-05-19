@@ -514,7 +514,7 @@ export default function SwimmerProfilePage() {
               {swimmer.school && <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-white/70">{swimmer.school}</span>}
             </div>
 
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <StatPill label="PB Events" value={totalUniqueEvents} accent />
               <StatPill label="All Times" value={swimTimes.length} />
               <StatPill label="Latest" value={latestResultDate ? <span className="text-lg">{formatSwamAt(latestResultDate)}</span> : <span className="text-base text-white/40">—</span>} />

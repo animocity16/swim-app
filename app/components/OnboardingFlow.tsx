@@ -282,7 +282,7 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
                 {isSSC ? "Which squad?" : "Squad (optional)"}
               </p>
               {isSSC ? (
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   {SSC_SQUADS.map((sq) => (
                     <button key={sq} type="button"
                       onClick={() => setSwimmerSquad(swimmerSquad === sq ? "" : sq)}
