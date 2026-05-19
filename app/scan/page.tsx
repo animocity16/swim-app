@@ -34,6 +34,7 @@ type Swimmer = {
 type Step = "idle" | "scanning" | "done";
 type ScanMode = "single" | "event_results" | "swimmer_schedule" | null;
 type Source = "screenshot" | "spreadsheet";
+type MeetCourse = "LCM" | "SCM";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -198,6 +199,9 @@ export default function ScanPage() {
 
   const [source, setSource] = useState<Source>("screenshot");
 
+  // ── Meet course — persists across resets (set once per session/meet) ───────
+  const [meetCourse, setMeetCourse] = useState<MeetCourse>("LCM");
+
   // ── File slots ────────────────────────────────────────────────────────────
   const [file1, setFile1] = useState<File | null>(null);
   const [file2, setFile2] = useState<File | null>(null);
@@ -278,13 +282,14 @@ export default function ScanPage() {
     setPreview(f ? URL.createObjectURL(f) : null);
   }
 
+  // NOTE: meetCourse is intentionally NOT reset here — it persists for the whole session
   function reset() {
     setFile1(null); setFile2(null); setFile3(null);
     setPreview1(null); setPreview2(null); setPreview3(null);
     setStep("idle"); setProgress(0); setMessage(""); setRawText("");
     setScanMode(null);
     setParsedResult(null); setDetectedEvent(null);
-    setEditedTime(""); setEditedCourse("LCM"); setTimeError(null);
+    setEditedTime(""); setEditedCourse(meetCourse); setTimeError(null);
     setAutoMatchedSwimmer(null); setShowPicker(false);
     setIsSaving(false); setSavedSwimmer(null);
     setEventRows([]); setSelectedRows(new Set());
@@ -427,7 +432,10 @@ export default function ScanPage() {
         }).select().single();
         if (createErr || !newSwimmer) { errors.push(`${row.name}: couldn't create profile`); continue; }
         await loadSwimmers();
-        const en2 = canonicalEventName(row.event ?? ""); const cn2 = canonicalCourse(row.course ?? "LCM");
+        const en2 = canonicalEventName(row.event ?? "");
+        // Use meetCourse as fallback when course is UNKNOWN or missing
+        const rawCourse = row.course && row.course !== "UNKNOWN" ? row.course : meetCourse;
+        const cn2 = canonicalCourse(rawCourse);
         if (!en2) { errors.push(`${row.name}: no event`); continue; }
         await supabase.from("swim_times").insert({
           swimmer_id: newSwimmer.id, event: en2, course: cn2, time_ms: row.timeMs,
@@ -435,7 +443,10 @@ export default function ScanPage() {
         });
         saved.push(`${row.name} (added)`); continue;
       }
-      const eventName = canonicalEventName(row.event ?? ""); const courseName = canonicalCourse(row.course ?? "LCM");
+      const eventName = canonicalEventName(row.event ?? "");
+      // Use meetCourse as fallback when course is UNKNOWN or missing
+      const rawCourse = row.course && row.course !== "UNKNOWN" ? row.course : meetCourse;
+      const courseName = canonicalCourse(rawCourse);
       if (!eventName) { errors.push(`${row.name}: no event`); continue; }
       const { data: existing } = await supabase.from("swim_times").select("id")
         .eq("swimmer_id", matched.id).eq("event", eventName).eq("course", courseName).eq("time_ms", row.timeMs).limit(1);
@@ -471,7 +482,9 @@ export default function ScanPage() {
       const row = scheduleResults[index];
       if (!row) continue;
       const eventName = canonicalEventName(row.event);
-      const courseName = canonicalCourse(row.course);
+      // Use meetCourse as fallback when course is UNKNOWN or missing
+      const rawCourse = row.course && row.course !== "UNKNOWN" ? row.course : meetCourse;
+      const courseName = canonicalCourse(rawCourse);
       if (!eventName) { errors.push(`${row.event}: unknown event`); continue; }
       const { data: existing } = await supabase.from("swim_times").select("id")
         .eq("swimmer_id", swimmer.id).eq("event", eventName).eq("course", courseName).eq("time_ms", row.timeMs).limit(1);
@@ -572,11 +585,18 @@ export default function ScanPage() {
         setScanMode("swimmer_schedule");
         const parsed = parseSwimmerScheduleOCR(combined);
         const nonRelayResults = parsed.results.filter((r) => !r.isRelay);
-        setScheduleResults(nonRelayResults);
+
+        // Apply meetCourse fallback to any UNKNOWN course values
+        const correctedResults = nonRelayResults.map((r) => ({
+          ...r,
+          course: r.course && r.course !== "UNKNOWN" ? r.course : meetCourse,
+        }));
+
+        setScheduleResults(correctedResults);
         setScheduleSwimmerName(parsed.swimmerName);
         setScheduleMeetName(parsed.meetName);
         if (parsed.meetName) setManualMeetName(parsed.meetName);
-        setSelectedScheduleRows(new Set(nonRelayResults.map((_, i) => i)));
+        setSelectedScheduleRows(new Set(correctedResults.map((_, i) => i)));
 
         if (parsed.swimmerName) {
           const cleanedName = stripNamePrefix(parsed.swimmerName);
@@ -599,20 +619,28 @@ export default function ScanPage() {
         } else {
           setShowSchedulePicker(true);
         }
-        setMessage(nonRelayResults.length === 0 ? "⚠️ No individual events detected." : "");
+        setMessage(correctedResults.length === 0 ? "⚠️ No individual events detected." : "");
 
       } else if (isEventResultsPage(combined)) {
         setScanMode("event_results");
         const parsed = parseEventResultsOCR(combined);
-        setEventRows(parsed.results);
+
+        // Apply meetCourse fallback to any UNKNOWN course values
+        const correctedResults = parsed.results.map((r) => ({
+          ...r,
+          course: r.course && r.course !== "UNKNOWN" ? r.course : meetCourse,
+        }));
+
+        setEventRows(correctedResults);
         const preSelected = new Set<number>();
-        parsed.results.forEach((row, idx) => { if (fuzzyMatchSwimmer(row.name, swimmers)) preSelected.add(idx); });
+        correctedResults.forEach((row, idx) => { if (fuzzyMatchSwimmer(row.name, swimmers)) preSelected.add(idx); });
         setSelectedRows(preSelected);
-        setMessage(parsed.results.length === 0 ? "⚠️ No results detected." : "");
+        setMessage(correctedResults.length === 0 ? "⚠️ No results detected." : "");
 
       } else {
         setScanMode("single");
-        const results = parseSwimOCRText(combined, { swimmerName: "" });
+        // Pass meetCourse as defaultCourse so the parser uses it when it can't detect from the screenshot
+        const results = parseSwimOCRText(combined, { swimmerName: "", defaultCourse: meetCourse });
         const first = results[0];
         if (!first) {
           setMessage("⚠️ No result detected. Try again with a clearer screenshot.");
@@ -620,7 +648,8 @@ export default function ScanPage() {
           setParsedResult(first);
           setDetectedEvent(first.event);
           setEditedTime(first.timeStr ?? "");
-          const detectedCourse = first.course === "UNKNOWN" ? "LCM" : first.course as "LCM" | "SCM" | "SCY";
+          // Use meetCourse when OCR couldn't detect course from screenshot
+          const detectedCourse = first.course === "UNKNOWN" ? meetCourse : first.course as "LCM" | "SCM" | "SCY";
           setEditedCourse(detectedCourse);
           const ocrName = first.name ?? null;
           if (ocrName && ocrName.trim().length > 0 && isValidPersonName(stripNamePrefix(ocrName))) {
@@ -706,9 +735,38 @@ export default function ScanPage() {
               </div>
             )}
 
-            {/* IDLE — 3 slots in a row */}
+            {/* IDLE — meet course toggle + 3 slots */}
             {step === "idle" && primarySwimmers.length > 0 && (
               <div className="space-y-4">
+
+                {/* ── Meet course toggle ──────────────────────────────────── */}
+                <div className="rounded-2xl p-3"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-semibold text-white/70">Meet course</p>
+                      <p className="text-[10px] text-white/35 mt-0.5">Set once — applies to all scans this session</p>
+                    </div>
+                    <div className="flex rounded-xl overflow-hidden"
+                      style={{ border: "1px solid rgba(255,255,255,0.12)" }}>
+                      {(["LCM", "SCM"] as const).map((c) => (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => setMeetCourse(c)}
+                          className="px-4 py-2 text-sm font-bold transition"
+                          style={meetCourse === c
+                            ? { background: "#D97706", color: "#fff" }
+                            : { background: "transparent", color: "rgba(255,255,255,0.4)" }}
+                        >
+                          {c}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── 3 screenshot slots ──────────────────────────────────── */}
                 <div className="grid grid-cols-3 gap-2">
                   <SlotButton label="Screen 1" hint="Required" preview={preview1} inputRef={ref1} required
                     onChange={(e) => handleFile(e, setFile1, setPreview1)} />
@@ -953,7 +1011,10 @@ export default function ScanPage() {
                                 <p className="text-sm font-semibold text-white">{row.event}</p>
                                 {row.place != null && <p className="text-xs text-white/40">Place #{row.place}</p>}
                               </div>
-                              <p className="text-sm font-bold text-white flex-shrink-0">{row.timeStr}</p>
+                              <div className="text-right flex-shrink-0">
+                                <p className="text-sm font-bold text-white">{row.timeStr}</p>
+                                <p className="text-[10px] text-white/30">{row.course}</p>
+                              </div>
                             </div>
                           </button>
                         );
