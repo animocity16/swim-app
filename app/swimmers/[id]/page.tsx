@@ -514,7 +514,7 @@ export default function SwimmerProfilePage() {
               {swimmer.school && <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-white/70">{swimmer.school}</span>}
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <StatPill label="PB Events" value={totalUniqueEvents} accent />
               <StatPill label="All Times" value={swimTimes.length} />
               <StatPill label="Latest" value={latestResultDate ? <span className="text-lg">{formatSwamAt(latestResultDate)}</span> : <span className="text-base text-white/40">—</span>} />
@@ -585,7 +585,7 @@ export default function SwimmerProfilePage() {
                     {SSC_SQUADS.map((sq) => (
                       <button key={sq} type="button"
                         onClick={() => setEditForm((p) => ({ ...p, squad: p.squad === sq ? "" : sq }))}
-                        className="rounded-2xl border py-2.5 text-xs font-semibold transition"
+                        className="rounded-2xl border py-2.5 text-[10px] font-semibold transition"
                         style={editForm.squad === sq
                           ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
                           : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}>

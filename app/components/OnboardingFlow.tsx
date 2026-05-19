@@ -15,7 +15,7 @@ const THEMES = [
   { id: "slate",    label: "Slate",    from: "#0D1117", to: "#1C2333", accent: "#94A3B8" },
 ];
 
-const SSC_ALIASES = ["singapore swimming club", "ssc"];
+const SSC_NAME = "Singapore Swimming Club";
 const SSC_SQUADS = ["Elementary", "Intermediate", "Advanced", "Elite B", "Elite A"] as const;
 
 // ─── Step indicator ───────────────────────────────────────────────────────────
@@ -80,7 +80,7 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
       ? raceAgeFromBirthYear(parsedBirthYear)
       : null;
 
-  const isSSC = SSC_ALIASES.includes(swimmerClub.trim().toLowerCase());
+  const isSSC = swimmerClub.trim().toLowerCase() === SSC_NAME.toLowerCase();
 
   async function handleAddSwimmer() {
     if (!swimmerName.trim()) { setSwimmerError("Please enter a name."); return; }
@@ -282,11 +282,11 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
                 {isSSC ? "Which squad?" : "Squad (optional)"}
               </p>
               {isSSC ? (
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   {SSC_SQUADS.map((sq) => (
                     <button key={sq} type="button"
                       onClick={() => setSwimmerSquad(swimmerSquad === sq ? "" : sq)}
-                      className="rounded-2xl border py-2.5 text-xs font-semibold transition"
+                      className="rounded-2xl border py-2.5 text-[10px] font-semibold transition"
                       style={swimmerSquad === sq
                         ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
                         : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}>
