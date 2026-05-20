@@ -603,10 +603,12 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
   const rawLines = rawText.split("\n").map((l) => l.trim());
 
   // ── Step 1: Detect event distance for target chain length ─────────────────
-  // 400 Free → 8 splits, 200 Free → 4 splits, 800 Free → 16 splits, etc.
-  const eventDistMatch = rawText.match(/\b(200|400|800|1500)\s*(meter|m)?\s*(free|freestyle|back|backstroke|fly|butterfly|breast|breaststroke|medley|im)\b/i);
+  // 400 Free → 8 splits of 50m, 50 Fly SC → 2 splits of 25m, etc.
+  const eventDistMatch = rawText.match(/\b(50|100|200|400|800|1500)\s*(meter|m)?\s*(free|freestyle|back|backstroke|fly|butterfly|breast|breaststroke|medley|im)\b/i);
   const eventDist = eventDistMatch ? Number(eventDistMatch[1]) : 0;
-  const targetChainLength = eventDist > 0 ? eventDist / 50 : 0; // 0 = unconstrained
+  // 50m events split at 25m (turn + finish); all others split every 50m
+  const splitUnit = eventDist === 50 ? 25 : 50;
+  const targetChainLength = eventDist > 0 ? eventDist / splitUnit : 0; // 0 = unconstrained
 
   // ── Step 2: Mark Split label lines and their noise times for removal ───────
   const removeIdx = new Set<number>();
@@ -650,7 +652,8 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
   // MIN_LEG is deliberately low (8s) to allow unusual splits like 13.14s
   // which can occur due to unusual pacing or OCR quirks.
   const MIN_LEG = 8_000;
-  const MIN_FIRST = 20_000;  // first 50m leg must be ≥ 20s
+  // 25m legs (50m SC events) can be ~15-18s; 50m legs should be ≥ 20s
+  const MIN_FIRST = splitUnit === 25 ? 8_000 : 20_000;
   const MAX_LEG = 130_000; // 2m10s maximum
   const TOLERANCE = 5_000;
 
@@ -760,7 +763,7 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
 
   return bestChain.map((cumMs, idx) => {
     const legMs = idx === 0 ? cumMs : cumMs - bestChain[idx - 1];
-    const dist = (idx + 1) * 50;
+    const dist = (idx + 1) * splitUnit;
     return {
       label: `${dist} ${stroke}`,
       order: idx + 1,
