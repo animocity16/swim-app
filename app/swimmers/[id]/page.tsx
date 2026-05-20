@@ -275,26 +275,32 @@ export default function SwimmerProfilePage() {
       !s.club || s.club.trim().toLowerCase() === swimmerClubNorm
     );
 
-    setSwimmer(swimmerData);
-    setEditForm(createEditForm(swimmerData));
-    setSwimTimes(swimTimesData);
-    setStandardSets(relevantSets);
-
     // Auto-select set: SSC parents get their squad's progression set auto-loaded
     const isSSC = SSC_ALIASES.includes(swimmerData.swim_club?.trim().toLowerCase() ?? "");
     const swimmerSquad = swimmerData.squad?.trim() ?? null;
     const targetSquad = swimmerSquad ? SQUAD_TO_TARGET[swimmerSquad] ?? null : null;
 
+    // For SSC swimmers with a known squad, only show the one preset set they need next.
+    // Non-preset sets (SNAG, ETC, custom) always show through.
+    const displaySets = relevantSets.filter((s) =>
+      !s.is_club_preset || s.target_squad === targetSquad
+    );
+
     let autoSetId: number | null = null;
     if (isSSC && targetSquad) {
-      const matchingSet = relevantSets.find(
+      const matchingSet = displaySets.find(
         (s) => s.is_club_preset && s.target_squad === targetSquad
       );
       autoSetId = matchingSet?.id ?? null;
     }
 
+    setSwimmer(swimmerData);
+    setEditForm(createEditForm(swimmerData));
+    setSwimTimes(swimTimesData);
+    setStandardSets(displaySets);
+
     // Fall back to first set if no auto-match
-    setSelectedSetId(autoSetId ?? relevantSets[0]?.id ?? null);
+    setSelectedSetId(autoSetId ?? displaySets[0]?.id ?? null);
 
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
