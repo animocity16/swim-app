@@ -980,7 +980,7 @@ export function parseSwimOCRText(
   const flatRaw = rawText.replace(/\s+/g, " ").toUpperCase();
   const isSwimDetailScreen =
     flatRaw.includes("PLACE FINALS ENTRY") ||
-    flatRaw.includes("SWIM DETAIL");
+    (flatRaw.includes("SWIM DETAIL") && !flatRaw.includes("FULL SCHEDULE"));
 
   const results = (isSplitScreen(lines) || isSwimDetailScreen)
     ? parseSingleSplitScreen(rawText, lines, options)
