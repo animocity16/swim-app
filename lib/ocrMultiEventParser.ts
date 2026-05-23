@@ -109,7 +109,7 @@ export function msToTime(ms: number) {
 }
 
 function detectCourse(text: string): "LCM" | "SCM" | "SCY" | "UNKNOWN" {
-  const t = normalizeText(text);
+  const t = normalizeText(text.replace(/(\d{1,2})(50|100|200|400|800|1500)(?=\D|$)/g, "$1 $2"));
 
   const hasStroke =
     /\b(freestyle|butterfly|backstroke|breaststroke|\bfly\b|\bback\b|\bbreast\b|\bfree\b|medley|\bim\b)\b/.test(
@@ -126,7 +126,7 @@ function detectCourse(text: string): "LCM" | "SCM" | "SCY" | "UNKNOWN" {
 }
 
 function detectStroke(text: string): string | null {
-  const t = normalizeText(text);
+  const t = normalizeText(text.replace(/(\d{1,2})(50|100|200|400|800|1500)(?=\D|$)/g, "$1 $2"));
 
   if (/\b(im|individual medley|medley)\b/.test(t)) return "IM";
   if (/\b(freestyle|free)\b/.test(t)) return "FREE";
@@ -175,7 +175,7 @@ function extractTime(line: string): string | null {
 }
 
 function extractAllTimes(line: string): string[] {
-  return line.match(/\b(\d{1,2}:\d{2}\.\d{2}|\d{1,2}\.\d{2})\b/g) ?? [];
+  return line.replace(/\b(\d{1,2}):(\d{2})(\d{2})\b/g, "$1:$2.$3").match(/\b(\d{1,2}:\d{2}\.\d{2}|\d{1,2}\.\d{2})\b/g) ?? [];
 }
 
 function extractMeetDate(text: string): string | null {
