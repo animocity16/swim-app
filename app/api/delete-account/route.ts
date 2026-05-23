@@ -183,3 +183,6 @@ export async function POST(_req: NextRequest) {
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     log.push(`❌ ERROR: ${message}`);
+    return NextResponse.json({ error: message, log }, { status: 500 });
+  }
+}
