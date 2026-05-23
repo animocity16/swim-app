@@ -152,9 +152,22 @@ function detectDistance(text: string, choices: number[]): number | null {
   return null;
 }
 
+function fixOCRTime(line: string): string {
+  // Fix missing decimal point e.g. "1:3817" → "1:38.17" or "3817" → "38.17"
+  return line
+    .replace(/\b(\d{1,2}):(\d{2})(\d{2})\b/g, "$1:$2.$3")  // 1:3817 → 1:38.17
+    .replace(/\b(\d{2})(\d{2})\b(?!\.)/g, (m, a, b, offset, str) => {
+      // Only fix standalone 4-digit numbers that look like times (20-59 range for first pair)
+      const first = Number(a);
+      if (first >= 20 && first <= 59) return `${a}.${b}`;
+      return m;
+    });
+}
+
 function extractTime(line: string): string | null {
+  const fixed = fixOCRTime(line);
   const matches =
-    line.match(/\b(\d{1,2}:\d{2}\.\d{2}|\d{1,2}\.\d{2})\b/g) ?? [];
+    fixed.match(/\b(\d{1,2}:\d{2}\.\d{2}|\d{1,2}\.\d{2})\b/g) ?? [];
 
   if (matches.length === 0) return null;
 
