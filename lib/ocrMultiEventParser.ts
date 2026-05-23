@@ -137,8 +137,13 @@ function detectStroke(text: string): string | null {
   return null;
 }
 
+function fixMergedAgeDistance(line: string): string {
+  // Fix OCR merging age range with distance e.g. "Girls 8-1250 Meter Back" → "Girls 8-12 50 Meter Back"
+  return line.replace(/(\d{1,2})(50|100|200|400|800|1500)(?=\D|$)/g, "$1 $2");
+}
+
 function detectDistance(text: string, choices: number[]): number | null {
-  const t = normalizeText(text);
+  const t = normalizeText(fixMergedAgeDistance(text));
 
   for (const value of choices) {
     if (new RegExp(`\\b${value}\\b`).test(t)) return value;
