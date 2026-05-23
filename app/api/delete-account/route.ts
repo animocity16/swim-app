@@ -6,7 +6,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 // ─── Safety lock ──────────────────────────────────────────────────────────────
 // Set to true during dry-run testing (logs steps, touches nothing).
 // Flip to false only after taking a fresh backup and testing on a throwaway account.
-const SAFETY_LOCK = true;
+const SAFETY_LOCK = false;
 
 export async function POST(_req: NextRequest) {
   // ── 1. Authenticate the calling user ──────────────────────────────────────
@@ -183,6 +183,3 @@ export async function POST(_req: NextRequest) {
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     log.push(`❌ ERROR: ${message}`);
-    return NextResponse.json({ error: message, log }, { status: 500 });
-  }
-}
