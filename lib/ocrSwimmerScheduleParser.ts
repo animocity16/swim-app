@@ -67,6 +67,7 @@ function timeToMs(timeStr: string): number {
 //   "118.03" → "1:18.03" (3 digits before dot = m:ss.hh)
 //   "215.72" → "2:15.72"
 //   "11803"  → "1:18.03" (5 raw digits)
+//   "1:3817" → "1:38.17" (OCR drops decimal in mm:sscc format)
 function repairTime(raw: string): string | null {
   // Normalize comma-as-decimal first (OCR reads "47,53" instead of "47.53")
   const s = raw.trim().replace(/,/g, ".");
@@ -74,6 +75,14 @@ function repairTime(raw: string): string | null {
     const sec = Number(s.split(":")[1].split(".")[0]);
     if (sec >= 60) return null;
     return s;
+  }
+  // FIX: "1:3817" → "1:38.17" — OCR drops the decimal point in mm:sscc format
+  if (/^\d{1,2}:\d{4}$/.test(s)) {
+    const [mm, rest] = s.split(":");
+    const sec = rest.slice(0, 2);
+    const hun = rest.slice(2);
+    if (Number(sec) >= 60) return null;
+    return `${mm}:${sec}.${hun}`;
   }
   if (/^\d{2}\.\d{2}$/.test(s)) return s;
   // "4753" → "47.53" (4-digit: OCR dropped the decimal point for sub-minute times)
@@ -193,19 +202,23 @@ function isEventDescriptionLine(line: string): boolean {
 //   "3:02.40 | Place:"   (place missing)
 //   "3676 | Place: 18"   (OCR drops decimal → 4-digit raw time)
 //   "47,53 | Place: 29"  (OCR reads decimal as comma)
+//   "1:3817 | Place: 6"  (OCR drops decimal in mm:sscc → repairTime handles)
+//   "45.31] Place: 9"    (OCR reads pipe as ] bracket)
 //
-// FIX 1: pipe character is now optional and accepts OCR alternatives (l, 1, I).
+// FIX 1: pipe character is now optional and accepts OCR alternatives (l, 1, I, ]).
 // FIX 2: 4-digit raw times (e.g. "4753") now accepted for sub-minute events.
 // FIX 3: comma-decimal (e.g. "47,53") now accepted.
+// FIX 4: mm:sscc format without decimal (e.g. "1:3817") now accepted.
 
 function extractTimePlaceFromLine(line: string): {
   timeStr: string; timeMs: number; place: number | null;
 } | null {
-  // Allow pipe alternatives: |  l  1  I  (or no separator at all before "Place")
-  // Accept: mm:ss.hh, 3-digit decimal (118.03), 2-digit decimal (47.53),
-  //         5-digit raw (11803), 4-digit raw (4753), comma-decimal variants
+  // Allow pipe alternatives: |  l  1  I  ]  (or no separator at all before "Place")
+  // Accept: mm:ss.hh, mm:sscc (no decimal), 3-digit decimal (118.03),
+  //         2-digit decimal (47.53), 5-digit raw (11803), 4-digit raw (4753),
+  //         comma-decimal variants
   const m = line.match(
-    /(\d{1,2}:\d{2}[.,]\d{2}|\d{3}[.,]\d{2}|\d{2}[.,]\d{2}|\d{5}|\d{4})\s*[|lI1]?\s*Place\s*:\s*(\d+|EXH)?/i
+    /(\d{1,2}:\d{2}[.,]\d{2}|\d{1,2}:\d{4}|\d{3}[.,]\d{2}|\d{2}[.,]\d{2}|\d{5}|\d{4})\s*[|lI1\]]?\s*Place\s*:\s*(\d+|EXH)?/i
   );
   if (!m) return null;
 
@@ -311,7 +324,7 @@ export function parseSwimmerScheduleOCR(rawText: string): ParsedSwimmerSchedule 
 // - Multiple "Place:" with colon — unique to swimmer schedule format
 //
 // FIX: made "FULL SCHEDULE" detection fuzzier to handle OCR garbles
-// (e.g. "FULL SCHEDUL", "FULL SCHED\"), and "PLACE:" check ignores spaces
+// (e.g. "FULL SCHEDUL", "FULL SCHED"), and "PLACE:" check ignores spaces
 // between PLACE and the colon.
 
 export function isSwimmerSchedulePage(rawText: string): boolean {
