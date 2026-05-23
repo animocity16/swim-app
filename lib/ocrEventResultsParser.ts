@@ -98,7 +98,7 @@ function extractEventName(lines: string[]): string | null {
   const distRe = /\b(50|100|200|400|800|1500)\b/;
   for (const rawLine of lines.slice(0, 15)) {
     // Fix OCR merging age range with distance e.g. "Girls 7-12100 Meter IM" → "Girls 7-12 100 Meter IM"
-    const line = rawLine.replace(/(\d{1,2})(50|100|200|400|800|1500)\b/g, "$1 $2");
+    const line = rawLine.replace(/(\d{1,2})(50|100|200|400|800|1500)(?=\D|$)/g, "$1 $2");
     if (!strokeRe.test(line) || !distRe.test(line)) continue;
     const distMatch = line.match(distRe);
     const dist = distMatch?.[1];
