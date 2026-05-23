@@ -118,7 +118,12 @@ function parseStroke(line: string): string | null {
 }
 
 function parseDistance(line: string): number | null {
-  const m = line.match(/\b(50|100|200|400|800|1500)\b/);
+  // FIX: OCR often merges the age range with the distance number,
+  // e.g. "Girls 8-12100 Meter Back" instead of "Girls 8-12 100 Meter Back".
+  // Insert a space between the age-range digit and the event distance so that
+  // the word-boundary regex below can match correctly.
+  const fixed = line.replace(/(\d{1,2})(50|100|200|400|800|1500)(?=\D|$)/g, "$1 $2");
+  const m = fixed.match(/\b(50|100|200|400|800|1500)\b/);
   return m ? Number(m[1]) : null;
 }
 
@@ -306,7 +311,7 @@ export function parseSwimmerScheduleOCR(rawText: string): ParsedSwimmerSchedule 
 // - Multiple "Place:" with colon — unique to swimmer schedule format
 //
 // FIX: made "FULL SCHEDULE" detection fuzzier to handle OCR garbles
-// (e.g. "FULL SCHEDUL", "FULL SCHED"), and "PLACE:" check ignores spaces
+// (e.g. "FULL SCHEDUL", "FULL SCHED\"), and "PLACE:" check ignores spaces
 // between PLACE and the colon.
 
 export function isSwimmerSchedulePage(rawText: string): boolean {
