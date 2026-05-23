@@ -67,15 +67,24 @@ function cleanLines(rawText: string) {
     .filter(Boolean);
 }
 
+function repairOCRSeconds(sec: number): number {
+  // OCR commonly misreads 5→6 in tens digit (e.g. 55→65). Subtract 10 to reverse.
+  if (sec >= 60 && sec < 70) return sec - 10;
+  if (sec >= 60) return sec % 60;
+  return sec;
+}
+
 function timeToMs(timeStr: string) {
   if (!timeStr) return 0;
 
   if (timeStr.includes(":")) {
     const [mm, ss] = timeStr.split(":");
     const [sec, hundredths] = ss.split(".");
+    const rawSec = Number(sec);
+    const fixedSec = rawSec >= 60 ? repairOCRSeconds(rawSec) : rawSec;
     return (
       Number(mm) * 60_000 +
-      Number(sec) * 1000 +
+      fixedSec * 1000 +
       Number(hundredths ?? "0") * 10
     );
   }

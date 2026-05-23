@@ -50,13 +50,24 @@ function repairTime(raw: string): string | null {
   return null;
 }
 
+function repairOCRSeconds(sec: number): number {
+  // OCR commonly misreads 5→6 in the tens digit of seconds (e.g. 55→65, 58→68).
+  // If seconds >= 60, attempt to fix by subtracting 10 (reverses the 5→6 swap).
+  if (sec >= 60 && sec < 70) return sec - 10;
+  // If still invalid, clamp to 59 as a last resort
+  if (sec >= 60) return sec % 60;
+  return sec;
+}
+
 function timeToMs(timeStr: string): number {
   if (!timeStr) return 0;
   const clean = timeStr.trim();
   if (clean.includes(":")) {
     const [mm, rest] = clean.split(":");
     const [sec, hundredths] = rest.split(".");
-    return Number(mm) * 60_000 + Number(sec) * 1_000 + Number(hundredths ?? "0") * 10;
+    const rawSec = Number(sec);
+    const fixedSec = rawSec >= 60 ? repairOCRSeconds(rawSec) : rawSec;
+    return Number(mm) * 60_000 + fixedSec * 1_000 + Number(hundredths ?? "0") * 10;
   }
   const [sec, hundredths] = clean.split(".");
   return Number(sec) * 1_000 + Number(hundredths ?? "0") * 10;
