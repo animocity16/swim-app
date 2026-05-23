@@ -484,9 +484,8 @@ export default function ScanPage() {
         if (createErr || !newSwimmer) { errors.push(`${row.name}: couldn't create profile`); continue; }
         await loadSwimmers();
         const en2 = canonicalEventName(row.event ?? "");
-        // Use meetCourse as fallback when course is UNKNOWN or missing
-        const rawCourse = row.course && row.course !== "UNKNOWN" ? row.course : meetCourse;
-        const cn2 = canonicalCourse(rawCourse);
+        // meetCourse always wins — parent sets this explicitly at top of scan session
+        const cn2 = canonicalCourse(meetCourse);
         if (!en2) { errors.push(`${row.name}: no event`); continue; }
         await supabase.from("swim_times").insert({
           swimmer_id: newSwimmer.id, event: en2, course: cn2, time_ms: row.timeMs,
@@ -495,9 +494,8 @@ export default function ScanPage() {
         saved.push(`${row.name} (added)`); continue;
       }
       const eventName = canonicalEventName(row.event ?? "");
-      // Use meetCourse as fallback when course is UNKNOWN or missing
-      const rawCourse = row.course && row.course !== "UNKNOWN" ? row.course : meetCourse;
-      const courseName = canonicalCourse(rawCourse);
+      // meetCourse always wins — parent sets this explicitly at top of scan session
+      const courseName = canonicalCourse(meetCourse);
       if (!eventName) { errors.push(`${row.name}: no event`); continue; }
       const { data: existing } = await supabase.from("swim_times").select("id")
         .eq("swimmer_id", matched.id).eq("event", eventName).eq("course", courseName).eq("time_ms", row.timeMs).limit(1);
@@ -537,9 +535,8 @@ export default function ScanPage() {
       const row = scheduleResults[index];
       if (!row) continue;
       const eventName = canonicalEventName(row.event);
-      // Use meetCourse as fallback when course is UNKNOWN or missing
-      const rawCourse = row.course && row.course !== "UNKNOWN" ? row.course : meetCourse;
-      const courseName = canonicalCourse(rawCourse);
+      // meetCourse always wins — parent sets this explicitly at top of scan session
+      const courseName = canonicalCourse(meetCourse);
       if (!eventName) { errors.push(`${row.event}: unknown event`); continue; }
       const { data: existing } = await supabase.from("swim_times").select("id")
         .eq("swimmer_id", swimmer.id).eq("event", eventName).eq("course", courseName).eq("time_ms", row.timeMs).limit(1);
