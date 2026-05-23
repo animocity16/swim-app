@@ -42,12 +42,24 @@ export type ParsedEventResults = {
 // ✅ Repair common OCR time manglings
 function repairTime(raw: string): string | null {
   const s = raw.trim();
-  if (/^\d{1,2}:\d{2}\.\d{2}$/.test(s)) return s;
-  if (/^\d{2}\.\d{2}$/.test(s)) return s;
-  if (/^\d{1}:\d{4}$/.test(s)) return `${s[0]}:${s.slice(2, 4)}.${s.slice(4)}`;
-  if (/^\d{5}$/.test(s)) return `${s[0]}:${s.slice(1, 3)}.${s.slice(3)}`;
-  if (/^\d{4}$/.test(s)) return `${s.slice(0, 2)}.${s.slice(2)}`;
-  return null;
+  let result: string | null = null;
+  if (/^\d{1,2}:\d{2}\.\d{2}$/.test(s)) result = s;
+  else if (/^\d{2}\.\d{2}$/.test(s)) result = s;
+  else if (/^\d{1}:\d{4}$/.test(s)) result = `${s[0]}:${s.slice(2, 4)}.${s.slice(4)}`;
+  else if (/^\d{5}$/.test(s)) result = `${s[0]}:${s.slice(1, 3)}.${s.slice(3)}`;
+  else if (/^\d{4}$/.test(s)) result = `${s.slice(0, 2)}.${s.slice(2)}`;
+  // Fix OCR misread seconds >= 60 (e.g. 1:65.02 → 1:55.02)
+  if (result) {
+    const m = result.match(/^(\d+):(\d{2})\.(\d{2})$/);
+    if (m) {
+      const sec = Number(m[2]);
+      if (sec >= 60) {
+        const fixed = sec >= 60 && sec < 70 ? sec - 10 : sec % 60;
+        result = `${m[1]}:${String(fixed).padStart(2, "0")}.${m[3]}`;
+      }
+    }
+  }
+  return result;
 }
 
 function repairOCRSeconds(sec: number): number {

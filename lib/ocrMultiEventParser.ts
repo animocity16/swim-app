@@ -932,7 +932,7 @@ function parseNormalEventBlocks(
       distance: built.distance,
       stroke: built.stroke,
       name: resolvedName,
-      timeStr: foundTime,
+      timeStr: msToTime(timeMs),
       timeMs,
       course: foundCourse,
       confidence: 4,
