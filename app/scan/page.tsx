@@ -20,6 +20,50 @@ import { supabase } from "@/lib/supabaseClient";
 import SpreadsheetImport from "./SpreadsheetImport";
 
 
+// ─── Meet name presets ────────────────────────────────────────────────────────
+
+const CUSTOM_MEETS_KEY = "natrix_custom_meets";
+
+function getMeetPresets(): string[] {
+  const currentYear = new Date().getFullYear();
+  const snagNumber = 56 + (currentYear - 2026);
+  const jicNumber  = 39 + (currentYear - 2026);
+  const snscNumber = 21 + (currentYear - 2026);
+  const ordinal = (n: number) => {
+    const s = ["th", "st", "nd", "rd"];
+    const v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  };
+  return [
+    "Swim Series 1",
+    "Swim Series 2",
+    `${ordinal(snagNumber)} SNAG ${currentYear}`,
+    `NSG ${currentYear}`,
+    `Pesta Sukan ${currentYear}`,
+    `ETC ${currentYear}`,
+    `${ordinal(jicNumber)} JIC ${currentYear}`,
+    `${ordinal(snscNumber)} SNSC ${currentYear}`,
+    "Club Time Trial",
+    "Time Trial",
+  ];
+}
+
+function loadCustomMeets(): string[] {
+  try {
+    const raw = localStorage.getItem(CUSTOM_MEETS_KEY);
+    return raw ? (JSON.parse(raw) as string[]) : [];
+  } catch { return []; }
+}
+
+function saveCustomMeet(name: string) {
+  try {
+    const existing = loadCustomMeets();
+    const trimmed = name.trim();
+    if (!trimmed || existing.includes(trimmed)) return;
+    localStorage.setItem(CUSTOM_MEETS_KEY, JSON.stringify([trimmed, ...existing].slice(0, 20)));
+  } catch {}
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Swimmer = {
@@ -254,6 +298,8 @@ export default function ScanPage() {
   // ── Manual meet metadata ──────────────────────────────────────────────────
   const [manualMeetName, setManualMeetName] = useState("");
   const [manualMeetDate, setManualMeetDate] = useState("");
+  const [customMeets, setCustomMeets] = useState<string[]>([]);
+  const [eventMeetName, setEventMeetName] = useState("");
 
   const ref1 = useRef<HTMLInputElement | null>(null);
   const ref2 = useRef<HTMLInputElement | null>(null);
@@ -297,7 +343,7 @@ export default function ScanPage() {
     setScheduleResults([]); setScheduleSwimmerName(null); setScheduleMeetName(null);
     setSelectedScheduleRows(new Set()); setScheduleMatchedSwimmer(null);
     setShowSchedulePicker(false); setSavingSchedule(false);
-    setManualMeetName(""); setManualMeetDate("");
+    setManualMeetName(""); setManualMeetDate(""); setEventMeetName("");
     setCreatingNewSwimmer(false); setNewSwimmerName(""); setNewSwimmerAge("");
     setNewSwimmerClub(""); setShowCreateForm(false);
     setShowInfo(false);
@@ -412,6 +458,11 @@ export default function ScanPage() {
     const saved: string[] = []; const errors: string[] = [];
     const firstClub = eventRows[0]?.club ?? null;
     const meetType = detectMeetType(rawText, firstClub);
+    const resolvedEventMeetName = eventMeetName.trim() || null;
+    if (eventMeetName.trim()) {
+      saveCustomMeet(eventMeetName.trim());
+      setCustomMeets(loadCustomMeets());
+    }
     for (const index of Array.from(selectedRows)) {
       const row = eventRows[index];
       if (!row) continue;
@@ -439,7 +490,7 @@ export default function ScanPage() {
         if (!en2) { errors.push(`${row.name}: no event`); continue; }
         await supabase.from("swim_times").insert({
           swimmer_id: newSwimmer.id, event: en2, course: cn2, time_ms: row.timeMs,
-          place: row.place ?? null, meet_name: row.meetName ?? null, swam_at: row.swamAt ?? null, meet_type: meetType,
+          place: row.place ?? null, meet_name: resolvedEventMeetName ?? row.meetName ?? null, swam_at: row.swamAt ?? null, meet_type: meetType,
         });
         saved.push(`${row.name} (added)`); continue;
       }
@@ -453,7 +504,7 @@ export default function ScanPage() {
       if (existing && existing.length > 0) { errors.push(`${row.name}: already saved`); continue; }
       const { error } = await supabase.from("swim_times").insert({
         swimmer_id: matched.id, event: eventName, course: courseName, time_ms: row.timeMs,
-        place: row.place ?? null, meet_name: row.meetName ?? null, swam_at: row.swamAt ?? null, meet_type: meetType,
+        place: row.place ?? null, meet_name: resolvedEventMeetName ?? row.meetName ?? null, swam_at: row.swamAt ?? null, meet_type: meetType,
       });
       error ? errors.push(`${row.name}: ${error.message}`) : saved.push(row.name);
     }
@@ -476,6 +527,10 @@ export default function ScanPage() {
     const saved: string[] = []; const errors: string[] = [];
     const meetType = detectMeetType(rawText, null);
     const resolvedMeetName = manualMeetName.trim() || scheduleMeetName || null;
+    if (manualMeetName.trim()) {
+      saveCustomMeet(manualMeetName.trim());
+      setCustomMeets(loadCustomMeets());
+    }
     const resolvedSwamAt = manualMeetDate.trim() || null;
 
     for (const index of Array.from(selectedScheduleRows)) {
@@ -1024,10 +1079,24 @@ export default function ScanPage() {
                     <div className="rounded-2xl p-4 space-y-3"
                       style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
                       <p className="text-xs font-medium uppercase tracking-widest text-white/40">Meet details</p>
-                      <div className="space-y-1">
+                      <div className="space-y-2">
                         <label className="text-xs text-white/40">Meet name</label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {[...getMeetPresets(), ...customMeets.filter(m => !getMeetPresets().includes(m))].map((preset) => (
+                            <button
+                              key={preset}
+                              type="button"
+                              onClick={() => setManualMeetName(preset)}
+                              className="rounded-full px-3 py-1 text-xs font-medium transition-all"
+                              style={manualMeetName === preset
+                                ? { background: "#D97706", color: "#fff", border: "1px solid #D97706" }
+                                : { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.12)" }}>
+                              {preset}
+                            </button>
+                          ))}
+                        </div>
                         <input type="text" value={manualMeetName} onChange={(e) => setManualMeetName(e.target.value)}
-                          placeholder="e.g. Singapore Swim Series II"
+                          placeholder="Or type a meet name…"
                           className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white placeholder-white/20 outline-none focus:border-amber-400/50" />
                       </div>
                       <div className="space-y-1">
@@ -1194,12 +1263,38 @@ export default function ScanPage() {
                       );
                     })}
                     {selectedRows.size > 0 && (
-                      <button type="button" onClick={() => void handleSaveSelected()}
-                        disabled={savingSelected}
-                        className="w-full rounded-2xl py-4 text-base font-bold text-white transition disabled:opacity-50"
-                        style={{ background: "#D97706" }}>
-                        {savingSelected ? "Saving…" : `Save ${selectedRows.size} result${selectedRows.size === 1 ? "" : "s"}`}
-                      </button>
+                      <div className="space-y-3">
+                        <div className="rounded-2xl p-4 space-y-3"
+                          style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                          <p className="text-xs font-medium uppercase tracking-widest text-white/40">Meet name</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {[...getMeetPresets(), ...customMeets.filter(m => !getMeetPresets().includes(m))].map((preset) => (
+                              <button
+                                key={preset}
+                                type="button"
+                                onClick={() => setEventMeetName(eventMeetName === preset ? "" : preset)}
+                                className="rounded-full px-3 py-1 text-xs font-medium transition-all"
+                                style={eventMeetName === preset
+                                  ? { background: "#D97706", color: "#fff", border: "1px solid #D97706" }
+                                  : { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.12)" }}>
+                                {preset}
+                              </button>
+                            ))}
+                          </div>
+                          <input
+                            type="text"
+                            value={eventMeetName}
+                            onChange={(e) => setEventMeetName(e.target.value)}
+                            placeholder="Or type a meet name…"
+                            className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white placeholder-white/20 outline-none focus:border-amber-400/50" />
+                        </div>
+                        <button type="button" onClick={() => void handleSaveSelected()}
+                          disabled={savingSelected}
+                          className="w-full rounded-2xl py-4 text-base font-bold text-white transition disabled:opacity-50"
+                          style={{ background: "#D97706" }}>
+                          {savingSelected ? "Saving…" : `Save ${selectedRows.size} result${selectedRows.size === 1 ? "" : "s"}`}
+                        </button>
+                      </div>
                     )}
                   </div>
                 )}
