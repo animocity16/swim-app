@@ -1079,26 +1079,6 @@ export default function ScanPage() {
                     <div className="rounded-2xl p-4 space-y-3"
                       style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
                       <p className="text-xs font-medium uppercase tracking-widest text-white/40">Meet details</p>
-                      <div className="space-y-2">
-                        <label className="text-xs text-white/40">Meet name</label>
-                        <div className="flex flex-wrap gap-1.5">
-                          {[...getMeetPresets(), ...customMeets.filter(m => !getMeetPresets().includes(m))].map((preset) => (
-                            <button
-                              key={preset}
-                              type="button"
-                              onClick={() => setManualMeetName(preset)}
-                              className="rounded-full px-3 py-1 text-xs font-medium transition-all"
-                              style={manualMeetName === preset
-                                ? { background: "#D97706", color: "#fff", border: "1px solid #D97706" }
-                                : { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.12)" }}>
-                              {preset}
-                            </button>
-                          ))}
-                        </div>
-                        <input type="text" value={manualMeetName} onChange={(e) => setManualMeetName(e.target.value)}
-                          placeholder="Or type a meet name…"
-                          className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white placeholder-white/20 outline-none focus:border-amber-400/50" />
-                      </div>
                       <div className="space-y-1">
                         <label className="text-xs text-white/40">Date swum</label>
                         <input type="date" value={manualMeetDate} onChange={(e) => setManualMeetDate(e.target.value)}
@@ -1285,6 +1265,12 @@ export default function ScanPage() {
                             type="text"
                             value={eventMeetName}
                             onChange={(e) => setEventMeetName(e.target.value)}
+                            onBlur={(e) => {
+                              if (e.target.value.trim()) {
+                                saveCustomMeet(e.target.value.trim());
+                                setCustomMeets(loadCustomMeets());
+                              }
+                            }}
                             placeholder="Or type a meet name…"
                             className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white placeholder-white/20 outline-none focus:border-amber-400/50" />
                         </div>
