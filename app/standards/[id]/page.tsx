@@ -361,7 +361,7 @@ export default function StandardsDetailPage() {
                   style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)" }}>
                   <div className="px-4 pt-3 pb-2 flex items-center gap-2">
                     <div className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />
-                    <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color }}>{stroke}</p>
+                    <p className="text-sm font-bold uppercase tracking-normal truncate min-w-0 flex-1" style={{ color }}>{stroke}</p>
                   </div>
                   {strokeItems
                     .sort((a, b) => Number(a.event.match(/\d+/)?.[0] ?? 0) - Number(b.event.match(/\d+/)?.[0] ?? 0))
