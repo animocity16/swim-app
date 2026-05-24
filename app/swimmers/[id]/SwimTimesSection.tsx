@@ -68,13 +68,11 @@ function formatDate(value?: string | null) {
   return date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
-/** Extract the distance in metres from an event name, e.g. "100 Freestyle" → 100 */
 function getEventDistanceM(event: string): number | null {
   const match = canonicalEventName(event).match(/\d+/);
   return match ? Number(match[0]) : null;
 }
 
-/** Calculate speed in m/s and return as a formatted string, or null if not calculable */
 function formatSpeed(timeMs: number | null | undefined, event: string): string | null {
   if (timeMs == null || timeMs <= 0) return null;
   const distance = getEventDistanceM(event);
@@ -201,7 +199,6 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
   const [editingTime, setEditingTime] = useState<EditingTime | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
 
-  // Share card
   const [shareResult, setShareResult] = useState<ShareResult | null>(null);
 
   const meetPresets = useMemo(() => getMeetPresets(swimmerAge), [swimmerAge]);
@@ -419,15 +416,15 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
                 onClick={() => toggleStroke(sg.key)}
                 className="w-full px-4 pt-3 pb-3 flex items-center gap-2 transition hover:bg-white/5"
               >
-                <div className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ background: sg.color }} />
-                <p className="text-sm font-semibold uppercase tracking-wide" style={{ color: sg.color }}>
+                <div className="h-2 w-2 rounded-full flex-shrink-0" style={{ background: sg.color }} />
+                <p className="text-base font-bold uppercase tracking-wide" style={{ color: sg.color }}>
+                  {sg.label}
                 </p>
-                <p className="text-[10px] text-white/25 ml-1">
+                <p className="text-xs text-white/25 ml-1">
                   {sg.events.length} event{sg.events.length === 1 ? "" : "s"}
                 </p>
-                {/* Show PB of first event as preview when collapsed */}
                 {!isStrokeOpen && (
-                  <p className="ml-auto text-xs font-bold" style={{ color: "#FDE68A" }}>
+                  <p className="ml-auto text-sm font-bold" style={{ color: "#FDE68A" }}>
                     {formatMs(sg.events[0]?.pb.time_ms)}
                   </p>
                 )}
@@ -460,7 +457,6 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
                         </div>
                         <div className="text-right flex-shrink-0">
                           <p className="text-sm font-bold" style={{ color: "#FDE68A" }}>{formatMs(eg.pb.time_ms)}</p>
-                          {/* ── Speed in m/s ── */}
                           {pbSpeed && (
                             <p className="text-[10px] font-medium mt-0.5" style={{ color: "rgba(253,230,138,0.5)" }}>
                               {pbSpeed}
@@ -577,7 +573,6 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
                                           PB
                                         </span>
                                       )}
-                                      {/* Speed alongside each time in history */}
                                       {timeSpeed && (
                                         <span className="text-[10px] font-medium" style={{ color: "rgba(255,255,255,0.3)" }}>
                                           {timeSpeed}
@@ -611,20 +606,16 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
                                 </div>
                               )}
 
-                              {/* Splits — clean two-column table */}
+                              {/* Splits table */}
                               {!isEditing && showSplits && splits.length > 0 && (
                                 <div className="mt-2 rounded-xl overflow-hidden"
                                   style={{ background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.06)" }}>
-
-                                  {/* Column headers */}
                                   <div className="grid grid-cols-[1fr_72px_80px] gap-2 px-3 py-2 items-center"
                                     style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
                                     <span className="text-[9px] font-semibold uppercase tracking-widest text-white/30">Split</span>
                                     <span className="text-[9px] font-semibold uppercase tracking-widest text-white/30 text-right">Leg</span>
                                     <span className="text-[9px] font-semibold uppercase tracking-widest text-white/30 text-right">Cum.</span>
                                   </div>
-
-                                  {/* Data rows */}
                                   {splits
                                     .sort((a, b) => (a.split_order ?? 0) - (b.split_order ?? 0))
                                     .map((split, sIdx, arr) => (
@@ -634,8 +625,7 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
                                         <p className="text-xs font-medium text-white/75">
                                           {split.split_label || "Split"}
                                         </p>
-                                        <p className="text-xs font-bold tabular-nums text-right"
-                                          style={{ color: "#FDE68A" }}>
+                                        <p className="text-xs font-bold tabular-nums text-right" style={{ color: "#FDE68A" }}>
                                           {formatMs(split.split_time_ms)}
                                         </p>
                                         <p className="text-xs tabular-nums text-right text-white/50">
@@ -658,7 +648,6 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
         })}
       </div>
 
-      {/* Share card modal */}
       {shareResult && (
         <ShareCardModal
           result={shareResult}
