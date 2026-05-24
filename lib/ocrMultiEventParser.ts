@@ -675,6 +675,57 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
 
   if (collectedTimes.length === 0) return [];
 
+  // ── Step 3.5: Explicit pass (preferred over DP) ───────────────────────────
+  // Meet Mobile shows leg time → label → cumulative time per split.
+  // Leg times are simple decimals (e.g. 49.63) and reliably OCR'd.
+  // Cumulative times in mm:ss.hh format can be misread (e.g. 1:32.55 → 1:32.65),
+  // causing the DP-derived leg times to be wrong even when the chain is valid.
+  // So: try to read leg times directly from labeled rows first.
+  // If they sum to finalMs (within 1.5s), use them. Otherwise fall through to DP.
+  {
+    const isIMevent = /\b(individual\s*medley|\bim\b)/i.test(rawText);
+    const IM_STROKES_EP = ["Fly", "Back", "Breast", "Free"];
+
+    function strokeLabelEP(text: string): string {
+      const t = text.toLowerCase();
+      if (t.includes("butterfly") || / fly\b/i.test(t)) return "Fly";
+      if (t.includes("backstroke") || / back\b/i.test(t)) return "Back";
+      if (t.includes("breaststroke") || / breast\b/i.test(t)) return "Breast";
+      return "Free";
+    }
+    const strokeEP = isIMevent ? "" : strokeLabelEP(rawText);
+
+    const explicitLegs: { legMs: number; dist: number }[] = [];
+    for (let i = 1; i < rawLines.length; i++) {
+      if (!isValidLabel(rawLines[i])) continue;
+      const legMs = repairTimeToMs(rawLines[i - 1]);
+      if (legMs <= 0 || legMs > 200_000) continue;
+      const distMatch = rawLines[i].match(/\b(\d+)\b/);
+      const dist = distMatch ? Number(distMatch[1]) : (explicitLegs.length + 1) * splitUnit;
+      explicitLegs.push({ legMs, dist });
+    }
+
+    if (explicitLegs.length > 0) {
+      const okCount = targetChainLength === 0 || explicitLegs.length === targetChainLength;
+      const total = explicitLegs.reduce((s, l) => s + l.legMs, 0);
+      const okSum = Math.abs(total - finalMs) <= 1500; // within 1.5s
+      if (okCount && okSum) {
+        let cum = 0;
+        return explicitLegs.map((l, idx) => {
+          cum += l.legMs;
+          const legStroke = isIMevent ? (IM_STROKES_EP[idx % 4] ?? "Free") : strokeEP;
+          return {
+            label: `${l.dist} ${legStroke}`,
+            order: idx + 1,
+            distance: l.dist,
+            splitMs: l.legMs,
+            cumulativeMs: cum,
+          };
+        });
+      }
+    }
+  }
+
   // ── Step 4: DP — keep ALL equal-length chains at each position ────────────
   // MIN_LEG is deliberately low (8s) to allow unusual splits like 13.14s
   // which can occur due to unusual pacing or OCR quirks.
