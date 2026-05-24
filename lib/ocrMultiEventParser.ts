@@ -779,6 +779,12 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
   const bestChain = best as number[];
 
   // ── Step 6: Build splits with mathematical labels ─────────────────────────
+  const isIM = /\b(individual\s*medley|\bim\b)/i.test(rawText);
+
+  // IM cycles through Fly → Back → Breast → Free regardless of distance
+  // (200 IM = 4×50m legs, 400 IM = 4×100m legs — same stroke order)
+  const IM_STROKES = ["Fly", "Back", "Breast", "Free"];
+
   function strokeLabel(text: string): string {
     const t = text.toLowerCase();
     if (t.includes("butterfly") || / fly\b/i.test(t)) return "Fly";
@@ -786,13 +792,14 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
     if (t.includes("breaststroke") || / breast\b/i.test(t)) return "Breast";
     return "Free";
   }
-  const stroke = strokeLabel(rawText);
+  const stroke = isIM ? "" : strokeLabel(rawText);
 
   return bestChain.map((cumMs, idx) => {
     const legMs = idx === 0 ? cumMs : cumMs - bestChain[idx - 1];
     const dist = (idx + 1) * splitUnit;
+    const legStroke = isIM ? (IM_STROKES[idx % 4] ?? "Free") : stroke;
     return {
-      label: `${dist} ${stroke}`,
+      label: `${dist} ${legStroke}`,
       order: idx + 1,
       distance: dist,
       splitMs: legMs,
