@@ -490,7 +490,7 @@ export default function ScanPage() {
         if (!en2) { errors.push(`${row.name}: no event`); continue; }
         await supabase.from("swim_times").insert({
           swimmer_id: newSwimmer.id, event: en2, course: cn2, time_ms: row.timeMs,
-          place: row.place ?? null, meet_name: resolvedEventMeetName ?? row.meetName ?? null, swam_at: eventMeetDate.trim() || row.swamAt ?? null, meet_type: meetType,
+          place: row.place ?? null, meet_name: resolvedEventMeetName ?? row.meetName ?? null, swam_at: (eventMeetDate.trim() || row.swamAt) ?? null, meet_type: meetType,
         });
         saved.push(`${row.name} (added)`); continue;
       }
@@ -503,7 +503,7 @@ export default function ScanPage() {
       if (existing && existing.length > 0) { errors.push(`${row.name}: already saved`); continue; }
       const { error } = await supabase.from("swim_times").insert({
         swimmer_id: matched.id, event: eventName, course: courseName, time_ms: row.timeMs,
-        place: row.place ?? null, meet_name: resolvedEventMeetName ?? row.meetName ?? null, swam_at: eventMeetDate.trim() || row.swamAt ?? null, meet_type: meetType,
+        place: row.place ?? null, meet_name: resolvedEventMeetName ?? row.meetName ?? null, swam_at: (eventMeetDate.trim() || row.swamAt) ?? null, meet_type: meetType,
       });
       error ? errors.push(`${row.name}: ${error.message}`) : saved.push(row.name);
     }
