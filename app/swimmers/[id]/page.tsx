@@ -21,7 +21,6 @@ const SSC_SQUADS = [
   { label: "Elite A", value: "Elite A" },
 ];
 
-// Squad → target_squad of the standard set they need to hit to advance
 const SQUAD_TO_TARGET: Record<string, string> = {
   Elementary:   "Intermediate",
   Intermediate: "Advanced",
@@ -228,18 +227,15 @@ export default function SwimmerProfilePage() {
   const [savingProfile, setSavingProfile]       = useState(false);
   const [editForm, setEditForm]                 = useState<EditProfileForm>(createEditForm(null));
 
-  // Standards UI
   const [showNextAge, setShowNextAge]           = useState(false);
   const [expandedStrokes, setExpandedStrokes]   = useState<Record<string, boolean>>({});
 
-  // ETC standards
-  const [seedingETC, setSeedingETC]       = useState(false);
-  const [etcMessage, setEtcMessage]       = useState("");
+  const [seedingETC, setSeedingETC]             = useState(false);
+  const [etcMessage, setEtcMessage]             = useState("");
   const [etcAlreadyExists, setEtcAlreadyExists] = useState(false);
 
-  // SNAG standards
-  const [seedingSNAG, setSeedingSNAG]       = useState(false);
-  const [snagMessage, setSnagMessage]       = useState("");
+  const [seedingSNAG, setSeedingSNAG]             = useState(false);
+  const [snagMessage, setSnagMessage]             = useState("");
   const [snagAlreadyExists, setSnagAlreadyExists] = useState(false);
 
   useEffect(() => { void loadPage(); }, [swimmerId]);
@@ -269,19 +265,15 @@ export default function SwimmerProfilePage() {
     const swimTimesData = (swimTimesRes.data as SwimTimeRow[]) || [];
     const allSets = (standardSetsRes.data as StandardSet[]) || [];
 
-    // Filter sets relevant to this swimmer (their club or no club restriction)
     const swimmerClubNorm = swimmerData.swim_club?.trim().toLowerCase() ?? null;
     const relevantSets = allSets.filter((s) =>
       !s.club || s.club.trim().toLowerCase() === swimmerClubNorm
     );
 
-    // Auto-select set: SSC parents get their squad's progression set auto-loaded
     const isSSC = SSC_ALIASES.includes(swimmerData.swim_club?.trim().toLowerCase() ?? "");
     const swimmerSquad = swimmerData.squad?.trim() ?? null;
     const targetSquad = swimmerSquad ? SQUAD_TO_TARGET[swimmerSquad] ?? null : null;
 
-    // For SSC swimmers with a known squad, only show the one preset set they need next.
-    // Non-preset sets (SNAG, ETC, custom) always show through.
     const displaySets = relevantSets.filter((s) =>
       !s.is_club_preset || s.target_squad === targetSquad
     );
@@ -298,8 +290,6 @@ export default function SwimmerProfilePage() {
     setEditForm(createEditForm(swimmerData));
     setSwimTimes(swimTimesData);
     setStandardSets(displaySets);
-
-    // Fall back to first set if no auto-match
     setSelectedSetId(autoSetId ?? displaySets[0]?.id ?? null);
 
     const { data: { user } } = await supabase.auth.getUser();
@@ -319,7 +309,6 @@ export default function SwimmerProfilePage() {
   async function loadStandardItems(setId: number | null) {
     if (!setId) { setStandardItems([]); return; }
 
-    // For gender-split sets (Elite A), filter by swimmer's gender
     const { data, error } = await supabase
       .from("standard_items")
       .select("id, standard_set_id, event, course, gender, min_age, max_age, qualifying_time_ms, is_compulsory, created_at")
@@ -329,8 +318,6 @@ export default function SwimmerProfilePage() {
     if (error) { setStandardItems([]); return; }
 
     const items = (data as StandardItem[]) || [];
-
-    // If set has gender-specific rows, filter to swimmer's gender (or keep nulls = universal)
     const hasGenderSplit = items.some((i) => i.gender != null);
     if (hasGenderSplit && swimmer?.gender) {
       const swimmerGender = swimmer.gender;
@@ -451,7 +438,6 @@ export default function SwimmerProfilePage() {
       .sort((a, b) => (a.gapMs ?? Infinity) - (b.gapMs ?? Infinity))[0] ?? null;
   }, [standardsRows]);
 
-  // Compulsory events progress (SSC squads only)
   const compulsoryRows = useMemo(() => standardsRows.filter((r) => r.is_compulsory), [standardsRows]);
   const compulsoryHit  = compulsoryRows.filter((r) => r.status === "Qualified").length;
 
@@ -464,10 +450,8 @@ export default function SwimmerProfilePage() {
   const totalUniqueEvents = useMemo(() => pbMap.size, [pbMap]);
   const etcEligible = swimmer?.age != null && [10, 11, 12].includes(swimmer.age) && !!swimmer.gender;
 
-  // Is this the auto-loaded SSC squad set?
   const selectedSet = standardSets.find((s) => s.id === selectedSetId);
   const isSSCSquadSet = !!selectedSet?.is_club_preset && !!selectedSet?.target_squad;
-
   const isSSC = SSC_ALIASES.includes(swimmer?.swim_club?.trim().toLowerCase() ?? "");
 
   if (loading) return <div className="shell"><div className="container-app"><p className="muted">Loading...</p></div></div>;
@@ -498,7 +482,7 @@ export default function SwimmerProfilePage() {
           </button>
         </div>
 
-        {/* ── Profile header ────────────────────────────────────────────────── */}
+        {/* ── Profile header ── */}
         {!isEditingProfile ? (
           <div className="rounded-3xl border border-white/10 bg-white/5 p-5 space-y-4">
             <div className="flex items-start justify-between gap-4">
@@ -588,7 +572,6 @@ export default function SwimmerProfilePage() {
               </div>
             </div>
 
-            {/* Squad — SSC gets buttons, everyone else gets free text */}
             {editForm.club.trim() && (
               <div>
                 <FieldLabel>Squad</FieldLabel>
@@ -640,23 +623,22 @@ export default function SwimmerProfilePage() {
           </div>
         )}
 
-        {/* ── Tab: Times ──────────────────────────────────────────────────────── */}
+        {/* ── Tab: Times ── */}
         {!isEditingProfile && activeTab === "swimTimes" && (
           <section className="card">
             <SwimTimesSection swimmerId={Number(swimmer.id)} swimmerAge={swimmer.age} swimmerName={swimmer.name} />
           </section>
         )}
 
-        {/* ── Tab: Progress ────────────────────────────────────────────────────── */}
+        {/* ── Tab: Progress ── */}
         {!isEditingProfile && activeTab === "progress" && (
           <ProgressTab swimmerId={Number(swimmer.id)} swimmerName={swimmer.name} />
         )}
 
-        {/* ── Tab: Standards ───────────────────────────────────────────────────── */}
+        {/* ── Tab: Standards ── */}
         {!isEditingProfile && activeTab === "standards" && (
           <section className="space-y-4">
 
-            {/* Seed banners */}
             {etcEligible && !etcAlreadyExists && (
               <div className="rounded-3xl p-5 space-y-3" style={{ background: "rgba(217,119,6,0.1)", border: "1px solid rgba(253,230,138,0.25)" }}>
                 <div>
@@ -687,7 +669,6 @@ export default function SwimmerProfilePage() {
               </div>
             )}
 
-            {/* No squad set for SSC swimmers who haven't picked a squad */}
             {isSSC && !swimmer.squad && (
               <div className="rounded-3xl p-5 text-center" style={{ background: "rgba(217,119,6,0.08)", border: "1px solid rgba(253,230,138,0.2)" }}>
                 <p className="text-sm font-semibold text-white">No squad set</p>
@@ -695,7 +676,6 @@ export default function SwimmerProfilePage() {
               </div>
             )}
 
-            {/* No standards at all */}
             {standardSets.length === 0 && (
               <div className="rounded-3xl p-8 text-center" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
                 <p className="text-base font-semibold text-white">No standards yet</p>
@@ -703,7 +683,6 @@ export default function SwimmerProfilePage() {
               </div>
             )}
 
-            {/* Standard set pill switcher */}
             {standardSets.length > 0 && (
               <div className="flex flex-wrap gap-2">
                 {standardSets.map((set) => (
@@ -724,7 +703,6 @@ export default function SwimmerProfilePage() {
 
             {selectedSetId && standardItems.length > 0 && (
               <>
-                {/* Compulsory events banner for SSC squad sets */}
                 {isSSCSquadSet && compulsoryRows.length > 0 && (
                   <div className="rounded-2xl px-4 py-3 space-y-2"
                     style={{ background: "rgba(217,119,6,0.08)", border: "1px solid rgba(253,230,138,0.15)" }}>
@@ -758,7 +736,6 @@ export default function SwimmerProfilePage() {
                         <p className="text-2xl font-bold text-white">{canonicalEventName(nextTarget.event)}</p>
                         <p className="text-xs mt-0.5 text-white/40">{canonicalCourse(nextTarget.course)}</p>
                       </div>
-
                       <div className="flex items-center gap-3 flex-wrap">
                         <span className="rounded-full px-3 py-1.5 text-xs font-bold"
                           style={{ background: "rgba(253,230,138,0.15)", border: "1px solid rgba(253,230,138,0.3)", color: "#FDE68A" }}>
@@ -777,7 +754,6 @@ export default function SwimmerProfilePage() {
                           ))}
                         </div>
                       </div>
-
                       {(() => {
                         const baseline = nextTarget.qualifying_time_ms * 1.15;
                         const range = baseline - nextTarget.qualifying_time_ms;
@@ -845,11 +821,11 @@ export default function SwimmerProfilePage() {
                           style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)" }}>
                           <button type="button" onClick={() => toggleStroke(stroke)}
                             className="w-full px-4 py-3 flex items-center gap-2 transition hover:bg-white/5">
-                            <div className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ background: color }} />
-                            <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color }}>{stroke}</p>
-                            <p className="text-[10px] text-white/25 ml-1">{rows.length} event{rows.length !== 1 ? "s" : ""}</p>
+                            <div className="h-2 w-2 rounded-full flex-shrink-0" style={{ background: color }} />
+                            <p className="text-base font-bold uppercase tracking-normal truncate min-w-0 flex-1" style={{ color }}>{stroke}</p>
+                            <p className="text-xs text-white/25 flex-shrink-0">{rows.length} event{rows.length !== 1 ? "s" : ""}</p>
                             {!isOpen && strokeQualified > 0 && (
-                              <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full"
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
                                 style={{ background: "rgba(110,231,183,0.12)", color: "#6EE7B7", border: "1px solid rgba(110,231,183,0.2)" }}>
                                 {strokeQualified} ✅
                               </span>
