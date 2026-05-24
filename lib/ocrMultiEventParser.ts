@@ -676,12 +676,14 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
   if (collectedTimes.length === 0) return [];
 
   // ── Step 3.5: Explicit pass (preferred over DP) ───────────────────────────
-  // Meet Mobile shows leg time → label → cumulative time per split.
-  // Leg times are simple decimals (e.g. 49.63) and reliably OCR'd.
-  // Cumulative times in mm:ss.hh format can be misread (e.g. 1:32.55 → 1:32.65),
-  // causing the DP-derived leg times to be wrong even when the chain is valid.
-  // So: try to read leg times directly from labeled rows first.
-  // If they sum to finalMs (within 1.5s), use them. Otherwise fall through to DP.
+  // Tesseract can output splits in 3 different layouts depending on screenshot:
+  //   A) "50 Fly 42.92" — label + time on same line
+  //   B) "42.92 \n 50 Fly" — time before label (original comment pattern)
+  //   C) "50 Fly \n 42.92" — label then time
+  // We try all three and pick whichever produces a valid set of leg times
+  // that sum to finalMs. Leg times (simple decimals) are more reliably OCR'd
+  // than cumulative times (mm:ss format), so this avoids the cumulative misread
+  // problem (e.g. 1:32.55 → 1:32.65) that causes DP-derived legs to be wrong.
   {
     const isIMevent = /\b(individual\s*medley|\bim\b)/i.test(rawText);
     const IM_STROKES_EP = ["Fly", "Back", "Breast", "Free"];
@@ -695,23 +697,84 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
     }
     const strokeEP = isIMevent ? "" : strokeLabelEP(rawText);
 
-    const explicitLegs: { legMs: number; dist: number }[] = [];
-    for (let i = 1; i < rawLines.length; i++) {
-      if (!isValidLabel(rawLines[i])) continue;
-      const legMs = repairTimeToMs(rawLines[i - 1]);
-      if (legMs <= 0 || legMs > 200_000) continue;
-      const distMatch = rawLines[i].match(/\b(\d+)\b/);
-      const dist = distMatch ? Number(distMatch[1]) : (explicitLegs.length + 1) * splitUnit;
-      explicitLegs.push({ legMs, dist });
+    // Extract leg time from a line: handles "42.92", "4963", "50 Fly 42.92"
+    function extractLegTimeFromLine(line: string): number {
+      // Try the whole line as a pure time
+      const direct = repairTimeToMs(line.trim());
+      if (direct > 0) return direct;
+      // Try to extract a trailing time from a label+time line e.g. "50 Fly 42.92"
+      const trailingMatch = line.match(/(\d{1,2}\.\d{2}|\d{4})\s*$/);
+      if (trailingMatch) {
+        const ms = repairTimeToMs(trailingMatch[1]);
+        if (ms > 0) return ms;
+      }
+      return 0;
     }
 
-    if (explicitLegs.length > 0) {
-      const okCount = targetChainLength === 0 || explicitLegs.length === targetChainLength;
-      const total = explicitLegs.reduce((s, l) => s + l.legMs, 0);
-      const okSum = Math.abs(total - finalMs) <= 1500; // within 1.5s
-      if (okCount && okSum) {
+    // Try a candidate set of leg times — returns them if they sum to finalMs
+    function tryLegSet(legs: { legMs: number; dist: number }[]): { legMs: number; dist: number }[] | null {
+      if (legs.length === 0) return null;
+      if (targetChainLength > 0 && legs.length !== targetChainLength) return null;
+      const total = legs.reduce((s, l) => s + l.legMs, 0);
+      if (Math.abs(total - finalMs) <= 1500) return legs;
+      return null;
+    }
+
+    // Build candidate sets from each layout pattern
+    const candidateSets: Array<{ legMs: number; dist: number }[]> = [];
+
+    // Pattern A: label line contains the time at end — "50 Fly 42.92"
+    {
+      const legs: { legMs: number; dist: number }[] = [];
+      for (let i = 0; i < rawLines.length; i++) {
+        const line = rawLines[i];
+        if (!isValidLabel(line)) continue;
+        // Must have a trailing time (not just the distance number)
+        const trailingMatch = line.match(/(\d{1,2}\.\d{2}|\d{4})\s*$/);
+        if (!trailingMatch) continue;
+        const legMs = repairTimeToMs(trailingMatch[1]);
+        if (legMs <= 0 || legMs > 180_000) continue;
+        const distMatch = line.match(/^\s*(\d+)/);
+        const dist = distMatch ? Number(distMatch[1]) : (legs.length + 1) * splitUnit;
+        legs.push({ legMs, dist });
+      }
+      candidateSets.push(legs);
+    }
+
+    // Pattern B: time on line BEFORE label — "42.92\n50 Fly"
+    {
+      const legs: { legMs: number; dist: number }[] = [];
+      for (let i = 1; i < rawLines.length; i++) {
+        if (!isValidLabel(rawLines[i])) continue;
+        const legMs = extractLegTimeFromLine(rawLines[i - 1]);
+        if (legMs <= 0 || legMs > 180_000) continue;
+        const distMatch = rawLines[i].match(/^\s*(\d+)/);
+        const dist = distMatch ? Number(distMatch[1]) : (legs.length + 1) * splitUnit;
+        legs.push({ legMs, dist });
+      }
+      candidateSets.push(legs);
+    }
+
+    // Pattern C: time on line AFTER label — "50 Fly\n42.92"
+    {
+      const legs: { legMs: number; dist: number }[] = [];
+      for (let i = 0; i < rawLines.length - 1; i++) {
+        if (!isValidLabel(rawLines[i])) continue;
+        const legMs = extractLegTimeFromLine(rawLines[i + 1]);
+        if (legMs <= 0 || legMs > 180_000) continue;
+        const distMatch = rawLines[i].match(/^\s*(\d+)/);
+        const dist = distMatch ? Number(distMatch[1]) : (legs.length + 1) * splitUnit;
+        legs.push({ legMs, dist });
+      }
+      candidateSets.push(legs);
+    }
+
+    // Pick the first candidate set that validates
+    for (const candidate of candidateSets) {
+      const valid = tryLegSet(candidate);
+      if (valid) {
         let cum = 0;
-        return explicitLegs.map((l, idx) => {
+        return valid.map((l, idx) => {
           cum += l.legMs;
           const legStroke = isIMevent ? (IM_STROKES_EP[idx % 4] ?? "Free") : strokeEP;
           return {
