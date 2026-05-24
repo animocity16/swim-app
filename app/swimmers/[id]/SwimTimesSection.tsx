@@ -417,7 +417,7 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
                 className="w-full px-4 pt-3 pb-3 flex items-center gap-2 transition hover:bg-white/5"
               >
                 <div className="h-2 w-2 rounded-full flex-shrink-0" style={{ background: sg.color }} />
-                <p className="text-base font-bold uppercase tracking-normal truncate" style={{ color: sg.color }}>
+               <p className="text-sm font-bold uppercase tracking-normal truncate min-w-0 flex-1" style={{ color: sg.color }}>
                   {sg.label}
                 </p>
                 <p className="text-xs text-white/25 flex-shrink-0">
