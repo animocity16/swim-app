@@ -420,8 +420,7 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
                 className="w-full px-4 pt-3 pb-3 flex items-center gap-2 transition hover:bg-white/5"
               >
                 <div className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ background: sg.color }} />
-                <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: sg.color }}>
-                  {sg.label}
+                <p className="text-sm font-semibold uppercase tracking-wide" style={{ color: sg.color }}>
                 </p>
                 <p className="text-[10px] text-white/25 ml-1">
                   {sg.events.length} event{sg.events.length === 1 ? "" : "s"}
