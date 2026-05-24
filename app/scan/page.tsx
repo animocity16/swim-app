@@ -64,6 +64,13 @@ function saveCustomMeet(name: string) {
   } catch {}
 }
 
+function removeCustomMeet(name: string) {
+  try {
+    const updated = loadCustomMeets().filter((m) => m !== name);
+    localStorage.setItem(CUSTOM_MEETS_KEY, JSON.stringify(updated));
+  } catch {}
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Swimmer = {
@@ -1080,7 +1087,7 @@ export default function ScanPage() {
                       <div className="space-y-2">
                         <label className="text-xs text-white/40">Meet name</label>
                         <div className="flex flex-wrap gap-1.5">
-                          {[...getMeetPresets(), ...customMeets.filter(m => !getMeetPresets().includes(m))].map((preset) => (
+                          {getMeetPresets().map((preset) => (
                             <button
                               key={preset}
                               type="button"
@@ -1091,6 +1098,27 @@ export default function ScanPage() {
                                 : { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.12)" }}>
                               {preset}
                             </button>
+                          ))}
+                          {customMeets.filter(m => !getMeetPresets().includes(m)).map((preset) => (
+                            <div key={preset} className="flex items-center rounded-full overflow-hidden"
+                              style={manualMeetName === preset
+                                ? { background: "#D97706", border: "1px solid #D97706" }
+                                : { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)" }}>
+                              <button type="button" onClick={() => setManualMeetName(manualMeetName === preset ? "" : preset)}
+                                className="px-3 py-1 text-xs font-medium"
+                                style={{ color: manualMeetName === preset ? "#fff" : "rgba(255,255,255,0.55)" }}>
+                                {preset}
+                              </button>
+                              <button type="button" onClick={() => {
+                                  if (manualMeetName === preset) setManualMeetName("");
+                                  removeCustomMeet(preset);
+                                  setCustomMeets(loadCustomMeets());
+                                }}
+                                className="pr-2 text-xs leading-none"
+                                style={{ color: manualMeetName === preset ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.3)" }}>
+                                ×
+                              </button>
+                            </div>
                           ))}
                         </div>
                         <input
@@ -1277,7 +1305,7 @@ export default function ScanPage() {
                           <div className="space-y-2">
                             <label className="text-xs text-white/40">Meet name</label>
                             <div className="flex flex-wrap gap-1.5">
-                              {[...getMeetPresets(), ...customMeets.filter(m => !getMeetPresets().includes(m))].map((preset) => (
+                              {getMeetPresets().map((preset) => (
                                 <button
                                   key={preset}
                                   type="button"
@@ -1288,6 +1316,27 @@ export default function ScanPage() {
                                     : { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.12)" }}>
                                   {preset}
                                 </button>
+                              ))}
+                              {customMeets.filter(m => !getMeetPresets().includes(m)).map((preset) => (
+                                <div key={preset} className="flex items-center rounded-full overflow-hidden"
+                                  style={eventMeetName === preset
+                                    ? { background: "#D97706", border: "1px solid #D97706" }
+                                    : { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)" }}>
+                                  <button type="button" onClick={() => setEventMeetName(eventMeetName === preset ? "" : preset)}
+                                    className="px-3 py-1 text-xs font-medium"
+                                    style={{ color: eventMeetName === preset ? "#fff" : "rgba(255,255,255,0.55)" }}>
+                                    {preset}
+                                  </button>
+                                  <button type="button" onClick={() => {
+                                      if (eventMeetName === preset) setEventMeetName("");
+                                      removeCustomMeet(preset);
+                                      setCustomMeets(loadCustomMeets());
+                                    }}
+                                    className="pr-2 text-xs leading-none"
+                                    style={{ color: eventMeetName === preset ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.3)" }}>
+                                    ×
+                                  </button>
+                                </div>
                               ))}
                             </div>
                             <input
