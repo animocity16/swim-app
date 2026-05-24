@@ -506,7 +506,7 @@ export default function ComparePage() {
                   <div key={stroke} className="rounded-3xl overflow-hidden"
                     style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)" }}>
 
-                    <p className="px-4 pt-3 pb-1 text-[10px] font-medium uppercase tracking-widest text-white/30">{stroke}</p>
+                    <p className="px-4 pt-3 pb-1 text-sm font-semibold uppercase tracking-wide text-white/50 truncate">{stroke}</p>
 
                     {events.map((ev, evIdx) => {
                       const ranked = allCompared
