@@ -22,22 +22,25 @@ const FEATURE_REQUESTS = [
   "Other",
 ];
 
-const THEMES = [
-  { id: "ocean",    label: "Ocean",    from: "#062840", to: "#0F4C75", accent: "#38BDF8" },
-  { id: "midnight", label: "Midnight", from: "#0D0D1A", to: "#1A1A3E", accent: "#A78BFA" },
-  { id: "forest",   label: "Forest",   from: "#051A10", to: "#0A3020", accent: "#34D399" },
-  { id: "sunset",   label: "Sunset",   from: "#C2390A", to: "#F59E0B", accent: "#FED7AA" },
-  { id: "cosmos",   label: "Cosmos",   from: "#0D0820", to: "#1E1040", accent: "#F472B6" },
-  { id: "slate",    label: "Slate",    from: "#0D1117", to: "#1C2333", accent: "#94A3B8" },
-];
+// ─── Font colour presets ───────────────────────────────────────────────────────
 
-// ─── Colour bar gradients ──────────────────────────────────────────────────────
+const FONT_COLOURS = [
+  { id: "pink",      label: "Pink",      hex: "#FF6EB4", dark: false },
+  { id: "white",     label: "White",     hex: "#FFFFFF", dark: false },
+  { id: "babyblue",  label: "Sky",       hex: "#89CFF0", dark: false },
+  { id: "red",       label: "Red",       hex: "#FF4444", dark: true  },
+  { id: "black",     label: "Black",     hex: "#1A1A1A", dark: true  },
+  { id: "blue",      label: "Blue",      hex: "#3B82F6", dark: true  },
+] as const;
+
+type FontColourId = (typeof FONT_COLOURS)[number]["id"];
+
+// ─── Background colour gradients ───────────────────────────────────────────────
 
 const HUES = [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330, 360];
-const BG_GRADIENT     = `linear-gradient(to right, ${HUES.map(h => `hsl(${h},60%,14%)`).join(", ")})`;
-const ACCENT_GRADIENT = `linear-gradient(to right, ${HUES.map(h => `hsl(${h},80%,60%)`).join(", ")})`;
+const BG_GRADIENT = `linear-gradient(to right, ${HUES.map(h => `hsl(${h},60%,14%)`).join(", ")})`;
 
-// ─── Inline colour helpers (no ThemeProvider dependency) ─────────────────────
+// ─── Inline colour helpers ─────────────────────────────────────────────────────
 
 function applyCustomBgInline(hue: number) {
   const bg     = `hsl(${hue},60%,12%)`;
@@ -72,51 +75,31 @@ function applyCustomBgInline(hue: number) {
     nav.fixed { background: ${navBg} !important; }
     select.input option { background: ${bg} !important; }
   `;
-
   try { localStorage.setItem("natrix_custom_bg_hue", String(hue)); } catch {}
 }
 
-function applyCustomAccentInline(hue: number) {
-  const accent      = `hsl(${hue},78%,52%)`;
-  const accentLight = `hsl(${hue},88%,78%)`;
-  const accentSoft  = `hsla(${hue},78%,52%,0.15)`;
-
-  const root = document.documentElement;
-  root.style.setProperty("--natrix-accent",      accent);
-  root.style.setProperty("--natrix-accent-light", accentLight);
-  root.style.setProperty("--natrix-accent-soft",  accentSoft);
-
-  let el = document.getElementById("natrix-accent") as HTMLStyleElement | null;
-  if (!el) { el = document.createElement("style"); el.id = "natrix-accent"; document.head.appendChild(el); }
+function applyFontColourInline(hex: string) {
+  // Slightly dimmed version for secondary accent uses
+  let el = document.getElementById("natrix-font-colour") as HTMLStyleElement | null;
+  if (!el) { el = document.createElement("style"); el.id = "natrix-font-colour"; document.head.appendChild(el); }
   el.textContent = `
-    .btn, .btn-block {
-      background: ${accentSoft} !important;
-      border-color: ${accentLight}55 !important;
-      color: ${accentLight} !important;
-    }
-    .segmented-btn-active {
-      background: hsla(${hue},78%,52%,0.22) !important;
-      border-color: ${accentLight}44 !important;
-      color: ${accentLight} !important;
-    }
-    .accent-text { color: ${accentLight} !important; }
-    .onb-btn-primary { background: ${accent} !important; }
+    .accent-text { color: ${hex} !important; }
+    [style*="#FDE68A"] { color: ${hex} !important; }
+    [style*="#BA7517"] { color: ${hex} !important; }
+    [style*="color: rgb(253, 230, 138)"] { color: ${hex} !important; }
   `;
-
-  try { localStorage.setItem("natrix_custom_accent_hue", String(hue)); } catch {}
+  document.documentElement.style.setProperty("--natrix-font-colour", hex);
+  try { localStorage.setItem("natrix_font_colour", hex); } catch {}
 }
 
-function resetCustomColorsInline(fallbackTheme: string) {
+function resetAllCustomInline(fallbackTheme: string) {
   try {
     localStorage.removeItem("natrix_custom_bg_hue");
-    localStorage.removeItem("natrix_custom_accent_hue");
+    localStorage.removeItem("natrix_font_colour");
   } catch {}
-  const accentEl = document.getElementById("natrix-accent");
-  if (accentEl) accentEl.remove();
-  const root = document.documentElement;
-  root.style.removeProperty("--natrix-accent");
-  root.style.removeProperty("--natrix-accent-light");
-  root.style.removeProperty("--natrix-accent-soft");
+  const fc = document.getElementById("natrix-font-colour");
+  if (fc) fc.remove();
+  document.documentElement.style.removeProperty("--natrix-font-colour");
   applyTheme(fallbackTheme);
 }
 
@@ -135,21 +118,16 @@ export default function SettingsPage() {
   const [passwordMsg, setPasswordMsg]           = useState("");
   const [savingPassword, setSavingPassword]     = useState(false);
 
-  const [activeTheme, setActiveTheme]       = useState("ocean");
-  const [savingTheme, setSavingTheme]       = useState(false);
-  const [themeSaved, setThemeSaved]         = useState(false);
-
   const [activeFontSize, setActiveFontSize] = useState<FontSizeId>("default");
   const [savingFontSize, setSavingFontSize] = useState(false);
   const [fontSizeSaved, setFontSizeSaved]   = useState(false);
 
   // Custom colours
-  const [bgHue, setBgHue]             = useState(210);
-  const [accentHue, setAccentHue]     = useState(38);
-  const [customBgOn, setCustomBgOn]   = useState(false);
-  const [customAccOn, setCustomAccOn] = useState(false);
-  const [colorsSaved, setColorsSaved] = useState(false);
-  const [savingColors, setSavingColors] = useState(false);
+  const [bgHue, setBgHue]                     = useState(210);
+  const [customBgOn, setCustomBgOn]           = useState(false);
+  const [activeFontColour, setActiveFontColour] = useState<FontColourId | null>(null);
+  const [colorsSaved, setColorsSaved]         = useState(false);
+  const [savingColors, setSavingColors]       = useState(false);
 
   const [feedbackRating, setFeedbackRating]   = useState(0);
   const [feedbackMessage, setFeedbackMessage] = useState("");
@@ -164,6 +142,11 @@ export default function SettingsPage() {
   const [loggingOut, setLoggingOut]               = useState(false);
   const [deleteStatus, setDeleteStatus]           = useState("");
 
+  // track active theme for reset
+  const [activeTheme] = useState(() => {
+    try { return localStorage.getItem("natrix_theme") ?? "ocean"; } catch { return "ocean"; }
+  });
+
   useEffect(() => { void loadUser(); }, []);
 
   async function loadUser() {
@@ -172,24 +155,15 @@ export default function SettingsPage() {
     setEmail(session.user.email ?? "");
     const meta = session.user.user_metadata;
     setDisplayName(meta?.full_name ?? meta?.name ?? "");
-    setActiveTheme(meta?.app_theme ?? "ocean");
     setActiveFontSize((meta?.app_font_size as FontSizeId) ?? "default");
 
-    const savedBg  = meta?.custom_bg_hue;
-    const savedAcc = meta?.custom_accent_hue;
-    if (savedBg != null && savedBg >= 0)  { setBgHue(Number(savedBg));     setCustomBgOn(true); }
-    if (savedAcc != null && savedAcc >= 0) { setAccentHue(Number(savedAcc)); setCustomAccOn(true); }
+    const savedBg = meta?.custom_bg_hue;
+    if (savedBg != null && savedBg >= 0) { setBgHue(Number(savedBg)); setCustomBgOn(true); }
+
+    const savedFontColour = meta?.font_colour as FontColourId | undefined;
+    if (savedFontColour) setActiveFontColour(savedFontColour);
 
     setLoading(false);
-  }
-
-  async function handleSelectTheme(themeId: string) {
-    setActiveTheme(themeId);
-    applyTheme(themeId);
-    setSavingTheme(true); setThemeSaved(false);
-    await supabase.auth.updateUser({ data: { app_theme: themeId } });
-    setSavingTheme(false); setThemeSaved(true);
-    setTimeout(() => setThemeSaved(false), 2000);
   }
 
   async function handleSelectFontSize(sizeId: FontSizeId) {
@@ -206,28 +180,27 @@ export default function SettingsPage() {
     applyCustomBgInline(hue);
   }
 
-  function handleAccentHueDrag(hue: number) {
-    setAccentHue(hue); setCustomAccOn(true);
-    applyCustomAccentInline(hue);
+  async function handleBgHueRelease() {
+    setSavingColors(true); setColorsSaved(false);
+    await supabase.auth.updateUser({ data: { custom_bg_hue: bgHue } });
+    setSavingColors(false); setColorsSaved(true);
+    setTimeout(() => setColorsSaved(false), 2000);
   }
 
-  async function saveColors() {
+  async function handleSelectFontColour(colourId: FontColourId) {
+    const colour = FONT_COLOURS.find(c => c.id === colourId)!;
+    setActiveFontColour(colourId);
+    applyFontColourInline(colour.hex);
     setSavingColors(true); setColorsSaved(false);
-    await supabase.auth.updateUser({
-      data: {
-        custom_bg_hue:     customBgOn ? bgHue : null,
-        custom_accent_hue: customAccOn ? accentHue : null,
-      },
-    });
+    await supabase.auth.updateUser({ data: { font_colour: colourId } });
     setSavingColors(false); setColorsSaved(true);
     setTimeout(() => setColorsSaved(false), 2000);
   }
 
   async function handleResetColors() {
-    resetCustomColorsInline(activeTheme);
-    setCustomBgOn(false); setCustomAccOn(false);
-    setBgHue(210); setAccentHue(38);
-    await supabase.auth.updateUser({ data: { custom_bg_hue: null, custom_accent_hue: null } });
+    resetAllCustomInline(activeTheme);
+    setCustomBgOn(false); setBgHue(210); setActiveFontColour(null);
+    await supabase.auth.updateUser({ data: { custom_bg_hue: null, font_colour: null } });
   }
 
   async function handleChangePassword() {
@@ -302,6 +275,8 @@ export default function SettingsPage() {
     );
   }
 
+  const hasCustom = customBgOn || activeFontColour !== null;
+
   return (
     <div className="shell">
       <div className="container-app space-y-5">
@@ -356,91 +331,117 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* ── App Theme ───────────────────────────────────────────────────── */}
-        <div className="card space-y-4">
-          <div>
-            <p className="label">App Theme</p>
-            <p className="mt-1 text-xs text-white/40">Choose a base colour palette.</p>
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            {THEMES.map((theme) => {
-              const isActive = activeTheme === theme.id;
-              return (
-                <button key={theme.id} type="button" onClick={() => void handleSelectTheme(theme.id)}
-                  disabled={savingTheme}
-                  className="relative overflow-hidden rounded-2xl transition disabled:opacity-60"
-                  style={{
-                    aspectRatio: "1",
-                    background: `linear-gradient(135deg, ${theme.from}, ${theme.to})`,
-                    border: isActive ? `2px solid ${theme.accent}` : "1px solid rgba(255,255,255,0.12)",
-                  }}>
-                  {isActive && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="flex h-7 w-7 items-center justify-center rounded-full" style={{ background: theme.accent }}>
-                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                          <path d="M2 7l3.5 3.5L12 4" stroke="#000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </div>
-                    </div>
-                  )}
-                  <div className="absolute bottom-0 inset-x-0 p-2">
-                    <p className="text-center text-[10px] font-semibold text-white/80">{theme.label}</p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-          {themeSaved && <p className="text-center text-xs" style={{ color: "#6EE7B7" }}>✓ Theme saved</p>}
-          {savingTheme && <p className="text-center text-xs text-white/30">Saving...</p>}
-        </div>
-
-        {/* ── Custom Colours ───────────────────────────────────────────────── */}
-        <div className="card space-y-5">
-          <div>
-            <p className="label">Custom Colours</p>
-            <p className="mt-1 text-xs text-white/40">Fine-tune your own palette on top of the theme.</p>
-          </div>
+        {/* ── Appearance ──────────────────────────────────────────────────── */}
+        <div className="card space-y-6">
+          <p className="label">Appearance</p>
 
           {/* Background colour bar */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-white/80">Background</p>
-              <div className="h-5 w-5 rounded-full border border-white/25"
-                style={{ background: customBgOn ? `hsl(${bgHue},60%,14%)` : "rgba(255,255,255,0.12)" }} />
+              <p className="text-sm font-semibold text-white">Background</p>
+              <div className="h-5 w-5 rounded-full border border-white/25 transition-colors"
+                style={{ background: customBgOn ? `hsl(${bgHue},60%,22%)` : "rgba(255,255,255,0.12)" }} />
             </div>
             <input
               type="range" min="0" max="360" step="1"
               value={bgHue}
               onChange={(e) => handleBgHueDrag(Number(e.target.value))}
-              onMouseUp={() => void saveColors()}
-              onTouchEnd={() => void saveColors()}
+              onMouseUp={() => void handleBgHueRelease()}
+              onTouchEnd={() => void handleBgHueRelease()}
               className="w-full h-3 rounded-full outline-none cursor-pointer"
               style={{ background: BG_GRADIENT, WebkitAppearance: "none", appearance: "none" }}
             />
-            <p className="text-[10px] text-white/30">Drag to shift background hue</p>
+            <p className="text-[10px] text-white/30">Drag to shift background colour</p>
           </div>
 
-          {/* Accent colour bar */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-white/80">Highlight colour</p>
-              <div className="h-5 w-5 rounded-full border border-white/25"
-                style={{ background: customAccOn ? `hsl(${accentHue},78%,55%)` : "rgba(217,119,6,0.6)" }} />
+          {/* Font colour chips */}
+          <div className="space-y-3">
+            <p className="text-sm font-semibold text-white">Font colour</p>
+
+            {/* Bright row */}
+            <div>
+              <p className="text-[10px] text-white/30 uppercase tracking-widest mb-2">Bright</p>
+              <div className="grid grid-cols-3 gap-2">
+                {FONT_COLOURS.filter(c => !c.dark).map((colour) => {
+                  const isActive = activeFontColour === colour.id;
+                  return (
+                    <button key={colour.id} type="button"
+                      onClick={() => void handleSelectFontColour(colour.id)}
+                      className="relative flex flex-col items-center justify-center gap-1.5 rounded-2xl py-3 transition"
+                      style={{
+                        background: isActive ? `${colour.hex}22` : "rgba(255,255,255,0.05)",
+                        border: isActive ? `2px solid ${colour.hex}` : "1px solid rgba(255,255,255,0.12)",
+                      }}>
+                      <div className="h-6 w-6 rounded-full shadow-md"
+                        style={{
+                          background: colour.hex,
+                          border: colour.id === "white" ? "1px solid rgba(255,255,255,0.3)" : "none",
+                          boxShadow: isActive ? `0 0 10px ${colour.hex}88` : "none",
+                        }} />
+                      <span className="text-[10px] font-semibold"
+                        style={{ color: isActive ? colour.hex : "rgba(255,255,255,0.45)" }}>
+                        {colour.label}
+                      </span>
+                      {isActive && (
+                        <div className="absolute top-1.5 right-1.5">
+                          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                            <circle cx="5" cy="5" r="5" fill={colour.hex} />
+                            <path d="M2.5 5l1.8 1.8L7.5 3.5" stroke="#000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            <input
-              type="range" min="0" max="360" step="1"
-              value={accentHue}
-              onChange={(e) => handleAccentHueDrag(Number(e.target.value))}
-              onMouseUp={() => void saveColors()}
-              onTouchEnd={() => void saveColors()}
-              className="w-full h-3 rounded-full outline-none cursor-pointer"
-              style={{ background: ACCENT_GRADIENT, WebkitAppearance: "none", appearance: "none" }}
-            />
-            <p className="text-[10px] text-white/30">Changes buttons and highlights</p>
+
+            {/* Dark row */}
+            <div>
+              <p className="text-[10px] text-white/30 uppercase tracking-widest mb-2">Dark</p>
+              <div className="grid grid-cols-3 gap-2">
+                {FONT_COLOURS.filter(c => c.dark).map((colour) => {
+                  const isActive = activeFontColour === colour.id;
+                  return (
+                    <button key={colour.id} type="button"
+                      onClick={() => void handleSelectFontColour(colour.id)}
+                      className="relative flex flex-col items-center justify-center gap-1.5 rounded-2xl py-3 transition"
+                      style={{
+                        background: isActive ? `${colour.hex}22` : "rgba(255,255,255,0.05)",
+                        border: isActive ? `2px solid ${colour.hex}` : "1px solid rgba(255,255,255,0.12)",
+                      }}>
+                      <div className="h-6 w-6 rounded-full shadow-md"
+                        style={{
+                          background: colour.hex,
+                          border: colour.id === "black" ? "1px solid rgba(255,255,255,0.2)" : "none",
+                          boxShadow: isActive ? `0 0 10px ${colour.hex}88` : "none",
+                        }} />
+                      <span className="text-[10px] font-semibold"
+                        style={{ color: isActive ? colour.hex : "rgba(255,255,255,0.45)" }}>
+                        {colour.label}
+                      </span>
+                      {isActive && (
+                        <div className="absolute top-1.5 right-1.5">
+                          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                            <circle cx="5" cy="5" r="5" fill={colour.hex} />
+                            <path d="M2.5 5l1.8 1.8L7.5 3.5" stroke={colour.id === "black" ? "#fff" : "#000"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <p className="text-[10px] text-white/30">
+              Note: Black may be hard to see on dark backgrounds
+            </p>
           </div>
 
+          {/* Save status + reset */}
           <div className="flex items-center gap-3">
-            {(customBgOn || customAccOn) && (
+            {hasCustom && (
               <button type="button" onClick={() => void handleResetColors()}
                 className="flex-1 rounded-2xl py-2.5 text-xs font-medium text-white/40 transition"
                 style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}>
