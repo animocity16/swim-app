@@ -76,7 +76,6 @@ function getUpcomingMeets(ages: number[]): Meet[] {
 
   for (const meet of SG_MEETS_2026) {
     if (meet.endDate < today) continue;
-    // Include meet if ANY swimmer's age qualifies
     const eligible =
       ages.length === 0 ||
       ages.some((age) => {
@@ -194,7 +193,9 @@ export default function DashboardPage() {
       displayName.split(" ")[0].slice(1)
     );
 
-    // Load ALL primary swimmers
+    const userId = sessionData.session.user.id;
+
+    // ── Step 1: Load primary swimmers ─────────────────────────────────────────
     const { data: swimmerData } = await supabase
       .from("swimmers")
       .select("id, name, age, swim_club, group_type, gender")
@@ -205,34 +206,38 @@ export default function DashboardPage() {
     if (mySwimmers.length === 0) { setLoading(false); return; }
 
     const swimmerIds = mySwimmers.map((s) => s.id);
-
-    // Set upcoming meets for all swimmer ages combined
     setUpcomingMeets(getUpcomingMeets(mySwimmers.map((s) => s.age)));
 
-    // Load ALL times across all primary swimmers in one query
-    const { data: allTimesRaw } = await supabase
-      .from("swim_times")
-      .select("id, swimmer_id, event, course, time_ms, swam_at, meet_name, place, created_at")
-      .in("swimmer_id", swimmerIds)
-      .order("created_at", { ascending: false });
+    // ── Step 2: Load times + standard sets in PARALLEL (was sequential) ───────
+    const [timesResult, setsResult] = await Promise.all([
+      supabase
+        .from("swim_times")
+        .select("id, swimmer_id, event, course, time_ms, swam_at, meet_name, place, created_at")
+        .in("swimmer_id", swimmerIds)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("standard_sets")
+        .select("id, name, user_id")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(3),
+    ]);
 
-    const allTimes = (allTimesRaw ?? []) as (RecentResult & { created_at: string })[];
+    const allTimes = (timesResult.data ?? []) as (RecentResult & { created_at: string })[];
+    const setsData = (setsResult.data ?? []) as { id: number; name: string; user_id: string }[];
 
     // ── Build per-swimmer stats ────────────────────────────────────────────────
     const stats: SwimmerStat[] = mySwimmers.map((swimmer) => {
       const swimmerTimes = allTimes.filter((t) => t.swimmer_id === swimmer.id);
 
-      // PB map: best time per event+course
       const pbMap = new Map<string, number>();
       for (const t of [...swimmerTimes].sort((a, b) => a.time_ms - b.time_ms)) {
         const key = `${t.event}|${t.course}`;
         if (!pbMap.has(key)) pbMap.set(key, t.time_ms);
       }
 
-      // Latest result (already sorted by created_at desc)
       const latest = swimmerTimes[0] ?? null;
 
-      // Is latest a PB?
       let latestIsPB = false;
       if (latest) {
         const key = `${latest.event}|${latest.course}`;
@@ -261,27 +266,34 @@ export default function DashboardPage() {
     });
     setRecentResults(recent);
 
-    // ── Standards summaries (one per swimmer that has a standard set) ─────────
-    const { data: setsData } = await supabase
-      .from("standard_sets")
-      .select("id, name, user_id")
-      .eq("user_id", sessionData.session.user.id)
-      .order("created_at", { ascending: false })
-      .limit(3);
+    // ── Standards summaries — 1 batched query instead of N queries ────────────
+    if (setsData.length > 0 && allTimes.length > 0) {
+      const setIds = setsData.map((s) => s.id);
 
-    if (setsData && setsData.length > 0 && allTimes.length > 0) {
+      // One query for all standard items across all sets
+      const { data: allItemsRaw } = await supabase
+        .from("standard_items")
+        .select("id, standard_set_id, event, course, qualifying_time_ms, gender, min_age, max_age")
+        .in("standard_set_id", setIds);
+
+      const allItems = (allItemsRaw ?? []) as {
+        id: number;
+        standard_set_id: number;
+        event: string;
+        course: string;
+        qualifying_time_ms: number;
+        gender?: string | null;
+        min_age?: number | null;
+        max_age?: number | null;
+      }[];
+
       const summaries: StandardsSummary[] = [];
 
       for (const set of setsData) {
-        const { data: items } = await supabase
-          .from("standard_items")
-          .select("event, course, qualifying_time_ms, gender, min_age, max_age")
-          .eq("standard_set_id", set.id);
+        const items = allItems.filter((item) => item.standard_set_id === set.id);
+        if (!items.length) continue;
 
-        if (!items || items.length === 0) continue;
-
-        // Match the set to the most relevant swimmer
-        const relevantSwimmer = mySwimmers[0]; // default to first
+        const relevantSwimmer = mySwimmers[0];
         const swimmerTimes = allTimes.filter((t) => t.swimmer_id === relevantSwimmer.id);
 
         const pbMapForStd = new Map<string, number>();
@@ -292,7 +304,7 @@ export default function DashboardPage() {
         }
 
         let qualified = 0, inProgress = 0;
-        for (const item of items as { event: string; course: string; qualifying_time_ms: number }[]) {
+        for (const item of items) {
           const pb = pbMapForStd.get(`${item.event}|${item.course}`);
           if (!pb) continue;
           if (pb <= item.qualifying_time_ms) qualified++;
@@ -348,7 +360,7 @@ export default function DashboardPage() {
             <div className="text-center">
               <div className="text-5xl mb-3">🏊</div>
               <p className="text-xl font-bold text-white">Welcome to Natrix</p>
-              <p className="mt-1 text-sm text-white/50">Your swimmer's personal performance tracker.</p>
+              <p className="mt-1 text-sm text-white/50">Your swimmer&apos;s personal performance tracker.</p>
             </div>
             {[
               { n: "1", t: "Add your swimmer", d: "Name, age, gender and club", href: "/swimmers" },
@@ -394,12 +406,10 @@ export default function DashboardPage() {
             My Swimmers · {swimmerStats.length}
           </p>
 
-          {/* Single swimmer — full width card */}
           {swimmerStats.length === 1 && (
             <SwimmerCard stat={swimmerStats[0]} index={0} />
           )}
 
-          {/* Multiple swimmers — stacked cards */}
           {swimmerStats.length > 1 && (
             <div className="space-y-3">
               {swimmerStats.map((stat, i) => (
