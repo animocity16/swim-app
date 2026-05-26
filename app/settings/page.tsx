@@ -1,527 +1,324 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { replayTutorial } from "@/app/components/TutorialOverlay";
-import SplashMediaUpload from "@/app/components/SplashMediaUpload";
-import { applyTheme, applyFontSize, FONT_SIZES, type FontSizeId } from "@/app/components/ThemeProvider";
-import Link from "next/link";
 
-const APP_VERSION = "1.0.0";
+// ─── Theme definitions ─────────────────────────────────────────────────────────
 
-const FEATURE_REQUESTS = [
-  "AI nutrition guide",
-  "Meet calendar",
-  "Apple Watch support",
-  "Team / club dashboard",
-  "Relay tracking",
-  "Compare with teammates",
-  "Export to PDF / spreadsheet",
-  "Push notifications",
-  "Other",
-];
+interface ThemeVars {
+  bg: string;
+  dark: string;
+  mid: string;
+  light: string;
+  light2: string;
+  light3: string;
+  navBg: string;
+}
 
-// ─── Theme options — must match ThemeProvider.tsx ─────────────────────────────
+const THEMES: Record<string, ThemeVars> = {
+  ocean: {
+    bg:     "#063554",
+    dark:   "#073E6A",
+    mid:    "#084A73",
+    light:  "#0D6E9A",
+    light2: "#0E7A9E",
+    light3: "#0A5580",
+    navBg:  "rgba(6,53,84,0.80)",
+  },
+  midnight: {
+    bg:     "#0D0D1A",
+    dark:   "#0D0D2A",
+    mid:    "#1A1A3E",
+    light:  "#1F1F5E",
+    light2: "#252575",
+    light3: "#151540",
+    navBg:  "rgba(13,13,26,0.88)",
+  },
+  forest: {
+    bg:     "#051A10",
+    dark:   "#0A2A18",
+    mid:    "#0A3020",
+    light:  "#0D4026",
+    light2: "#105030",
+    light3: "#0D3820",
+    navBg:  "rgba(5,26,16,0.88)",
+  },
+  sunset: {
+    bg:     "#180A00",
+    dark:   "#221000",
+    mid:    "#2C1500",
+    light:  "#3D1E00",
+    light2: "#4A2400",
+    light3: "#251000",
+    navBg:  "rgba(24,10,0,0.90)",
+  },
+  cosmos: {
+    bg:     "#0D0820",
+    dark:   "#150D30",
+    mid:    "#1E1040",
+    light:  "#251350",
+    light2: "#2A1560",
+    light3: "#1A0E38",
+    navBg:  "rgba(13,8,32,0.88)",
+  },
+  slate: {
+    bg:     "#0D1117",
+    dark:   "#141B24",
+    mid:    "#1C2333",
+    light:  "#1E2638",
+    light2: "#222C40",
+    light3: "#1A2030",
+    navBg:  "rgba(13,17,23,0.88)",
+  },
+};
 
-const THEMES = [
-  { id: "ocean",    label: "Ocean",    from: "#062840", to: "#0F4C75", accent: "#38BDF8" },
-  { id: "midnight", label: "Midnight", from: "#0D0D1A", to: "#1A1A3E", accent: "#A78BFA" },
-  { id: "forest",   label: "Forest",   from: "#051A10", to: "#0A3020", accent: "#34D399" },
-  { id: "sunset",   label: "Sunset",   from: "#C2390A", to: "#F59E0B", accent: "#FED7AA" },
-  { id: "cosmos",   label: "Cosmos",   from: "#0D0820", to: "#1E1040", accent: "#F472B6" },
-  { id: "slate",    label: "Slate",    from: "#0D1117", to: "#1C2333", accent: "#94A3B8" },
-];
+// ─── Font size options ─────────────────────────────────────────────────────────
 
-export default function SettingsPage() {
-  const router = useRouter();
+export const FONT_SIZES = [
+  { id: "small",   label: "Small",   pct: 90  },
+  { id: "default", label: "Default", pct: 100 },
+  { id: "large",   label: "Large",   pct: 115 },
+  { id: "xl",      label: "XL",      pct: 130 },
+] as const;
 
-  const [loading, setLoading] = useState(true);
-  const [email, setEmail] = useState("");
-  const [displayName, setDisplayName] = useState("");
+export type FontSizeId = (typeof FONT_SIZES)[number]["id"];
 
-  const [showPasswordForm, setShowPasswordForm] = useState(false);
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [passwordMsg, setPasswordMsg] = useState("");
-  const [savingPassword, setSavingPassword] = useState(false);
+// ─── localStorage keys ────────────────────────────────────────────────────────
 
-  // Theme
-  const [activeTheme, setActiveTheme] = useState("ocean");
-  const [savingTheme, setSavingTheme] = useState(false);
-  const [themeSaved, setThemeSaved] = useState(false);
+const THEME_KEY          = "natrix_theme";
+const FONT_SIZE_KEY      = "natrix_font_size";
+const CUSTOM_BG_KEY      = "natrix_custom_bg_hue";
+const CUSTOM_ACCENT_KEY  = "natrix_custom_accent_hue";
 
-  // Font size
-  const [activeFontSize, setActiveFontSize] = useState<FontSizeId>("default");
-  const [savingFontSize, setSavingFontSize] = useState(false);
-  const [fontSizeSaved, setFontSizeSaved] = useState(false);
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-  const [feedbackRating, setFeedbackRating] = useState(0);
-  const [feedbackMessage, setFeedbackMessage] = useState("");
-  const [feedbackFeature, setFeedbackFeature] = useState("");
-  const [savingFeedback, setSavingFeedback] = useState(false);
-  const [feedbackSent, setFeedbackSent] = useState(false);
-  const [feedbackError, setFeedbackError] = useState("");
+function buildThemeStyle(t: ThemeVars): string {
+  return `
+    body { background-color: ${t.bg} !important; }
+    body::before {
+      background:
+        radial-gradient(ellipse 60% 50% at 15% 25%, ${t.light}  0%, transparent 65%),
+        radial-gradient(ellipse 50% 60% at 85% 55%, ${t.dark}   0%, transparent 60%),
+        radial-gradient(ellipse 70% 40% at 50% 85%, ${t.light3} 0%, transparent 65%),
+        radial-gradient(ellipse 40% 30% at 70% 15%, ${t.light2} 0%, transparent 55%),
+        linear-gradient(160deg, ${t.bg} 0%, ${t.mid} 40%, ${t.bg} 100%) !important;
+    }
+    nav.fixed { background: ${t.navBg} !important; }
+    select.input option { background: ${t.bg} !important; }
+  `;
+}
 
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [deleteInput, setDeleteInput] = useState("");
-  const [deletingAccount, setDeletingAccount] = useState(false);
-  const [loggingOut, setLoggingOut] = useState(false);
-  const [deleteStatus, setDeleteStatus] = useState("");
+function getOrCreateStyleEl(id: string): HTMLStyleElement {
+  let el = document.getElementById(id) as HTMLStyleElement | null;
+  if (!el) {
+    el = document.createElement("style");
+    el.id = id;
+    document.head.appendChild(el);
+  }
+  return el;
+}
 
+// ─── Public helpers ────────────────────────────────────────────────────────────
+
+export function applyTheme(themeId: string) {
+  const theme = THEMES[themeId] ?? THEMES.ocean;
+  try { localStorage.setItem(THEME_KEY, themeId); } catch {}
+
+  const root = document.documentElement;
+  root.style.setProperty("--theme-bg",     theme.bg);
+  root.style.setProperty("--theme-dark",   theme.dark);
+  root.style.setProperty("--theme-mid",    theme.mid);
+  root.style.setProperty("--theme-light",  theme.light);
+  root.style.setProperty("--theme-light2", theme.light2);
+  root.style.setProperty("--theme-light3", theme.light3);
+  root.style.setProperty("--theme-nav-bg", theme.navBg);
+
+  getOrCreateStyleEl("natrix-theme").textContent = buildThemeStyle(theme);
+
+  // Re-apply custom bg on top if one is saved
+  try {
+    const saved = localStorage.getItem(CUSTOM_BG_KEY);
+    if (saved !== null) applyCustomBg(Number(saved), false);
+  } catch {}
+}
+
+export function applyFontSize(sizeId: string) {
+  const size = FONT_SIZES.find((s) => s.id === sizeId) ?? FONT_SIZES[1];
+  try { localStorage.setItem(FONT_SIZE_KEY, sizeId); } catch {}
+  document.documentElement.style.fontSize = `${size.pct}%`;
+}
+
+/**
+ * Apply a custom background hue (0-360).
+ * save=true → persist to localStorage (default true).
+ */
+export function applyCustomBg(hue: number, save = true) {
+  if (save) {
+    try { localStorage.setItem(CUSTOM_BG_KEY, String(hue)); } catch {}
+  }
+
+  const bg     = `hsl(${hue},60%,12%)`;
+  const dark   = `hsl(${hue},63%,14%)`;
+  const mid    = `hsl(${hue},58%,17%)`;
+  const light  = `hsl(${hue},55%,22%)`;
+  const light2 = `hsl(${hue},52%,25%)`;
+  const light3 = `hsl(${hue},57%,19%)`;
+  const navBg  = `hsla(${hue},60%,12%,0.84)`;
+
+  const root = document.documentElement;
+  root.style.setProperty("--theme-bg",     bg);
+  root.style.setProperty("--theme-dark",   dark);
+  root.style.setProperty("--theme-mid",    mid);
+  root.style.setProperty("--theme-light",  light);
+  root.style.setProperty("--theme-light2", light2);
+  root.style.setProperty("--theme-light3", light3);
+  root.style.setProperty("--theme-nav-bg", navBg);
+
+  // Override the theme style tag with the custom bg — keep same structure
+  const vars = { bg, dark, mid, light, light2, light3, navBg };
+  getOrCreateStyleEl("natrix-theme").textContent = buildThemeStyle(vars);
+}
+
+/**
+ * Apply a custom accent/highlight hue (0-360).
+ * save=true → persist to localStorage (default true).
+ */
+export function applyCustomAccent(hue: number, save = true) {
+  if (save) {
+    try { localStorage.setItem(CUSTOM_ACCENT_KEY, String(hue)); } catch {}
+  }
+
+  const accent      = `hsl(${hue},78%,52%)`;
+  const accentLight = `hsl(${hue},88%,78%)`;
+  const accentDark  = `hsl(${hue},70%,38%)`;
+  const accentGlow  = `hsla(${hue},78%,52%,0.35)`;
+  const accentSoft  = `hsla(${hue},78%,52%,0.15)`;
+
+  const root = document.documentElement;
+  root.style.setProperty("--natrix-accent",       accent);
+  root.style.setProperty("--natrix-accent-light",  accentLight);
+  root.style.setProperty("--natrix-accent-dark",   accentDark);
+  root.style.setProperty("--natrix-accent-glow",   accentGlow);
+  root.style.setProperty("--natrix-accent-soft",   accentSoft);
+
+  getOrCreateStyleEl("natrix-accent").textContent = `
+    .btn, .btn-block {
+      background: ${accentSoft} !important;
+      border-color: ${accentLight}55 !important;
+      color: ${accentLight} !important;
+    }
+    .btn:hover:not(:disabled), .btn-block:hover:not(:disabled) {
+      background: hsla(${hue},78%,52%,0.25) !important;
+      border-color: ${accentLight}77 !important;
+    }
+    .segmented-btn-active {
+      background: hsla(${hue},78%,52%,0.22) !important;
+      border-color: ${accentLight}44 !important;
+      color: ${accentLight} !important;
+    }
+    .accent-text { color: ${accentLight} !important; }
+    .onb-btn-primary { background: ${accent} !important; }
+    .border-t-amber-400 { border-top-color: ${accent} !important; }
+  `;
+}
+
+/**
+ * Clear custom colors and revert to the saved preset theme.
+ */
+export function resetCustomColors() {
+  try {
+    localStorage.removeItem(CUSTOM_BG_KEY);
+    localStorage.removeItem(CUSTOM_ACCENT_KEY);
+  } catch {}
+
+  // Remove accent overrides
+  const accentEl = document.getElementById("natrix-accent");
+  if (accentEl) accentEl.remove();
+
+  // Remove custom CSS variables
+  const root = document.documentElement;
+  root.style.removeProperty("--natrix-accent");
+  root.style.removeProperty("--natrix-accent-light");
+  root.style.removeProperty("--natrix-accent-dark");
+  root.style.removeProperty("--natrix-accent-glow");
+  root.style.removeProperty("--natrix-accent-soft");
+
+  // Re-apply the saved preset theme (restores bg too)
+  try {
+    const themeId = localStorage.getItem(THEME_KEY) ?? "ocean";
+    applyTheme(themeId);
+  } catch {
+    applyTheme("ocean");
+  }
+}
+
+// ─── ThemeProvider component ───────────────────────────────────────────────────
+
+export default function ThemeProvider() {
   useEffect(() => {
-    void loadUser();
+    // Step 1: Apply from localStorage instantly — no flash
+    try {
+      const cachedTheme = localStorage.getItem(THEME_KEY);
+      if (cachedTheme && THEMES[cachedTheme]) applyTheme(cachedTheme);
+
+      const cachedSize = localStorage.getItem(FONT_SIZE_KEY);
+      if (cachedSize) applyFontSize(cachedSize);
+
+      // Apply custom colors on top of preset theme
+      const customBg = localStorage.getItem(CUSTOM_BG_KEY);
+      if (customBg !== null) applyCustomBg(Number(customBg), false);
+
+      const customAccent = localStorage.getItem(CUSTOM_ACCENT_KEY);
+      if (customAccent !== null) applyCustomAccent(Number(customAccent), false);
+    } catch {}
+
+    // Step 2: Verify with Supabase in background
+    void loadFromSupabase();
+
+    // Step 3: Keep in sync on auth state change
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        const meta = session?.user?.user_metadata;
+
+        const themeId = meta?.app_theme;
+        if (themeId && THEMES[themeId]) applyTheme(themeId);
+
+        const sizeId = meta?.app_font_size;
+        if (sizeId) applyFontSize(sizeId);
+
+        // Custom colors
+        const customBgHue = meta?.custom_bg_hue;
+        if (customBgHue != null && customBgHue >= 0) applyCustomBg(Number(customBgHue));
+
+        const customAccentHue = meta?.custom_accent_hue;
+        if (customAccentHue != null && customAccentHue >= 0) applyCustomAccent(Number(customAccentHue));
+      }
+    );
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  async function loadUser() {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) { router.replace("/login"); return; }
-    setEmail(session.user.email ?? "");
-    const meta = session.user.user_metadata;
-    setDisplayName(meta?.full_name ?? meta?.name ?? "");
-    setActiveTheme(meta?.app_theme ?? "ocean");
-    setActiveFontSize((meta?.app_font_size as FontSizeId) ?? "default");
-    setLoading(false);
-  }
-
-  async function handleSelectTheme(themeId: string) {
-    setActiveTheme(themeId);
-    applyTheme(themeId);
-    setSavingTheme(true);
-    setThemeSaved(false);
-    await supabase.auth.updateUser({ data: { app_theme: themeId } });
-    setSavingTheme(false);
-    setThemeSaved(true);
-    setTimeout(() => setThemeSaved(false), 2000);
-  }
-
-  async function handleSelectFontSize(sizeId: FontSizeId) {
-    setActiveFontSize(sizeId);
-    applyFontSize(sizeId);
-    setSavingFontSize(true);
-    setFontSizeSaved(false);
-    await supabase.auth.updateUser({ data: { app_font_size: sizeId } });
-    setSavingFontSize(false);
-    setFontSizeSaved(true);
-    setTimeout(() => setFontSizeSaved(false), 2000);
-  }
-
-  async function handleChangePassword() {
-    if (!newPassword) { setPasswordMsg("Please enter a new password."); return; }
-    if (newPassword.length < 8) { setPasswordMsg("Password must be at least 8 characters."); return; }
-    if (newPassword !== confirmPassword) { setPasswordMsg("Passwords don't match."); return; }
-    setSavingPassword(true);
-    setPasswordMsg("");
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
-    if (error) {
-      setPasswordMsg(`Error: ${error.message}`);
-    } else {
-      setPasswordMsg("✓ Password updated successfully.");
-      setNewPassword("");
-      setConfirmPassword("");
-      setTimeout(() => { setShowPasswordForm(false); setPasswordMsg(""); }, 2000);
-    }
-    setSavingPassword(false);
-  }
-
-  async function handleSendFeedback() {
-    if (feedbackRating === 0) { setFeedbackError("Please select a star rating."); return; }
-    if (!feedbackMessage.trim()) { setFeedbackError("Please write something — even a sentence helps!"); return; }
-    setSavingFeedback(true);
-    setFeedbackError("");
-    const { data: { session } } = await supabase.auth.getSession();
-    const { error } = await supabase.from("feedback").insert([{
-      user_id: session?.user?.id ?? null,
-      rating: feedbackRating,
-      message: feedbackMessage.trim(),
-      feature_request: feedbackFeature || null,
-    }]);
-    if (error) {
-      setFeedbackError(`Couldn't send feedback: ${error.message}`);
-    } else {
-      setFeedbackSent(true);
-      setFeedbackRating(0);
-      setFeedbackMessage("");
-      setFeedbackFeature("");
-    }
-    setSavingFeedback(false);
-  }
-
-  async function handleLogout() {
-    setLoggingOut(true);
-    await supabase.auth.signOut();
-    router.replace("/login");
-  }
-
-  async function handleDeleteAccount() {
-    if (deleteInput !== "DELETE") { setDeleteStatus("Please type DELETE to confirm."); return; }
-    setDeletingAccount(true);
-    setDeleteStatus("Deleting your data...");
+  async function loadFromSupabase() {
     try {
-      const res = await fetch("/api/delete-account", { method: "POST" });
-      const json = await res.json() as { success?: boolean; dryRun?: boolean; error?: string; log?: string[] };
-      if (!res.ok) {
-        setDeleteStatus(`Error: ${json.error ?? "Something went wrong. Please try again."}`);
-        setDeletingAccount(false);
-        return;
-      }
-      if (json.dryRun) {
-        console.log("🔒 Dry run log:", json.log);
-        setDeleteStatus("Dry run complete — check browser console for details. (SAFETY_LOCK is still on)");
-        setDeletingAccount(false);
-        return;
-      }
-      await supabase.auth.signOut();
-      router.replace("/login");
+      const { data: { session } } = await supabase.auth.getSession();
+      const meta = session?.user?.user_metadata;
+
+      const themeId = meta?.app_theme;
+      if (themeId && THEMES[themeId]) applyTheme(themeId);
+
+      const sizeId = meta?.app_font_size;
+      if (sizeId) applyFontSize(sizeId);
+
+      // Custom colors from cloud
+      const customBgHue = meta?.custom_bg_hue;
+      if (customBgHue != null && customBgHue >= 0) applyCustomBg(Number(customBgHue));
+
+      const customAccentHue = meta?.custom_accent_hue;
+      if (customAccentHue != null && customAccentHue >= 0) applyCustomAccent(Number(customAccentHue));
     } catch {
-      setDeleteStatus("Network error. Please try again.");
-      setDeletingAccount(false);
+      // Offline — localStorage fallback already applied
     }
   }
 
-  if (loading) {
-    return (
-      <div className="shell">
-        <div className="container-app">
-          <p className="muted">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="shell">
-      <div className="container-app space-y-5">
-
-        {/* Header */}
-        <div className="pt-2">
-          <p className="text-[10px] font-medium uppercase tracking-widest" style={{ color: "#BA7517" }}>
-            Natrix
-          </p>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight text-white">Settings</h1>
-        </div>
-
-        {/* ── Account ─────────────────────────────────────────────────────── */}
-        <div className="card space-y-4">
-          <p className="label">Account</p>
-          <div className="flex items-center gap-4">
-            <div
-              className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl text-lg font-bold"
-              style={{ background: "rgba(217,119,6,0.25)", color: "#FDE68A", border: "1px solid rgba(253,230,138,0.2)" }}
-            >
-              {(displayName || email).slice(0, 1).toUpperCase()}
-            </div>
-            <div className="min-w-0">
-              {displayName && <p className="truncate text-base font-semibold text-white">{displayName}</p>}
-              <p className="truncate text-sm text-white/50">{email}</p>
-            </div>
-          </div>
-
-          {/* Change password */}
-          <div className="overflow-hidden rounded-2xl" style={{ border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.05)" }}>
-            <button type="button" onClick={() => { setShowPasswordForm((v) => !v); setPasswordMsg(""); }}
-              className="flex w-full items-center justify-between px-4 py-3 text-left">
-              <div className="flex items-center gap-3">
-                <LockIcon />
-                <span className="text-sm font-medium text-white">Change password</span>
-              </div>
-              <ChevronIcon open={showPasswordForm} />
-            </button>
-            {showPasswordForm && (
-              <div className="space-y-3 border-t border-white/10 px-4 pb-4 pt-3">
-                <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="New password" className="input" />
-                <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Confirm new password" className="input" />
-                {passwordMsg && (
-                  <p className="text-sm" style={{ color: passwordMsg.startsWith("✓") ? "#6EE7B7" : "#FCA5A5" }}>
-                    {passwordMsg}
-                  </p>
-                )}
-                <button type="button" onClick={handleChangePassword} disabled={savingPassword}
-                  className="w-full rounded-2xl py-3 text-sm font-semibold text-white transition disabled:opacity-50"
-                  style={{ background: "#D97706" }}>
-                  {savingPassword ? "Saving..." : "Update password"}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* ── App Theme ───────────────────────────────────────────────────── */}
-        <div className="card space-y-4">
-          <div>
-            <p className="label">App Theme</p>
-            <p className="mt-1 text-xs text-white/40">Changes the background colour throughout the app.</p>
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            {THEMES.map((theme) => {
-              const isActive = activeTheme === theme.id;
-              return (
-                <button key={theme.id} type="button" onClick={() => void handleSelectTheme(theme.id)}
-                  disabled={savingTheme}
-                  className="relative overflow-hidden rounded-2xl transition disabled:opacity-60"
-                  style={{
-                    aspectRatio: "1",
-                    background: `linear-gradient(135deg, ${theme.from}, ${theme.to})`,
-                    border: isActive ? `2px solid ${theme.accent}` : "1px solid rgba(255,255,255,0.12)",
-                  }}>
-                  {isActive && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="flex h-7 w-7 items-center justify-center rounded-full" style={{ background: theme.accent }}>
-                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                          <path d="M2 7l3.5 3.5L12 4" stroke="#000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </div>
-                    </div>
-                  )}
-                  <div className="absolute bottom-0 inset-x-0 p-2">
-                    <p className="text-center text-[10px] font-semibold text-white/80">{theme.label}</p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-          {themeSaved && <p className="text-center text-xs" style={{ color: "#6EE7B7" }}>✓ Theme saved</p>}
-          {savingTheme && <p className="text-center text-xs text-white/30">Saving...</p>}
-        </div>
-
-        {/* ── Text Size ───────────────────────────────────────────────────── */}
-        <div className="card space-y-4">
-          <div>
-            <p className="label">Text Size</p>
-            <p className="mt-1 text-xs text-white/40">Applies instantly across the whole app.</p>
-          </div>
-          <div className="grid grid-cols-4 gap-2">
-            {FONT_SIZES.map((size) => {
-              const isActive = activeFontSize === size.id;
-              return (
-                <button key={size.id} type="button"
-                  onClick={() => void handleSelectFontSize(size.id as FontSizeId)}
-                  disabled={savingFontSize}
-                  className="flex flex-col items-center justify-center gap-1.5 rounded-2xl py-3 transition disabled:opacity-60"
-                  style={isActive
-                    ? { background: "rgba(217,119,6,0.2)", border: "2px solid #D97706" }
-                    : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)" }}>
-                  <span
-                    className="font-bold leading-none text-white"
-                    style={{ fontSize: `${10 + FONT_SIZES.indexOf(size) * 3}px` }}>
-                    Aa
-                  </span>
-                  <span className="text-[9px] font-medium" style={{ color: isActive ? "#FDE68A" : "rgba(255,255,255,0.4)" }}>
-                    {size.label}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-          {fontSizeSaved && <p className="text-center text-xs" style={{ color: "#6EE7B7" }}>✓ Text size saved</p>}
-          {savingFontSize && <p className="text-center text-xs text-white/30">Saving...</p>}
-        </div>
-
-        {/* ── Splash screen ───────────────────────────────────────────────── */}
-        <SplashMediaUpload />
-
-        {/* ── Help ────────────────────────────────────────────────────────── */}
-        <div className="card">
-          <p className="label mb-3">Help</p>
-          <button type="button" onClick={replayTutorial}
-            className="flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left transition"
-            style={{ background: "rgba(217,119,6,0.1)", border: "1px solid rgba(253,230,138,0.2)" }}>
-            <div className="flex items-center gap-3">
-              <span style={{ fontSize: 18 }}>🎓</span>
-              <div>
-                <p className="text-sm font-semibold" style={{ color: "#FDE68A" }}>Replay tutorial</p>
-                <p className="mt-0.5 text-xs text-white/40">Walk through the app step by step again</p>
-              </div>
-            </div>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M6 3l5 5-5 5" stroke="rgba(253,230,138,0.5)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-
-          <button type="button" onClick={() => router.push("/scan")}
-            className="flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left transition mt-3"
-            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)" }}>
-            <div className="flex items-center gap-3">
-              <span style={{ fontSize: 18 }}>📥</span>
-              <div>
-                <p className="text-sm font-semibold text-white">Import swimmer data</p>
-                <p className="mt-0.5 text-xs text-white/40">Download template · upload your existing times</p>
-              </div>
-            </div>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M6 3l5 5-5 5" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-
-          <div className="mt-4 space-y-2">
-            <p className="mb-2 text-[9px] uppercase tracking-wider text-white/30">Quick reference</p>
-            {[
-              { emoji: "👥", title: "Add a swimmer", desc: "Tap Brood → + button → fill in profile" },
-              { emoji: "📷", title: "Scan a result", desc: "Tap Scan → upload Meet Mobile screenshot" },
-              { emoji: "📈", title: "View progress", desc: "Swimmer profile → Progress tab" },
-              { emoji: "⭐", title: "Check standards", desc: "Swimmer profile → Standards tab" },
-            ].map((item) => (
-              <div key={item.title} className="flex items-start gap-3 rounded-2xl px-3 py-2.5"
-                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>{item.emoji}</span>
-                <div>
-                  <p className="text-sm font-medium text-white">{item.title}</p>
-                  <p className="text-xs text-white/40">{item.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* ── Feedback ────────────────────────────────────────────────────── */}
-        <div className="card space-y-4">
-          <div>
-            <p className="label">Feedback</p>
-            <p className="mt-1 text-xs text-white/40">Help shape Natrix — every message goes straight to J.O.D.</p>
-          </div>
-          {feedbackSent ? (
-            <div className="space-y-2 rounded-2xl py-6 text-center"
-              style={{ background: "rgba(217,119,6,0.1)", border: "1px solid rgba(253,230,138,0.2)" }}>
-              <p className="text-2xl">🙏</p>
-              <p className="text-sm font-semibold" style={{ color: "#FDE68A" }}>Thank you!</p>
-              <p className="text-xs text-white/40">Your feedback means the world. We&apos;ll use it to make Natrix better.</p>
-              <button type="button" onClick={() => setFeedbackSent(false)} className="mt-2 text-xs text-white/30 underline">
-                Send another
-              </button>
-            </div>
-          ) : (
-            <>
-              <div>
-                <p className="mb-2 text-xs text-white/50">How are you finding Natrix?</p>
-                <div className="flex gap-2">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button key={star} type="button" onClick={() => setFeedbackRating(star)}
-                      className="text-2xl transition-transform active:scale-90"
-                      style={{ opacity: feedbackRating >= star ? 1 : 0.25, filter: feedbackRating >= star ? "none" : "grayscale(1)" }}>
-                      ⭐
-                    </button>
-                  ))}
-                </div>
-                {feedbackRating > 0 && (
-                  <p className="mt-1.5 text-xs" style={{ color: "#FDE68A" }}>
-                    {feedbackRating === 5 ? "Love it! 🏊" : feedbackRating === 4 ? "Really good!" : feedbackRating === 3 ? "It's okay" : feedbackRating === 2 ? "Needs work" : "Not great"}
-                  </p>
-                )}
-              </div>
-              <div>
-                <p className="mb-2 text-xs text-white/50">What would make Natrix better?</p>
-                <textarea value={feedbackMessage} onChange={(e) => setFeedbackMessage(e.target.value)}
-                  placeholder="Tell us anything — bugs, ideas, what you love, what's missing..."
-                  rows={3} className="w-full resize-none rounded-[20px] px-4 py-3 text-sm text-white outline-none placeholder:text-white/35"
-                  style={{ background: "rgba(0,20,50,0.35)", border: "1px solid rgba(255,255,255,0.2)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }} />
-              </div>
-              <div>
-                <p className="mb-2 text-xs text-white/50">Most wanted feature (optional)</p>
-                <select value={feedbackFeature} onChange={(e) => setFeedbackFeature(e.target.value)} className="input">
-                  <option value="">Pick one...</option>
-                  {FEATURE_REQUESTS.map((f) => <option key={f} value={f}>{f}</option>)}
-                </select>
-              </div>
-              {feedbackError && <p className="text-sm" style={{ color: "#FCA5A5" }}>{feedbackError}</p>}
-              <button type="button" onClick={handleSendFeedback} disabled={savingFeedback}
-                className="w-full rounded-2xl py-3 text-sm font-semibold text-white transition disabled:opacity-50"
-                style={{ background: "#D97706" }}>
-                {savingFeedback ? "Sending..." : "Send feedback 🚀"}
-              </button>
-            </>
-          )}
-        </div>
-
-        {/* ── About ───────────────────────────────────────────────────────── */}
-        <div className="card">
-          <p className="label mb-3">About</p>
-          {[
-            { label: "Version", value: APP_VERSION, color: undefined },
-            { label: "Built for", value: "Southeast Asia · expanding globally", color: undefined },
-            { label: "Made with", value: "🏊 for swim parents", color: "#FDE68A" },
-            { label: "Developed by", value: "J.O.D — Just an Ordinary Dad", color: undefined },
-          ].map((row, i, arr) => (
-            <div key={row.label}>
-              <div className="flex items-center justify-between py-2">
-                <p className="text-sm text-white/60">{row.label}</p>
-                <p className="text-sm font-semibold text-white" style={row.color ? { color: row.color } : undefined}>
-                  {row.value}
-                </p>
-              </div>
-              {i < arr.length - 1 && <div style={{ height: 1, background: "rgba(255,255,255,0.08)" }} />}
-            </div>
-          ))}
-        </div>
-
-        <Link href="/privacy"
-          className="block w-full rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-sm text-white/50 transition hover:bg-white/10">
-          Privacy Policy
-        </Link>
-
-        {/* ── Sign out ────────────────────────────────────────────────────── */}
-        <button type="button" onClick={handleLogout} disabled={loggingOut}
-          className="w-full rounded-2xl py-4 text-base font-semibold transition disabled:opacity-50"
-          style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.85)" }}>
-          {loggingOut ? "Signing out..." : "Sign out"}
-        </button>
-
-        {/* ── Delete account ───────────────────────────────────────────────── */}
-        <div className="overflow-hidden rounded-3xl"
-          style={{ border: "1px solid rgba(239,68,68,0.2)", background: "rgba(239,68,68,0.06)" }}>
-          <button type="button" onClick={() => { setShowDeleteConfirm((v) => !v); setDeleteInput(""); setDeleteStatus(""); }}
-            className="flex w-full items-center justify-between px-5 py-4 text-left">
-            <div>
-              <p className="text-sm font-semibold" style={{ color: "#FCA5A5" }}>Delete account</p>
-              <p className="mt-0.5 text-xs text-white/35">Permanently removes all your data</p>
-            </div>
-            <ChevronIcon open={showDeleteConfirm} danger />
-          </button>
-          {showDeleteConfirm && (
-            <div className="space-y-3 border-t border-red-500/15 px-5 pb-5 pt-4">
-              <p className="text-sm leading-relaxed text-white/60">
-                This will permanently delete your account and all swimmer data. This cannot be undone. Type{" "}
-                <span className="font-bold text-white">DELETE</span> to confirm.
-              </p>
-              <input value={deleteInput} onChange={(e) => setDeleteInput(e.target.value)}
-                placeholder="Type DELETE to confirm" className="input"
-                style={{ borderColor: "rgba(239,68,68,0.3)" }} />
-              {deleteStatus && <p className="text-sm" style={{ color: "#FCA5A5" }}>{deleteStatus}</p>}
-              <button type="button" onClick={handleDeleteAccount}
-                disabled={deletingAccount || deleteInput !== "DELETE"}
-                className="w-full rounded-2xl py-3 text-sm font-semibold transition disabled:opacity-40"
-                style={{ background: "rgba(239,68,68,0.25)", border: "1px solid rgba(239,68,68,0.4)", color: "#FCA5A5" }}>
-                {deletingAccount ? "Deleting..." : "Permanently delete account"}
-              </button>
-            </div>
-          )}
-        </div>
-
-        <div className="h-4" />
-      </div>
-    </div>
-  );
-}
-
-// ─── Icons ────────────────────────────────────────────────────────────────────
-
-function LockIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <rect x="3" y="7" width="10" height="8" rx="2" stroke="rgba(255,255,255,0.45)" strokeWidth="1.3" />
-      <path d="M5 7V5a3 3 0 0 1 6 0v2" stroke="rgba(255,255,255,0.45)" strokeWidth="1.3" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function ChevronIcon({ open, danger }: { open: boolean; danger?: boolean }) {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"
-      style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s ease" }}>
-      <path d="M4 6l4 4 4-4"
-        stroke={danger ? "rgba(252,165,165,0.6)" : "rgba(255,255,255,0.3)"}
-        strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
+  return null;
 }
