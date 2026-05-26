@@ -73,7 +73,6 @@ function getUpcomingMeets(ages: number[]): Meet[] {
   today.setHours(0, 0, 0, 0);
   const seen = new Set<string>();
   const result: Meet[] = [];
-
   for (const meet of SG_MEETS_2026) {
     if (meet.endDate < today) continue;
     const eligible =
@@ -84,10 +83,7 @@ function getUpcomingMeets(ages: number[]): Meet[] {
         return true;
       });
     if (!eligible) continue;
-    if (!seen.has(meet.name)) {
-      seen.add(meet.name);
-      result.push(meet);
-    }
+    if (!seen.has(meet.name)) { seen.add(meet.name); result.push(meet); }
   }
   return result.sort((a, b) => a.startDate.getTime() - b.startDate.getTime()).slice(0, 5);
 }
@@ -150,6 +146,47 @@ const AVATAR_COLORS = [
 ];
 function avatarColor(i: number) { return AVATAR_COLORS[i % AVATAR_COLORS.length]; }
 
+// ─── Skeleton components ───────────────────────────────────────────────────────
+
+function SkeletonCard() {
+  return (
+    <div className="flex items-center gap-4 rounded-3xl p-4 animate-pulse"
+      style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}>
+      <div className="h-14 w-14 flex-shrink-0 rounded-2xl bg-white/10" />
+      <div className="flex-1 space-y-2">
+        <div className="h-4 w-2/3 rounded-full bg-white/10" />
+        <div className="h-3 w-1/3 rounded-full bg-white/5" />
+        <div className="flex gap-3 mt-1">
+          <div className="h-3 w-12 rounded-full bg-white/8" />
+          <div className="h-3 w-12 rounded-full bg-white/8" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SkeletonActivity() {
+  return (
+    <div className="rounded-3xl overflow-hidden animate-pulse"
+      style={{ border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)" }}>
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="flex items-center gap-3 px-4 py-3"
+          style={{ borderBottom: i < 3 ? "1px solid rgba(255,255,255,0.06)" : "none" }}>
+          <div className="w-1 h-8 rounded-full bg-white/10 flex-shrink-0" />
+          <div className="flex-1 space-y-1.5">
+            <div className="h-3.5 w-1/2 rounded-full bg-white/10" />
+            <div className="h-3 w-1/3 rounded-full bg-white/5" />
+          </div>
+          <div className="space-y-1 text-right">
+            <div className="h-4 w-14 rounded-full bg-white/10" />
+            <div className="h-2.5 w-8 rounded-full bg-white/5 ml-auto" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function QualifiedArc({ qualified, total }: { qualified: number; total: number }) {
   const pct = total > 0 ? qualified / total : 0;
   const R = 30, cx = 36, cy = 36;
@@ -171,20 +208,32 @@ function QualifiedArc({ qualified, total }: { qualified: number; total: number }
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [userName, setUserName] = useState<string | null>(null);
-  const [swimmerStats, setSwimmerStats] = useState<SwimmerStat[]>([]);
-  const [recentResults, setRecentResults] = useState<RecentResult[]>([]);
-  const [standardsSummaries, setStandardsSummaries] = useState<StandardsSummary[]>([]);
+
+  // Phase 1 — auth + swimmers (fast)
+  const [phase1Done, setPhase1Done]       = useState(false);
+  const [userName, setUserName]           = useState<string | null>(null);
+  const [swimmerStats, setSwimmerStats]   = useState<SwimmerStat[]>([]);
   const [upcomingMeets, setUpcomingMeets] = useState<Meet[]>([]);
+
+  // Phase 2 — times + standards (background)
+  const [phase2Done, setPhase2Done]             = useState(false);
+  const [recentResults, setRecentResults]       = useState<RecentResult[]>([]);
+  const [standardsSummaries, setStandardsSummaries] = useState<StandardsSummary[]>([]);
 
   useEffect(() => { void loadDashboard(); }, []);
 
   async function loadDashboard() {
-    const { data: sessionData } = await supabase.auth.getSession();
+    // ── Phase 1: session + swimmers in parallel ────────────────────────────────
+    const sessionPromise = supabase.auth.getSession();
+    const swimmersPromise = supabase
+      .from("swimmers")
+      .select("id, name, age, swim_club, group_type, gender")
+      .eq("group_type", "primary")
+      .order("name", { ascending: true });
+
+    const { data: sessionData } = await sessionPromise;
     if (!sessionData.session) { router.replace("/login"); return; }
 
-    // Greeting name
     const email = sessionData.session.user.email ?? "";
     const meta = sessionData.session.user.user_metadata;
     const displayName = meta?.full_name ?? meta?.name ?? email.split("@")[0].split(".")[0];
@@ -194,21 +243,30 @@ export default function DashboardPage() {
     );
 
     const userId = sessionData.session.user.id;
-
-    // ── Step 1: Load primary swimmers ─────────────────────────────────────────
-    const { data: swimmerData } = await supabase
-      .from("swimmers")
-      .select("id, name, age, swim_club, group_type, gender")
-      .eq("group_type", "primary")
-      .order("name", { ascending: true });
-
+    const { data: swimmerData } = await swimmersPromise;
     const mySwimmers = (swimmerData as Swimmer[]) ?? [];
-    if (mySwimmers.length === 0) { setLoading(false); return; }
 
-    const swimmerIds = mySwimmers.map((s) => s.id);
+    if (mySwimmers.length === 0) { setPhase1Done(true); setPhase2Done(true); return; }
+
     setUpcomingMeets(getUpcomingMeets(mySwimmers.map((s) => s.age)));
 
-    // ── Step 2: Load times + standard sets in PARALLEL (was sequential) ───────
+    // Show skeleton swimmer cards immediately — phase 2 loads behind the scenes
+    // We set placeholder stats so cards render right away
+    const placeholderStats: SwimmerStat[] = mySwimmers.map((swimmer) => ({
+      swimmer,
+      totalEvents: 0,
+      totalTimes: 0,
+      latestEvent: null,
+      latestTimeMs: null,
+      latestSwamAt: null,
+      latestIsPB: false,
+    }));
+    setSwimmerStats(placeholderStats);
+    setPhase1Done(true);
+
+    // ── Phase 2: times + standards in parallel (runs in background) ───────────
+    const swimmerIds = mySwimmers.map((s) => s.id);
+
     const [timesResult, setsResult] = await Promise.all([
       supabase
         .from("swim_times")
@@ -226,18 +284,15 @@ export default function DashboardPage() {
     const allTimes = (timesResult.data ?? []) as (RecentResult & { created_at: string })[];
     const setsData = (setsResult.data ?? []) as { id: number; name: string; user_id: string }[];
 
-    // ── Build per-swimmer stats ────────────────────────────────────────────────
+    // Update swimmer cards with real stats now we have times
     const stats: SwimmerStat[] = mySwimmers.map((swimmer) => {
       const swimmerTimes = allTimes.filter((t) => t.swimmer_id === swimmer.id);
-
       const pbMap = new Map<string, number>();
       for (const t of [...swimmerTimes].sort((a, b) => a.time_ms - b.time_ms)) {
         const key = `${t.event}|${t.course}`;
         if (!pbMap.has(key)) pbMap.set(key, t.time_ms);
       }
-
       const latest = swimmerTimes[0] ?? null;
-
       let latestIsPB = false;
       if (latest) {
         const key = `${latest.event}|${latest.course}`;
@@ -245,7 +300,6 @@ export default function DashboardPage() {
           (t) => t.event === latest.event && t.course === latest.course
         ).length >= 1;
       }
-
       return {
         swimmer,
         totalEvents: pbMap.size,
@@ -256,53 +310,40 @@ export default function DashboardPage() {
         latestIsPB,
       };
     });
-
     setSwimmerStats(stats);
 
-    // ── Recent results across all swimmers (last 5) ───────────────────────────
+    // Recent activity
     const recent = allTimes.slice(0, 5).map((row) => {
       const swimmer = mySwimmers.find((s) => s.id === row.swimmer_id);
       return { ...row, swimmer_name: swimmer?.name ?? "Unknown" };
     });
     setRecentResults(recent);
 
-    // ── Standards summaries — 1 batched query instead of N queries ────────────
+    // Standards — 1 batched query
     if (setsData.length > 0 && allTimes.length > 0) {
       const setIds = setsData.map((s) => s.id);
-
-      // One query for all standard items across all sets
       const { data: allItemsRaw } = await supabase
         .from("standard_items")
         .select("id, standard_set_id, event, course, qualifying_time_ms, gender, min_age, max_age")
         .in("standard_set_id", setIds);
 
       const allItems = (allItemsRaw ?? []) as {
-        id: number;
-        standard_set_id: number;
-        event: string;
-        course: string;
-        qualifying_time_ms: number;
-        gender?: string | null;
-        min_age?: number | null;
-        max_age?: number | null;
+        id: number; standard_set_id: number; event: string; course: string;
+        qualifying_time_ms: number; gender?: string | null; min_age?: number | null; max_age?: number | null;
       }[];
 
       const summaries: StandardsSummary[] = [];
-
       for (const set of setsData) {
         const items = allItems.filter((item) => item.standard_set_id === set.id);
         if (!items.length) continue;
-
         const relevantSwimmer = mySwimmers[0];
         const swimmerTimes = allTimes.filter((t) => t.swimmer_id === relevantSwimmer.id);
-
         const pbMapForStd = new Map<string, number>();
         for (const t of swimmerTimes) {
           const key = `${t.event}|${t.course}`;
           const ex = pbMapForStd.get(key);
           if (!ex || t.time_ms < ex) pbMapForStd.set(key, t.time_ms);
         }
-
         let qualified = 0, inProgress = 0;
         for (const item of items) {
           const pb = pbMapForStd.get(`${item.event}|${item.course}`);
@@ -310,42 +351,43 @@ export default function DashboardPage() {
           if (pb <= item.qualifying_time_ms) qualified++;
           else inProgress++;
         }
-
         summaries.push({
           swimmerId: relevantSwimmer.id,
           swimmerName: relevantSwimmer.name,
-          qualified,
-          inProgress,
+          qualified, inProgress,
           total: items.length,
           meetName: set.name,
         });
       }
-
       setStandardsSummaries(summaries);
     }
 
-    setLoading(false);
+    setPhase2Done(true);
   }
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
-  // ─── Loading ────────────────────────────────────────────────────────────────
+  // ─── Full page skeleton (only shown before session resolves) ─────────────────
 
-  if (loading) {
+  if (!phase1Done) {
     return (
       <div className="shell">
-        <div className="container-app flex items-center justify-center" style={{ minHeight: "60vh" }}>
-          <div className="text-center space-y-3">
-            <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-white/10 border-t-amber-400" />
-            <p className="text-sm text-white/40">Loading…</p>
+        <div className="container-app space-y-6">
+          <div className="pt-2 animate-pulse">
+            <div className="h-3 w-24 rounded-full bg-white/10 mb-2" />
+            <div className="h-8 w-32 rounded-full bg-white/10" />
           </div>
+          <div className="h-3 w-20 rounded-full bg-white/10" />
+          <SkeletonCard />
+          <div className="h-3 w-24 rounded-full bg-white/10 mt-2" />
+          <SkeletonActivity />
         </div>
       </div>
     );
   }
 
-  // ─── No swimmers ────────────────────────────────────────────────────────────
+  // ─── No swimmers ─────────────────────────────────────────────────────────────
 
   if (swimmerStats.length === 0) {
     return (
@@ -388,7 +430,7 @@ export default function DashboardPage() {
     );
   }
 
-  // ─── Main dashboard ─────────────────────────────────────────────────────────
+  // ─── Main dashboard ───────────────────────────────────────────────────────────
 
   return (
     <div className="shell">
@@ -400,16 +442,12 @@ export default function DashboardPage() {
           <h1 className="mt-0.5 text-3xl font-bold tracking-tight text-white">{userName ?? "Home"}</h1>
         </div>
 
-        {/* ── Swimmer cards ──────────────────────────────────────────────────── */}
+        {/* ── Swimmer cards — visible as soon as phase 1 done ───────────────── */}
         <div>
           <p className="mb-3 text-[10px] font-medium uppercase tracking-widest text-white/30">
             My Swimmers · {swimmerStats.length}
           </p>
-
-          {swimmerStats.length === 1 && (
-            <SwimmerCard stat={swimmerStats[0]} index={0} />
-          )}
-
+          {swimmerStats.length === 1 && <SwimmerCard stat={swimmerStats[0]} index={0} />}
           {swimmerStats.length > 1 && (
             <div className="space-y-3">
               {swimmerStats.map((stat, i) => (
@@ -419,8 +457,13 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* ── Standards summaries ────────────────────────────────────────────── */}
-        {standardsSummaries.length > 0 && (
+        {/* ── Standards — skeleton until phase 2 done ───────────────────────── */}
+        {!phase2Done ? (
+          <div className="space-y-3">
+            <div className="h-3 w-20 rounded-full bg-white/10 animate-pulse" />
+            <div className="h-20 rounded-3xl bg-white/5 border border-white/8 animate-pulse" />
+          </div>
+        ) : standardsSummaries.length > 0 ? (
           <div className="space-y-3">
             <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">Standards</p>
             {standardsSummaries.map((summary) => (
@@ -457,10 +500,15 @@ export default function DashboardPage() {
               </Link>
             ))}
           </div>
-        )}
+        ) : null}
 
-        {/* ── Recent activity ────────────────────────────────────────────────── */}
-        {recentResults.length > 0 && (
+        {/* ── Recent activity — skeleton until phase 2 done ─────────────────── */}
+        {!phase2Done ? (
+          <div>
+            <div className="h-3 w-28 rounded-full bg-white/10 animate-pulse mb-3" />
+            <SkeletonActivity />
+          </div>
+        ) : recentResults.length > 0 ? (
           <div>
             <p className="mb-3 text-[10px] font-medium uppercase tracking-widest text-white/30">Recent activity</p>
             <div className="rounded-3xl overflow-hidden"
@@ -489,10 +537,7 @@ export default function DashboardPage() {
               })}
             </div>
           </div>
-        )}
-
-        {/* ── No results yet ─────────────────────────────────────────────────── */}
-        {recentResults.length === 0 && (
+        ) : phase2Done ? (
           <div className="rounded-3xl border border-white/10 bg-white/5 p-6 space-y-4">
             <div className="text-center">
               <p className="text-base font-semibold text-white">No results yet</p>
@@ -511,7 +556,7 @@ export default function DashboardPage() {
               </Link>
             </div>
           </div>
-        )}
+        ) : null}
 
         {/* ── Upcoming meets ─────────────────────────────────────────────────── */}
         {upcomingMeets.length > 0 && (
@@ -533,9 +578,7 @@ export default function DashboardPage() {
                       <p className="text-[10px] text-white/35 mt-0.5">{formatMeetMonth(meet)}</p>
                     </div>
                     {now && (
-                      <span className="text-xs font-bold flex-shrink-0" style={{ color: "#6EE7B7" }}>
-                        Now!
-                      </span>
+                      <span className="text-xs font-bold flex-shrink-0" style={{ color: "#6EE7B7" }}>Now!</span>
                     )}
                   </div>
                 );
@@ -564,22 +607,16 @@ function SwimmerCard({ stat, index }: { stat: SwimmerStat; index: number }) {
     <Link href={`/swimmers/${swimmer.id}`}
       className="flex items-center gap-4 rounded-3xl p-4 transition"
       style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}>
-
-      {/* Avatar */}
       <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl text-base font-bold"
         style={{ background: colors.bg, color: colors.text }}>
         {getInitials(swimmer.name)}
       </div>
-
-      {/* Info */}
       <div className="flex-1 min-w-0">
         <p className="text-base font-bold text-white truncate">{swimmer.name}</p>
         <p className="text-xs text-white/40 mt-0.5">
           Age {swimmer.age}
           {swimmer.swim_club ? ` · ${swimmer.swim_club}` : ""}
         </p>
-
-        {/* Stats row */}
         <div className="flex items-center gap-3 mt-2">
           <div className="flex items-center gap-1">
             <span className="text-sm font-bold" style={{ color: "#FDE68A" }}>{totalEvents}</span>
@@ -590,8 +627,6 @@ function SwimmerCard({ stat, index }: { stat: SwimmerStat; index: number }) {
             <span className="text-[10px] text-white/30 uppercase tracking-wider">results</span>
           </div>
         </div>
-
-        {/* Latest result */}
         {latestEvent && latestTimeMs != null && (
           <div className="flex items-center gap-2 mt-2">
             <div className="w-1 h-3.5 rounded-full flex-shrink-0" style={{ background: strokeColor }} />
@@ -605,8 +640,6 @@ function SwimmerCard({ stat, index }: { stat: SwimmerStat; index: number }) {
           </div>
         )}
       </div>
-
-      {/* Chevron */}
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="flex-shrink-0 text-white/20">
         <path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
