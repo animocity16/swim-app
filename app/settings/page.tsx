@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { replayTutorial } from "@/app/components/TutorialOverlay";
@@ -31,7 +31,8 @@ type FontColourId = (typeof FONT_COLOURS)[number]["id"];
 // ─── Background gradient ──────────────────────────────────────────────────────
 
 const HUES = [0,30,60,90,120,150,180,210,240,270,300,330,360];
-const BG_GRADIENT = `linear-gradient(to right, ${HUES.map(h=>`hsl(${h},60%,14%)`).join(", ")})`;
+const BG_GRADIENT     = `linear-gradient(to right, ${HUES.map(h=>`hsl(${h},60%,14%)`).join(", ")})`;
+const AVATAR_GRADIENT = `linear-gradient(to right, ${HUES.map(h=>`hsl(${h},65%,38%)`).join(", ")})`;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -65,14 +66,15 @@ function applyFontColourInline(hex: string) {
   el.textContent=`.accent-text{color:${hex}!important;}[style*="#FDE68A"]{color:${hex}!important;}[style*="#BA7517"]{color:${hex}!important;}`;
 }
 
-function applyAvatarColourInline(hex: string) {
-  try{localStorage.setItem("natrix_avatar_colour",hex);}catch{}
+function applyAvatarColourInline(hue: number) {
+  const hex=`hsl(${hue},65%,38%)`;
+  try{localStorage.setItem("natrix_avatar_hue",String(hue));}catch{}
   document.documentElement.style.setProperty("--natrix-avatar-colour",hex);
   document.documentElement.style.setProperty("--natrix-avatar-text",getContrastText(hex));
 }
 
 function resetAllCustomInline(fallbackTheme: string) {
-  try{localStorage.removeItem("natrix_custom_bg_hue");localStorage.removeItem("natrix_font_colour");localStorage.removeItem("natrix_avatar_colour");}catch{}
+  try{localStorage.removeItem("natrix_custom_bg_hue");localStorage.removeItem("natrix_font_colour");localStorage.removeItem("natrix_avatar_hue");}catch{}
   ["natrix-font-colour"].forEach(id=>{const el=document.getElementById(id);if(el)el.remove();});
   document.documentElement.style.removeProperty("--natrix-font-colour");
   document.documentElement.style.removeProperty("--natrix-avatar-colour");
@@ -107,9 +109,9 @@ export default function SettingsPage() {
   const [activeFontColour, setActiveFontColour] = useState<FontColourId|null>(null);
 
   // Avatar colour
-  const [avatarColour, setAvatarColour]     = useState("#0F6E56");
+  const [avatarHue, setAvatarHue]       = useState(160);
   const [avatarColourOn, setAvatarColourOn] = useState(false);
-  const avatarInputRef = useRef<HTMLInputElement>(null);
+
 
   const [colorsSaved, setColorsSaved]   = useState(false);
   const [savingColors, setSavingColors] = useState(false);
@@ -144,8 +146,8 @@ export default function SettingsPage() {
     if(savedBg!=null&&savedBg>=0){setBgHue(Number(savedBg));setCustomBgOn(true);}
     const savedFc=meta?.font_colour as FontColourId|undefined;
     if(savedFc)setActiveFontColour(savedFc);
-    const savedAv=meta?.avatar_colour as string|undefined;
-    if(savedAv){setAvatarColour(savedAv);setAvatarColourOn(true);}
+    const savedAv=meta?.avatar_hue as number|undefined;
+    if(savedAv!=null&&savedAv>=0){setAvatarHue(Number(savedAv));setAvatarColourOn(true);}
     setLoading(false);
   }
 
@@ -177,24 +179,21 @@ export default function SettingsPage() {
     setTimeout(()=>setColorsSaved(false),2000);
   }
 
-  async function handleAvatarColourChange(hex: string){
-    setAvatarColour(hex); setAvatarColourOn(true);
-    applyAvatarColourInline(hex);
-  }
+  function handleAvatarHueDrag(hue: number){setAvatarHue(hue);setAvatarColourOn(true);applyAvatarColourInline(hue);}
 
-  async function handleAvatarColourSave(){
-    setSavingColors(true); setColorsSaved(false);
-    await supabase.auth.updateUser({data:{avatar_colour:avatarColour}});
-    applyAvatarColourInline(avatarColour);
-    setSavingColors(false); setColorsSaved(true);
+  async function handleAvatarHueRelease(){
+    setSavingColors(true);setColorsSaved(false);
+    await supabase.auth.updateUser({data:{avatar_hue:avatarHue}});
+    applyAvatarColourInline(avatarHue);
+    setSavingColors(false);setColorsSaved(true);
     setTimeout(()=>setColorsSaved(false),2000);
   }
 
   async function handleResetColors(){
     resetAllCustomInline(activeTheme);
     setCustomBgOn(false); setBgHue(210); setActiveFontColour(null);
-    setAvatarColour("#0F6E56"); setAvatarColourOn(false);
-    await supabase.auth.updateUser({data:{custom_bg_hue:null,font_colour:null,avatar_colour:null}});
+    setAvatarHue(160); setAvatarColourOn(false);
+    await supabase.auth.updateUser({data:{custom_bg_hue:null,font_colour:null,avatar_hue:null}});
   }
 
   async function handleChangePassword(){
@@ -237,7 +236,7 @@ export default function SettingsPage() {
 
   const hasCustom=customBgOn||activeFontColour!==null||avatarColourOn;
   const previewTextColour=activeFontColour?FONT_COLOURS.find(c=>c.id===activeFontColour)?.hex:"#FDE68A";
-  const previewAvatarBg=avatarColourOn?avatarColour:"#0F6E56";
+  const previewAvatarBg=avatarColourOn?`hsl(${avatarHue},65%,38%)`:"#0F6E56";
   const previewAvatarText=getContrastText(previewAvatarBg);
 
   return(
@@ -360,31 +359,19 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* Avatar colour */}
-          <div className="space-y-3">
-            <p className="text-sm font-semibold text-white">Avatar colour</p>
-            <div className="flex items-center gap-4">
-              {/* Colour wheel trigger */}
-              <div className="relative">
-                <input ref={avatarInputRef} type="color" value={avatarColour}
-                  onChange={e=>void handleAvatarColourChange(e.target.value)}
-                  onBlur={()=>void handleAvatarColourSave()}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  style={{WebkitAppearance:"none"}}/>
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl text-base font-bold cursor-pointer border-2 border-white/20 transition-all"
-                  style={{background:previewAvatarBg,color:previewAvatarText}}>
-                  ML
-                </div>
-              </div>
-              <div className="flex-1">
-                <p className="text-sm text-white/70">Tap the avatar to open the colour wheel</p>
-                <p className="text-xs text-white/35 mt-0.5">Applies to your swimmer&apos;s initials badge</p>
-                <div className="flex items-center gap-2 mt-2">
-                  <div className="h-4 w-4 rounded-full border border-white/20" style={{background:previewAvatarBg}}/>
-                  <span className="text-[10px] font-mono text-white/40">{previewAvatarBg.toUpperCase()}</span>
-                </div>
-              </div>
+          {/* Avatar colour slider */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-white">Avatar colour</p>
+              <div className="h-5 w-5 rounded-full border border-white/25 transition-colors"
+                style={{background:previewAvatarBg}}/>
             </div>
+            <input type="range" min="0" max="360" step="1" value={avatarHue}
+              onChange={e=>handleAvatarHueDrag(Number(e.target.value))}
+              onMouseUp={()=>void handleAvatarHueRelease()} onTouchEnd={()=>void handleAvatarHueRelease()}
+              className="w-full h-3 rounded-full outline-none cursor-pointer"
+              style={{background:AVATAR_GRADIENT,WebkitAppearance:"none",appearance:"none"}}/>
+            <p className="text-[10px] text-white/30">Drag to change your swimmer&apos;s avatar colour</p>
           </div>
 
           {/* Status + reset */}
