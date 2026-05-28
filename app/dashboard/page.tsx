@@ -603,12 +603,16 @@ function SwimmerCard({ stat, index }: { stat: SwimmerStat; index: number }) {
   const colors = avatarColor(index);
   const strokeColor = latestEvent ? getStrokeColor(latestEvent) : "#FDE68A";
 
+  // Use custom avatar colour CSS variable for primary swimmer (index 0)
+  const avatarBg   = index === 0 ? "var(--natrix-avatar-colour, " + colors.bg + ")" : colors.bg;
+  const avatarText = index === 0 ? "var(--natrix-avatar-text, " + colors.text + ")" : colors.text;
+
   return (
     <Link href={`/swimmers/${swimmer.id}`}
       className="flex items-center gap-4 rounded-3xl p-4 transition"
       style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}>
       <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl text-base font-bold"
-        style={{ background: colors.bg, color: colors.text }}>
+        style={{ background: avatarBg, color: avatarText }}>
         {getInitials(swimmer.name)}
       </div>
       <div className="flex-1 min-w-0">

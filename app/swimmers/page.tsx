@@ -46,12 +46,26 @@ function groupColor(groupName: string) {
 }
 function raceAgeFromBirthYear(birthYear: number): number { return new Date().getFullYear() - birthYear; }
 
+// ─── Skeleton loader ──────────────────────────────────────────────────────────
+
+function SkeletonCard() {
+  return (
+    <div className="flex items-center gap-4 rounded-3xl border border-white/10 bg-white/5 p-4 animate-pulse">
+      <div className="h-12 w-12 flex-shrink-0 rounded-2xl bg-white/10" />
+      <div className="flex-1 space-y-2">
+        <div className="h-4 w-2/3 rounded-full bg-white/10" />
+        <div className="h-3 w-1/2 rounded-full bg-white/5" />
+      </div>
+    </div>
+  );
+}
+
 export default function SwimmersPage() {
   const router = useRouter();
 
   const [authChecked, setAuthChecked] = useState(false);
   const [status, setStatus]           = useState("");
-  const [loading, setLoading]         = useState(false);
+  const [loading, setLoading]         = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [swimmers, setSwimmers]       = useState<Swimmer[]>([]);
 
@@ -80,17 +94,31 @@ export default function SwimmersPage() {
 
   useEffect(() => {
     let mounted = true;
+
     async function initPage() {
-      let session = (await supabase.auth.getSession()).data.session;
-      if (!session) {
-        await new Promise(r => setTimeout(r, 800));
-        session = (await supabase.auth.getSession()).data.session;
-      }
+      // ── Fire session check and swimmers query in parallel ──────────────────
+      // The Supabase client uses its locally cached token for the data request,
+      // so both can fly at the same time — no artificial delay needed.
+      const sessionPromise = supabase.auth.getSession();
+      const dataPromise = supabase
+        .from("swimmers")
+        .select("id, name, age, birth_month, country, swim_club, school, gender, squad, group_type, created_at, user_id")
+        .order("name", { ascending: true });
+
+      const { data: { session } } = await sessionPromise;
       if (!mounted) return;
       if (!session) { router.replace("/login"); return; }
+
       setAuthChecked(true);
-      await fetchSwimmers();
+
+      // Data query was already in-flight, just await the result
+      const { data, error } = await dataPromise;
+      if (!mounted) return;
+      if (error) setStatus(`Error: ${error.message}`);
+      else setSwimmers((data as Swimmer[]) || []);
+      setLoading(false);
     }
+
     void initPage();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
@@ -188,11 +216,25 @@ export default function SwimmersPage() {
       });
   }, [followingSwimmers, groupBy]);
 
-  if (!authChecked) {
+  // Show skeleton while auth/data loads
+  if (!authChecked || loading) {
     return (
       <div className="shell">
-        <div className="container-app">
-          <p className="muted">Loading...</p>
+        <div className="container-app space-y-5">
+          <div className="flex items-center justify-between pt-2">
+            <div>
+              <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">Swimmers</p>
+              <h1 className="mt-1 text-3xl font-bold tracking-tight text-white">Brood</h1>
+            </div>
+            <div className="h-10 w-10 rounded-2xl border border-white/10 bg-white/5" />
+          </div>
+          <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">My swimmers</p>
+          <SkeletonCard />
+          <SkeletonCard />
+          <p className="text-[10px] font-medium uppercase tracking-widest text-white/30 mt-4">Following</p>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
         </div>
       </div>
     );
@@ -284,7 +326,10 @@ export default function SwimmersPage() {
                   <Link key={swimmer.id} href={`/swimmers/${swimmer.id}`}
                     className="flex items-center gap-4 rounded-3xl border border-white/10 bg-white/5 p-4 transition hover:bg-white/10">
                     <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl text-sm font-bold"
-                      style={{ background: colors.bg, color: colors.text }}>
+                      style={{
+                        background: index === 0 ? `var(--natrix-avatar-colour, ${colors.bg})` : colors.bg,
+                        color: index === 0 ? `var(--natrix-avatar-text, ${colors.text})` : colors.text,
+                      }}>
                       {getInitials(swimmer.name)}
                     </div>
                     <div className="min-w-0 flex-1">
