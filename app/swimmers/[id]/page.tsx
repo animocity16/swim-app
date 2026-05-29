@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import SwimTimesSection from "./SwimTimesSection";
+import ProgressTab from "./ProgressTab";
 
 type Swimmer = {
-  id: number | string;
+  id: number;
   name: string;
   age: number;
   birth_month?: number | null;
@@ -20,14 +22,7 @@ type Swimmer = {
   user_id?: string | null;
 };
 
-const MONTHS = [
-  { value: 1, label: "January" }, { value: 2, label: "February" },
-  { value: 3, label: "March" }, { value: 4, label: "April" },
-  { value: 5, label: "May" }, { value: 6, label: "June" },
-  { value: 7, label: "July" }, { value: 8, label: "August" },
-  { value: 9, label: "September" }, { value: 10, label: "October" },
-  { value: 11, label: "November" }, { value: 12, label: "December" },
-];
+type Tab = "times" | "progress" | "standards";
 
 const AVATAR_COLORS = [
   { bg: "#0F6E56", text: "#9FE1CB" },
@@ -37,409 +32,330 @@ const AVATAR_COLORS = [
   { bg: "#3C3489", text: "#CECBF6" },
 ];
 
-function avatarColor(index: number) { return AVATAR_COLORS[index % AVATAR_COLORS.length]; }
-function getInitials(name: string) { return name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase(); }
-function groupColor(groupName: string) {
-  let hash = 0;
-  for (let i = 0; i < groupName.length; i++) hash = groupName.charCodeAt(i) + ((hash << 5) - hash);
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
-}
-function raceAgeFromBirthYear(birthYear: number): number { return new Date().getFullYear() - birthYear; }
-
-// ─── Skeleton loader ──────────────────────────────────────────────────────────
-
-function SkeletonCard() {
-  return (
-    <div className="flex items-center gap-4 rounded-3xl border border-white/10 bg-white/5 p-4 animate-pulse">
-      <div className="h-12 w-12 flex-shrink-0 rounded-2xl bg-white/10" />
-      <div className="flex-1 space-y-2">
-        <div className="h-4 w-2/3 rounded-full bg-white/10" />
-        <div className="h-3 w-1/2 rounded-full bg-white/5" />
-      </div>
-    </div>
-  );
+function getInitials(name: string) {
+  return name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 }
 
-export default function SwimmersPage() {
+function avatarColor(id: number) {
+  return AVATAR_COLORS[id % AVATAR_COLORS.length];
+}
+
+export default function SwimmerProfilePage() {
+  const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const [authChecked, setAuthChecked] = useState(false);
-  const [status, setStatus]           = useState("");
-  const [loading, setLoading]         = useState(true);
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [swimmers, setSwimmers]       = useState<Swimmer[]>([]);
+  const rawId = params?.id;
+  const swimmerId = typeof rawId === "string" ? Number(rawId) : Array.isArray(rawId) ? Number(rawId[0]) : null;
 
-  const [groupBy, setGroupBy]                 = useState<"club" | "school">("club");
-  const [expandedGroups, setExpandedGroups]   = useState<Record<string, boolean>>({});
+  const initialTab = (searchParams?.get("tab") as Tab) ?? "times";
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab);
 
-  // Add form state
-  const [name, setName]               = useState("");
-  const [birthYear, setBirthYear]     = useState("");
-  const [birthMonth, setBirthMonth]   = useState<number | "">("");
-  const [country, setCountry]         = useState("");
-  const [swimClub, setSwimClub]       = useState("");
-  const [school, setSchool]           = useState("");
-  const [gender, setGender]           = useState<"Male" | "Female" | "">("");
-  const [groupType, setGroupType]     = useState<"primary" | "following">("primary");
+  const [swimmer, setSwimmer] = useState<Swimmer | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
 
-  const currentYear = new Date().getFullYear();
-  const parsedBirthYear = Number(birthYear);
-  const previewRaceAge =
-    birthYear.length === 4 &&
-    !Number.isNaN(parsedBirthYear) &&
-    parsedBirthYear > 2000 &&
-    parsedBirthYear <= currentYear
-      ? raceAgeFromBirthYear(parsedBirthYear)
-      : null;
+  // Edit mode
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editAge, setEditAge] = useState("");
+  const [editClub, setEditClub] = useState("");
+  const [editSchool, setEditSchool] = useState("");
+  const [editGender, setEditGender] = useState("");
+  const [editSquad, setEditSquad] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState("");
 
   useEffect(() => {
-    let mounted = true;
+    void init();
+  }, [swimmerId]);
 
-    async function initPage() {
-      // ── Fire session check and swimmers query in parallel ──────────────────
-      // The Supabase client uses its locally cached token for the data request,
-      // so both can fly at the same time — no artificial delay needed.
-      const sessionPromise = supabase.auth.getSession();
-      const dataPromise = supabase
-        .from("swimmers")
-        .select("id, name, age, birth_month, country, swim_club, school, gender, squad, group_type, created_at, user_id")
-        .order("name", { ascending: true });
+  async function init() {
+    if (!swimmerId || isNaN(swimmerId)) { setNotFound(true); setLoading(false); return; }
 
-      const { data: { session } } = await sessionPromise;
-      if (!mounted) return;
-      if (!session) { router.replace("/login"); return; }
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { router.replace("/login"); return; }
 
-      setAuthChecked(true);
-
-      // Data query was already in-flight, just await the result
-      const { data, error } = await dataPromise;
-      if (!mounted) return;
-      if (error) setStatus(`Error: ${error.message}`);
-      else setSwimmers((data as Swimmer[]) || []);
-      setLoading(false);
-    }
-
-    void initPage();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_OUT") router.replace("/login");
-    });
-
-    return () => { mounted = false; subscription.unsubscribe(); };
-  }, [router]);
-
-  async function fetchSwimmers() {
-    setLoading(true);
     const { data, error } = await supabase
       .from("swimmers")
       .select("id, name, age, birth_month, country, swim_club, school, gender, squad, group_type, created_at, user_id")
-      .order("name", { ascending: true });
+      .eq("id", swimmerId)
+      .single();
 
-    if (error) { setStatus(`Error: ${error.message}`); }
-    else { setSwimmers((data as Swimmer[]) || []); }
+    if (error || !data) { setNotFound(true); setLoading(false); return; }
+
+    setSwimmer(data as Swimmer);
     setLoading(false);
   }
 
-  async function addSwimmer() {
-    const trimmedName = name.trim();
-    if (!trimmedName) { setStatus("Please enter swimmer name."); return; }
-    if (
-      !birthYear ||
-      birthYear.length !== 4 ||
-      Number.isNaN(parsedBirthYear) ||
-      parsedBirthYear < 2000 ||
-      parsedBirthYear > currentYear
-    ) {
-      setStatus("Please enter a valid 4-digit birth year e.g. 2013");
-      return;
+  function startEdit() {
+    if (!swimmer) return;
+    setEditName(swimmer.name ?? "");
+    setEditAge(String(swimmer.age ?? ""));
+    setEditClub(swimmer.swim_club ?? "");
+    setEditSchool(swimmer.school ?? "");
+    setEditGender(swimmer.gender ?? "");
+    setEditSquad(swimmer.squad ?? "");
+    setSaveMsg("");
+    setEditing(true);
+  }
+
+  async function saveEdit() {
+    if (!swimmer) return;
+    setSaving(true);
+    setSaveMsg("");
+    const { error } = await supabase.from("swimmers").update({
+      name: editName.trim() || swimmer.name,
+      age: editAge ? Number(editAge) : swimmer.age,
+      swim_club: editClub.trim() || null,
+      school: editSchool.trim() || null,
+      gender: editGender || null,
+      squad: editSquad.trim() || null,
+    }).eq("id", swimmer.id);
+
+    if (error) {
+      setSaveMsg(`Error: ${error.message}`);
+    } else {
+      setSwimmer((prev) => prev ? {
+        ...prev,
+        name: editName.trim() || prev.name,
+        age: editAge ? Number(editAge) : prev.age,
+        swim_club: editClub.trim() || null,
+        school: editSchool.trim() || null,
+        gender: editGender || null,
+        squad: editSquad.trim() || null,
+      } : prev);
+      setEditing(false);
     }
-
-    const age = raceAgeFromBirthYear(parsedBirthYear);
-    setLoading(true);
-    setStatus("Adding...");
-
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) { setStatus("You must be logged in."); setLoading(false); return; }
-
-    const { error } = await supabase.from("swimmers").insert([{
-      name: trimmedName,
-      age,
-      birth_month: birthMonth === "" ? null : birthMonth,
-      country: country.trim() || null,
-      swim_club: swimClub.trim() || null,
-      school: school.trim() || null,
-      gender: gender || null,
-      group_type: groupType,
-      user_id: user.id,
-    }]).select();
-
-    if (error) { setStatus(`Error: ${error.message}`); setLoading(false); return; }
-
-    setName(""); setBirthYear(""); setBirthMonth(""); setCountry("");
-    setSwimClub(""); setSchool(""); setGender(""); setGroupType("primary");
-    setShowAddForm(false);
-    setStatus("Swimmer added.");
-    await fetchSwimmers();
+    setSaving(false);
   }
 
-  async function deleteSwimmer(id: number | string, swimmerName: string) {
-    const confirmed = window.confirm(`Remove "${swimmerName}" from Following?`);
-    if (!confirmed) return;
-    setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setStatus("Not logged in."); setLoading(false); return; }
-    const { error } = await supabase.from("swimmers").delete().eq("id", id).eq("user_id", user.id);
-    if (error) { setStatus(`Error: ${error.message}`); }
-    else { setStatus("Removed."); }
-    await fetchSwimmers();
-  }
+  // ─── Loading ──────────────────────────────────────────────────────────────────
 
-  function toggleGroup(groupName: string) {
-    setExpandedGroups((prev) => ({ ...prev, [groupName]: !prev[groupName] }));
-  }
-
-  const primarySwimmers   = swimmers.filter((s) => s.group_type === "primary");
-  const followingSwimmers = swimmers.filter((s) => s.group_type === "following");
-
-  const followingGroups = useMemo(() => {
-    const map = new Map<string, Swimmer[]>();
-    for (const s of followingSwimmers) {
-      const key = (groupBy === "club" ? s.swim_club?.trim() : s.school?.trim()) || "Other";
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(s);
-    }
-    return Array.from(map.entries())
-      .sort(([a], [b]) => {
-        if (a === "Other") return 1;
-        if (b === "Other") return -1;
-        return a.localeCompare(b);
-      });
-  }, [followingSwimmers, groupBy]);
-
-  // Show skeleton while auth/data loads
-  if (!authChecked || loading) {
+  if (loading) {
     return (
       <div className="shell">
         <div className="container-app space-y-5">
-          <div className="flex items-center justify-between pt-2">
-            <div>
-              <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">Swimmers</p>
-              <h1 className="mt-1 text-3xl font-bold tracking-tight text-white">Brood</h1>
-            </div>
-            <div className="h-10 w-10 rounded-2xl border border-white/10 bg-white/5" />
+          <div className="flex items-center gap-3 pt-2">
+            <div className="h-8 w-8 rounded-xl bg-white/10 animate-pulse" />
+            <div className="h-5 w-32 rounded-full bg-white/10 animate-pulse" />
           </div>
-          <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">My swimmers</p>
-          <SkeletonCard />
-          <SkeletonCard />
-          <p className="text-[10px] font-medium uppercase tracking-widest text-white/30 mt-4">Following</p>
-          <SkeletonCard />
-          <SkeletonCard />
-          <SkeletonCard />
+          <div className="flex items-center gap-4 rounded-3xl border border-white/10 bg-white/5 p-5 animate-pulse">
+            <div className="h-16 w-16 rounded-2xl bg-white/10 flex-shrink-0" />
+            <div className="flex-1 space-y-2">
+              <div className="h-5 w-2/3 rounded-full bg-white/10" />
+              <div className="h-3 w-1/2 rounded-full bg-white/5" />
+            </div>
+          </div>
+          <div className="h-10 rounded-2xl bg-white/5 border border-white/10 animate-pulse" />
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-16 rounded-2xl bg-white/5 border border-white/10 animate-pulse" />
+            ))}
+          </div>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="shell">
-      <div className="container-app space-y-5">
-
-        {/* Header */}
-        <div className="flex items-center justify-between pt-2">
-          <div>
-            <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">Swimmers</p>
-            <h1 className="mt-1 text-3xl font-bold tracking-tight text-white">Brood</h1>
+  if (notFound || !swimmer) {
+    return (
+      <div className="shell">
+        <div className="container-app space-y-5">
+          <Link href="/swimmers" className="flex items-center gap-2 text-white/50 text-sm pt-2">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M10 3L5 8L10 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Brood
+          </Link>
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-8 text-center">
+            <p className="text-lg font-semibold text-white">Swimmer not found</p>
+            <p className="mt-1 text-sm text-white/40">This profile may have been removed.</p>
           </div>
-          <button type="button" onClick={() => setShowAddForm((prev) => !prev)}
-            className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-xl text-white transition hover:bg-white/10">
-            {showAddForm ? "×" : "+"}
-          </button>
         </div>
+      </div>
+    );
+  }
 
-        {/* Add swimmer form */}
-        {showAddForm && (
+  const colors = avatarColor(swimmer.id);
+  const isPrimary = swimmer.group_type === "primary";
+  const avatarBg   = isPrimary ? "var(--natrix-avatar-colour, " + colors.bg + ")" : colors.bg;
+  const avatarText = isPrimary ? "var(--natrix-avatar-text, " + colors.text + ")" : colors.text;
+
+  // ─── Edit mode view ───────────────────────────────────────────────────────────
+
+  if (editing) {
+    return (
+      <div className="shell">
+        <div className="container-app space-y-5">
+          <div className="flex items-center justify-between pt-2">
+            <button type="button" onClick={() => setEditing(false)}
+              className="flex items-center gap-2 text-white/50 text-sm">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M10 3L5 8L10 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Cancel
+            </button>
+            <p className="text-sm font-semibold text-white">Edit profile</p>
+            <button type="button" onClick={saveEdit} disabled={saving}
+              className="text-sm font-semibold disabled:opacity-40"
+              style={{ color: "#FDE68A" }}>
+              {saving ? "Saving…" : "Save"}
+            </button>
+          </div>
+
           <div className="rounded-3xl border border-white/10 bg-white/5 p-5 space-y-3">
-            <h2 className="text-lg font-semibold text-white">Add swimmer</h2>
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" className="input" />
-
             <div>
-              <input
-                value={birthYear}
-                onChange={(e) => setBirthYear(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                placeholder="Year of birth e.g. 2013"
-                inputMode="numeric"
-                className="input"
-              />
-              {previewRaceAge !== null && previewRaceAge > 0 && previewRaceAge < 30 && (
-                <p className="mt-1.5 text-xs font-medium px-1" style={{ color: "#FDE68A" }}>
-                  ✓ Race age this year: {previewRaceAge}
-                </p>
-              )}
-              {birthYear.length === 4 && (previewRaceAge === null || previewRaceAge <= 0 || previewRaceAge >= 30) && (
-                <p className="mt-1.5 text-xs text-red-300 px-1">Please enter a valid birth year</p>
-              )}
+              <p className="text-xs text-white/40 mb-1.5 px-1">Name</p>
+              <input value={editName} onChange={(e) => setEditName(e.target.value)}
+                placeholder="Full name" className="input" />
             </div>
-
+            <div>
+              <p className="text-xs text-white/40 mb-1.5 px-1">Age</p>
+              <input value={editAge} onChange={(e) => setEditAge(e.target.value.replace(/\D/g, ""))}
+                placeholder="Age" inputMode="numeric" className="input" />
+            </div>
             <div className="grid grid-cols-2 gap-2">
               {(["Male", "Female"] as const).map((g) => (
-                <button key={g} type="button" onClick={() => setGender(g)}
+                <button key={g} type="button" onClick={() => setEditGender(editGender === g ? "" : g)}
                   className="rounded-2xl border py-2.5 text-sm font-medium transition"
-                  style={gender === g
+                  style={editGender === g
                     ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
                     : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}>
                   {g === "Male" ? "♂ Male" : "♀ Female"}
                 </button>
               ))}
             </div>
-            {!gender && <p className="text-[10px] text-white/30 -mt-1">Gender is used for qualifying standards matching</p>}
-
-            <select value={birthMonth} onChange={(e) => setBirthMonth(e.target.value ? Number(e.target.value) : "")} className="input">
-              <option value="">Birth month (optional)</option>
-              {MONTHS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-            </select>
-            <input value={country} onChange={(e) => setCountry(e.target.value)} placeholder="Country (optional)" className="input" />
-            <input value={swimClub} onChange={(e) => setSwimClub(e.target.value)} placeholder="Swim club (optional)" className="input" />
-            <input value={school} onChange={(e) => setSchool(e.target.value)} placeholder="School (optional)" className="input" />
-            <select value={groupType} onChange={(e) => setGroupType(e.target.value as "primary" | "following")} className="input">
-              <option value="primary">My Swimmer</option>
-              <option value="following">Following</option>
-            </select>
-
-            {status ? <p className="text-sm text-white/50">{status}</p> : null}
-
-            <button type="button" onClick={addSwimmer} disabled={loading}
-              className="w-full rounded-2xl py-3 text-sm font-semibold text-white transition disabled:opacity-50"
-              style={{ background: "#D97706" }}>
-              {loading ? "Adding..." : "Add swimmer"}
-            </button>
-          </div>
-        )}
-
-        {/* My Swimmers */}
-        {primarySwimmers.length > 0 && (
-          <div>
-            <p className="mb-3 text-[10px] font-medium uppercase tracking-widest text-white/30">My swimmers</p>
-            <div className="space-y-3">
-              {primarySwimmers.map((swimmer, index) => {
-                const colors = avatarColor(index);
-                return (
-                  <Link key={swimmer.id} href={`/swimmers/${swimmer.id}`}
-                    className="flex items-center gap-4 rounded-3xl border border-white/10 bg-white/5 p-4 transition hover:bg-white/10">
-                    <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl text-sm font-bold"
-                      style={{ background: colors.bg, color: colors.text }}>
-                      {getInitials(swimmer.name)}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-base font-semibold text-white">{swimmer.name}</p>
-                      <p className="mt-0.5 text-sm text-white/40">
-                        Age {swimmer.age}
-                        {swimmer.gender ? ` · ${swimmer.gender}` : ""}
-                        {swimmer.swim_club ? ` · ${swimmer.swim_club}` : ""}
-                      </p>
-                      {swimmer.squad && (
-                        <span className="mt-1.5 inline-block rounded-full px-2.5 py-0.5 text-[10px] font-semibold"
-                          style={{ background: "rgba(217,119,6,0.15)", border: "1px solid rgba(253,230,138,0.25)", color: "#FDE68A" }}>
-                          {swimmer.squad} Squad
-                        </span>
-                      )}
-                    </div>
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="flex-shrink-0 text-white/20">
-                      <path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </Link>
-                );
-              })}
+            <div>
+              <p className="text-xs text-white/40 mb-1.5 px-1">Swim club</p>
+              <input value={editClub} onChange={(e) => setEditClub(e.target.value)}
+                placeholder="Swim club (optional)" className="input" />
             </div>
+            <div>
+              <p className="text-xs text-white/40 mb-1.5 px-1">School</p>
+              <input value={editSchool} onChange={(e) => setEditSchool(e.target.value)}
+                placeholder="School (optional)" className="input" />
+            </div>
+            <div>
+              <p className="text-xs text-white/40 mb-1.5 px-1">Squad</p>
+              <input value={editSquad} onChange={(e) => setEditSquad(e.target.value)}
+                placeholder="Squad (optional)" className="input" />
+            </div>
+            {saveMsg && <p className="text-sm text-red-300 px-1">{saveMsg}</p>}
           </div>
-        )}
 
-        {/* Empty state */}
-        {primarySwimmers.length === 0 && !showAddForm && (
-          <div className="rounded-3xl border border-white/10 bg-white/5 p-8 text-center">
-            <p className="text-base font-semibold text-white">No swimmers yet</p>
-            <p className="mt-1 text-sm text-white/40">Tap + to add your first swimmer.</p>
-          </div>
-        )}
+          <div className="h-4" />
+        </div>
+      </div>
+    );
+  }
 
-        {/* Following — grouped & collapsible */}
-        {followingSwimmers.length > 0 && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">
-                Following · {followingSwimmers.length}
+  // ─── Main profile view ────────────────────────────────────────────────────────
+
+  return (
+    <div className="shell">
+      <div className="container-app space-y-5">
+
+        {/* Back nav */}
+        <div className="flex items-center justify-between pt-2">
+          <Link href="/swimmers" className="flex items-center gap-2 text-white/50 text-sm">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M10 3L5 8L10 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Brood
+          </Link>
+          <button type="button" onClick={startEdit}
+            className="flex items-center gap-1.5 rounded-2xl border border-white/12 bg-white/5 px-3 py-1.5 text-xs font-medium text-white/60 transition hover:bg-white/10">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M8.5 1.5L10.5 3.5L4 10H2V8L8.5 1.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Edit
+          </button>
+        </div>
+
+        {/* Profile card */}
+        <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+          <div className="flex items-center gap-4">
+            <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-2xl text-lg font-bold"
+              style={{ background: avatarBg, color: avatarText }}>
+              {getInitials(swimmer.name)}
+            </div>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-xl font-bold text-white truncate">{swimmer.name}</h1>
+              <p className="mt-0.5 text-sm text-white/50">
+                Age {swimmer.age}
+                {swimmer.gender ? ` · ${swimmer.gender}` : ""}
+                {swimmer.swim_club ? ` · ${swimmer.swim_club}` : ""}
               </p>
-              <div className="flex rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.12)" }}>
-                <button type="button" onClick={() => setGroupBy("club")}
-                  className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider transition"
-                  style={groupBy === "club"
-                    ? { background: "rgba(217,119,6,0.2)", color: "#FDE68A" }
-                    : { background: "transparent", color: "rgba(255,255,255,0.35)" }}>
-                  Club
-                </button>
-                <button type="button" onClick={() => setGroupBy("school")}
-                  className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider transition"
-                  style={groupBy === "school"
-                    ? { background: "rgba(217,119,6,0.2)", color: "#FDE68A" }
-                    : { background: "transparent", color: "rgba(255,255,255,0.35)" }}>
-                  School
-                </button>
-              </div>
+              {swimmer.school && (
+                <p className="mt-0.5 text-xs text-white/35 truncate">{swimmer.school}</p>
+              )}
             </div>
+          </div>
 
-            {followingGroups.map(([groupName, groupSwimmers]) => {
-              const isOpen = expandedGroups[groupName] === true;
-              const colors = groupColor(groupName);
-              return (
-                <div key={groupName} className="rounded-3xl border border-white/10 bg-white/5 overflow-hidden">
-                  <button type="button" onClick={() => toggleGroup(groupName)}
-                    className="flex w-full items-center justify-between px-5 py-4 text-left transition hover:bg-white/5">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl text-[10px] font-bold"
-                        style={{ background: colors.bg, color: colors.text }}>
-                        {groupName.slice(0, 3).toUpperCase()}
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-white">{groupName}</p>
-                        <p className="text-xs text-white/40">{groupSwimmers.length} swimmer{groupSwimmers.length === 1 ? "" : "s"}</p>
-                      </div>
-                    </div>
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"
-                      className={`text-white/30 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}>
-                      <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </button>
+          {/* Badges row */}
+          <div className="flex flex-wrap gap-2 mt-4">
+            {isPrimary && (
+              <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold"
+                style={{ background: "rgba(217,119,6,0.15)", border: "1px solid rgba(253,230,138,0.25)", color: "#FDE68A" }}>
+                My Swimmer
+              </span>
+            )}
+            {swimmer.squad && (
+              <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold"
+                style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.6)" }}>
+                {swimmer.squad} Squad
+              </span>
+            )}
+            {swimmer.group_type === "following" && (
+              <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold"
+                style={{ background: "rgba(56,189,248,0.1)", border: "1px solid rgba(56,189,248,0.2)", color: "#7DD3FC" }}>
+                Following
+              </span>
+            )}
+          </div>
+        </div>
 
-                  {isOpen && (
-                    <div className="border-t border-white/8">
-                      {groupSwimmers.map((swimmer, index) => (
-                        <div key={swimmer.id} className="flex items-center gap-3 px-5 py-3 transition hover:bg-white/5"
-                          style={{ borderBottom: index < groupSwimmers.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
-                          <Link href={`/swimmers/${swimmer.id}`} className="flex flex-1 items-center gap-3 min-w-0">
-                            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-xs font-bold opacity-80"
-                              style={{ background: colors.bg, color: colors.text }}>
-                              {getInitials(swimmer.name)}
-                            </div>
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-medium text-white/80">{swimmer.name}</p>
-                              <p className="text-xs text-white/35">
-                                Age {swimmer.age}
-                                {swimmer.gender ? ` · ${swimmer.gender}` : ""}
-                                {groupBy === "club" && swimmer.school ? ` · ${swimmer.school}` : ""}
-                                {groupBy === "school" && swimmer.swim_club ? ` · ${swimmer.swim_club}` : ""}
-                              </p>
-                            </div>
-                          </Link>
-                          <button type="button" onClick={() => void deleteSwimmer(swimmer.id, swimmer.name)}
-                            className="flex-shrink-0 rounded-xl border border-red-500/20 bg-red-500/10 px-2.5 py-1 text-xs text-red-300 transition hover:bg-red-500/20">
-                            Remove
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+        {/* Tab bar */}
+        <div className="flex rounded-2xl overflow-hidden"
+          style={{ background: "rgba(0,20,50,0.3)", border: "1px solid rgba(255,255,255,0.1)" }}>
+          {(["times", "progress", "standards"] as Tab[]).map((tab) => {
+            const labels: Record<Tab, string> = { times: "Times", progress: "Progress", standards: "Standards" };
+            const active = activeTab === tab;
+            return (
+              <button key={tab} type="button" onClick={() => setActiveTab(tab)}
+                className="flex-1 py-3 text-xs font-semibold uppercase tracking-wider transition"
+                style={active
+                  ? { background: "rgba(217,119,6,0.2)", color: "#FDE68A", borderBottom: "2px solid #D97706" }
+                  : { color: "rgba(255,255,255,0.4)" }}>
+                {labels[tab]}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Tab content */}
+        {activeTab === "times" && (
+          <SwimTimesSection
+            swimmerId={swimmer.id}
+            swimmerAge={swimmer.age}
+            swimmerName={swimmer.name}
+          />
+        )}
+
+        {activeTab === "progress" && (
+          <ProgressTab swimmerId={swimmer.id} />
+        )}
+
+        {activeTab === "standards" && (
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-6 text-center">
+            <p className="text-sm text-white/50">
+              View standards in the{" "}
+              <Link href="/standards" className="font-semibold" style={{ color: "#FDE68A" }}>
+                Standards
+              </Link>{" "}
+              tab.
+            </p>
           </div>
         )}
 
