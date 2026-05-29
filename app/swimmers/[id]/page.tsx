@@ -344,7 +344,7 @@ export default function SwimmerProfilePage() {
         )}
 
         {activeTab === "progress" && (
-          <ProgressTab swimmerId={swimmer.id} />
+          <ProgressTab swimmerId={swimmer.id} swimmerName={swimmer.name} />
         )}
 
         {activeTab === "standards" && (
