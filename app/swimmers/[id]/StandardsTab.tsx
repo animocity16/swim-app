@@ -116,7 +116,7 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender }: P
       supabase
         .from("standard_sets")
         .select("id, name, type")
-        .eq("user_id", user.id)
+        .or(`user_id.eq.${user.id},user_id.is.null`)
         .order("created_at", { ascending: false }),
       supabase
         .from("swim_times")
