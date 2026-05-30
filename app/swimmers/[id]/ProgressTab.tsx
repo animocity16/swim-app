@@ -173,7 +173,6 @@ export default function ProgressTab({ swimmerId, swimmerName }: Props) {
       });
   }, [rows]);
 
-  // Best improvement across all events
   const bestImprovement = useMemo(() => {
     return allSeries.filter((s) => s.deltaMs > 0).sort((a, b) => b.deltaMs - a.deltaMs)[0] ?? null;
   }, [allSeries]);
@@ -238,13 +237,15 @@ export default function ProgressTab({ swimmerId, swimmerName }: Props) {
               const pct = Math.max(20, (1 - (s.pb - Math.min(...allSeries.map((x) => x.pb))) / (maxPB - Math.min(...allSeries.map((x) => x.pb)) + 1)) * 85 + 15);
               return (
                 <div key={s.key} className="flex items-center gap-3">
-                  <p className="text-xs text-white/60 flex-shrink-0 w-20 truncate">{s.shortLabel}</p>
+                  {/* text-sm matches rest of app (was text-xs) */}
+                  <p className="text-sm text-white/60 flex-shrink-0 w-20 truncate">{s.shortLabel}</p>
                   <div className="flex-1 h-4 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
                     <div className="h-full rounded-full flex items-center justify-end pr-2 transition-all"
                       style={{ width: `${pct}%`, background: `${s.color}60`, minWidth: 40 }}>
                     </div>
                   </div>
-                  <p className="text-xs font-bold text-white flex-shrink-0 w-16 text-right">{formatMs(s.pb)}</p>
+                  {/* text-sm font-bold matches rest of app (was text-xs font-bold) */}
+                  <p className="text-sm font-bold text-white flex-shrink-0 w-16 text-right">{formatMs(s.pb)}</p>
                 </div>
               );
             })}
