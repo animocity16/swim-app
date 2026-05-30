@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+import { canonicalEventName } from "@/lib/events";
 
 type StandardSet = {
   id: number;
@@ -31,6 +32,7 @@ type Props = {
   swimmerId: number;
   swimmerAge: number;
   swimmerGender: string | null | undefined;
+  swimmerSquad?: string | null;
 };
 
 function formatMs(ms: number): string {
@@ -93,7 +95,7 @@ function QualProgressRing({
   );
 }
 
-export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender }: Props) {
+export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swimmerSquad }: Props) {
   const [sets, setSets] = useState<StandardSet[]>([]);
   const [items, setItems] = useState<StandardItem[]>([]);
   const [pbMap, setPbMap] = useState<Map<string, number>>(new Map());
@@ -117,7 +119,9 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender }: P
         .from("standard_sets")
         .select("id, name, type")
         .or(`user_id.eq.${user.id},user_id.is.null`)
-        .order("created_at", { ascending: false }),
+        // Ascending so lowest level (oldest created) comes first — important for
+        // finding the "next" upgrading target correctly
+        .order("created_at", { ascending: true }),
       supabase
         .from("swim_times")
         .select("event, course, time_ms")
@@ -127,11 +131,12 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender }: P
     const loadedSets = (setsResult.data ?? []) as StandardSet[];
     setSets(loadedSets);
 
-    // Build PB map
+    // Build PB map — normalise event names on both sides so "100 Free" and
+    // "100 Freestyle" resolve to the same key via canonicalEventName
     const times = (timesResult.data ?? []) as SwimTime[];
     const map = new Map<string, number>();
     for (const t of times) {
-      const key = `${t.event}|${t.course}`;
+      const key = `${canonicalEventName(t.event)}|${t.course}`;
       const existing = map.get(key);
       if (!existing || t.time_ms < existing) map.set(key, t.time_ms);
     }
@@ -150,7 +155,7 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender }: P
     setLoading(false);
   }
 
-  // Filter items relevant to this swimmer (age + gender match)
+  // Items that match this swimmer's age + gender
   function relevantItems(setId: number): StandardItem[] {
     return items.filter((item) => {
       if (item.standard_set_id !== setId) return false;
@@ -164,6 +169,27 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender }: P
       if (item.max_age !== null && swimmerAge > item.max_age) return false;
       return true;
     });
+  }
+
+  // Compute qualified count for a set (using normalised keys)
+  function computeStats(setId: number) {
+    const relevant = relevantItems(setId);
+    const allItems = items.filter((i) => i.standard_set_id === setId);
+    const displayItems = relevant.length > 0 ? relevant : allItems;
+
+    let qualified = 0;
+    let attempted = 0;
+
+    for (const item of displayItems) {
+      // Normalise the standard item's event name to match the pbMap key
+      const pb = pbMap.get(`${canonicalEventName(item.event)}|${item.course}`);
+      if (pb !== undefined) {
+        attempted++;
+        if (pb <= item.qualifying_time_ms) qualified++;
+      }
+    }
+
+    return { displayItems, qualified, attempted, total: displayItems.length };
   }
 
   if (loading) {
@@ -202,25 +228,36 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender }: P
     );
   }
 
+  // ── Determine which sets to show ───────────────────────────────────────────
+  // UPGRADING: show only the first incomplete set (the swimmer's next target).
+  // This keeps the screen clean — no point showing levels already passed or
+  // levels far in the future.
+  // IMPORTANT_MEET: show all of them.
+  const upgradingSets = sets.filter((s) => s.type === "UPGRADING");
+  const meetSets = sets.filter((s) => s.type === "IMPORTANT_MEET");
+
+  // First UPGRADING set where qualified < total (i.e. not yet done)
+  const nextUpgradingSet = upgradingSets.find((set) => {
+    const { qualified, total } = computeStats(set.id);
+    return total === 0 || qualified < total;
+  });
+
+  const visibleSets: StandardSet[] = [
+    ...(nextUpgradingSet ? [nextUpgradingSet] : []),
+    ...meetSets,
+  ];
+
   return (
     <div className="space-y-3">
-      {sets.map((set) => {
-        const relevant = relevantItems(set.id);
-        const allItems = items.filter((i) => i.standard_set_id === set.id);
-        const displayItems = relevant.length > 0 ? relevant : allItems;
+      {/* Squad context hint */}
+      {swimmerSquad && nextUpgradingSet && (
+        <p className="text-[11px] text-white/30 px-1">
+          Next target for <span className="text-white/50 font-medium">{swimmerSquad} Squad</span>
+        </p>
+      )}
 
-        let qualified = 0;
-        let attempted = 0;
-
-        for (const item of displayItems) {
-          const pb = pbMap.get(`${item.event}|${item.course}`);
-          if (pb !== undefined) {
-            attempted++;
-            if (pb <= item.qualifying_time_ms) qualified++;
-          }
-        }
-
-        const total = displayItems.length;
+      {visibleSets.map((set) => {
+        const { displayItems, qualified, attempted, total } = computeStats(set.id);
         const isExpanded = expandedSet === set.id;
         const isComplete = qualified === total && total > 0;
 
@@ -292,7 +329,8 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender }: P
                   .slice()
                   .sort((a, b) => a.event.localeCompare(b.event))
                   .map((item, idx) => {
-                    const pb = pbMap.get(`${item.event}|${item.course}`);
+                    // Use normalised key for lookup — fixes the "100 Free" vs "100 Freestyle" mismatch
+                    const pb = pbMap.get(`${canonicalEventName(item.event)}|${item.course}`);
                     const hasQual = pb !== undefined && pb <= item.qualifying_time_ms;
                     const hasSwum = pb !== undefined;
                     const strokeColor = getStrokeColor(item.event);
@@ -411,19 +449,6 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender }: P
           </div>
         );
       })}
-
-      {/* Add standards CTA */}
-      <Link
-        href="/standards"
-        className="flex items-center justify-center gap-2 rounded-3xl py-3 text-xs font-semibold transition"
-        style={{
-          background: "rgba(255,255,255,0.03)",
-          border: "1px dashed rgba(255,255,255,0.12)",
-          color: "rgba(255,255,255,0.3)",
-        }}
-      >
-        + Manage standards
-      </Link>
     </div>
   );
 }

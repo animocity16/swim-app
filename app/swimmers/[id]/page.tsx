@@ -353,6 +353,7 @@ export default function SwimmerProfilePage() {
             swimmerId={swimmer.id}
             swimmerAge={swimmer.age}
             swimmerGender={swimmer.gender}
+            swimmerSquad={swimmer.squad}
           />
         )}
 
