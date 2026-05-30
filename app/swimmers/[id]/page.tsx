@@ -6,6 +6,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import SwimTimesSection from "./SwimTimesSection";
 import ProgressTab from "./ProgressTab";
+import StandardsTab from "./StandardsTab";
 
 type Swimmer = {
   id: number;
@@ -348,15 +349,11 @@ export default function SwimmerProfilePage() {
         )}
 
         {activeTab === "standards" && (
-          <div className="rounded-3xl border border-white/10 bg-white/5 p-6 text-center">
-            <p className="text-sm text-white/50">
-              View standards in the{" "}
-              <Link href="/standards" className="font-semibold" style={{ color: "#FDE68A" }}>
-                Standards
-              </Link>{" "}
-              tab.
-            </p>
-          </div>
+          <StandardsTab
+            swimmerId={swimmer.id}
+            swimmerAge={swimmer.age}
+            swimmerGender={swimmer.gender}
+          />
         )}
 
         <div className="h-4" />
