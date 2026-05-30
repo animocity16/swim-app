@@ -119,8 +119,7 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
         .from("standard_sets")
         .select("id, name, type")
         .or(`user_id.eq.${user.id},user_id.is.null`)
-        // Ascending so lowest level (oldest created) comes first — important for
-        // finding the "next" upgrading target correctly
+        // Ascending = lowest level first, so index order reflects squad progression
         .order("created_at", { ascending: true }),
       supabase
         .from("swim_times")
@@ -132,7 +131,7 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
     setSets(loadedSets);
 
     // Build PB map — normalise event names on both sides so "100 Free" and
-    // "100 Freestyle" resolve to the same key via canonicalEventName
+    // "100 Freestyle" resolve to the same canonical key
     const times = (timesResult.data ?? []) as SwimTime[];
     const map = new Map<string, number>();
     for (const t of times) {
@@ -171,7 +170,7 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
     });
   }
 
-  // Compute qualified count for a set (using normalised keys)
+  // Compute qualified/attempted/total for a set (using normalised event keys)
   function computeStats(setId: number) {
     const relevant = relevantItems(setId);
     const allItems = items.filter((i) => i.standard_set_id === setId);
@@ -181,7 +180,6 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
     let attempted = 0;
 
     for (const item of displayItems) {
-      // Normalise the standard item's event name to match the pbMap key
       const pb = pbMap.get(`${canonicalEventName(item.event)}|${item.course}`);
       if (pb !== undefined) {
         attempted++;
@@ -228,19 +226,40 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
     );
   }
 
-  // ── Determine which sets to show ───────────────────────────────────────────
-  // UPGRADING: show only the first incomplete set (the swimmer's next target).
-  // This keeps the screen clean — no point showing levels already passed or
-  // levels far in the future.
-  // IMPORTANT_MEET: show all of them.
+  // ── Determine which upgrading set to show ──────────────────────────────────
+  // Strategy: find the set whose name contains the swimmer's current squad,
+  // then show the NEXT one in the ordered list (= one level higher).
+  // e.g. squad="Advanced" → find "SSC — Into Advanced" → show "SSC — Into Elite B"
+  // Fallback: if no squad match, show first incomplete set.
   const upgradingSets = sets.filter((s) => s.type === "UPGRADING");
   const meetSets = sets.filter((s) => s.type === "IMPORTANT_MEET");
 
-  // First UPGRADING set where qualified < total (i.e. not yet done)
-  const nextUpgradingSet = upgradingSets.find((set) => {
-    const { qualified, total } = computeStats(set.id);
-    return total === 0 || qualified < total;
-  });
+  let nextUpgradingSet: StandardSet | undefined;
+
+  if (swimmerSquad) {
+    const squadLower = swimmerSquad.toLowerCase();
+    // Find the set whose name contains the swimmer's current squad label
+    const currentLevelIdx = upgradingSets.findIndex((s) =>
+      s.name.toLowerCase().includes(squadLower)
+    );
+    if (currentLevelIdx !== -1 && currentLevelIdx + 1 < upgradingSets.length) {
+      // One level up from where they currently are
+      nextUpgradingSet = upgradingSets[currentLevelIdx + 1];
+    } else if (currentLevelIdx === -1) {
+      // Squad name didn't match any set name — fall back to first incomplete
+      nextUpgradingSet = upgradingSets.find((set) => {
+        const { qualified, total } = computeStats(set.id);
+        return total === 0 || qualified < total;
+      });
+    }
+    // If currentLevelIdx is the last set, they're at the top — nothing to show
+  } else {
+    // No squad on record — show first incomplete upgrading set
+    nextUpgradingSet = upgradingSets.find((set) => {
+      const { qualified, total } = computeStats(set.id);
+      return total === 0 || qualified < total;
+    });
+  }
 
   const visibleSets: StandardSet[] = [
     ...(nextUpgradingSet ? [nextUpgradingSet] : []),
@@ -256,6 +275,16 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
         </p>
       )}
 
+      {!nextUpgradingSet && upgradingSets.length > 0 && (
+        <div
+          className="rounded-3xl p-4 text-center"
+          style={{ background: "rgba(110,231,183,0.05)", border: "1px solid rgba(110,231,183,0.15)" }}
+        >
+          <p className="text-sm font-semibold" style={{ color: "#6EE7B7" }}>🏆 Top of the ladder!</p>
+          <p className="text-xs text-white/40 mt-1">All upgrading standards completed.</p>
+        </div>
+      )}
+
       {visibleSets.map((set) => {
         const { displayItems, qualified, attempted, total } = computeStats(set.id);
         const isExpanded = expandedSet === set.id;
@@ -263,7 +292,6 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
 
         return (
           <div key={set.id}>
-            {/* Set header — tap to expand */}
             <button
               type="button"
               onClick={() => setExpandedSet(isExpanded ? null : set.id)}
@@ -319,7 +347,6 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
               </div>
             </button>
 
-            {/* Expanded event rows */}
             {isExpanded && displayItems.length > 0 && (
               <div
                 className="mt-1 rounded-3xl overflow-hidden"
@@ -329,13 +356,11 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
                   .slice()
                   .sort((a, b) => a.event.localeCompare(b.event))
                   .map((item, idx) => {
-                    // Use normalised key for lookup — fixes the "100 Free" vs "100 Freestyle" mismatch
                     const pb = pbMap.get(`${canonicalEventName(item.event)}|${item.course}`);
                     const hasQual = pb !== undefined && pb <= item.qualifying_time_ms;
                     const hasSwum = pb !== undefined;
                     const strokeColor = getStrokeColor(item.event);
-                    const gapMs =
-                      hasSwum && !hasQual ? pb! - item.qualifying_time_ms : null;
+                    const gapMs = hasSwum && !hasQual ? pb! - item.qualifying_time_ms : null;
 
                     return (
                       <div
@@ -345,7 +370,6 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
                           borderTop: idx === 0 ? "none" : "1px solid rgba(255,255,255,0.05)",
                         }}
                       >
-                        {/* Status dot */}
                         <div
                           className="flex-shrink-0 h-2 w-2 rounded-full"
                           style={{
@@ -356,51 +380,32 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
                               : "rgba(255,255,255,0.15)",
                           }}
                         />
-
-                        {/* Event name */}
                         <div className="flex-1 min-w-0">
-                          <p
-                            className="text-xs font-semibold truncate"
-                            style={{ color: strokeColor }}
-                          >
+                          <p className="text-xs font-semibold truncate" style={{ color: strokeColor }}>
                             {item.event}
                           </p>
                           <p className="text-[10px] text-white/30">{item.course}</p>
                         </div>
-
-                        {/* Standard time */}
                         <div className="text-right flex-shrink-0">
                           <p className="text-[10px] text-white/30 mb-0.5">Standard</p>
                           <p className="text-xs font-semibold text-white/60">
                             {formatMs(item.qualifying_time_ms)}
                           </p>
                         </div>
-
-                        {/* PB / gap */}
                         <div className="text-right flex-shrink-0 w-16">
                           {hasQual ? (
                             <>
-                              <p className="text-[10px] mb-0.5" style={{ color: "#6EE7B7" }}>
-                                ✓ PB
-                              </p>
-                              <p
-                                className="text-xs font-bold"
-                                style={{ color: "#6EE7B7" }}
-                              >
+                              <p className="text-[10px] mb-0.5" style={{ color: "#6EE7B7" }}>✓ PB</p>
+                              <p className="text-xs font-bold" style={{ color: "#6EE7B7" }}>
                                 {formatMs(pb!)}
                               </p>
                             </>
                           ) : hasSwum ? (
                             <>
                               <p className="text-[10px] text-white/30 mb-0.5">PB</p>
-                              <p className="text-xs font-semibold text-white">
-                                {formatMs(pb!)}
-                              </p>
+                              <p className="text-xs font-semibold text-white">{formatMs(pb!)}</p>
                               {gapMs !== null && (
-                                <p
-                                  className="text-[10px] mt-0.5"
-                                  style={{ color: "#D97706" }}
-                                >
+                                <p className="text-[10px] mt-0.5" style={{ color: "#D97706" }}>
                                   +{formatMs(gapMs)}
                                 </p>
                               )}
@@ -412,12 +417,7 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
                       </div>
                     );
                   })}
-
-                {/* Footer link */}
-                <div
-                  className="px-4 py-3"
-                  style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}
-                >
+                <div className="px-4 py-3" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
                   <Link
                     href={`/standards/${set.id}`}
                     className="text-[10px] font-semibold"
