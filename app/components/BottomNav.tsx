@@ -37,13 +37,13 @@ const NAV_ITEMS = [
     ),
   },
   {
-    href: "/compare",
-    label: "Compare",
-    tutorial: "compare",
+    href: "/meets",
+    label: "Meets",
+    tutorial: "meets",
     icon: (active: boolean) => (
       <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-        <path d="M7 5H3v12h4V5zM19 5h-4v12h4V5z" stroke={active ? "#FDE68A" : "rgba(255,255,255,0.5)"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M11 8v6M9 11l2-2 2 2" stroke={active ? "#FDE68A" : "rgba(255,255,255,0.5)"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M7 3h8l2 5-6 3-6-3 2-5z" stroke={active ? "#FDE68A" : "rgba(255,255,255,0.5)"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        <path d="M11 11v7M8 18h6" stroke={active ? "#FDE68A" : "rgba(255,255,255,0.5)"} strokeWidth="1.5" strokeLinecap="round" />
       </svg>
     ),
   },
