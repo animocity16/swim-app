@@ -19,9 +19,9 @@ type ResultRow = {
   is_pb: boolean;
 };
 
+// Group by event name only — course is shown as a tag per row
 type EventGroup = {
   event: string;
-  course: string;
   results: ResultRow[];
 };
 
@@ -70,14 +70,13 @@ function getDistance(event: string): number {
 
 // ─── Place badge ──────────────────────────────────────────────────────────────
 
-function PlaceBadge({ place, rank }: { place: number | null; rank: number }) {
-  const displayNum = place ?? rank;
+function PlaceBadge({ rank }: { rank: number }) {
   const PLACE_STYLES: Record<number, { bg: string; border: string; color: string }> = {
     1: { bg: "rgba(234,179,8,0.18)",   border: "rgba(253,230,138,0.4)",  color: "#FDE68A" },
     2: { bg: "rgba(148,163,184,0.15)", border: "rgba(148,163,184,0.35)", color: "#CBD5E1" },
     3: { bg: "rgba(180,100,50,0.18)",  border: "rgba(180,100,50,0.4)",   color: "#FDBA74" },
   };
-  const s = PLACE_STYLES[displayNum] ?? {
+  const s = PLACE_STYLES[rank] ?? {
     bg: "rgba(255,255,255,0.06)", border: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.38)",
   };
   return (
@@ -87,14 +86,153 @@ function PlaceBadge({ place, rank }: { place: number | null; rank: number }) {
       fontSize: "11px", fontWeight: 700,
       display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
     }}>
-      {displayNum}
+      {rank}
     </div>
   );
 }
 
-// ─── Delete sheet ─────────────────────────────────────────────────────────────
+// ─── Action sheet — delete or edit ────────────────────────────────────────────
 
-function DeleteRowSheet({
+function ActionSheet({
+  row,
+  onDelete,
+  onEdit,
+  onCancel,
+}: {
+  row: ResultRow;
+  onDelete: () => void;
+  onEdit: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <>
+      <div onClick={onCancel} style={{
+        position: "fixed", inset: 0, zIndex: 50,
+        background: "rgba(0,0,0,0.6)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
+      }} />
+      <div style={{
+        position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
+        width: "100%", maxWidth: "480px", zIndex: 51,
+        background: "rgba(6,25,45,0.98)",
+        border: "1px solid rgba(255,255,255,0.14)", borderBottom: "none",
+        borderRadius: "28px 28px 0 0", padding: "20px 20px 40px",
+      }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ width: "36px", height: "4px", borderRadius: "2px", background: "rgba(255,255,255,0.2)", margin: "0 auto 20px" }} />
+
+        <div style={{ textAlign: "center", marginBottom: "20px" }}>
+          <p style={{ fontSize: "15px", fontWeight: 700, color: "#fff" }}>{row.swimmer_name}</p>
+          <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.4)", marginTop: "4px" }}>
+            {row.event} · {formatMs(row.time_ms)} · {row.course}
+          </p>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          <button type="button" onClick={onEdit} style={{
+            width: "100%", padding: "15px", borderRadius: "16px",
+            border: "1px solid rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.06)",
+            color: "#fff", fontSize: "15px", fontWeight: 600, cursor: "pointer",
+          }}>
+            ✏️ Edit course
+          </button>
+          <button type="button" onClick={onDelete} style={{
+            width: "100%", padding: "15px", borderRadius: "16px", border: "none",
+            background: "#DC2626", color: "#fff", fontSize: "15px", fontWeight: 700, cursor: "pointer",
+          }}>
+            🗑️ Delete result
+          </button>
+          <button type="button" onClick={onCancel} style={{
+            width: "100%", padding: "15px", borderRadius: "16px",
+            border: "1px solid rgba(255,255,255,0.1)", background: "transparent",
+            color: "rgba(255,255,255,0.5)", fontSize: "15px", fontWeight: 500, cursor: "pointer",
+          }}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ─── Edit course sheet ────────────────────────────────────────────────────────
+
+function EditCourseSheet({
+  row,
+  onSave,
+  onCancel,
+  saving,
+}: {
+  row: ResultRow;
+  onSave: (course: string) => void;
+  onCancel: () => void;
+  saving: boolean;
+}) {
+  const [selected, setSelected] = useState<string>(row.course);
+  const courses = ["LCM", "SCM", "SCY"];
+
+  return (
+    <>
+      <div onClick={onCancel} style={{
+        position: "fixed", inset: 0, zIndex: 50,
+        background: "rgba(0,0,0,0.6)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
+      }} />
+      <div style={{
+        position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
+        width: "100%", maxWidth: "480px", zIndex: 51,
+        background: "rgba(6,25,45,0.98)",
+        border: "1px solid rgba(255,255,255,0.14)", borderBottom: "none",
+        borderRadius: "28px 28px 0 0", padding: "20px 20px 40px",
+      }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ width: "36px", height: "4px", borderRadius: "2px", background: "rgba(255,255,255,0.2)", margin: "0 auto 20px" }} />
+
+        <div style={{ textAlign: "center", marginBottom: "20px" }}>
+          <p style={{ fontSize: "17px", fontWeight: 700, color: "#fff", marginBottom: "6px" }}>Edit course</p>
+          <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.4)" }}>
+            {row.swimmer_name} · {row.event} · {formatMs(row.time_ms)}
+          </p>
+        </div>
+
+        <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
+          {courses.map((c) => (
+            <button key={c} type="button" onClick={() => setSelected(c)}
+              style={{
+                flex: 1, padding: "14px", borderRadius: "16px", fontSize: "15px", fontWeight: 700,
+                cursor: "pointer", transition: "all 0.15s",
+                background: selected === c ? "#D97706" : "rgba(255,255,255,0.06)",
+                border: selected === c ? "1px solid #D97706" : "1px solid rgba(255,255,255,0.12)",
+                color: selected === c ? "#fff" : "rgba(255,255,255,0.5)",
+              }}>
+              {c}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          <button type="button" onClick={() => onSave(selected)} disabled={saving || selected === row.course}
+            style={{
+              width: "100%", padding: "15px", borderRadius: "16px", border: "none",
+              background: saving || selected === row.course ? "rgba(217,119,6,0.3)" : "#D97706",
+              color: "#fff", fontSize: "15px", fontWeight: 700,
+              cursor: saving || selected === row.course ? "not-allowed" : "pointer",
+            }}>
+            {saving ? "Saving…" : `Save as ${selected}`}
+          </button>
+          <button type="button" onClick={onCancel} disabled={saving}
+            style={{
+              width: "100%", padding: "15px", borderRadius: "16px",
+              border: "1px solid rgba(255,255,255,0.1)", background: "transparent",
+              color: "rgba(255,255,255,0.5)", fontSize: "15px", fontWeight: 500, cursor: "pointer",
+            }}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ─── Delete confirm sheet ─────────────────────────────────────────────────────
+
+function DeleteSheet({
   row,
   onConfirm,
   onCancel,
@@ -118,9 +256,7 @@ function DeleteRowSheet({
         border: "1px solid rgba(255,255,255,0.14)", borderBottom: "none",
         borderRadius: "28px 28px 0 0", padding: "20px 20px 40px",
       }} onClick={(e) => e.stopPropagation()}>
-        {/* Handle */}
         <div style={{ width: "36px", height: "4px", borderRadius: "2px", background: "rgba(255,255,255,0.2)", margin: "0 auto 20px" }} />
-
         <div style={{ textAlign: "center", marginBottom: "16px" }}>
           <div style={{
             width: "52px", height: "52px", borderRadius: "16px",
@@ -129,17 +265,12 @@ function DeleteRowSheet({
             margin: "0 auto 12px", fontSize: "22px",
           }}>🗑️</div>
           <p style={{ fontSize: "17px", fontWeight: 700, color: "#fff", marginBottom: "6px" }}>Delete this result?</p>
-          <p style={{ fontSize: "14px", fontWeight: 600, color: "rgba(255,255,255,0.7)", marginBottom: "4px" }}>
-            {row.swimmer_name}
-          </p>
-          <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.4)" }}>
-            {row.event} · {formatMs(row.time_ms)}
-          </p>
+          <p style={{ fontSize: "14px", fontWeight: 600, color: "rgba(255,255,255,0.7)", marginBottom: "4px" }}>{row.swimmer_name}</p>
+          <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.4)" }}>{row.event} · {formatMs(row.time_ms)} · {row.course}</p>
           <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.3)", marginTop: "8px" }}>
-            This only removes the result from this meet. The swimmer profile is not affected.
+            Swimmer profile is not affected.
           </p>
         </div>
-
         <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "20px" }}>
           <button type="button" onClick={onConfirm} disabled={deleting} style={{
             width: "100%", padding: "15px", borderRadius: "16px", border: "none",
@@ -189,7 +320,7 @@ function ResultRowCard({
         userSelect: "none", WebkitUserSelect: "none", cursor: "default",
       }}
     >
-      <PlaceBadge place={r.place} rank={idx + 1} />
+      <PlaceBadge rank={idx + 1} />
 
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
@@ -204,9 +335,9 @@ function ResultRowCard({
             }}>PB</span>
           )}
         </div>
-        {r.swim_club && (
-          <p style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", marginTop: "1px" }}>{r.swim_club}</p>
-        )}
+        <p style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", marginTop: "1px" }}>
+          {[r.swim_club, r.course, r.place != null ? `Official #${r.place}` : null].filter(Boolean).join(" · ")}
+        </p>
       </div>
 
       <span style={{ fontSize: "14px", fontWeight: 700, color: "#FDE68A", fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>
@@ -227,8 +358,13 @@ export default function MeetDetailPage() {
   const [meetDate, setMeetDate] = useState<string | null>(null);
   const [course, setCourse] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [pendingDelete, setPendingDelete] = useState<ResultRow | null>(null);
+
+  // Sheet state — action → then either delete or edit
+  const [actionRow, setActionRow] = useState<ResultRow | null>(null);
+  const [editRow, setEditRow] = useState<ResultRow | null>(null);
+  const [deleteRow, setDeleteRow] = useState<ResultRow | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => { if (meetName) void load(); }, [meetName]);
 
@@ -292,10 +428,11 @@ export default function MeetDetailPage() {
       };
     });
 
+    // ── Group by event name ONLY — ignore course differences ──────────────────
     const groupMap = new Map<string, EventGroup>();
     for (const row of rows) {
-      const key = `${row.event}|${row.course}`;
-      if (!groupMap.has(key)) groupMap.set(key, { event: row.event, course: row.course, results: [] });
+      const key = row.event; // course intentionally excluded from key
+      if (!groupMap.has(key)) groupMap.set(key, { event: row.event, results: [] });
       groupMap.get(key)!.results.push(row);
     }
 
@@ -306,23 +443,21 @@ export default function MeetDetailPage() {
       return getDistance(a.event) - getDistance(b.event);
     });
 
+    // Sort results within each group by time asc
     for (const g of sortedGroups) g.results.sort((a, b) => a.time_ms - b.time_ms);
     setGroups(sortedGroups);
   }
 
-  async function handleDeleteRow() {
-    if (!pendingDelete) return;
+  // ── Delete ────────────────────────────────────────────────────────────────
+
+  async function handleDelete() {
+    if (!deleteRow) return;
     setDeleting(true);
-
-    // Also delete any splits linked to this swim_time
-    await supabase.from("swim_splits").delete().eq("swim_time_id", pendingDelete.id);
-    await supabase.from("swim_times").delete().eq("id", pendingDelete.id);
-
+    await supabase.from("swim_splits").delete().eq("swim_time_id", deleteRow.id);
+    await supabase.from("swim_times").delete().eq("id", deleteRow.id);
     setDeleting(false);
-
-    // Remove from local state instantly — no reload needed
-    const deletedId = pendingDelete.id;
-    setPendingDelete(null);
+    const deletedId = deleteRow.id;
+    setDeleteRow(null);
     setGroups((prev) =>
       prev
         .map((g) => ({ ...g, results: g.results.filter((r) => r.id !== deletedId) }))
@@ -330,7 +465,25 @@ export default function MeetDetailPage() {
     );
   }
 
-  // ── Loading ─────────────────────────────────────────────────────────────────
+  // ── Edit course ───────────────────────────────────────────────────────────
+
+  async function handleSaveCourse(newCourse: string) {
+    if (!editRow) return;
+    setSaving(true);
+    await supabase.from("swim_times").update({ course: newCourse }).eq("id", editRow.id);
+    await supabase.from("swim_splits").update({ course: newCourse }).eq("swim_time_id", editRow.id);
+    setSaving(false);
+    const updatedId = editRow.id;
+    setEditRow(null);
+    setGroups((prev) =>
+      prev.map((g) => ({
+        ...g,
+        results: g.results.map((r) => r.id === updatedId ? { ...r, course: newCourse } : r),
+      }))
+    );
+  }
+
+  // ── Loading ───────────────────────────────────────────────────────────────
 
   if (loading) {
     return (
@@ -351,7 +504,7 @@ export default function MeetDetailPage() {
     );
   }
 
-  // ── Render ──────────────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="shell">
@@ -383,7 +536,7 @@ export default function MeetDetailPage() {
           </div>
 
           <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.25)", marginTop: "10px" }}>
-            Hold any result to delete it.
+            Hold any result to edit or delete.
           </p>
         </div>
 
@@ -395,13 +548,13 @@ export default function MeetDetailPage() {
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
             {groups.map((group) => (
-              <div key={`${group.event}|${group.course}`}>
+              <div key={group.event}>
                 <p style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(255,255,255,0.35)", marginBottom: "8px", paddingLeft: "2px" }}>
                   {group.event}
                 </p>
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                   {group.results.map((r, idx) => (
-                    <ResultRowCard key={r.id} r={r} idx={idx} onLongPress={setPendingDelete} />
+                    <ResultRowCard key={r.id} r={r} idx={idx} onLongPress={setActionRow} />
                   ))}
                 </div>
               </div>
@@ -412,12 +565,32 @@ export default function MeetDetailPage() {
         <div className="h-4" />
       </div>
 
-      {/* Delete confirmation sheet */}
-      {pendingDelete && (
-        <DeleteRowSheet
-          row={pendingDelete}
-          onConfirm={handleDeleteRow}
-          onCancel={() => setPendingDelete(null)}
+      {/* Action sheet — first tap: edit or delete choice */}
+      {actionRow && !editRow && !deleteRow && (
+        <ActionSheet
+          row={actionRow}
+          onDelete={() => { setDeleteRow(actionRow); setActionRow(null); }}
+          onEdit={() => { setEditRow(actionRow); setActionRow(null); }}
+          onCancel={() => setActionRow(null)}
+        />
+      )}
+
+      {/* Edit course sheet */}
+      {editRow && (
+        <EditCourseSheet
+          row={editRow}
+          onSave={handleSaveCourse}
+          onCancel={() => setEditRow(null)}
+          saving={saving}
+        />
+      )}
+
+      {/* Delete confirm sheet */}
+      {deleteRow && (
+        <DeleteSheet
+          row={deleteRow}
+          onConfirm={handleDelete}
+          onCancel={() => setDeleteRow(null)}
           deleting={deleting}
         />
       )}
