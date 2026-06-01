@@ -504,7 +504,9 @@ function guessMeetName(lines: string[]): string | null {
   const meetLike = lines.find((line) => {
     if (UI_LABELS.test(line)) return false;
     if (/^[&<>|*#]+/.test(line.trim())) return false;
-    return /\b(meet|cup|championship|championships|trials|league|invitational|swim|awards|aquatics|swimfaster|series|juniors|nationals|classic|open)\b/i.test(line);
+    // Skip standalone all-caps UI labels like "MEET", "HOME", "EVENT"
+    if (/^[A-Z\s]+$/.test(line.trim()) && line.trim().length <= 20) return false;
+    return /\b(meet|cup|championship|championships|trials|league|invitational|swim|awards|aquatics|swimfaster|series|juniors|nationals|classic|open|snag|snsc|jic|pesta|sukan|emerging|talents|saq|nsg|ssa|ets|etc)\b/i.test(line);
   });
   return meetLike ?? null;
 }
