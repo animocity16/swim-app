@@ -634,8 +634,11 @@ export default function ScanPage() {
       const eventName = canonicalEventName(resolvedEvent);
       const courseName = canonicalCourse(meetCourse);
       if (!eventName) { errors.push(`${row.name}: no event`); continue; }
-      const { data: existing } = await supabase.from("swim_times").select("id")
-        .eq("swimmer_id", matched.id).eq("event", eventName).eq("course", courseName).eq("time_ms", row.timeMs).limit(1);
+      const dupQuery = supabase.from("swim_times").select("id")
+        .eq("swimmer_id", matched.id).eq("event", eventName).eq("course", courseName).eq("time_ms", row.timeMs);
+      const resolvedDupMeet = resolvedEventMeetName ?? row.meetName ?? null;
+      if (resolvedDupMeet) dupQuery.eq("meet_name", resolvedDupMeet);
+      const { data: existing } = await dupQuery.limit(1);
       if (existing && existing.length > 0) { errors.push(`${row.name}: already saved`); continue; }
       const { error } = await supabase.from("swim_times").insert({
         swimmer_id: matched.id, event: eventName, course: courseName, time_ms: row.timeMs,
