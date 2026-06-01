@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createWorker } from "tesseract.js";
 import { parseSwimOCRText, type ParsedSwimResult } from "@/lib/ocrMultiEventParser";
-
 import {
   parseEventResultsOCR,
   isEventResultsPage,
@@ -19,33 +18,32 @@ import { canonicalCourse, canonicalEventName } from "@/lib/events";
 import { supabase } from "@/lib/supabaseClient";
 import SpreadsheetImport from "./SpreadsheetImport";
 
+// ─── Saved events (replaces hardcoded presets) ────────────────────────────────
 
-// ─── Meet name presets ────────────────────────────────────────────────────────
-
+const SAVED_EVENTS_KEY = "natrix_saved_events";
 const CUSTOM_MEETS_KEY = "natrix_custom_meets";
 
-function getMeetPresets(): string[] {
-  const currentYear = new Date().getFullYear();
-  const snagNumber = 56 + (currentYear - 2026);
-  const jicNumber  = 39 + (currentYear - 2026);
-  const snscNumber = 21 + (currentYear - 2026);
-  const ordinal = (n: number) => {
-    const s = ["th", "st", "nd", "rd"];
-    const v = n % 100;
-    return n + (s[(v - 20) % 10] || s[v] || s[0]);
-  };
-  return [
-    "Swim Series 1",
-    "Swim Series 2",
-    `${ordinal(snagNumber)} SNAG ${currentYear}`,
-    `NSG ${currentYear}`,
-    `Pesta Sukan ${currentYear}`,
-    `ETC ${currentYear}`,
-    `${ordinal(jicNumber)} JIC ${currentYear}`,
-    `${ordinal(snscNumber)} SNSC ${currentYear}`,
-    "Club Time Trial",
-    "Time Trial",
-  ];
+function loadSavedEvents(): string[] {
+  try {
+    const raw = localStorage.getItem(SAVED_EVENTS_KEY);
+    return raw ? (JSON.parse(raw) as string[]) : [];
+  } catch { return []; }
+}
+
+function saveEventChip(name: string) {
+  try {
+    const existing = loadSavedEvents();
+    const trimmed = name.trim();
+    if (!trimmed || existing.includes(trimmed)) return;
+    localStorage.setItem(SAVED_EVENTS_KEY, JSON.stringify([trimmed, ...existing].slice(0, 15)));
+  } catch {}
+}
+
+function removeEventChip(name: string) {
+  try {
+    const updated = loadSavedEvents().filter((e) => e !== name);
+    localStorage.setItem(SAVED_EVENTS_KEY, JSON.stringify(updated));
+  } catch {}
 }
 
 function loadCustomMeets(): string[] {
@@ -70,6 +68,30 @@ function removeCustomMeet(name: string) {
     localStorage.setItem(CUSTOM_MEETS_KEY, JSON.stringify(updated));
   } catch {}
 }
+
+// ─── Temp meet — captured from single scan, used across multi-scans ───────────
+// Stores ONE meet name so all scans in a session use the exact same string.
+
+const TEMP_MEET_KEY = "natrix_temp_meet";
+
+function loadTempMeet(): string | null {
+  try { return localStorage.getItem(TEMP_MEET_KEY); } catch { return null; }
+}
+
+function saveTempMeet(name: string) {
+  try {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    localStorage.setItem(TEMP_MEET_KEY, trimmed);
+    // Also add to custom meets so it persists after session
+    saveCustomMeet(trimmed);
+  } catch {}
+}
+
+function clearTempMeet() {
+  try { localStorage.removeItem(TEMP_MEET_KEY); } catch {}
+}
+
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -210,7 +232,6 @@ function SourcePicker({ source, onChange }: { source: Source; onChange: (s: Sour
     { value: "screenshot", icon: "📷", label: "Screenshot", hint: "Meet Mobile" },
     { value: "spreadsheet", icon: "📊", label: "Spreadsheet", hint: "Bulk import" },
   ];
-
   return (
     <div
       className="grid grid-cols-2 gap-1.5 rounded-2xl p-1.5"
@@ -240,6 +261,68 @@ function SourcePicker({ source, onChange }: { source: Source; onChange: (s: Sour
   );
 }
 
+// ─── Event chips ──────────────────────────────────────────────────────────────
+
+function EventChips({
+  chips,
+  activeChip,
+  onSelect,
+  onDelete,
+}: {
+  chips: string[];
+  activeChip: string | null;
+  onSelect: (name: string) => void;
+  onDelete: (name: string) => void;
+}) {
+  if (chips.length === 0) return null;
+  return (
+    <div
+      className="rounded-2xl p-3 space-y-2"
+      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+    >
+      <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.35)" }}>
+        Saved events — tap to apply to next scan
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {chips.map((chip) => {
+          const active = activeChip === chip;
+          return (
+            <div
+              key={chip}
+              className="flex items-center overflow-hidden rounded-full"
+              style={active
+                ? { background: "#D97706", border: "1px solid #D97706" }
+                : { background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.13)" }}
+            >
+              <button
+                type="button"
+                onClick={() => onSelect(chip)}
+                className="px-3 py-1.5 text-xs font-semibold"
+                style={{ color: active ? "#fff" : "rgba(255,255,255,0.65)" }}
+              >
+                {chip}
+              </button>
+              <button
+                type="button"
+                onClick={() => onDelete(chip)}
+                className="pr-2.5 text-sm leading-none"
+                style={{ color: active ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.3)" }}
+              >
+                ×
+              </button>
+            </div>
+          );
+        })}
+      </div>
+      {activeChip && (
+        <p className="text-[10px]" style={{ color: "rgba(253,230,138,0.7)" }}>
+          ✓ &ldquo;{activeChip}&rdquo; will be applied to your next multi-scan
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ScanPage() {
@@ -249,8 +332,6 @@ export default function ScanPage() {
   const [loadingSwimmers, setLoadingSwimmers] = useState(true);
 
   const [source, setSource] = useState<Source>("screenshot");
-
-  // ── Meet course — persists across resets (set once per session/meet) ───────
   const [meetCourse, setMeetCourse] = useState<MeetCourse>("LCM");
 
   // ── File slots ────────────────────────────────────────────────────────────
@@ -267,6 +348,14 @@ export default function ScanPage() {
   const [rawText, setRawText] = useState("");
   const [scanMode, setScanMode] = useState<ScanMode>(null);
   const [showInfo, setShowInfo] = useState(false);
+
+  // ── Saved event chips ─────────────────────────────────────────────────────
+  const [savedEvents, setSavedEvents] = useState<string[]>([]);
+  const [tempMeet, setTempMeet] = useState<string | null>(null);
+  const [activeEventChip, setActiveEventChip] = useState<string | null>(null);
+
+  // ── Custom meets (user-typed only, no presets) ────────────────────────────
+  const [customMeets, setCustomMeets] = useState<string[]>([]);
 
   // ── Single mode ───────────────────────────────────────────────────────────
   const [parsedResult, setParsedResult] = useState<ParsedSwimResult | null>(null);
@@ -305,7 +394,6 @@ export default function ScanPage() {
   // ── Manual meet metadata ──────────────────────────────────────────────────
   const [manualMeetName, setManualMeetName] = useState("");
   const [manualMeetDate, setManualMeetDate] = useState("");
-  const [customMeets, setCustomMeets] = useState<string[]>([]);
   const [eventMeetName, setEventMeetName] = useState("");
   const [eventMeetDate, setEventMeetDate] = useState("");
 
@@ -313,7 +401,12 @@ export default function ScanPage() {
   const ref2 = useRef<HTMLInputElement | null>(null);
   const ref3 = useRef<HTMLInputElement | null>(null);
 
-  useEffect(() => { void loadSwimmers(); }, []);
+  useEffect(() => {
+    void loadSwimmers();
+    setSavedEvents(loadSavedEvents());
+    setCustomMeets(loadCustomMeets());
+    setTempMeet(loadTempMeet());
+  }, []);
 
   async function loadSwimmers() {
     let session = (await supabase.auth.getSession()).data.session;
@@ -334,6 +427,16 @@ export default function ScanPage() {
     const f = e.target.files?.[0] ?? null;
     setFile(f);
     setPreview(f ? URL.createObjectURL(f) : null);
+  }
+
+  function handleSelectEventChip(chip: string) {
+    setActiveEventChip((prev) => prev === chip ? null : chip);
+  }
+
+  function handleDeleteEventChip(chip: string) {
+    removeEventChip(chip);
+    setSavedEvents(loadSavedEvents());
+    if (activeEventChip === chip) setActiveEventChip(null);
   }
 
   // NOTE: meetCourse is intentionally NOT reset here — it persists for the whole session
@@ -358,6 +461,9 @@ export default function ScanPage() {
     if (ref1.current) ref1.current.value = "";
     if (ref2.current) ref2.current.value = "";
     if (ref3.current) ref3.current.value = "";
+    // Refresh chips in case any were saved during this scan session
+    setSavedEvents(loadSavedEvents());
+    setTempMeet(loadTempMeet());
   }
 
   // ── Save single result ────────────────────────────────────────────────────
@@ -383,6 +489,17 @@ export default function ScanPage() {
       meet_name: parsedResult.meetName ?? null, swam_at: parsedResult.swamAt ?? null, meet_type: meetType,
     }).select().single();
     if (error) { setMessage(`⚠️ ${error.message}`); } else {
+      // ── Auto-save event name as a chip ──
+      if (eventName) {
+        saveEventChip(eventName);
+        setSavedEvents(loadSavedEvents());
+      }
+      // ── Auto-save meet name as temp chip ──
+      if (parsedResult.meetName) {
+        saveTempMeet(parsedResult.meetName);
+        setTempMeet(parsedResult.meetName);
+        setCustomMeets(loadCustomMeets());
+      }
       const splits = parsedResult.splits;
       if (swimRow && splits && splits.length > 0) {
         const splitRows = splits
@@ -447,6 +564,17 @@ export default function ScanPage() {
     });
 
     if (error) { setMessage(`⚠️ ${error.message}`); } else {
+      // ── Auto-save event name as a chip ──
+      if (eventName) {
+        saveEventChip(eventName);
+        setSavedEvents(loadSavedEvents());
+      }
+      // ── Auto-save meet name as temp chip ──
+      if (parsedResult.meetName) {
+        saveTempMeet(parsedResult.meetName);
+        setTempMeet(parsedResult.meetName);
+        setCustomMeets(loadCustomMeets());
+      }
       setMessage(`✓ Created ${newSwimmer.name} and saved result`);
       setSavedSwimmer(newSwimmer as Swimmer);
       setShowPicker(false); setShowCreateForm(false);
@@ -474,6 +602,8 @@ export default function ScanPage() {
     for (const index of Array.from(selectedRows)) {
       const row = eventRows[index];
       if (!row) continue;
+      // Use active event chip override if set, else fall back to OCR-detected event
+      const resolvedEvent = activeEventChip ? activeEventChip : (row.event ?? "");
       const matched = fuzzyMatchSwimmer(row.name, swimmers);
       if (!matched) {
         const { data: { user } } = await supabase.auth.getUser();
@@ -491,18 +621,17 @@ export default function ScanPage() {
         }).select().single();
         if (createErr || !newSwimmer) { errors.push(`${row.name}: couldn't create profile`); continue; }
         await loadSwimmers();
-        const en2 = canonicalEventName(row.event ?? "");
-        // meetCourse always wins — parent sets this explicitly at top of scan session
+        const en2 = canonicalEventName(resolvedEvent);
         const cn2 = canonicalCourse(meetCourse);
         if (!en2) { errors.push(`${row.name}: no event`); continue; }
         await supabase.from("swim_times").insert({
           swimmer_id: newSwimmer.id, event: en2, course: cn2, time_ms: row.timeMs,
-          place: row.place ?? null, meet_name: resolvedEventMeetName ?? row.meetName ?? null, swam_at: (eventMeetDate.trim() || row.swamAt) ?? null, meet_type: meetType,
+          place: row.place ?? null, meet_name: resolvedEventMeetName ?? row.meetName ?? null,
+          swam_at: (eventMeetDate.trim() || row.swamAt) ?? null, meet_type: meetType,
         });
         saved.push(`${row.name} (added)`); continue;
       }
-      const eventName = canonicalEventName(row.event ?? "");
-      // meetCourse always wins — parent sets this explicitly at top of scan session
+      const eventName = canonicalEventName(resolvedEvent);
       const courseName = canonicalCourse(meetCourse);
       if (!eventName) { errors.push(`${row.name}: no event`); continue; }
       const { data: existing } = await supabase.from("swim_times").select("id")
@@ -510,7 +639,8 @@ export default function ScanPage() {
       if (existing && existing.length > 0) { errors.push(`${row.name}: already saved`); continue; }
       const { error } = await supabase.from("swim_times").insert({
         swimmer_id: matched.id, event: eventName, course: courseName, time_ms: row.timeMs,
-        place: row.place ?? null, meet_name: resolvedEventMeetName ?? row.meetName ?? null, swam_at: (eventMeetDate.trim() || row.swamAt) ?? null, meet_type: meetType,
+        place: row.place ?? null, meet_name: resolvedEventMeetName ?? row.meetName ?? null,
+        swam_at: (eventMeetDate.trim() || row.swamAt) ?? null, meet_type: meetType,
       });
       error ? errors.push(`${row.name}: ${error.message}`) : saved.push(row.name);
     }
@@ -543,7 +673,6 @@ export default function ScanPage() {
       const row = scheduleResults[index];
       if (!row) continue;
       const eventName = canonicalEventName(row.event);
-      // meetCourse always wins — parent sets this explicitly at top of scan session
       const courseName = canonicalCourse(meetCourse);
       if (!eventName) { errors.push(`${row.event}: unknown event`); continue; }
       const { data: existing } = await supabase.from("swim_times").select("id")
@@ -617,7 +746,6 @@ export default function ScanPage() {
     setNewSwimmerClub(""); setShowCreateForm(false);
 
     try {
-      // All three slots — filter out nulls
       const files = [file1, file2, file3].filter(Boolean) as File[];
       let combined = "";
       let currentFileIdx = 0;
@@ -645,16 +773,13 @@ export default function ScanPage() {
         setScanMode("swimmer_schedule");
         const parsed = parseSwimmerScheduleOCR(combined);
         const nonRelayResults = parsed.results.filter((r) => !r.isRelay);
-
-        // Apply meetCourse fallback to any UNKNOWN course values
         const correctedResults = nonRelayResults.map((r) => ({
           ...r,
           course: r.course && r.course !== "UNKNOWN" ? r.course : meetCourse,
         }));
-
         setScheduleResults(correctedResults);
-        setScheduleSwimmerName(parsed.swimmerName);
-        setScheduleMeetName(parsed.meetName);
+        setScheduleSwimmerName(parsed.swimmerName ?? null);
+        setScheduleMeetName(parsed.meetName ?? null);
         if (parsed.meetName) setManualMeetName(parsed.meetName);
         setSelectedScheduleRows(new Set(correctedResults.map((_, i) => i)));
 
@@ -668,29 +793,22 @@ export default function ScanPage() {
               setShowCreateForm(false);
             } else {
               setNewSwimmerName(cleanedName);
-              setNewSwimmerAge("");
-              setNewSwimmerClub("");
-              setShowSchedulePicker(true);
-              setShowCreateForm(false);
+              setNewSwimmerAge(""); setNewSwimmerClub("");
+              setShowSchedulePicker(true); setShowCreateForm(false);
             }
-          } else {
-            setShowSchedulePicker(true);
-          }
-        } else {
-          setShowSchedulePicker(true);
-        }
+          } else { setShowSchedulePicker(true); }
+        } else { setShowSchedulePicker(true); }
         setMessage(correctedResults.length === 0 ? "⚠️ No individual events detected." : "");
 
       } else if (isEventResultsPage(combined)) {
         setScanMode("event_results");
         const parsed = parseEventResultsOCR(combined);
-
-        // Apply meetCourse fallback to any UNKNOWN course values
         const correctedResults = parsed.results.map((r) => ({
           ...r,
+          // Apply active event chip override to event name if set
+          event: activeEventChip ? activeEventChip : r.event,
           course: r.course && r.course !== "UNKNOWN" ? r.course : meetCourse,
         }));
-
         setEventRows(correctedResults);
         const preSelected = new Set<number>();
         correctedResults.forEach((row, idx) => { if (fuzzyMatchSwimmer(row.name, swimmers)) preSelected.add(idx); });
@@ -699,7 +817,6 @@ export default function ScanPage() {
 
       } else {
         setScanMode("single");
-        // Pass meetCourse as defaultCourse so the parser uses it when it can't detect from the screenshot
         const results = parseSwimOCRText(combined, { swimmerName: "", defaultCourse: meetCourse });
         const first = results[0];
         if (!first) {
@@ -708,7 +825,6 @@ export default function ScanPage() {
           setParsedResult(first);
           setDetectedEvent(first.event);
           setEditedTime(first.timeStr ?? "");
-          // Use meetCourse when OCR couldn't detect course from screenshot
           const detectedCourse = first.course === "UNKNOWN" ? meetCourse : first.course as "LCM" | "SCM" | "SCY";
           setEditedCourse(detectedCourse);
           const ocrName = first.name ?? null;
@@ -716,19 +832,12 @@ export default function ScanPage() {
             const cleanedName = stripNamePrefix(ocrName);
             const matched = fuzzyMatchSwimmer(cleanedName, swimmers);
             if (matched) {
-              setAutoMatchedSwimmer(matched);
-              setShowPicker(false);
-              setShowCreateForm(false);
+              setAutoMatchedSwimmer(matched); setShowPicker(false); setShowCreateForm(false);
             } else {
-              setNewSwimmerName(cleanedName);
-              setNewSwimmerAge("");
-              setNewSwimmerClub("");
-              setShowPicker(true);
-              setShowCreateForm(false);
+              setNewSwimmerName(cleanedName); setNewSwimmerAge(""); setNewSwimmerClub("");
+              setShowPicker(true); setShowCreateForm(false);
             }
-          } else {
-            setShowPicker(true);
-          }
+          } else { setShowPicker(true); }
         }
       }
 
@@ -766,9 +875,6 @@ export default function ScanPage() {
         {/* Source picker */}
         <SourcePicker source={source} onChange={setSource} />
 
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/*   SCREENSHOT TAB                                                    */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
         {source === "screenshot" && (
           <>
             {/* Info panel */}
@@ -778,8 +884,8 @@ export default function ScanPage() {
                 <p className="font-medium text-white/70">Three scan modes — auto detected:</p>
                 <p>📋 <span className="text-white/70">Swim detail</span> — single result, review before saving</p>
                 <p>📊 <span className="text-white/70">Event results</span> — full rankings, tick who to save</p>
-                <p>🏊 <span className="text-white/70">Swimmer schedule</span> — all events for one swimmer, save whole meet at once</p>
-                <p className="pt-1 text-white/35 text-xs">Use Screens 2 &amp; 3 for longer schedules that need multiple screenshots.</p>
+                <p>🏊 <span className="text-white/70">Swimmer schedule</span> — all events for one swimmer</p>
+                <p className="pt-1 text-white/35 text-xs">Scan a single result first — the event name gets saved as a chip you can apply to multi-scans.</p>
               </div>
             )}
 
@@ -795,11 +901,34 @@ export default function ScanPage() {
               </div>
             )}
 
-            {/* IDLE — meet course toggle + 3 slots */}
+            {/* IDLE */}
             {step === "idle" && primarySwimmers.length > 0 && (
               <div className="space-y-4">
 
-                {/* ── Meet course toggle ──────────────────────────────────── */}
+                {/* ── Saved event chips ─────────────────────────────────── */}
+                <EventChips
+                  chips={savedEvents}
+                  activeChip={activeEventChip}
+                  onSelect={handleSelectEventChip}
+                  onDelete={handleDeleteEventChip}
+                />
+
+                {/* ── Active meet banner ─────────────────────────────── */}
+                {tempMeet && (
+                  <div className="flex items-center gap-3 rounded-2xl p-3"
+                    style={{ background: "rgba(217,119,6,0.12)", border: "1px solid rgba(253,230,138,0.25)" }}>
+                    <div style={{ fontSize: "16px" }}>📍</div>
+                    <div className="flex-1 min-w-0">
+                      <p style={{ fontSize: "10px", fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(253,230,138,0.6)" }}>Active meet</p>
+                      <p className="text-sm font-semibold text-white truncate">{tempMeet}</p>
+                      <p style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", marginTop: "1px" }}>From your last single scan — will auto-apply to multi-scans</p>
+                    </div>
+                    <button type="button" onClick={() => { clearTempMeet(); setTempMeet(null); }}
+                      className="text-lg leading-none flex-shrink-0" style={{ color: "rgba(255,255,255,0.3)" }}>×</button>
+                  </div>
+                )}
+
+                {/* ── Meet course toggle ──────────────────────────────── */}
                 <div className="rounded-2xl p-3"
                   style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
                   <div className="flex items-center justify-between">
@@ -826,7 +955,7 @@ export default function ScanPage() {
                   </div>
                 </div>
 
-                {/* ── 3 screenshot slots ──────────────────────────────────── */}
+                {/* ── 3 screenshot slots ─────────────────────────────── */}
                 <div className="grid grid-cols-3 gap-2">
                   <SlotButton label="Screen 1" hint="Required" preview={preview1} inputRef={ref1} required
                     onChange={(e) => handleFile(e, setFile1, setPreview1)} />
@@ -859,7 +988,7 @@ export default function ScanPage() {
             {step === "done" && (
               <div className="space-y-4">
 
-                {/* TEMP DEBUG — shows raw OCR text. Remove after fixing splits. */}
+                {/* Debug OCR box */}
                 {rawText && (
                   <div className="rounded-2xl p-3"
                     style={{ background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.15)" }}>
@@ -880,7 +1009,7 @@ export default function ScanPage() {
                   }>{message}</div>
                 )}
 
-                {/* ── SINGLE MODE ───────────────────────────────────────────────── */}
+                {/* ── SINGLE MODE ───────────────────────────────────────────── */}
                 {scanMode === "single" && parsedResult && !savedSwimmer && (
                   <div className="space-y-3">
                     <div className="rounded-2xl p-4 space-y-3"
@@ -959,26 +1088,22 @@ export default function ScanPage() {
                             </button>
                           </div>
                         )}
-                        {!newSwimmerName.trim() && (
-                          <>
-                            <p className="text-sm text-white/50">Save to an existing swimmer:</p>
-                            {primarySwimmers.map((swimmer, index) => {
-                              const colors = avatarColor(index);
-                              return (
-                                <button key={swimmer.id} type="button" onClick={() => void saveSingleDirectly(swimmer)}
-                                  disabled={isSaving}
-                                  className="flex w-full items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-3 text-left transition hover:bg-white/10 disabled:opacity-50">
-                                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-xs font-bold"
-                                    style={{ background: colors.bg, color: colors.text }}>{getInitials(swimmer.name)}</div>
-                                  <div>
-                                    <p className="text-sm font-semibold text-white">{swimmer.name}</p>
-                                    <p className="text-xs text-white/40">Age {swimmer.age}{swimmer.swim_club ? ` · ${swimmer.swim_club}` : ""}</p>
-                                  </div>
-                                </button>
-                              );
-                            })}
-                          </>
-                        )}
+                        <p className="text-sm text-white/50">Save to:</p>
+                        {primarySwimmers.map((swimmer, index) => {
+                          const colors = avatarColor(index);
+                          return (
+                            <button key={swimmer.id} type="button" onClick={() => void saveSingleDirectly(swimmer)}
+                              disabled={isSaving}
+                              className="flex w-full items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-3 text-left transition hover:bg-white/10 disabled:opacity-50">
+                              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-xs font-bold"
+                                style={{ background: colors.bg, color: colors.text }}>{getInitials(swimmer.name)}</div>
+                              <div>
+                                <p className="text-sm font-semibold text-white">{swimmer.name}</p>
+                                <p className="text-xs text-white/40">Age {swimmer.age}{swimmer.swim_club ? ` · ${swimmer.swim_club}` : ""}</p>
+                              </div>
+                            </button>
+                          );
+                        })}
                       </div>
                     )}
 
@@ -1028,10 +1153,11 @@ export default function ScanPage() {
                     <p className="text-base font-semibold text-white">{savedSwimmer.name}</p>
                     {detectedEvent && <p className="text-sm text-white/50">{detectedEvent}</p>}
                     {editedTime && <p className="text-2xl font-bold text-white">{editedTime}</p>}
+                    <p className="text-[10px] text-white/35 pt-1">Event name saved as chip — tap it on the scan page to apply to multi-scans.</p>
                   </div>
                 )}
 
-                {/* ── SWIMMER SCHEDULE MODE ─────────────────────────────────────── */}
+                {/* ── SWIMMER SCHEDULE MODE ─────────────────────────────────── */}
                 {scanMode === "swimmer_schedule" && scheduleResults.length > 0 && (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
@@ -1086,20 +1212,24 @@ export default function ScanPage() {
                       <p className="text-xs font-medium uppercase tracking-widest text-white/40">Meet details</p>
                       <div className="space-y-2">
                         <label className="text-xs text-white/40">Meet name</label>
+                        {tempMeet && (
+                          <button type="button" onClick={() => setManualMeetName(manualMeetName === tempMeet ? "" : tempMeet)}
+                            className="w-full flex items-center gap-2 rounded-xl px-3 py-2 text-left mb-2"
+                            style={manualMeetName === tempMeet
+                              ? { background: "#D97706", border: "1px solid #D97706" }
+                              : { background: "rgba(217,119,6,0.12)", border: "1px solid rgba(253,230,138,0.3)" }}>
+                            <span style={{ fontSize: "12px" }}>📍</span>
+                            <div className="flex-1 min-w-0">
+                              <p style={{ fontSize: "9px", fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: manualMeetName === tempMeet ? "rgba(255,255,255,0.7)" : "rgba(253,230,138,0.6)" }}>From last scan</p>
+                              <p className="text-xs font-semibold truncate" style={{ color: manualMeetName === tempMeet ? "#fff" : "#FDE68A" }}>{tempMeet}</p>
+                            </div>
+                            {manualMeetName === tempMeet && (
+                              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7l3 3 5-5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                            )}
+                          </button>
+                        )}
                         <div className="flex flex-wrap gap-1.5">
-                          {getMeetPresets().map((preset) => (
-                            <button
-                              key={preset}
-                              type="button"
-                              onClick={() => setManualMeetName(manualMeetName === preset ? "" : preset)}
-                              className="rounded-full px-3 py-1 text-xs font-medium transition-all"
-                              style={manualMeetName === preset
-                                ? { background: "#D97706", color: "#fff", border: "1px solid #D97706" }
-                                : { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.12)" }}>
-                              {preset}
-                            </button>
-                          ))}
-                          {customMeets.filter(m => !getMeetPresets().includes(m)).map((preset) => (
+                          {customMeets.filter(m => m !== tempMeet).map((preset) => (
                             <div key={preset} className="flex items-center rounded-full overflow-hidden"
                               style={manualMeetName === preset
                                 ? { background: "#D97706", border: "1px solid #D97706" }
@@ -1110,10 +1240,10 @@ export default function ScanPage() {
                                 {preset}
                               </button>
                               <button type="button" onClick={() => {
-                                  if (manualMeetName === preset) setManualMeetName("");
-                                  removeCustomMeet(preset);
-                                  setCustomMeets(loadCustomMeets());
-                                }}
+                                if (manualMeetName === preset) setManualMeetName("");
+                                removeCustomMeet(preset);
+                                setCustomMeets(loadCustomMeets());
+                              }}
                                 className="pr-2 text-xs leading-none"
                                 style={{ color: manualMeetName === preset ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.3)" }}>
                                 ×
@@ -1131,7 +1261,7 @@ export default function ScanPage() {
                               setCustomMeets(loadCustomMeets());
                             }
                           }}
-                          placeholder="Or type a meet name…"
+                          placeholder="Type a meet name…"
                           className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white placeholder-white/20 outline-none focus:border-amber-400/50" />
                       </div>
                       <div className="space-y-1">
@@ -1247,12 +1377,14 @@ export default function ScanPage() {
                   </div>
                 )}
 
-                {/* ── EVENT RESULTS MODE ────────────────────────────────────────── */}
+                {/* ── EVENT RESULTS MODE ────────────────────────────────────── */}
                 {scanMode === "event_results" && eventRows.length > 0 && (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-semibold text-white">{eventRows[0]?.event ?? "Event"} results</p>
+                        <p className="text-sm font-semibold text-white">
+                          {activeEventChip ?? eventRows[0]?.event ?? "Event"} results
+                        </p>
                         <p className="mt-0.5 text-xs text-white/40">{eventRows.length} swimmers · tick who to save</p>
                       </div>
                       <div className="flex gap-2">
@@ -1262,6 +1394,18 @@ export default function ScanPage() {
                           className="rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white active:bg-white/20">None</button>
                       </div>
                     </div>
+
+                    {/* Active event chip indicator */}
+                    {activeEventChip && (
+                      <div className="flex items-center gap-2 rounded-xl px-3 py-2"
+                        style={{ background: "rgba(217,119,6,0.12)", border: "1px solid rgba(253,230,138,0.2)" }}>
+                        <span style={{ fontSize: "11px", color: "#FDE68A" }}>🏷</span>
+                        <p style={{ fontSize: "11px", color: "#FDE68A", fontWeight: 600 }}>
+                          Using event: {activeEventChip}
+                        </p>
+                      </div>
+                    )}
+
                     {eventRows.map((row, index) => {
                       const isSelected = selectedRows.has(index);
                       const isSaved = savedNames.includes(row.name);
@@ -1297,6 +1441,7 @@ export default function ScanPage() {
                         </button>
                       );
                     })}
+
                     {selectedRows.size > 0 && (
                       <div className="space-y-3">
                         <div className="rounded-2xl p-4 space-y-4"
@@ -1304,20 +1449,24 @@ export default function ScanPage() {
                           <p className="text-xs font-medium uppercase tracking-widest text-white/40">Meet details</p>
                           <div className="space-y-2">
                             <label className="text-xs text-white/40">Meet name</label>
+                            {tempMeet && (
+                              <button type="button" onClick={() => setEventMeetName(eventMeetName === tempMeet ? "" : tempMeet)}
+                                className="w-full flex items-center gap-2 rounded-xl px-3 py-2 text-left mb-2"
+                                style={eventMeetName === tempMeet
+                                  ? { background: "#D97706", border: "1px solid #D97706" }
+                                  : { background: "rgba(217,119,6,0.12)", border: "1px solid rgba(253,230,138,0.3)" }}>
+                                <span style={{ fontSize: "12px" }}>📍</span>
+                                <div className="flex-1 min-w-0">
+                                  <p style={{ fontSize: "9px", fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: eventMeetName === tempMeet ? "rgba(255,255,255,0.7)" : "rgba(253,230,138,0.6)" }}>From last scan</p>
+                                  <p className="text-xs font-semibold truncate" style={{ color: eventMeetName === tempMeet ? "#fff" : "#FDE68A" }}>{tempMeet}</p>
+                                </div>
+                                {eventMeetName === tempMeet && (
+                                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7l3 3 5-5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                )}
+                              </button>
+                            )}
                             <div className="flex flex-wrap gap-1.5">
-                              {getMeetPresets().map((preset) => (
-                                <button
-                                  key={preset}
-                                  type="button"
-                                  onClick={() => setEventMeetName(eventMeetName === preset ? "" : preset)}
-                                  className="rounded-full px-3 py-1 text-xs font-medium transition-all"
-                                  style={eventMeetName === preset
-                                    ? { background: "#D97706", color: "#fff", border: "1px solid #D97706" }
-                                    : { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.12)" }}>
-                                  {preset}
-                                </button>
-                              ))}
-                              {customMeets.filter(m => !getMeetPresets().includes(m)).map((preset) => (
+                              {customMeets.filter(m => m !== tempMeet).map((preset) => (
                                 <div key={preset} className="flex items-center rounded-full overflow-hidden"
                                   style={eventMeetName === preset
                                     ? { background: "#D97706", border: "1px solid #D97706" }
@@ -1328,10 +1477,10 @@ export default function ScanPage() {
                                     {preset}
                                   </button>
                                   <button type="button" onClick={() => {
-                                      if (eventMeetName === preset) setEventMeetName("");
-                                      removeCustomMeet(preset);
-                                      setCustomMeets(loadCustomMeets());
-                                    }}
+                                    if (eventMeetName === preset) setEventMeetName("");
+                                    removeCustomMeet(preset);
+                                    setCustomMeets(loadCustomMeets());
+                                  }}
                                     className="pr-2 text-xs leading-none"
                                     style={{ color: eventMeetName === preset ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.3)" }}>
                                     ×
@@ -1349,7 +1498,7 @@ export default function ScanPage() {
                                   setCustomMeets(loadCustomMeets());
                                 }
                               }}
-                              placeholder="Or type a meet name…"
+                              placeholder="Type a meet name…"
                               className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white placeholder-white/20 outline-none focus:border-amber-400/50" />
                           </div>
                           <div className="space-y-1">
@@ -1381,9 +1530,6 @@ export default function ScanPage() {
           </>
         )}
 
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/*   SPREADSHEET TAB                                                   */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
         {source === "spreadsheet" && (
           <SpreadsheetImport />
         )}
