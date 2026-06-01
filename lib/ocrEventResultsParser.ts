@@ -48,6 +48,13 @@ function repairTime(raw: string): string | null {
   else if (/^\d{1}:\d{4}$/.test(s)) result = `${s[0]}:${s.slice(2, 4)}.${s.slice(4)}`;
   else if (/^\d{5}$/.test(s)) result = `${s[0]}:${s.slice(1, 3)}.${s.slice(3)}`;
   else if (/^\d{4}$/.test(s)) result = `${s.slice(0, 2)}.${s.slice(2)}`;
+  else if (/^\d{3}$/.test(s)) {
+    // 3-digit OCR misread: "341" from "34.10" or "34.11"
+    // If first two digits look like valid seconds (10-99), treat as SS.T0
+    const firstTwo = Number(s.slice(0, 2));
+    if (firstTwo >= 10 && firstTwo <= 99) result = `${s.slice(0, 2)}.${s.slice(2)}0`;
+    else result = `${s[0]}.${s.slice(1)}`;
+  }
   // Fix OCR misread seconds >= 60 (e.g. 1:65.02 → 1:55.02)
   if (result) {
     const m = result.match(/^(\d+):(\d{2})\.(\d{2})$/);
@@ -194,7 +201,13 @@ function extractPlaceFromLine(line: string): number | null {
 }
 
 function extractClubAge(line: string): { club: string | null; age: number | null } {
-  let rest = line
+  // Normalise OCR garbling in club|age separator before parsing
+  // "X|[10" → "X | 10",  "APSC [10" → "APSC | 10"
+  const preCleaned = line
+    .replace(/\|\s*\[/g, " | ")
+    .replace(/\[(\d)/g, "| $1")
+    .replace(/\|(\d)/g, "| $1");
+  let rest = preCleaned
     .replace(/^\(\d{1,3}\)\s*/, "")
     .replace(/^\d{1,3}[A-Za-z]?\s+/, "")
     .replace(/^\/\s*/, "")
@@ -205,7 +218,9 @@ function extractClubAge(line: string): { club: string | null; age: number | null
   if (ageMatch) {
     const age = parseInt(ageMatch[1], 10);
     const rawClub = rest.slice(0, ageMatch.index).replace(/[\[|,\s]+$/, "").trim();
-    const club = rawClub.replace(/[^A-Za-z\s\-]/g, "").trim() || null;
+    const clubClean = rawClub.replace(/[^A-Za-z\s\-]/g, "").trim();
+    // Single uppercase letter is a valid club code (e.g. "X" used in SAQ meets)
+    const club = clubClean.length >= 1 ? clubClean : null;
     return { club, age: isNaN(age) ? null : age };
   }
 
@@ -471,14 +486,20 @@ function parseNSGCardFormat(rawText: string): ParsedEventResults {
       if (/^(?:TIME|TIVE|TIM)$/i.test(l)) continue;
       if (/completed|finals|unofficial|heats|swimmers/i.test(l)) continue;
 
-      const timeMatch = l.match(/^(\d{1,2}:\d{2}\.\d{2}|\d{2}\.\d{2}|\d{4,5})$/);
+      const timeMatch = l.match(/^(\d{1,2}:\d{2}\.\d{2}|\d{2}\.\d{2}|\d{3,5})$/);
       if (timeMatch && !timeStr) {
         const repaired = repairTime(timeMatch[1]);
         if (repaired) { timeStr = repaired; timeMs = timeToMs(repaired); }
         continue;
       }
 
-      const clubAgeMatch = l.match(/^([A-Z]{2,6})\s*[|]\s*(\d{1,2})$/i);
+      // Pre-clean garbled separators before club/age matching
+      // "X|[10" → "X | 10", "APSC [10" → "APSC | 10"
+      const lClean = l
+        .replace(/\|\s*\[/g, " | ")
+        .replace(/\[(\d)/g, "| $1")
+        .replace(/\|(\d)/g, "| $1");
+      const clubAgeMatch = lClean.match(/^([A-Z]{1,6})\s*[|]\s*(\d{1,2})$/i);
       if (clubAgeMatch) {
         club = clubAgeMatch[1].trim().toUpperCase();
         age = parseInt(clubAgeMatch[2], 10);
