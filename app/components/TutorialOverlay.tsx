@@ -44,7 +44,7 @@ const STEPS: Step[] = [
   {
     id: "standards",
     title: "Chasse those standards! 🎯",
-    body: "Tap Standards to see exactly how many seconds away your swimmer is from qualifying for their next big meet.",
+    body: "Go to Standards and add your club's upgrading times — then I'll show you exactly how far your swimmer is from their next squad level!",
     targetAttr: "standards",
     route: "/standards",
   },
