@@ -43,7 +43,7 @@ const STEPS: Step[] = [
   },
   {
     id: "standards",
-    title: "Chasse those sstandards! 🎯",
+    title: "Chasse those standards! 🎯",
     body: "Tap Standards to see exactly how many seconds away your swimmer is from qualifying for their next big meet.",
     targetAttr: "standards",
     route: "/standards",
@@ -51,7 +51,7 @@ const STEPS: Step[] = [
   {
     id: "done",
     title: "Yesss! You're all set! 🎉",
-    body: "Start by scanning your child's first result. You can replay this guide anytime from Settings → Help. Let's go! 🐍",
+    body: "Start by scanning your child's first result. You can replay this guide anytime from Settings. Let's go!",
     targetAttr: null,
     route: "/swimmers",
   },
@@ -102,6 +102,13 @@ export default function TutorialOverlay() {
     return () => window.removeEventListener("natrix_replay_tutorial", handleReplay);
   }, []);
 
+  // cleanup frameRef on unmount
+  useEffect(() => {
+    return () => {
+      if (frameRef.current) cancelAnimationFrame(frameRef.current);
+    };
+  }, []);
+
   function dismiss() {
     setVisible(false);
     setTimeout(() => {
@@ -136,111 +143,133 @@ export default function TutorialOverlay() {
   const step = STEPS[stepIndex];
   const isLast = stepIndex === STEPS.length - 1;
 
+  // Brand colours — forced inline so app theme never overrides them
+  const ORANGE = "#D97706";
+  const ORANGE_DARK = "#92400E";
+  const BUBBLE_BG = "#FEF3C7";
+  const TEXT_DARK = "#1C1917";
+  const TEXT_MED = "#44403C";
+
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center pb-10 px-4"
-      style={{ background: "rgba(0,0,0,0.6)" }}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 9999,
+        display: "flex",
+        alignItems: "flex-end",
+        justifyContent: "center",
+        paddingBottom: 40,
+        paddingLeft: 16,
+        paddingRight: 16,
+        background: "rgba(0,0,0,0.65)",
+      }}
       onClick={dismiss}
     >
       <div
-        className={`w-full max-w-sm transition-all duration-200 ${
-          visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
-        }`}
+        style={{
+          width: "100%",
+          maxWidth: 400,
+          transition: "all 0.2s ease",
+          opacity: visible ? 1 : 0,
+          transform: visible ? "translateY(0)" : "translateY(40px)",
+        }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Snake */}
-        <div className="pl-5 mb-[-6px] relative z-10">
-          <span
-            className="text-5xl inline-block"
-            style={{ animation: "bounce 1s infinite" }}
-          >
-            🐍
-          </span>
-        </div>
-
         {/* Comic bubble */}
         <div
-          className="relative rounded-2xl p-5 shadow-2xl"
           style={{
-            background: "#FFF176",
-            border: "3px solid #111",
-            boxShadow: "5px 5px 0px #111",
+            position: "relative",
+            borderRadius: 20,
+            padding: 20,
+            background: BUBBLE_BG,
+            border: `3px solid ${ORANGE_DARK}`,
+            boxShadow: `5px 5px 0px ${ORANGE_DARK}`,
           }}
         >
-          {/* Bubble tail outer */}
-          <div
-            style={{
-              position: "absolute",
-              bottom: "100%",
-              left: "30px",
-              width: 0,
-              height: 0,
-              borderLeft: "11px solid transparent",
-              borderRight: "11px solid transparent",
-              borderBottom: "15px solid #111",
-            }}
-          />
-          {/* Bubble tail inner */}
-          <div
-            style={{
-              position: "absolute",
-              bottom: "calc(100% - 4px)",
-              left: "33px",
-              width: 0,
-              height: 0,
-              borderLeft: "8px solid transparent",
-              borderRight: "8px solid transparent",
-              borderBottom: "13px solid #FFF176",
-              zIndex: 1,
-            }}
-          />
-
-          {/* Step dots */}
-          <div className="flex items-center gap-1.5 mb-3">
-            {STEPS.map((_, i) => (
-              <div
-                key={i}
-                className="rounded-full transition-all duration-200"
-                style={{
-                  width: i === stepIndex ? 16 : 6,
-                  height: 6,
-                  background: i === stepIndex ? "#111" : "rgba(0,0,0,0.2)",
-                }}
-              />
-            ))}
+          {/* Snake inside bubble top-left */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+            <span style={{ fontSize: 44, lineHeight: 1 }}>🐍</span>
+            {/* Step dots */}
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              {STEPS.map((_, i) => (
+                <div
+                  key={i}
+                  style={{
+                    borderRadius: 99,
+                    transition: "all 0.2s",
+                    width: i === stepIndex ? 18 : 7,
+                    height: 7,
+                    background: i === stepIndex ? ORANGE : "rgba(0,0,0,0.2)",
+                  }}
+                />
+              ))}
+            </div>
           </div>
 
           {/* Text */}
-          <div className="space-y-2 mb-5">
+          <div style={{ marginBottom: 20 }}>
             <p
-              className="text-gray-900 font-black"
-              style={{ fontSize: "1.05rem", lineHeight: 1.3 }}
+              style={{
+                color: TEXT_DARK,
+                fontSize: "1.05rem",
+                fontWeight: 900,
+                lineHeight: 1.3,
+                marginBottom: 8,
+                fontFamily: "inherit",
+              }}
             >
               {step.title}
             </p>
             <p
-              className="text-gray-700 font-medium"
-              style={{ fontSize: "0.88rem", lineHeight: 1.45 }}
+              style={{
+                color: TEXT_MED,
+                fontSize: "0.9rem",
+                fontWeight: 500,
+                lineHeight: 1.5,
+                fontFamily: "inherit",
+              }}
             >
               {step.body}
             </p>
           </div>
 
           {/* Buttons */}
-          <div className="flex items-center gap-3">
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
             <button
               onClick={dismiss}
-              className="text-xs font-semibold text-gray-500 py-2 px-3 rounded-xl"
-              style={{ background: "rgba(0,0,0,0.08)" }}
+              style={{
+                fontSize: "0.8rem",
+                fontWeight: 600,
+                color: TEXT_MED,
+                padding: "10px 14px",
+                borderRadius: 12,
+                background: "rgba(0,0,0,0.08)",
+                border: "none",
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
             >
               Skip
             </button>
             <button
               onClick={next}
-              className="flex-1 py-2.5 rounded-xl font-bold text-sm text-white tracking-wide"
-              style={{ background: "#111", border: "2px solid #111" }}
+              style={{
+                flex: 1,
+                padding: "12px",
+                borderRadius: 14,
+                fontWeight: 800,
+                fontSize: "0.95rem",
+                color: "#fff",
+                background: ORANGE,
+                border: `2px solid ${ORANGE_DARK}`,
+                boxShadow: `3px 3px 0px ${ORANGE_DARK}`,
+                cursor: "pointer",
+                fontFamily: "inherit",
+                letterSpacing: "0.02em",
+              }}
             >
-              {isLast ? "Let's go! 🐍" : `Next →`}
+              {isLast ? "Let's go! 🐍" : "Next →"}
             </button>
           </div>
         </div>
