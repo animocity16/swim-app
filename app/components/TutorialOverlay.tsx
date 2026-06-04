@@ -16,53 +16,51 @@ type Step = {
 const STEPS: Step[] = [
   {
     id: "welcome",
-    title: "Welcome to Natrix! 🏊",
-    body: "The swim meet tracker built for parents. Let us show you around — takes less than a minute.",
+    title: "Sssup! I'm Natrix! 🐍",
+    body: "Your swim meet tracker — built by a swim parent, for swim parents. Let me show you around real quick!",
     targetAttr: null,
   },
   {
     id: "brood",
-    title: "Your swimmers are here",
-    body: "Tap 'Brood' to see your child's profile and their competitors. We've already loaded their age group!",
+    title: "Your ssswimmers live here!",
+    body: "Tap Brood to see your child's profile, their times, and where they rank in their age group.",
     targetAttr: "brood",
     route: "/swimmers",
   },
   {
     id: "scan",
-    title: "Scan your child's 50M Free result",
-    body: "Screenshot their 50M Free from Meet Mobile, tap Scan and upload it — Natrix reads the time and shows you exactly where they rank against the competition.",
+    title: "Ssscan a result! 📸",
+    body: "Screenshot Meet Mobile after a race, tap Scan and upload it — I'll read the time and save it automatically!",
     targetAttr: "scan",
     route: "/scan",
   },
   {
     id: "progress",
-    title: "Track every PB",
-    body: "Open your swimmer's profile and tap the Progress tab to see sparkline charts for every event.",
+    title: "Every PB, tracked! 🏅",
+    body: "Open your swimmer's profile and tap the Progress tab to see charts for every event and every stroke.",
     targetAttr: "brood",
     route: "/swimmers",
   },
   {
     id: "standards",
-    title: "Chase qualifying standards",
+    title: "Chasse those sstandards! 🎯",
     body: "Tap Standards to see exactly how many seconds away your swimmer is from qualifying for their next big meet.",
     targetAttr: "standards",
     route: "/standards",
   },
   {
     id: "done",
-    title: "You're all set! 🎉",
-    body: "Start by scanning your child's 50M Free result. You can replay this guide anytime from Settings → Help.",
+    title: "Yesss! You're all set! 🎉",
+    body: "Start by scanning your child's first result. You can replay this guide anytime from Settings → Help. Let's go! 🐍",
     targetAttr: null,
     route: "/swimmers",
   },
 ];
 
-type SpotlightRect = {
-  top: number;
-  left: number;
-  width: number;
-  height: number;
-};
+export function replayTutorial() {
+  localStorage.removeItem(TUTORIAL_KEY);
+  window.dispatchEvent(new Event("natrix_replay_tutorial"));
+}
 
 export default function TutorialOverlay() {
   const pathname = usePathname();
@@ -70,7 +68,7 @@ export default function TutorialOverlay() {
   const [active, setActive] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [mounted, setMounted] = useState(false);
-  const [spotlight, setSpotlight] = useState<SpotlightRect | null>(null);
+  const [visible, setVisible] = useState(false);
   const frameRef = useRef<number | null>(null);
 
   const hidden = [
@@ -87,7 +85,10 @@ export default function TutorialOverlay() {
     setMounted(true);
     const done = localStorage.getItem(TUTORIAL_KEY);
     if (!done && !hidden) {
-      setTimeout(() => setActive(true), 900);
+      setTimeout(() => {
+        setActive(true);
+        setTimeout(() => setVisible(true), 50);
+      }, 900);
     }
   }, [hidden]);
 
@@ -95,248 +96,155 @@ export default function TutorialOverlay() {
     function handleReplay() {
       setStepIndex(0);
       setActive(true);
+      setTimeout(() => setVisible(true), 50);
     }
     window.addEventListener("natrix_replay_tutorial", handleReplay);
     return () => window.removeEventListener("natrix_replay_tutorial", handleReplay);
   }, []);
 
-  useEffect(() => {
-    if (!active) return;
+  function dismiss() {
+    setVisible(false);
+    setTimeout(() => {
+      setActive(false);
+      localStorage.setItem(TUTORIAL_KEY, "true");
+    }, 200);
+  }
+
+  function next() {
     const step = STEPS[stepIndex];
-    if (!step.targetAttr) { setSpotlight(null); return; }
 
-    function measure() {
-      const el = document.querySelector(
-        `[data-tutorial="${step.targetAttr}"]`
-      ) as HTMLElement | null;
-
-      if (el) {
-        const rect = el.getBoundingClientRect();
-        setSpotlight({
-          top: rect.top - 6,
-          left: rect.left - 8,
-          width: rect.width + 16,
-          height: rect.height + 12,
-        });
-      } else {
-        frameRef.current = requestAnimationFrame(measure);
-      }
+    if (stepIndex === STEPS.length - 1) {
+      dismiss();
+      if (step.route) router.push(step.route);
+      return;
     }
 
-    const timer = setTimeout(measure, 150);
-    return () => {
-      clearTimeout(timer);
-      if (frameRef.current) cancelAnimationFrame(frameRef.current);
-    };
-  }, [active, stepIndex]);
+    const nextStep = STEPS[stepIndex + 1];
+    setVisible(false);
 
-  const step = STEPS[stepIndex];
-  const navIsTarget = active && step?.targetAttr !== null;
+    setTimeout(() => {
+      setStepIndex((i) => i + 1);
+      if (nextStep.route && pathname !== nextStep.route) {
+        router.push(nextStep.route);
+      }
+      setTimeout(() => setVisible(true), 100);
+    }, 200);
+  }
 
   if (!mounted || !active || hidden) return null;
 
-  const isFirst = stepIndex === 0;
+  const step = STEPS[stepIndex];
   const isLast = stepIndex === STEPS.length - 1;
-  const isCentre = step.targetAttr === null;
-
-  function next() {
-    if (isLast) { finish(); return; }
-    const nextStep = STEPS[stepIndex + 1];
-    if (nextStep.route) router.push(nextStep.route);
-    setStepIndex((i) => i + 1);
-  }
-
-  function prev() {
-    if (stepIndex === 0) return;
-    setStepIndex((i) => i - 1);
-  }
-
-  function finish() {
-    localStorage.setItem(TUTORIAL_KEY, "1");
-    setActive(false);
-    router.push("/swimmers");
-  }
-
-  function skip() {
-    localStorage.setItem(TUTORIAL_KEY, "1");
-    setActive(false);
-  }
-
-  const tooltipBottom = spotlight
-    ? window.innerHeight - spotlight.top + 18
-    : 0;
-
-  const tooltipLeft = spotlight
-    ? Math.min(
-        Math.max(spotlight.left + spotlight.width / 2, 170),
-        window.innerWidth - 170
-      )
-    : window.innerWidth / 2;
 
   return (
-    <>
-      {navIsTarget && (
-        <style>{`
-          nav.fixed { z-index: 10002 !important; }
-        `}</style>
-      )}
-
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center pb-10 px-4"
+      style={{ background: "rgba(0,0,0,0.6)" }}
+      onClick={dismiss}
+    >
       <div
-        onClick={skip}
-        style={{
-          position: "fixed",
-          inset: 0,
-          zIndex: 9998,
-          background: "rgba(0,8,20,0.85)",
-          backdropFilter: "blur(3px)",
-          WebkitBackdropFilter: "blur(3px)",
-        }}
-      />
-
-      {spotlight && (
-        <div
-          style={{
-            position: "fixed",
-            top: spotlight.top,
-            left: spotlight.left,
-            width: spotlight.width,
-            height: spotlight.height,
-            borderRadius: 18,
-            zIndex: 10003,
-            background: "transparent",
-            boxShadow: "0 0 0 9999px rgba(0,8,20,0.85)",
-            border: "2px solid rgba(253,230,138,0.8)",
-            pointerEvents: "none",
-            transition: "all 0.3s ease",
-          }}
-        />
-      )}
-
-      <div
-        style={{
-          position: "fixed",
-          zIndex: 10004,
-          ...(isCentre
-            ? {
-                top: "50%",
-                left: "50%",
-                transform: "translate(-50%, -50%)",
-                width: "min(340px, calc(100vw - 48px))",
-              }
-            : {
-                bottom: tooltipBottom,
-                left: tooltipLeft,
-                transform: "translateX(-50%)",
-                width: "min(300px, calc(100vw - 48px))",
-              }),
-        }}
+        className={`w-full max-w-sm transition-all duration-200 ${
+          visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
+        }`}
+        onClick={(e) => e.stopPropagation()}
       >
+        {/* Snake */}
+        <div className="pl-5 mb-[-6px] relative z-10">
+          <span
+            className="text-5xl inline-block"
+            style={{ animation: "bounce 1s infinite" }}
+          >
+            🐍
+          </span>
+        </div>
+
+        {/* Comic bubble */}
         <div
+          className="relative rounded-2xl p-5 shadow-2xl"
           style={{
-            background: "rgba(255,255,255,0.97)",
-            borderRadius: 22,
-            padding: "22px 24px",
-            boxShadow: "0 12px 48px rgba(0,20,60,0.6)",
-            position: "relative",
-            fontFamily: "-apple-system, 'SF Pro Display', sans-serif",
+            background: "#FFF176",
+            border: "3px solid #111",
+            boxShadow: "5px 5px 0px #111",
           }}
         >
-          <div style={{ display: "flex", gap: 5, marginBottom: 16 }}>
+          {/* Bubble tail outer */}
+          <div
+            style={{
+              position: "absolute",
+              bottom: "100%",
+              left: "30px",
+              width: 0,
+              height: 0,
+              borderLeft: "11px solid transparent",
+              borderRight: "11px solid transparent",
+              borderBottom: "15px solid #111",
+            }}
+          />
+          {/* Bubble tail inner */}
+          <div
+            style={{
+              position: "absolute",
+              bottom: "calc(100% - 4px)",
+              left: "33px",
+              width: 0,
+              height: 0,
+              borderLeft: "8px solid transparent",
+              borderRight: "8px solid transparent",
+              borderBottom: "13px solid #FFF176",
+              zIndex: 1,
+            }}
+          />
+
+          {/* Step dots */}
+          <div className="flex items-center gap-1.5 mb-3">
             {STEPS.map((_, i) => (
-              <div key={i} style={{
-                width: i === stepIndex ? 20 : 6,
-                height: 6,
-                borderRadius: 3,
-                background: i === stepIndex ? "#D97706" : "#E5E7EB",
-                transition: "all 0.25s ease",
-              }} />
+              <div
+                key={i}
+                className="rounded-full transition-all duration-200"
+                style={{
+                  width: i === stepIndex ? 16 : 6,
+                  height: 6,
+                  background: i === stepIndex ? "#111" : "rgba(0,0,0,0.2)",
+                }}
+              />
             ))}
           </div>
 
-          <p style={{ fontSize: 11, color: "#9CA3AF", margin: "0 0 6px", fontWeight: 500, letterSpacing: "0.06em", textTransform: "uppercase" }}>
-            Step {stepIndex + 1} of {STEPS.length}
-          </p>
-
-          <p style={{ fontSize: 18, fontWeight: 700, color: "#0A1628", margin: "0 0 10px", lineHeight: 1.3 }}>
-            {step.title}
-          </p>
-
-          <p style={{ fontSize: 14, color: "#4B5563", lineHeight: 1.65, margin: "0 0 22px" }}>
-            {step.body}
-          </p>
-
-          <div style={{ display: "flex", gap: 8 }}>
-            {!isFirst && (
-              <button onClick={prev} style={{
-                flex: 1, padding: "11px 16px", borderRadius: 14,
-                border: "1px solid #E5E7EB", background: "transparent",
-                color: "#6B7280", fontSize: 14, fontWeight: 500,
-                cursor: "pointer", fontFamily: "inherit",
-              }}>
-                ← Back
-              </button>
-            )}
-            <button onClick={next} style={{
-              flex: isFirst ? 1 : 2, padding: "11px 16px", borderRadius: 14,
-              border: "none", background: "linear-gradient(135deg, #F59E0B, #D97706)",
-              color: "#fff", fontSize: 14, fontWeight: 700,
-              cursor: "pointer", fontFamily: "inherit",
-              boxShadow: "0 4px 14px rgba(217,119,6,0.4)",
-            }}>
-              {isLast ? "Let's go! 🏊" : "Next →"}
-            </button>
+          {/* Text */}
+          <div className="space-y-2 mb-5">
+            <p
+              className="text-gray-900 font-black"
+              style={{ fontSize: "1.05rem", lineHeight: 1.3 }}
+            >
+              {step.title}
+            </p>
+            <p
+              className="text-gray-700 font-medium"
+              style={{ fontSize: "0.88rem", lineHeight: 1.45 }}
+            >
+              {step.body}
+            </p>
           </div>
 
-          {!isLast && (
-            <button onClick={skip} style={{
-              display: "block", width: "100%", marginTop: 14,
-              background: "none", border: "none",
-              color: "#9CA3AF", fontSize: 12,
-              cursor: "pointer", textAlign: "center", fontFamily: "inherit",
-            }}>
-              Skip tutorial
+          {/* Buttons */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={dismiss}
+              className="text-xs font-semibold text-gray-500 py-2 px-3 rounded-xl"
+              style={{ background: "rgba(0,0,0,0.08)" }}
+            >
+              Skip
             </button>
-          )}
-
-          {!isCentre && spotlight && (
-            <div style={{
-              position: "absolute", bottom: -20, left: "50%",
-              transform: "translateX(-50%)",
-              width: 0, height: 0,
-              borderLeft: "11px solid transparent",
-              borderRight: "11px solid transparent",
-              borderTop: "20px solid rgba(255,255,255,0.97)",
-            }} />
-          )}
+            <button
+              onClick={next}
+              className="flex-1 py-2.5 rounded-xl font-bold text-sm text-white tracking-wide"
+              style={{ background: "#111", border: "2px solid #111" }}
+            >
+              {isLast ? "Let's go! 🐍" : `Next →`}
+            </button>
+          </div>
         </div>
       </div>
-
-      {spotlight && (
-        <div style={{
-          position: "fixed",
-          top: spotlight.top - 40,
-          left: spotlight.left + spotlight.width / 2,
-          transform: "translateX(-50%)",
-          fontSize: 26,
-          zIndex: 10003,
-          pointerEvents: "none",
-          animation: "tutBounce 1s ease-in-out infinite",
-        }}>
-          👆
-        </div>
-      )}
-
-      <style>{`
-        @keyframes tutBounce {
-          0%, 100% { transform: translateX(-50%) translateY(0); }
-          50% { transform: translateX(-50%) translateY(-7px); }
-        }
-      `}</style>
-    </>
+    </div>
   );
-}
-
-export function replayTutorial() {
-  localStorage.removeItem(TUTORIAL_KEY);
-  window.dispatchEvent(new Event("natrix_replay_tutorial"));
 }
