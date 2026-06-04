@@ -346,7 +346,7 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
         <div className="text-center">
           <p className="text-xs font-medium uppercase tracking-widest text-white/35 mb-2">Make it yours</p>
           <h2 className="text-3xl font-bold text-white">Choose your<br />app theme</h2>
-          <p className="mt-2 text-sm text-white/45">Pick a colour that feels right. You can change it anytime in Settings.</p>
+          <p className="mt-2 text-sm text-white/45">Pick a colour that feels right. You can also set a photo or video background in Settings → Appearance.</p>
         </div>
 
         <div className="grid grid-cols-3 gap-3">
