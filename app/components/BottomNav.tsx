@@ -48,6 +48,18 @@ const NAV_ITEMS = [
     ),
   },
   {
+    href: "/compare",
+    label: "Compare",
+    tutorial: "compare",
+    icon: (active: boolean) => (
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+        <rect x="2" y="6" width="8" height="10" rx="2" stroke={active ? "#FDE68A" : "rgba(255,255,255,0.5)"} strokeWidth="1.5" fill="none" />
+        <rect x="12" y="4" width="8" height="12" rx="2" stroke={active ? "#FDE68A" : "rgba(255,255,255,0.5)"} strokeWidth="1.5" fill="none" />
+        <path d="M10 11h2" stroke={active ? "#FDE68A" : "rgba(255,255,255,0.5)"} strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
     href: "/settings",
     label: "Settings",
     tutorial: "settings",
@@ -78,7 +90,7 @@ export default function BottomNav() {
           WebkitBackdropFilter: "blur(32px) saturate(1.8)",
           border: "1px solid rgba(255,255,255,0.22)",
           borderRadius: "28px",
-          padding: "8px 8px 10px",
+          padding: "8px 4px 10px",
           display: "flex",
           justifyContent: "space-around",
           alignItems: "center",
@@ -100,17 +112,17 @@ export default function BottomNav() {
                 flexDirection: "column",
                 alignItems: "center",
                 gap: "3px",
-                padding: "6px 12px",
+                padding: "6px 8px",
                 borderRadius: "20px",
                 transition: "background 0.15s ease",
                 background: active ? "rgba(217,119,6,0.2)" : "transparent",
                 border: active ? "1px solid rgba(253,230,138,0.25)" : "1px solid transparent",
-                minWidth: "52px",
+                minWidth: "44px",
               }}
             >
               {item.icon(active)}
               <span style={{
-                fontSize: "10px",
+                fontSize: "9px",
                 fontWeight: active ? 600 : 400,
                 letterSpacing: "0.02em",
                 color: active ? "#FDE68A" : "rgba(255,255,255,0.45)",
