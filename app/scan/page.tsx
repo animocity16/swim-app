@@ -346,6 +346,7 @@ export default function ScanPage() {
   const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState("");
   const [rawText, setRawText] = useState("");
+  const [copyLabel, setCopyLabel] = useState("Copy");
   const [scanMode, setScanMode] = useState<ScanMode>(null);
   const [showInfo, setShowInfo] = useState(false);
 
@@ -995,9 +996,27 @@ export default function ScanPage() {
                 {rawText && (
                   <div className="rounded-2xl p-3"
                     style={{ background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.15)" }}>
-                    <p className="mb-2 text-[10px] uppercase tracking-widest" style={{ color: "#FDE68A" }}>
-                      🐛 Debug — raw OCR (screenshot this and send)
-                    </p>
+                    <div className="mb-2 flex items-center justify-between">
+                      <p className="text-[10px] uppercase tracking-widest" style={{ color: "#FDE68A" }}>
+                        🐛 Debug — raw OCR
+                      </p>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(rawText);
+                            setCopyLabel("Copied!");
+                          } catch {
+                            setCopyLabel("Copy failed");
+                          }
+                          setTimeout(() => setCopyLabel("Copy"), 1500);
+                        }}
+                        className="rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-wide transition"
+                        style={{ background: "rgba(217,119,6,0.25)", color: "#FDE68A", border: "1px solid rgba(217,119,6,0.4)" }}
+                      >
+                        {copyLabel}
+                      </button>
+                    </div>
                     <pre className="overflow-auto whitespace-pre-wrap text-[10px] leading-tight text-white/70" style={{ maxHeight: "300px", fontFamily: "monospace" }}>
                       {rawText}
                     </pre>
