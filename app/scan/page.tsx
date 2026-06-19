@@ -525,7 +525,11 @@ export default function ScanPage() {
             cumulative_time_ms: s.cumulativeMs ?? null,
           }));
         if (splitRows.length > 0) {
-          await supabase.from("swim_splits").insert(splitRows);
+          const { error: splitError } = await supabase.from("swim_splits").insert(splitRows);
+          if (splitError) {
+            console.error("swim_splits insert failed:", splitError);
+            setMessage(`✓ Saved to ${swimmer.name} (⚠️ splits failed: ${splitError.message})`);
+          }
         }
       }
       setMessage(`✓ Saved to ${swimmer.name}`); setSavedSwimmer(swimmer); setShowPicker(false); setAutoMatchedSwimmer(swimmer);
