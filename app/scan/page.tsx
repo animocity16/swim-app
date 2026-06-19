@@ -1061,6 +1061,9 @@ export default function ScanPage() {
                         <p className="text-xs uppercase tracking-widest text-white/40">Detected result</p>
                         <p className="mt-1 text-base font-semibold text-white">{detectedEvent}</p>
                         {parsedResult.meetName && <p className="text-xs text-white/35 mt-0.5">{parsedResult.meetName}</p>}
+                        <p className="text-[10px] text-amber-300/70 mt-1">
+                          🐛 splits: {parsedResult.splits ? JSON.stringify(parsedResult.splits) : "undefined"}
+                        </p>
                       </div>
                       <div>
                         <p className="text-xs text-white/40 mb-1.5">Time — tap to edit if incorrect</p>
