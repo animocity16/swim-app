@@ -675,7 +675,12 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
     }
   }
 
-  if (collectedTimes.length === 0) return [];
+  // NOTE: we deliberately do NOT early-return here even if collectedTimes is
+  // empty. Newer Meet Mobile screens for 100m+ events sometimes render the
+  // split breakdown without a literal "SPLITS" header in the OCR text, so
+  // the section-scan above can come up empty while the explicit label/time
+  // patterns below (3.5) can still find real data. We only skip the DP chain
+  // step later if there's nothing usable to chain.
 
   // ── Step 3.5: Explicit pass (preferred over DP) ───────────────────────────
   // Tesseract can output splits in 3 different layouts depending on screenshot:
@@ -791,6 +796,9 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
     }
   }
 
+  // Nothing usable left for the DP chain step — bail rather than fabricate.
+  if (collectedTimes.length === 0) return [];
+
   // ── Step 4: DP — keep ALL equal-length chains at each position ────────────
   // MIN_LEG is deliberately low (8s) to allow unusual splits like 13.14s
   // which can occur due to unusual pacing or OCR quirks.
@@ -893,6 +901,13 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
 
   if (!best) return [];
   const bestChain = best as number[];
+
+  // A "chain" of length 1 that equals (or is essentially) the final time
+  // isn't a real split — it's the finals time itself getting mistaken for
+  // a single 50m leg covering the whole race. If we expected 2+ legs for
+  // this event distance, treat this as no usable split data at all.
+  if (bestChain.length < 2 && targetChainLength >= 2) return [];
+  if (bestChain.length === 1 && Math.abs(bestChain[0] - finalMs) <= TOLERANCE) return [];
 
   // ── Step 6: Build splits with mathematical labels ─────────────────────────
   const isIM = /\b(individual\s*medley|\bim\b)/i.test(rawText);

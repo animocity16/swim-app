@@ -338,9 +338,13 @@ export default function ScanPage() {
   const [file1, setFile1] = useState<File | null>(null);
   const [file2, setFile2] = useState<File | null>(null);
   const [file3, setFile3] = useState<File | null>(null);
+  const [file4, setFile4] = useState<File | null>(null);
+  const [file5, setFile5] = useState<File | null>(null);
   const [preview1, setPreview1] = useState<string | null>(null);
   const [preview2, setPreview2] = useState<string | null>(null);
   const [preview3, setPreview3] = useState<string | null>(null);
+  const [preview4, setPreview4] = useState<string | null>(null);
+  const [preview5, setPreview5] = useState<string | null>(null);
 
   const [step, setStep] = useState<Step>("idle");
   const [progress, setProgress] = useState(0);
@@ -401,6 +405,8 @@ export default function ScanPage() {
   const ref1 = useRef<HTMLInputElement | null>(null);
   const ref2 = useRef<HTMLInputElement | null>(null);
   const ref3 = useRef<HTMLInputElement | null>(null);
+  const ref4 = useRef<HTMLInputElement | null>(null);
+  const ref5 = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     void loadSwimmers();
@@ -442,8 +448,8 @@ export default function ScanPage() {
 
   // NOTE: meetCourse is intentionally NOT reset here — it persists for the whole session
   function reset() {
-    setFile1(null); setFile2(null); setFile3(null);
-    setPreview1(null); setPreview2(null); setPreview3(null);
+    setFile1(null); setFile2(null); setFile3(null); setFile4(null); setFile5(null);
+    setPreview1(null); setPreview2(null); setPreview3(null); setPreview4(null); setPreview5(null);
     setStep("idle"); setProgress(0); setMessage(""); setRawText("");
     setScanMode(null);
     setParsedResult(null); setDetectedEvent(null);
@@ -462,6 +468,8 @@ export default function ScanPage() {
     if (ref1.current) ref1.current.value = "";
     if (ref2.current) ref2.current.value = "";
     if (ref3.current) ref3.current.value = "";
+    if (ref4.current) ref4.current.value = "";
+    if (ref5.current) ref5.current.value = "";
     // Refresh chips in case any were saved during this scan session
     setSavedEvents(loadSavedEvents());
     setTempMeet(loadTempMeet());
@@ -750,7 +758,7 @@ export default function ScanPage() {
     setNewSwimmerClub(""); setShowCreateForm(false);
 
     try {
-      const files = [file1, file2, file3].filter(Boolean) as File[];
+      const files = [file1, file2, file3, file4, file5].filter(Boolean) as File[];
       let combined = "";
       let currentFileIdx = 0;
       const worker = await createWorker("eng", 1, {
@@ -959,7 +967,7 @@ export default function ScanPage() {
                   </div>
                 </div>
 
-                {/* ── 3 screenshot slots ─────────────────────────────── */}
+                {/* ── 5 screenshot slots (longer events span more screens) ── */}
                 <div className="grid grid-cols-3 gap-2">
                   <SlotButton label="Screen 1" hint="Required" preview={preview1} inputRef={ref1} required
                     onChange={(e) => handleFile(e, setFile1, setPreview1)} />
@@ -967,6 +975,10 @@ export default function ScanPage() {
                     onChange={(e) => handleFile(e, setFile2, setPreview2)} />
                   <SlotButton label="Screen 3" hint="Optional" preview={preview3} inputRef={ref3}
                     onChange={(e) => handleFile(e, setFile3, setPreview3)} />
+                  <SlotButton label="Screen 4" hint="Optional" preview={preview4} inputRef={ref4}
+                    onChange={(e) => handleFile(e, setFile4, setPreview4)} />
+                  <SlotButton label="Screen 5" hint="Optional" preview={preview5} inputRef={ref5}
+                    onChange={(e) => handleFile(e, setFile5, setPreview5)} />
                 </div>
                 <button type="button" onClick={handleScan} disabled={!file1}
                   className="w-full rounded-2xl py-4 text-lg font-bold text-white transition disabled:opacity-40"
