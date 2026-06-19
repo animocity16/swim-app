@@ -510,6 +510,7 @@ export default function ScanPage() {
         setCustomMeets(loadCustomMeets());
       }
       const splits = parsedResult.splits;
+      let splitsWarning = "";
       if (swimRow && splits && splits.length > 0) {
         const splitRows = splits
           .filter((s) => typeof s.splitMs === "number" && s.splitMs > 0)
@@ -528,11 +529,15 @@ export default function ScanPage() {
           const { error: splitError } = await supabase.from("swim_splits").insert(splitRows);
           if (splitError) {
             console.error("swim_splits insert failed:", splitError);
-            setMessage(`✓ Saved to ${swimmer.name} (⚠️ splits failed: ${splitError.message})`);
+            splitsWarning = ` (⚠️ splits failed: ${splitError.message})`;
           }
+        } else {
+          splitsWarning = " (no splits had valid times to save)";
         }
+      } else {
+        splitsWarning = " (parser found no splits for this swim)";
       }
-      setMessage(`✓ Saved to ${swimmer.name}`); setSavedSwimmer(swimmer); setShowPicker(false); setAutoMatchedSwimmer(swimmer);
+      setMessage(`✓ Saved to ${swimmer.name}${splitsWarning}`); setSavedSwimmer(swimmer); setShowPicker(false); setAutoMatchedSwimmer(swimmer);
     }
     setIsSaving(false);
   }
