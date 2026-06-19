@@ -637,7 +637,7 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
 
   // ── Step 1: Detect event distance for target chain length ─────────────────
   // 400 Free → 8 splits of 50m, 50 Fly SC → 2 splits of 25m, etc.
-  const eventDistMatch = rawText.match(/\b(50|100|200|400|800|1500)\s*(meter|m)?\s*(free|freestyle|back|backstroke|fly|butterfly|breast|breaststroke|medley|im)\b/i);
+  const eventDistMatch = rawText.match(/\b(50|100|200|400|800|1500)\s*(meter|m)?\s*(individual\s*)?(free|freestyle|back|backstroke|fly|butterfly|breast|breaststroke|medley|im)\b/i);
   const eventDist = eventDistMatch ? Number(eventDistMatch[1]) : 0;
   // 50m events split at 25m (turn + finish); all others split every 50m
   const splitUnit = eventDist === 50 ? 25 : 50;
