@@ -830,8 +830,15 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
   const MAX_FIRST_LEG = 90_000; // 50m leg should be ≤ 90s
   let anchorMs = 0;
   for (const t of collectedTimes) {
-    if (t >= MIN_FIRST && t <= MAX_FIRST_LEG) { anchorMs = t; break; }
+    if (t < MIN_FIRST || t > MAX_FIRST_LEG) continue;
+    // Never anchor on something that's really just the finals total —
+    // a real first leg must be meaningfully shorter than the whole race
+    // whenever more than one leg is expected.
+    if (targetChainLength > 1 && Math.abs(t - finalMs) <= TOLERANCE) continue;
+    anchorMs = t;
+    break;
   }
+  _lastSplitDebug += ` | anchorMs=${anchorMs}`;
 
   const maxChainLen = targetChainLength > 0 ? targetChainLength : 20;
   const dp2d: (number[] | null)[][] = Array.from(
