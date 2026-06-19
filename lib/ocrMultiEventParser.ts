@@ -22,6 +22,7 @@ export type ParsedSwimResult = {
   meetName?: string | null;
   place?: number | null;
   splits?: ParsedSplit[];
+  splitDebug?: string;
 };
 
 type ParseOptions = {
@@ -36,6 +37,7 @@ type BuiltEvent = {
 };
 
 const EVENT_DISTANCES = [50, 100, 200, 400, 800, 1500];
+let _lastSplitDebug = "";
 const SPLIT_DISTANCES = [
   25, 50, 75, 100, 125, 150, 175, 200, 225, 250, 275, 300, 325, 350, 375, 400,
   450, 500, 550, 600, 650, 700, 750, 800, 1500,
@@ -589,6 +591,8 @@ function extractFinalTimeMs(rawText: string): number {
 // Handles OCR-dropped decimals ("4418" → "44.18", "4937" → "49.37").
 
 function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
+  console.log("[splitDebug] parseSplitsDirectly called, finalMs=", finalMs, "rawText.length=", rawText.length);
+  _lastSplitDebug = `called finalMs=${finalMs} len=${rawText.length}`;
   // ── Strategy: Cumulative-sequence extraction via DP ───────────────────────
   //
   //  1. Strip "X Stroke Split" rows and their noise times carefully
@@ -777,6 +781,8 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
     }
 
     // Pick the first candidate set that validates
+    console.log("[splitDebug] eventDist=", eventDist, "targetChainLength=", targetChainLength, "candidateSets=", JSON.stringify(candidateSets));
+    _lastSplitDebug += ` | eventDist=${eventDist} targetChainLength=${targetChainLength} candidateSets=${JSON.stringify(candidateSets)}`;
     for (const candidate of candidateSets) {
       const valid = tryLegSet(candidate);
       if (valid) {
@@ -796,6 +802,8 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
     }
   }
 
+  console.log("[splitDebug] no explicit pattern matched. collectedTimes=", JSON.stringify(collectedTimes));
+  _lastSplitDebug += ` | NO PATTERN MATCH. collectedTimes=${JSON.stringify(collectedTimes)}`;
   // Nothing usable left for the DP chain step — bail rather than fabricate.
   if (collectedTimes.length === 0) return [];
 
@@ -899,15 +907,25 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
     }
   }
 
-  if (!best) return [];
+  if (!best) {
+    _lastSplitDebug += ` | DP found no chain. candidates=${JSON.stringify(candidates)} anchorMs=${anchorMs}`;
+    return [];
+  }
   const bestChain = best as number[];
+  _lastSplitDebug += ` | DP bestChain=${JSON.stringify(bestChain)}`;
 
   // A "chain" of length 1 that equals (or is essentially) the final time
   // isn't a real split — it's the finals time itself getting mistaken for
   // a single 50m leg covering the whole race. If we expected 2+ legs for
   // this event distance, treat this as no usable split data at all.
-  if (bestChain.length < 2 && targetChainLength >= 2) return [];
-  if (bestChain.length === 1 && Math.abs(bestChain[0] - finalMs) <= TOLERANCE) return [];
+  if (bestChain.length < 2 && targetChainLength >= 2) {
+    _lastSplitDebug += ` | REJECTED: chain too short for event`;
+    return [];
+  }
+  if (bestChain.length === 1 && Math.abs(bestChain[0] - finalMs) <= TOLERANCE) {
+    _lastSplitDebug += ` | REJECTED: chain is just the final time`;
+    return [];
+  }
 
   // ── Step 6: Build splits with mathematical labels ─────────────────────────
   const isIM = /\b(individual\s*medley|\bim\b)/i.test(rawText);
@@ -989,7 +1007,9 @@ function parseSingleSplitScreen(
 
   const finalTimeStr = msToTime(finalTimeMs);
 
+  _lastSplitDebug = "";
   const splits = parseSplitsDirectly(rawText, finalTimeMs);
+  const capturedSplitDebug = _lastSplitDebug;
 
   const correctedCourse = inferCourseFromSplits(globalCourse, bestEvent.distance, splits);
 
@@ -1008,6 +1028,7 @@ function parseSingleSplitScreen(
       meetName: meetName || null,
       place,
       splits: splits.length > 0 ? splits : undefined,
+      splitDebug: capturedSplitDebug,
     },
   ];
 }
