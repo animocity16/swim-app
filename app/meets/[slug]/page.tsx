@@ -35,6 +35,7 @@ type LeaderboardEntry = {
   silver: number;
   bronze: number;
   total: number;
+  total_points: number;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -83,21 +84,22 @@ function getDistance(event: string): number {
 function buildLeaderboard(groups: EventGroup[]): LeaderboardEntry[] {
   const map = new Map<number, LeaderboardEntry>();
   for (const g of groups) {
-    g.results.slice(0, 3).forEach((r, idx) => {
+    g.results.forEach((r, idx) => {
       if (!map.has(r.swimmer_id)) {
-        map.set(r.swimmer_id, { swimmer_id: r.swimmer_id, swimmer_name: r.swimmer_name, gold: 0, silver: 0, bronze: 0, total: 0 });
+        map.set(r.swimmer_id, { swimmer_id: r.swimmer_id, swimmer_name: r.swimmer_name, gold: 0, silver: 0, bronze: 0, total: 0, total_points: 0 });
       }
       const e = map.get(r.swimmer_id)!;
+      // Medal counts still come from podium position within the event
       if (idx === 0) e.gold += 1;
       else if (idx === 1) e.silver += 1;
-      else e.bronze += 1;
-      e.total += 1;
+      else if (idx === 2) e.bronze += 1;
+      if (idx < 3) e.total += 1;
+      // Points are summed across every swim in the meet, not just podium finishes
+      if (r.fina_points != null) e.total_points += r.fina_points;
     });
   }
   return Array.from(map.values()).sort((a, b) => {
-    if (b.gold !== a.gold) return b.gold - a.gold;
-    if (b.silver !== a.silver) return b.silver - a.silver;
-    if (b.bronze !== a.bronze) return b.bronze - a.bronze;
+    if (b.total_points !== a.total_points) return b.total_points - a.total_points;
     return a.swimmer_name.localeCompare(b.swimmer_name);
   });
 }
@@ -380,7 +382,7 @@ function Leaderboard({ entries }: { entries: LeaderboardEntry[] }) {
                   fontSize: "10px", fontWeight: 700, color: "rgba(255,255,255,0.4)",
                   background: "rgba(255,255,255,0.06)", borderRadius: "8px", padding: "2px 6px",
                 }}>
-                  {e.total}
+                  {e.total_points} pts
                 </span>
               </div>
             </div>
@@ -405,8 +407,24 @@ function PodiumCard({
   r: ResultRow; rank: number; onLongPress: (r: ResultRow) => void;
 }) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  function startPress() { timerRef.current = setTimeout(() => onLongPress(r), 500); }
-  function cancelPress() { if (timerRef.current) clearTimeout(timerRef.current); }
+  const startPos = useRef<{ x: number; y: number } | null>(null);
+  const MOVE_TOLERANCE = 12; // px — small jitter while holding still won't cancel the press
+
+  function startPress(e: React.TouchEvent | React.MouseEvent) {
+    const point = "touches" in e ? e.touches[0] : e;
+    startPos.current = { x: point.clientX, y: point.clientY };
+    timerRef.current = setTimeout(() => onLongPress(r), 400);
+  }
+  function cancelPress() {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    startPos.current = null;
+  }
+  function handleTouchMove(e: React.TouchEvent) {
+    if (!startPos.current) return;
+    const dx = e.touches[0].clientX - startPos.current.x;
+    const dy = e.touches[0].clientY - startPos.current.y;
+    if (Math.sqrt(dx * dx + dy * dy) > MOVE_TOLERANCE) cancelPress();
+  }
   const m = MEDALS[rank];
 
   // Order on screen: 2nd, 1st, 3rd — with 1st taller
@@ -415,7 +433,7 @@ function PodiumCard({
   return (
     <div
       onMouseDown={startPress} onMouseUp={cancelPress} onMouseLeave={cancelPress}
-      onTouchStart={startPress} onTouchEnd={cancelPress} onTouchMove={cancelPress}
+      onTouchStart={startPress} onTouchEnd={cancelPress} onTouchMove={handleTouchMove}
       style={{
         flex: 1, minWidth: 0, background: m.bg, border: `1px solid ${m.border}`, boxShadow: m.glow,
         borderRadius: "16px", padding: heightPad,
@@ -470,17 +488,30 @@ function ResultRowCard({
 }) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const didLongPress = useRef(false);
+  const startPos = useRef<{ x: number; y: number } | null>(null);
+  const MOVE_TOLERANCE = 12; // px — small jitter while holding still won't cancel the press
 
-  function startPress() {
+  function startPress(e: React.TouchEvent | React.MouseEvent) {
     didLongPress.current = false;
-    timerRef.current = setTimeout(() => { didLongPress.current = true; onLongPress(r); }, 500);
+    const point = "touches" in e ? e.touches[0] : e;
+    startPos.current = { x: point.clientX, y: point.clientY };
+    timerRef.current = setTimeout(() => { didLongPress.current = true; onLongPress(r); }, 400);
   }
-  function cancelPress() { if (timerRef.current) clearTimeout(timerRef.current); }
+  function cancelPress() {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    startPos.current = null;
+  }
+  function handleTouchMove(e: React.TouchEvent) {
+    if (!startPos.current) return;
+    const dx = e.touches[0].clientX - startPos.current.x;
+    const dy = e.touches[0].clientY - startPos.current.y;
+    if (Math.sqrt(dx * dx + dy * dy) > MOVE_TOLERANCE) cancelPress();
+  }
 
   return (
     <div
       onMouseDown={startPress} onMouseUp={cancelPress} onMouseLeave={cancelPress}
-      onTouchStart={startPress} onTouchEnd={cancelPress} onTouchMove={cancelPress}
+      onTouchStart={startPress} onTouchEnd={cancelPress} onTouchMove={handleTouchMove}
       style={{
         background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)",
         borderRadius: "14px", padding: "10px 14px",
