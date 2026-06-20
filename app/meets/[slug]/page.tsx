@@ -25,6 +25,15 @@ type EventGroup = {
   results: ResultRow[];
 };
 
+type LeaderboardEntry = {
+  swimmer_id: number;
+  swimmer_name: string;
+  gold: number;
+  silver: number;
+  bronze: number;
+  total: number;
+};
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatMs(ms: number): string {
@@ -66,6 +75,28 @@ function getStroke(event: string): string {
 function getDistance(event: string): number {
   const m = event.match(/\d+/);
   return m ? Number(m[0]) : 9999;
+}
+
+function buildLeaderboard(groups: EventGroup[]): LeaderboardEntry[] {
+  const map = new Map<number, LeaderboardEntry>();
+  for (const g of groups) {
+    g.results.slice(0, 3).forEach((r, idx) => {
+      if (!map.has(r.swimmer_id)) {
+        map.set(r.swimmer_id, { swimmer_id: r.swimmer_id, swimmer_name: r.swimmer_name, gold: 0, silver: 0, bronze: 0, total: 0 });
+      }
+      const e = map.get(r.swimmer_id)!;
+      if (idx === 0) e.gold += 1;
+      else if (idx === 1) e.silver += 1;
+      else e.bronze += 1;
+      e.total += 1;
+    });
+  }
+  return Array.from(map.values()).sort((a, b) => {
+    if (b.gold !== a.gold) return b.gold - a.gold;
+    if (b.silver !== a.silver) return b.silver - a.silver;
+    if (b.bronze !== a.bronze) return b.bronze - a.bronze;
+    return a.swimmer_name.localeCompare(b.swimmer_name);
+  });
 }
 
 // ─── Place badge ──────────────────────────────────────────────────────────────
@@ -293,6 +324,135 @@ function DeleteSheet({
   );
 }
 
+// ─── Leaderboard — most podium spots ─────────────────────────────────────────
+
+function Leaderboard({ entries }: { entries: LeaderboardEntry[] }) {
+  const [open, setOpen] = useState(true);
+  if (entries.length === 0) return null;
+
+  return (
+    <div style={{
+      background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)",
+      borderRadius: "18px", padding: "14px 16px",
+    }}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+          background: "transparent", border: "none", padding: 0, cursor: "pointer",
+        }}
+      >
+        <span style={{ fontSize: "13px", fontWeight: 700, color: "#fff", display: "flex", alignItems: "center", gap: "6px" }}>
+          🏆 Top Performers
+        </span>
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none"
+          style={{ transform: open ? "rotate(0deg)" : "rotate(-90deg)", transition: "transform 0.15s", opacity: 0.4 }}>
+          <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+
+      {open && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "12px" }}>
+          {entries.map((e, idx) => (
+            <div key={e.swimmer_id} style={{
+              display: "flex", alignItems: "center", gap: "10px",
+              padding: "8px 10px", borderRadius: "12px",
+              background: idx === 0 ? "rgba(234,179,8,0.08)" : "rgba(255,255,255,0.03)",
+            }}>
+              <span style={{ fontSize: "11px", fontWeight: 700, color: "rgba(255,255,255,0.3)", width: "16px", flexShrink: 0 }}>
+                {idx + 1}
+              </span>
+              <span style={{
+                flex: 1, minWidth: 0, fontSize: "13px", fontWeight: 600, color: "#fff",
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+              }}>
+                {e.swimmer_name}
+              </span>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+                {e.gold > 0 && <span style={{ fontSize: "11px", fontWeight: 700, color: "#FDE68A" }}>🥇{e.gold}</span>}
+                {e.silver > 0 && <span style={{ fontSize: "11px", fontWeight: 700, color: "#CBD5E1" }}>🥈{e.silver}</span>}
+                {e.bronze > 0 && <span style={{ fontSize: "11px", fontWeight: 700, color: "#FDBA74" }}>🥉{e.bronze}</span>}
+                <span style={{
+                  fontSize: "10px", fontWeight: 700, color: "rgba(255,255,255,0.4)",
+                  background: "rgba(255,255,255,0.06)", borderRadius: "8px", padding: "2px 6px",
+                }}>
+                  {e.total}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Podium (top 3) ───────────────────────────────────────────────────────────
+
+const MEDALS: Record<number, { emoji: string; bg: string; border: string; glow: string }> = {
+  1: { emoji: "🥇", bg: "linear-gradient(135deg, rgba(234,179,8,0.22), rgba(234,179,8,0.06))", border: "rgba(253,230,138,0.45)", glow: "0 0 24px rgba(234,179,8,0.15)" },
+  2: { emoji: "🥈", bg: "linear-gradient(135deg, rgba(148,163,184,0.20), rgba(148,163,184,0.05))", border: "rgba(203,213,225,0.4)", glow: "0 0 18px rgba(148,163,184,0.1)" },
+  3: { emoji: "🥉", bg: "linear-gradient(135deg, rgba(180,100,50,0.22), rgba(180,100,50,0.06))", border: "rgba(253,186,116,0.4)", glow: "0 0 18px rgba(180,100,50,0.12)" },
+};
+
+function PodiumCard({
+  r, rank, onLongPress,
+}: {
+  r: ResultRow; rank: number; onLongPress: (r: ResultRow) => void;
+}) {
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function startPress() { timerRef.current = setTimeout(() => onLongPress(r), 500); }
+  function cancelPress() { if (timerRef.current) clearTimeout(timerRef.current); }
+  const m = MEDALS[rank];
+
+  // Order on screen: 2nd, 1st, 3rd — with 1st taller
+  const heightPad = rank === 1 ? "16px 14px" : "12px 12px";
+
+  return (
+    <div
+      onMouseDown={startPress} onMouseUp={cancelPress} onMouseLeave={cancelPress}
+      onTouchStart={startPress} onTouchEnd={cancelPress} onTouchMove={cancelPress}
+      style={{
+        flex: 1, minWidth: 0, background: m.bg, border: `1px solid ${m.border}`, boxShadow: m.glow,
+        borderRadius: "16px", padding: heightPad,
+        display: "flex", flexDirection: "column", alignItems: "center", gap: "4px",
+        userSelect: "none", WebkitUserSelect: "none",
+        transform: rank === 1 ? "translateY(-6px)" : "none",
+      }}
+    >
+      <span style={{ fontSize: rank === 1 ? "26px" : "20px" }}>{m.emoji}</span>
+      <span style={{
+        fontSize: "12px", fontWeight: 700, color: "#fff", textAlign: "center",
+        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%",
+      }}>
+        {r.swimmer_name}
+      </span>
+      <span style={{ fontSize: rank === 1 ? "15px" : "13px", fontWeight: 800, color: "#FDE68A", fontVariantNumeric: "tabular-nums" }}>
+        {formatMs(r.time_ms)}
+      </span>
+      {r.is_pb && (
+        <span style={{
+          fontSize: "8px", fontWeight: 700, letterSpacing: "0.06em",
+          background: "rgba(217,119,6,0.3)", color: "#FDE68A",
+          borderRadius: "5px", padding: "1px 5px",
+        }}>PB</span>
+      )}
+    </div>
+  );
+}
+
+function Podium({ results, onLongPress }: { results: ResultRow[]; onLongPress: (r: ResultRow) => void }) {
+  const [first, second, third] = results;
+  return (
+    <div style={{ display: "flex", alignItems: "flex-end", gap: "8px", marginBottom: "10px" }}>
+      {second && <PodiumCard r={second} rank={2} onLongPress={onLongPress} />}
+      {first && <PodiumCard r={first} rank={1} onLongPress={onLongPress} />}
+      {third && <PodiumCard r={third} rank={3} onLongPress={onLongPress} />}
+    </div>
+  );
+}
+
 // ─── Result row with long-press ───────────────────────────────────────────────
 
 function ResultRowCard({
@@ -365,6 +525,16 @@ export default function MeetDetailPage() {
   const [deleteRow, setDeleteRow] = useState<ResultRow | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+
+  function toggleEvent(event: string) {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(event)) next.delete(event);
+      else next.add(event);
+      return next;
+    });
+  }
 
   useEffect(() => { if (meetName) void load(); }, [meetName]);
 
@@ -546,20 +716,49 @@ export default function MeetDetailPage() {
             <p style={{ color: "rgba(255,255,255,0.45)" }}>No results found for this meet.</p>
           </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-            {groups.map((group) => (
-              <div key={group.event}>
-                <p style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(255,255,255,0.35)", marginBottom: "8px", paddingLeft: "2px" }}>
-                  {group.event}
-                </p>
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  {group.results.map((r, idx) => (
-                    <ResultRowCard key={r.id} r={r} idx={idx} onLongPress={setActionRow} />
-                  ))}
+          <>
+            <Leaderboard entries={buildLeaderboard(groups)} />
+          <div style={{ display: "flex", flexDirection: "column", gap: "20px", marginTop: "20px" }}>
+            {groups.map((group) => {
+              const isCollapsed = collapsed.has(group.event);
+              const podiumResults = group.results.slice(0, 3);
+              const restResults = group.results.slice(3);
+              return (
+                <div key={group.event}>
+                  <button
+                    type="button"
+                    onClick={() => toggleEvent(group.event)}
+                    style={{
+                      width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+                      background: "transparent", border: "none", padding: "0 2px 8px", cursor: "pointer",
+                    }}
+                  >
+                    <p style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(255,255,255,0.35)" }}>
+                      {group.event} <span style={{ color: "rgba(255,255,255,0.2)" }}>· {group.results.length}</span>
+                    </p>
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none"
+                      style={{ transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)", transition: "transform 0.15s", opacity: 0.4, flexShrink: 0 }}>
+                      <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </button>
+
+                  {!isCollapsed && (
+                    <>
+                      <Podium results={podiumResults} onLongPress={setActionRow} />
+                      {restResults.length > 0 && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                          {restResults.map((r, idx) => (
+                            <ResultRowCard key={r.id} r={r} idx={idx + 3} onLongPress={setActionRow} />
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
+          </>
         )}
 
         <div className="h-4" />
