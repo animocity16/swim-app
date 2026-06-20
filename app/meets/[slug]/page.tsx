@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { calcFinaPoints, type Gender } from "@/lib/finaPoints";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -17,6 +18,7 @@ type ResultRow = {
   swimmer_name: string;
   swim_club: string | null;
   is_pb: boolean;
+  fina_points: number | null;
 };
 
 // Group by event name only — course is shown as a tag per row
@@ -431,6 +433,11 @@ function PodiumCard({
       <span style={{ fontSize: rank === 1 ? "15px" : "13px", fontWeight: 800, color: "#FDE68A", fontVariantNumeric: "tabular-nums" }}>
         {formatMs(r.time_ms)}
       </span>
+      {r.fina_points != null && (
+        <span style={{ fontSize: "9px", fontWeight: 700, color: "rgba(255,255,255,0.45)" }}>
+          {r.fina_points} pts
+        </span>
+      )}
       {r.is_pb && (
         <span style={{
           fontSize: "8px", fontWeight: 700, letterSpacing: "0.06em",
@@ -496,7 +503,7 @@ function ResultRowCard({
           )}
         </div>
         <p style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", marginTop: "1px" }}>
-          {[r.swim_club, r.course, r.place != null ? `Official #${r.place}` : null].filter(Boolean).join(" · ")}
+          {[r.swim_club, r.course, r.place != null ? `Official #${r.place}` : null, r.fina_points != null ? `${r.fina_points} pts` : null].filter(Boolean).join(" · ")}
         </p>
       </div>
 
@@ -542,10 +549,10 @@ export default function MeetDetailPage() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { router.replace("/login"); return; }
 
-    const { data: swimmers } = await supabase.from("swimmers").select("id, name, swim_club");
-    const swimmerMap = new Map<number, { name: string; swim_club: string | null }>();
-    for (const s of (swimmers ?? []) as { id: number; name: string; swim_club: string | null }[]) {
-      swimmerMap.set(s.id, { name: s.name, swim_club: s.swim_club ?? null });
+    const { data: swimmers } = await supabase.from("swimmers").select("id, name, swim_club, gender");
+    const swimmerMap = new Map<number, { name: string; swim_club: string | null; gender: Gender | null }>();
+    for (const s of (swimmers ?? []) as { id: number; name: string; swim_club: string | null; gender: Gender | null }[]) {
+      swimmerMap.set(s.id, { name: s.name, swim_club: s.swim_club ?? null, gender: s.gender ?? null });
     }
     const swimmerIds = Array.from(swimmerMap.keys());
     if (swimmerIds.length === 0) { setLoading(false); return; }
@@ -583,7 +590,7 @@ export default function MeetDetailPage() {
 
   function buildGroups(
     meetTimesArr: { id: number; event: string; course: string; time_ms: number; place: number | null; swam_at: string | null; swimmer_id: number }[],
-    swimmerMap: Map<number, { name: string; swim_club: string | null }>,
+    swimmerMap: Map<number, { name: string; swim_club: string | null; gender: Gender | null }>,
     pbMap: Map<string, number>,
   ) {
     const rows: ResultRow[] = meetTimesArr.map((t) => {
@@ -595,6 +602,7 @@ export default function MeetDetailPage() {
         place: t.place, swam_at: t.swam_at, swimmer_id: t.swimmer_id,
         swimmer_name: sw?.name ?? "Unknown", swim_club: sw?.swim_club ?? null,
         is_pb: bestEver === t.time_ms,
+        fina_points: calcFinaPoints(t.time_ms, t.event, t.course, sw?.gender),
       };
     });
 
