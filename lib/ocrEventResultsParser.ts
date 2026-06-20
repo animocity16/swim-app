@@ -399,7 +399,21 @@ export function isEventResultsPage(rawText: string): boolean {
   for (let i = 0; i < lines.length - 1; i++) {
     if (timeAtEndRe.test(lines[i]) && clubLineRe.test(lines[i + 1])) pairs++;
   }
-  return pairs >= 2;
+  if (pairs >= 2) return true;
+
+  // ── Multi-swimmer detection, layout variant: name, time, and club each on
+  // their own separate line (rather than "Name ... Time" combined on one
+  // line). Some Meet Mobile screens — observed on a 200 IM results table —
+  // render this way, and the pairing heuristic above never fires for it.
+  const nameOnlyLineRe = /^[A-Za-z][A-Za-z'.\- ]{4,40}$/;
+  const standaloneTimeLineRe = /^(\d{1,2}:\d{2}\.\d{2}|\d{2}\.\d{2})$/;
+  let namePlusTimePairs = 0;
+  for (let i = 0; i < lines.length - 1; i++) {
+    if (nameOnlyLineRe.test(lines[i]) && lines[i].includes(" ") && standaloneTimeLineRe.test(lines[i + 1])) {
+      namePlusTimePairs++;
+    }
+  }
+  return namePlusTimePairs >= 2;
 }
 
 function parseNameTimeFormat(rawText: string): ParsedEventResults {
