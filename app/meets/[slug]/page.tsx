@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { calcFinaPoints, type Gender } from "@/lib/finaPoints";
+import { canonicalEventName, canonicalCourse } from "@/lib/events";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -602,7 +603,7 @@ export default function MeetDetailPage() {
         place: t.place, swam_at: t.swam_at, swimmer_id: t.swimmer_id,
         swimmer_name: sw?.name ?? "Unknown", swim_club: sw?.swim_club ?? null,
         is_pb: bestEver === t.time_ms,
-        fina_points: calcFinaPoints(t.time_ms, t.event, t.course, sw?.gender),
+        fina_points: calcFinaPoints(t.time_ms, canonicalEventName(t.event), canonicalCourse(t.course), sw?.gender),
       };
     });
 
