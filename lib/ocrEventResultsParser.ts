@@ -277,8 +277,78 @@ export function parseEventResultsOCR(rawText: string): ParsedEventResults {
   }
 
   const inlineResult = parseInlineEventResultsOCR(rawText);
-  inlineResult.results = applyAgeGroupFallback(inlineResult.results, rawText);
+  if (inlineResult.results.length > 0) {
+    inlineResult.results = applyAgeGroupFallback(inlineResult.results, rawText);
+    return inlineResult;
+  }
+
+  // Last resort: name on its own line, time on the next line, no "PLACE"
+  // word and no time combined on the name's own line either. Observed on
+  // Meet Mobile screens where OCR fails to read the place-rank label/icon.
+  const nameOnlyLineRe = /^[A-Za-z][A-Za-z'.\- ]{4,40}$/;
+  const standaloneTimeLineRe = /^(?:\d{1,2}:\d{2}\.\d{2}|\d{2}\.\d{2})$/;
+  let separateLinePairs = 0;
+  for (let i = 0; i < lines.length - 1; i++) {
+    if (nameOnlyLineRe.test(lines[i]) && lines[i].includes(" ") && standaloneTimeLineRe.test(lines[i + 1])) {
+      separateLinePairs++;
+    }
+  }
+  if (separateLinePairs >= 2) {
+    const separateResult = parseNameThenTimeFormat(rawText);
+    if (separateResult.results.length > 0) {
+      separateResult.results = applyAgeGroupFallback(separateResult.results, rawText);
+      return separateResult;
+    }
+  }
+
   return inlineResult;
+}
+
+function parseNameThenTimeFormat(rawText: string): ParsedEventResults {
+  const lines = rawText.replace(/\r/g, "\n").split("\n").map((l) => l.trim()).filter(Boolean);
+  const course = detectCourse(rawText);
+  const swamAt = extractMeetDate(rawText);
+  const meetName = extractMeetName(lines);
+  const event = extractEventName(lines);
+  const results: EventResultRow[] = [];
+
+  const nameOnlyLineRe = /^[A-Za-z][A-Za-z'.\- ]{4,40}$/;
+  const standaloneTimeLineRe = /^(\d{1,2}:\d{2}\.\d{2}|\d{2}\.\d{2})$/;
+  const skipWordsRe = /finals|results|completed|heats|swimmers|unofficial|compare|^event$|details|^home$|^meet$/i;
+
+  for (let i = 0; i < lines.length - 1; i++) {
+    const line = lines[i];
+    if (!nameOnlyLineRe.test(line) || !line.includes(" ")) continue;
+    if (skipWordsRe.test(line)) continue;
+
+    const timeMatch = lines[i + 1].match(standaloneTimeLineRe);
+    if (!timeMatch) continue;
+
+    const repaired = repairTime(timeMatch[1]) ?? timeMatch[1];
+    const timeStr = repaired;
+    const timeMs = timeToMs(timeStr);
+    if (timeMs <= 0 || timeMs > 1_800_000) continue;
+
+    // Club/age usually sits on the line right after the time.
+    const ca = extractClubAge(lines[i + 2] ?? "");
+    const club = ca.club ? ca.club.toUpperCase() : null;
+
+    results.push({
+      place: results.length + 1,
+      name: line,
+      club,
+      age: ca.age,
+      timeStr,
+      timeMs,
+      event,
+      course,
+      swamAt,
+      meetName,
+    });
+    i++; // consumed the time line too, don't re-scan it as a name candidate
+  }
+
+  return { event, course, swamAt, meetName, results };
 }
 
 function parseInlineEventResultsOCR(rawText: string): ParsedEventResults {
