@@ -45,6 +45,11 @@ function repairTime(raw: string): string | null {
   let result: string | null = null;
   if (/^\d{1,2}:\d{2}\.\d{2}$/.test(s)) result = s;
   else if (/^\d{2}\.\d{2}$/.test(s)) result = s;
+  else if (/^\d{1}\.\d{4}$/.test(s)) {
+    // OCR misread the colon as a period: "2.4767" really means "2:47.67"
+    const digits = s.replace(".", "");
+    result = `${digits[0]}:${digits.slice(1, 3)}.${digits.slice(3)}`;
+  }
   else if (/^\d{1}:\d{4}$/.test(s)) result = `${s[0]}:${s.slice(2, 4)}.${s.slice(4)}`;
   else if (/^\d{5}$/.test(s)) result = `${s[0]}:${s.slice(1, 3)}.${s.slice(3)}`;
   else if (/^\d{4}$/.test(s)) result = `${s.slice(0, 2)}.${s.slice(2)}`;
@@ -500,7 +505,7 @@ function parseNSGCardFormat(rawText: string): ParsedEventResults {
       if (/^(?:TIME|TIVE|TIM)$/i.test(l)) continue;
       if (/completed|finals|unofficial|heats|swimmers/i.test(l)) continue;
 
-      const timeMatch = l.match(/^(\d{1,2}:\d{2}\.\d{2}|\d{2}\.\d{2}|\d{3,5})$/);
+      const timeMatch = l.match(/^(\d{1,2}:\d{2}\.\d{2}|\d{2}\.\d{2}|\d{1}\.\d{4}|\d{3,5})$/);
       if (timeMatch && !timeStr) {
         const repaired = repairTime(timeMatch[1]);
         if (repaired) { timeStr = repaired; timeMs = timeToMs(repaired); }
@@ -518,6 +523,18 @@ function parseNSGCardFormat(rawText: string): ParsedEventResults {
         club = clubAgeMatch[1].trim().toUpperCase();
         age = parseInt(clubAgeMatch[2], 10);
         continue;
+      }
+      // Fallback: no separator at all, just "CSC 10" — only trust this when
+      // the trailing number is a sane swimmer age, to avoid misreading
+      // unrelated short numeric lines as club+age.
+      const clubAgePlainMatch = lClean.match(/^([A-Za-z]{2,6})\s+(\d{1,2})$/);
+      if (clubAgePlainMatch) {
+        const plainAge = parseInt(clubAgePlainMatch[2], 10);
+        if (plainAge >= 5 && plainAge <= 18) {
+          club = clubAgePlainMatch[1].trim().toUpperCase();
+          age = plainAge;
+          continue;
+        }
       }
 
       if (!name && l.length >= 3 && /[A-Za-z]/.test(l) && !/^\d+$/.test(l)) {
