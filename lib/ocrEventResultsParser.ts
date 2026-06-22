@@ -463,7 +463,7 @@ export function isEventResultsPage(rawText: string): boolean {
   ) return false;
 
   // ── Multi-swimmer detection (unchanged) ──
-  const lines = rawText.split("\n").map((l) => l.trim());
+  const lines = rawText.split("\n").map((l) => l.trim()).filter(Boolean);
   if (lines.filter((l) => /^(?:PLACE|PACE)\s+[A-Za-z]/i.test(l)).length >= 2) return true;
   if (lines.filter((l) => /^(?:PLACE|PACE)$/i.test(l)).length >= 2) return true;
   if (lines.filter((l) => /^(?:PLACE|PACE)\s+\d{1,3}$/i.test(l)).length >= 2) return true;
