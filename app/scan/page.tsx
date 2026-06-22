@@ -351,6 +351,7 @@ export default function ScanPage() {
   const [message, setMessage] = useState("");
   const [rawText, setRawText] = useState("");
   const [copyLabel, setCopyLabel] = useState("Copy");
+  const [routeDebug, setRouteDebug] = useState("");
   const [scanMode, setScanMode] = useState<ScanMode>(null);
   const [showInfo, setShowInfo] = useState(false);
 
@@ -790,6 +791,10 @@ export default function ScanPage() {
 
       setRawText(combined);
 
+      const _isSchedule = isSwimmerSchedulePage(combined);
+      const _isEventResults = isEventResultsPage(combined);
+      setRouteDebug(`isSwimmerSchedulePage=${_isSchedule} isEventResultsPage=${_isEventResults} combined.length=${combined.length}`);
+
       if (isSwimmerSchedulePage(combined)) {
         setScanMode("swimmer_schedule");
         const parsed = parseSwimmerScheduleOCR(combined);
@@ -855,10 +860,11 @@ export default function ScanPage() {
             if (matched) {
               setAutoMatchedSwimmer(matched); setShowPicker(false); setShowCreateForm(false);
             } else {
+              setAutoMatchedSwimmer(null);
               setNewSwimmerName(cleanedName); setNewSwimmerAge(""); setNewSwimmerClub("");
               setShowPicker(true); setShowCreateForm(false);
             }
-          } else { setShowPicker(true); }
+          } else { setAutoMatchedSwimmer(null); setShowPicker(true); }
         }
       }
 
@@ -1038,6 +1044,11 @@ export default function ScanPage() {
                         {copyLabel}
                       </button>
                     </div>
+                    {routeDebug && (
+                      <p className="text-[10px] text-emerald-300/80 mb-2 break-all">
+                        🧭 route: {routeDebug}
+                      </p>
+                    )}
                     <pre className="overflow-auto whitespace-pre-wrap text-[10px] leading-tight text-white/70" style={{ maxHeight: "300px", fontFamily: "monospace" }}>
                       {rawText}
                     </pre>
