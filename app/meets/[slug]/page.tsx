@@ -89,11 +89,13 @@ function buildLeaderboard(groups: EventGroup[]): LeaderboardEntry[] {
         map.set(r.swimmer_id, { swimmer_id: r.swimmer_id, swimmer_name: r.swimmer_name, gold: 0, silver: 0, bronze: 0, total: 0, total_points: 0 });
       }
       const e = map.get(r.swimmer_id)!;
-      // Medal counts still come from podium position within the event
-      if (idx === 0) e.gold += 1;
-      else if (idx === 1) e.silver += 1;
-      else if (idx === 2) e.bronze += 1;
-      if (idx < 3) e.total += 1;
+      // Medal counts come from the swimmer's true official place in the
+      // event (r.place) — never from their position among only the
+      // swimmers actually saved into the app, since saving a subset of an
+      // age group can silently promote someone to a medal they didn't win.
+      if (r.place === 1) { e.gold += 1; e.total += 1; }
+      else if (r.place === 2) { e.silver += 1; e.total += 1; }
+      else if (r.place === 3) { e.bronze += 1; e.total += 1; }
       // Points are summed across every swim in the meet, not just podium finishes
       if (r.fina_points != null) e.total_points += r.fina_points;
     });
@@ -469,7 +471,10 @@ function PodiumCard({
 }
 
 function Podium({ results, onLongPress }: { results: ResultRow[]; onLongPress: (r: ResultRow) => void }) {
-  const [first, second, third] = results;
+  const first = results.find((r) => r.place === 1);
+  const second = results.find((r) => r.place === 2);
+  const third = results.find((r) => r.place === 3);
+  if (!first && !second && !third) return null;
   return (
     <div style={{ display: "flex", alignItems: "flex-end", gap: "8px", marginBottom: "10px" }}>
       {second && <PodiumCard r={second} rank={2} onLongPress={onLongPress} />}
@@ -519,7 +524,7 @@ function ResultRowCard({
         userSelect: "none", WebkitUserSelect: "none", cursor: "default",
       }}
     >
-      <PlaceBadge rank={idx + 1} />
+      <PlaceBadge rank={r.place ?? idx + 1} />
 
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
@@ -761,8 +766,8 @@ export default function MeetDetailPage() {
           <div style={{ display: "flex", flexDirection: "column", gap: "20px", marginTop: "20px" }}>
             {groups.map((group) => {
               const isCollapsed = collapsed.has(group.event);
-              const podiumResults = group.results.slice(0, 3);
-              const restResults = group.results.slice(3);
+              const podiumPlaces = new Set([1, 2, 3]);
+              const restResults = group.results.filter((r) => r.place == null || !podiumPlaces.has(r.place));
               return (
                 <div key={group.event}>
                   <button
@@ -784,11 +789,11 @@ export default function MeetDetailPage() {
 
                   {!isCollapsed && (
                     <>
-                      <Podium results={podiumResults} onLongPress={setActionRow} />
+                      <Podium results={group.results} onLongPress={setActionRow} />
                       {restResults.length > 0 && (
                         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                           {restResults.map((r, idx) => (
-                            <ResultRowCard key={r.id} r={r} idx={idx + 3} onLongPress={setActionRow} />
+                            <ResultRowCard key={r.id} r={r} idx={idx} onLongPress={setActionRow} />
                           ))}
                         </div>
                       )}
