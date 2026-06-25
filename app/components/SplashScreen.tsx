@@ -82,7 +82,7 @@ export default function SplashScreen() {
           100% { opacity: 0.15; transform: scale(1); }
         }
 
-        /* ✅ Cinematic drift — slow, smooth, no permissions */
+        /* Cinematic drift — slow, smooth, no permissions */
         @keyframes natrix-drift {
           0%   { transform: scale(1.12) translate(0px, 0px); }
           25%  { transform: scale(1.12) translate(-12px, -6px); }
@@ -119,7 +119,7 @@ export default function SplashScreen() {
           </video>
         )}
 
-        {/* ✅ Photo with cinematic drift animation */}
+        {/* Photo with cinematic drift animation */}
         {showImage && (
           <img
             src={mediaUrl}
@@ -154,9 +154,17 @@ export default function SplashScreen() {
           alignItems: "center", justifyContent: "center",
           padding: "40px 32px", textAlign: "center",
         }}>
-          <div className="splash-drop" style={{ fontSize: "52px", lineHeight: 1, marginBottom: "20px" }}>
-            💧
-          </div>
+          {/* Logo — replace src with your actual cropped, transparent-background snake mark */}
+          <img
+            src="/natrix-logo-mark.png"
+            alt="Natrix"
+            className="splash-drop"
+            style={{
+              width: "72px", height: "72px",
+              objectFit: "contain",
+              marginBottom: "20px",
+            }}
+          />
 
           <div className="splash-title" style={{
             fontFamily: "'Bebas Neue', 'Arial Narrow', sans-serif",
@@ -181,15 +189,15 @@ export default function SplashScreen() {
             style={{
               marginTop: "48px", padding: "14px 40px",
               borderRadius: "100px",
-              border: "1px solid rgba(255,255,255,0.25)",
-              background: "rgba(255,255,255,0.1)",
+              border: "none",
+              background: "#BA7517",
               fontSize: "13px", letterSpacing: "0.2em",
-              textTransform: "uppercase", color: "rgba(255,255,255,0.85)",
-              fontWeight: 600, backdropFilter: "blur(8px)",
+              textTransform: "uppercase", color: "#2C1A04",
+              fontWeight: 600,
               cursor: "pointer",
             }}
           >
-            Tap to Enter
+            Let&rsquo;s Go
           </button>
         </div>
       </div>
