@@ -154,9 +154,9 @@ export default function SplashScreen() {
           alignItems: "center", justifyContent: "center",
           padding: "40px 32px", textAlign: "center",
         }}>
-          {/* Logo — replace src with your actual cropped, transparent-background snake mark */}
+          {/* Logo */}
           <img
-            src="/natrix-logo-mark.png"
+            src="/natrix-favicon.svg"
             alt="Natrix"
             className="splash-drop"
             style={{
