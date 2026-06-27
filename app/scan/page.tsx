@@ -492,6 +492,9 @@ export default function ScanPage() {
     if (!confirmedMs) { setTimeError("Please enter a valid time (e.g. 35.76 or 1:27.54)"); return; }
     setTimeError(null);
     setIsSaving(true);
+    // Remember this swimmer as "active" so next time Scan opens, they're
+    // already pre-selected — no need to re-pick every single race.
+    setActiveSwimmerId(swimmer.id);
     const eventName = canonicalEventName(parsedResult.event);
     const courseName = canonicalCourse(editedCourse);
     if (!eventName) { setMessage("⚠️ Could not determine event name."); setIsSaving(false); return; }
@@ -690,6 +693,8 @@ export default function ScanPage() {
   async function handleSaveSchedule(swimmer: Swimmer) {
     if (selectedScheduleRows.size === 0) return;
     setSavingSchedule(true);
+    // Remember this swimmer as "active" — same reasoning as saveSingleDirectly.
+    setActiveSwimmerId(swimmer.id);
     const saved: string[] = []; const errors: string[] = [];
     const meetType = detectMeetType(rawText, null);
     const resolvedMeetName = manualMeetName.trim() || scheduleMeetName || null;
