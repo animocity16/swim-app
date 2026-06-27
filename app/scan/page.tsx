@@ -17,6 +17,7 @@ import {
 import { canonicalCourse, canonicalEventName } from "@/lib/events";
 import { supabase } from "@/lib/supabaseClient";
 import SpreadsheetImport from "./SpreadsheetImport";
+import { setActiveSwimmerId, resolveActiveSwimmer } from "@/lib/activeSwimmer";
 
 // ─── Saved events (replaces hardcoded presets) ────────────────────────────────
 
@@ -427,7 +428,14 @@ export default function ScanPage() {
       .select("id, name, age, swim_club, group_type").order("name", { ascending: true });
     const all = (data as Swimmer[]) || [];
     setSwimmers(all);
-    setPrimarySwimmers(all.filter((s) => s.group_type === "primary"));
+    const primaries = all.filter((s) => s.group_type === "primary");
+    setPrimarySwimmers(primaries);
+
+    // Remember whichever swimmer was last active, so a parent scanning
+    // back-to-back races for the same kid doesn't have to re-pick every time.
+    const remembered = resolveActiveSwimmer(primaries);
+    if (remembered) setAutoMatchedSwimmer(remembered);
+
     setLoadingSwimmers(false);
   }
 
