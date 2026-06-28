@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
-// Only this account can see/use this page.
 const ADMIN_USER_ID = "9156c797-d133-4a7f-aa93-03688f2bdfd1";
 
 type UpcomingMeet = {
@@ -36,27 +35,6 @@ function fmt(dateStr: string | null) {
   return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "12px 14px",
-  borderRadius: "14px",
-  border: "1px solid rgba(255,255,255,0.14)",
-  background: "rgba(255,255,255,0.06)",
-  color: "#fff",
-  fontSize: "14px",
-  outline: "none",
-};
-
-const labelStyle: React.CSSProperties = {
-  fontSize: "11px",
-  fontWeight: 600,
-  letterSpacing: "0.04em",
-  textTransform: "uppercase",
-  color: "rgba(255,255,255,0.45)",
-  marginBottom: "6px",
-  display: "block",
-};
-
 export default function AdminMeetsPage() {
   const router = useRouter();
   const [authChecked, setAuthChecked] = useState(false);
@@ -69,9 +47,7 @@ export default function AdminMeetsPage() {
   const [pendingDelete, setPendingDelete] = useState<UpcomingMeet | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    void checkAccess();
-  }, []);
+  useEffect(() => { void checkAccess(); }, []);
 
   async function checkAccess() {
     const { data: { user } } = await supabase.auth.getUser();
@@ -88,7 +64,6 @@ export default function AdminMeetsPage() {
       .from("upcoming_meets")
       .select("*")
       .order("start_date", { ascending: true });
-
     if (!error && data) setMeets(data as UpcomingMeet[]);
     setLoading(false);
   }
@@ -150,37 +125,36 @@ export default function AdminMeetsPage() {
   }
 
   if (!authChecked) {
-    return <div className="shell"><div className="container-app pt-10 text-center text-white/40">Checking access...</div></div>;
+    return (
+      <div className="shell">
+        <div className="container-app pt-10 text-center muted">Checking access...</div>
+      </div>
+    );
   }
   if (!allowed) return null;
 
   return (
     <div className="shell">
-      <div className="container-app space-y-5 pb-24">
+      <div className="container-app space-y-5">
 
         <div className="pt-2">
-          <p style={{ fontSize: "10px", fontWeight: 600, letterSpacing: "0.15em", textTransform: "uppercase", color: "#BA7517" }}>
-            Natrix Admin
-          </p>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight text-white">Upcoming Meets</h1>
-          <p className="mt-1 text-sm" style={{ color: "rgba(255,255,255,0.4)" }}>
-            Add or edit meets on the calendar. Changes are live instantly — no code, no deploy.
+          <p className="label" style={{ color: "#BA7517" }}>Natrix Admin</p>
+          <h1 className="title mt-1">Upcoming Meets</h1>
+          <p className="mt-1 text-sm muted">
+            Add, edit, or remove meets on the calendar. Changes go live instantly.
           </p>
         </div>
 
         {/* Form */}
-        <div
-          className="rounded-3xl p-5 space-y-4"
-          style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
-        >
-          <p style={{ fontSize: "13px", fontWeight: 700, color: "#FDE68A" }}>
+        <div className="card space-y-4">
+          <p className="text-sm font-bold" style={{ color: "#FDE68A" }}>
             {form.id ? "Editing meet" : "Add a new meet"}
           </p>
 
-          <div>
-            <label style={labelStyle}>Meet name</label>
+          <div className="space-y-1.5">
+            <label className="label">Meet name</label>
             <input
-              style={inputStyle}
+              className="input"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               placeholder="e.g. National Age Group 2026"
@@ -188,20 +162,20 @@ export default function AdminMeetsPage() {
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label style={labelStyle}>Start date</label>
+            <div className="space-y-1.5">
+              <label className="label">Start date</label>
               <input
                 type="date"
-                style={inputStyle}
+                className="input"
                 value={form.start_date}
                 onChange={(e) => setForm({ ...form, start_date: e.target.value })}
               />
             </div>
-            <div>
-              <label style={labelStyle}>End date (optional)</label>
+            <div className="space-y-1.5">
+              <label className="label">End date</label>
               <input
                 type="date"
-                style={inputStyle}
+                className="input"
                 value={form.end_date}
                 onChange={(e) => setForm({ ...form, end_date: e.target.value })}
               />
@@ -209,71 +183,46 @@ export default function AdminMeetsPage() {
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label style={labelStyle}>Type</label>
+            <div className="space-y-1.5">
+              <label className="label">Type</label>
               <select
-                style={inputStyle}
+                className="input"
                 value={form.meet_type}
                 onChange={(e) => setForm({ ...form, meet_type: e.target.value })}
               >
                 {MEET_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
-            <div>
-              <label style={labelStyle}>Location</label>
+            <div className="space-y-1.5">
+              <label className="label">Location</label>
               <input
-                style={inputStyle}
+                className="input"
                 value={form.location}
                 onChange={(e) => setForm({ ...form, location: e.target.value })}
-                placeholder="e.g. OCBC Aquatic Centre"
+                placeholder="e.g. OCBC Aquatic"
               />
             </div>
           </div>
 
-          <div>
-            <label style={labelStyle}>Notes (optional)</label>
+          <div className="space-y-1.5">
+            <label className="label">Notes</label>
             <textarea
-              style={{ ...inputStyle, minHeight: "70px", resize: "vertical" }}
+              className="input"
+              style={{ height: "auto", minHeight: "70px", paddingTop: "12px", paddingBottom: "12px" }}
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
               placeholder="Anything parents should know"
             />
           </div>
 
-          {error && <p style={{ color: "#F87171", fontSize: "13px" }}>{error}</p>}
+          {error && <p className="text-sm" style={{ color: "#fca5a5" }}>{error}</p>}
 
           <div className="flex gap-3">
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              style={{
-                flex: 1,
-                padding: "13px",
-                borderRadius: "14px",
-                border: "none",
-                background: saving ? "rgba(217,119,6,0.5)" : "#D97706",
-                color: "#fff",
-                fontWeight: 700,
-                fontSize: "14px",
-                cursor: saving ? "not-allowed" : "pointer",
-              }}
-            >
+            <button onClick={handleSave} disabled={saving} className="btn-block flex-1">
               {saving ? "Saving..." : form.id ? "Save changes" : "Add meet"}
             </button>
             {form.id && (
-              <button
-                onClick={resetForm}
-                style={{
-                  padding: "13px 18px",
-                  borderRadius: "14px",
-                  border: "1px solid rgba(255,255,255,0.15)",
-                  background: "rgba(255,255,255,0.06)",
-                  color: "rgba(255,255,255,0.75)",
-                  fontWeight: 600,
-                  fontSize: "14px",
-                  cursor: "pointer",
-                }}
-              >
+              <button onClick={resetForm} className="btn-outline">
                 Cancel
               </button>
             )}
@@ -283,57 +232,22 @@ export default function AdminMeetsPage() {
         {/* List */}
         <div className="space-y-2">
           {loading ? (
-            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px" }}>Loading...</p>
+            <p className="muted text-sm">Loading...</p>
           ) : meets.length === 0 ? (
-            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px" }}>No meets added yet.</p>
+            <p className="muted text-sm">No meets added yet.</p>
           ) : (
             meets.map((meet) => (
-              <div
-                key={meet.id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "12px",
-                  background: "rgba(255,255,255,0.05)",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  borderRadius: "18px",
-                  padding: "12px 14px",
-                }}
-              >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: "14px", fontWeight: 700, color: "#fff" }}>{meet.name}</p>
-                  <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.4)", marginTop: "2px" }}>
+              <div key={meet.id} className="card-soft flex items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-white truncate">{meet.name}</p>
+                  <p className="text-xs muted mt-0.5 truncate">
                     {[fmt(meet.start_date), meet.meet_type, meet.location].filter(Boolean).join(" · ")}
                   </p>
                 </div>
-                <button
-                  onClick={() => startEdit(meet)}
-                  style={{
-                    padding: "8px 12px",
-                    borderRadius: "10px",
-                    border: "1px solid rgba(253,230,138,0.25)",
-                    background: "rgba(217,119,6,0.15)",
-                    color: "#FDE68A",
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
-                >
+                <button onClick={() => startEdit(meet)} className="btn flex-shrink-0">
                   Edit
                 </button>
-                <button
-                  onClick={() => setPendingDelete(meet)}
-                  style={{
-                    padding: "8px 12px",
-                    borderRadius: "10px",
-                    border: "1px solid rgba(239,68,68,0.25)",
-                    background: "rgba(239,68,68,0.12)",
-                    color: "#FCA5A5",
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
-                >
+                <button onClick={() => setPendingDelete(meet)} className="btn-danger flex-shrink-0">
                   Delete
                 </button>
               </div>
@@ -342,7 +256,7 @@ export default function AdminMeetsPage() {
         </div>
       </div>
 
-      {/* Delete confirm */}
+      {/* Delete confirm sheet */}
       {pendingDelete && (
         <>
           <div
@@ -350,30 +264,20 @@ export default function AdminMeetsPage() {
             style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(6px)" }}
           />
           <div
+            className="card"
             style={{
               position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
               width: "100%", maxWidth: "480px", zIndex: 51,
-              background: "rgba(6,25,45,0.98)", border: "1px solid rgba(255,255,255,0.14)",
-              borderBottom: "none", borderRadius: "28px 28px 0 0", padding: "20px 20px 40px",
+              borderBottom: "none", borderRadius: "28px 28px 0 0", paddingBottom: "40px",
             }}
           >
-            <p style={{ fontSize: "17px", fontWeight: 700, color: "#fff", marginBottom: "6px", textAlign: "center" }}>
-              Delete this meet?
-            </p>
-            <p style={{ fontSize: "14px", color: "rgba(255,255,255,0.6)", marginBottom: "18px", textAlign: "center" }}>
-              {pendingDelete.name}
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-              <button
-                onClick={handleDelete}
-                style={{ padding: "15px", borderRadius: "16px", border: "none", background: "#DC2626", color: "#fff", fontWeight: 700, fontSize: "15px", cursor: "pointer" }}
-              >
+            <p className="text-center text-lg font-bold text-white mb-1.5">Delete this meet?</p>
+            <p className="text-center text-sm muted mb-5">{pendingDelete.name}</p>
+            <div className="space-y-2.5">
+              <button onClick={handleDelete} className="btn-danger w-full h-14" style={{ background: "rgba(220,38,38,0.9)", color: "#fff", borderColor: "rgba(220,38,38,0.9)" }}>
                 Delete
               </button>
-              <button
-                onClick={() => setPendingDelete(null)}
-                style={{ padding: "15px", borderRadius: "16px", border: "1px solid rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.75)", fontWeight: 600, fontSize: "15px", cursor: "pointer" }}
-              >
+              <button onClick={() => setPendingDelete(null)} className="btn-outline w-full h-14">
                 Cancel
               </button>
             </div>
