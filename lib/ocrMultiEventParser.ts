@@ -551,7 +551,7 @@ function extractFinalTimeMs(rawText: string): number {
 
   // "PLACE FINALS ENTRY\n13 34.63 35.09" — grab first time after the header + place number.
   // \s+ matches newlines so this works even when OCR splits the header across lines.
-  const placeBlock = rawText.match(/PLACE\s+FINALS\s+ENTRY\s+\d+\s+([\d:.]+)/i);
+  const placeBlock = rawText.match(/PLACE\s+FINALS\s+ENTRY\s+(?:\d+\s+)?([\d:.]+)/i);
   if (placeBlock) {
     const ms = parseAnyTime(placeBlock[1]);
     if (ms > 5_000) return ms;
@@ -966,7 +966,7 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
 
 
 function extractPlaceFromDetailScreen(rawText: string, lines: string[]): number | null {
-  const m1 = rawText.match(/PLACE\s+FINALS\s+ENTRY[\r\n]+\s*(\d{1,3})\b/i);
+  const m1 = rawText.match(/PLACE\s+FINALS\s+ENTRY[\r\n]+\s*(\d{1,3})\b(?!\.)/i);
   if (m1) { const p = Number(m1[1]); if (p >= 1 && p <= 999) return p; }
 
   const m2 = rawText.match(/\bfinals?\s+(\d{1,3})\s+\d+[:.]/i);
