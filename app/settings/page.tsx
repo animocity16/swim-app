@@ -10,6 +10,9 @@ import Link from "next/link";
 
 const APP_VERSION = "1.0.0";
 
+// Only this account sees the admin tools card below.
+const ADMIN_USER_ID = "9156c797-d133-4a7f-aa93-03688f2bdfd1";
+
 const FEATURE_REQUESTS = [
   "AI nutrition guide", "Meet calendar", "Apple Watch support",
   "Team / club dashboard", "Relay tracking", "Compare with teammates",
@@ -90,6 +93,7 @@ export default function SettingsPage() {
   const [loading, setLoading]         = useState(true);
   const [email, setEmail]             = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [isAdmin, setIsAdmin]         = useState(false);
 
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [newPassword, setNewPassword]           = useState("");
@@ -139,6 +143,7 @@ export default function SettingsPage() {
     const{data:{session}}=await supabase.auth.getSession();
     if(!session){router.replace("/login");return;}
     setEmail(session.user.email??"");
+    setIsAdmin(session.user.id===ADMIN_USER_ID);
     const meta=session.user.user_metadata;
     setDisplayName(meta?.full_name??meta?.name??"");
     setActiveFontSize((meta?.app_font_size as FontSizeId)??"default");
@@ -280,6 +285,22 @@ export default function SettingsPage() {
             )}
           </div>
         </div>
+
+        {/* ── Admin (only visible to Julian) ─────────────────────────────── */}
+        {isAdmin&&(
+          <Link href="/admin/meets"
+            className="flex items-center justify-between rounded-2xl px-4 py-3.5 transition"
+            style={{background:"rgba(217,119,6,0.12)",border:"1px solid rgba(253,230,138,0.25)"}}>
+            <div className="flex items-center gap-3">
+              <span style={{fontSize:18}}>🛠️</span>
+              <div>
+                <p className="text-sm font-semibold" style={{color:"#FDE68A"}}>Manage meets</p>
+                <p className="mt-0.5 text-xs text-white/40">Admin only · add or edit the meet calendar</p>
+              </div>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke="rgba(253,230,138,0.5)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </Link>
+        )}
 
         {/* ── Appearance ──────────────────────────────────────────────────── */}
         <div className="card space-y-6">
