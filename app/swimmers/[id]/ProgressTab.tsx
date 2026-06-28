@@ -129,6 +129,8 @@ export default function ProgressTab({ swimmerId, swimmerName }: Props) {
   const [loading, setLoading] = useState(true);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [tappedDots, setTappedDots] = useState<Record<string, TimeRow | null>>({});
+  const [pbExpanded, setPbExpanded] = useState(false);
+  const [firstResultsExpanded, setFirstResultsExpanded] = useState(false);
 
   useEffect(() => { void loadTimes(); }, [swimmerId]);
 
@@ -194,6 +196,9 @@ export default function ProgressTab({ swimmerId, swimmerName }: Props) {
 
   const multiResultSeries = allSeries.filter((s) => s.rows.length >= 2);
   const singleResultSeries = allSeries.filter((s) => s.rows.length === 1);
+  const fastestPB = allSeries.length > 0
+    ? allSeries.reduce((best, s) => (s.pb < best.pb ? s : best), allSeries[0])
+    : null;
 
   return (
     <div className="space-y-4">
@@ -226,30 +231,41 @@ export default function ProgressTab({ swimmerId, swimmerName }: Props) {
         </div>
       )}
 
-      {/* PB ranking bar chart — all events */}
+      {/* PB ranking bar chart — all events — collapsible, collapsed by default */}
       {allSeries.length > 1 && (
         <div className="rounded-2xl overflow-hidden"
           style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)" }}>
-          <p className="px-4 pt-3 pb-2 text-[10px] font-medium uppercase tracking-widest text-white/30">Personal bests</p>
-          <div className="px-4 pb-4 space-y-2.5">
-            {allSeries.map((s) => {
-              const maxPB = Math.max(...allSeries.map((x) => x.pb));
-              const pct = Math.max(20, (1 - (s.pb - Math.min(...allSeries.map((x) => x.pb))) / (maxPB - Math.min(...allSeries.map((x) => x.pb)) + 1)) * 85 + 15);
-              return (
-                <div key={s.key} className="flex items-center gap-3">
-                  {/* text-sm matches rest of app (was text-xs) */}
-                  <p className="text-sm text-white/60 flex-shrink-0 w-20 truncate">{s.shortLabel}</p>
-                  <div className="flex-1 h-4 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
-                    <div className="h-full rounded-full flex items-center justify-end pr-2 transition-all"
-                      style={{ width: `${pct}%`, background: `${s.color}60`, minWidth: 40 }}>
+          <button type="button" onClick={() => setPbExpanded((v) => !v)}
+            className="w-full flex items-center justify-between px-4 py-3 text-left">
+            <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">Personal bests</p>
+            <div className="flex items-center gap-2">
+              {!pbExpanded && fastestPB && (
+                <p className="text-xs text-white/40">
+                  {fastestPB.shortLabel} <span className="font-bold text-white">{formatMs(fastestPB.pb)}</span>
+                </p>
+              )}
+              <span className="text-white/30 text-xs transition-transform" style={{ transform: pbExpanded ? "rotate(180deg)" : "none" }}>▾</span>
+            </div>
+          </button>
+          {pbExpanded && (
+            <div className="px-4 pb-4 space-y-2.5">
+              {allSeries.map((s) => {
+                const maxPB = Math.max(...allSeries.map((x) => x.pb));
+                const pct = Math.max(20, (1 - (s.pb - Math.min(...allSeries.map((x) => x.pb))) / (maxPB - Math.min(...allSeries.map((x) => x.pb)) + 1)) * 85 + 15);
+                return (
+                  <div key={s.key} className="flex items-center gap-3">
+                    <p className="text-sm text-white/60 flex-shrink-0 w-20 truncate">{s.shortLabel}</p>
+                    <div className="flex-1 h-4 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+                      <div className="h-full rounded-full flex items-center justify-end pr-2 transition-all"
+                        style={{ width: `${pct}%`, background: `${s.color}60`, minWidth: 40 }}>
+                      </div>
                     </div>
+                    <p className="text-sm font-bold text-white flex-shrink-0 w-16 text-right">{formatMs(s.pb)}</p>
                   </div>
-                  {/* text-sm font-bold matches rest of app (was text-xs font-bold) */}
-                  <p className="text-sm font-bold text-white flex-shrink-0 w-16 text-right">{formatMs(s.pb)}</p>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -351,24 +367,32 @@ export default function ProgressTab({ swimmerId, swimmerName }: Props) {
         </div>
       )}
 
-      {/* Single result events — compact list */}
+      {/* Single result events — collapsible, tucked away instead of floating loose */}
       {singleResultSeries.length > 0 && (
         <div className="rounded-2xl overflow-hidden"
           style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)" }}>
-          <p className="px-4 pt-3 pb-2 text-[10px] font-medium uppercase tracking-widest text-white/30">
-            First results — scan again to track progress
-          </p>
-          {singleResultSeries.map((s, i) => (
-            <div key={s.key} className="flex items-center justify-between px-4 py-3"
-              style={{ borderTop: i === 0 ? "1px solid rgba(255,255,255,0.07)" : "1px solid rgba(255,255,255,0.05)" }}>
-              <div className="flex items-center gap-2">
-                <div className="h-1.5 w-1.5 rounded-full" style={{ background: s.color }} />
-                <p className="text-sm font-medium text-white/70">{s.shortLabel}</p>
-                <p className="text-[10px] text-white/30">{s.course}</p>
-              </div>
-              <p className="text-sm font-bold" style={{ color: "#FDE68A" }}>{formatMs(s.pb)}</p>
+          <button type="button" onClick={() => setFirstResultsExpanded((v) => !v)}
+            className="w-full flex items-center justify-between px-4 py-3 text-left">
+            <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">
+              {singleResultSeries.length} event{singleResultSeries.length === 1 ? "" : "s"} with one swim · scan again to track progress
+            </p>
+            <span className="text-white/30 text-xs transition-transform flex-shrink-0 ml-2" style={{ transform: firstResultsExpanded ? "rotate(180deg)" : "none" }}>▾</span>
+          </button>
+          {firstResultsExpanded && (
+            <div>
+              {singleResultSeries.map((s, i) => (
+                <div key={s.key} className="flex items-center justify-between px-4 py-3"
+                  style={{ borderTop: i === 0 ? "1px solid rgba(255,255,255,0.07)" : "1px solid rgba(255,255,255,0.05)" }}>
+                  <div className="flex items-center gap-2">
+                    <div className="h-1.5 w-1.5 rounded-full" style={{ background: s.color }} />
+                    <p className="text-sm font-medium text-white/70">{s.shortLabel}</p>
+                    <p className="text-[10px] text-white/30">{s.course}</p>
+                  </div>
+                  <p className="text-sm font-bold" style={{ color: "#FDE68A" }}>{formatMs(s.pb)}</p>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       )}
 
