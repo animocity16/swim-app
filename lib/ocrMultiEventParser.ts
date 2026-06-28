@@ -199,6 +199,19 @@ function extractMeetDate(text: string): string | null {
     return `20${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
   }
 
+  // Meet Mobile's actual format: "Jul 28,2024" or "Jun19,2026" — spacing
+  // around the day/comma varies, sometimes with zero spaces at all.
+  const MONTHS: Record<string, string> = {
+    jan: "01", feb: "02", mar: "03", apr: "04", may: "05", jun: "06",
+    jul: "07", aug: "08", sep: "09", oct: "10", nov: "11", dec: "12",
+  };
+  const named = text.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s*(\d{1,2})\s*,\s*(20\d{2})\b/i);
+  if (named) {
+    const [, mon, d, y] = named;
+    const m = MONTHS[mon.toLowerCase()];
+    if (m) return `${y}-${m}-${d.padStart(2, "0")}`;
+  }
+
   return null;
 }
 
