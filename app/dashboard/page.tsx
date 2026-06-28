@@ -49,50 +49,58 @@ type StandardsSummary = {
 };
 
 type Meet = {
+  id: string;
   name: string;
   startDate: Date;
-  endDate: Date;
-  minAge?: number;
-  maxAge?: number;
-  emoji: string;
+  endDate: Date | null;
+  meetType: string | null;
+  location: string | null;
 };
 
 // ─── Meet calendar ────────────────────────────────────────────────────────────
 
-const SG_MEETS_2026: Meet[] = [
-  { name: "NSG 2026", startDate: new Date("2026-04-15"), endDate: new Date("2026-04-25"), emoji: "🏫" },
-  { name: "12th Singapore National Championships", startDate: new Date("2026-05-01"), endDate: new Date("2026-05-31"), emoji: "🥇" },
-  { name: "ETC 2026", startDate: new Date("2026-05-31"), endDate: new Date("2026-05-31"), minAge: 10, maxAge: 12, emoji: "🌟" },
-  { name: "21st SNSC 2026", startDate: new Date("2026-06-12"), endDate: new Date("2026-06-14"), minAge: 13, emoji: "🏆" },
-  { name: "Pesta Sukan 2026", startDate: new Date("2026-07-01"), endDate: new Date("2026-07-31"), emoji: "🎉" },
-  { name: "39th JIC 2026", startDate: new Date("2026-11-01"), endDate: new Date("2026-11-30"), maxAge: 12, emoji: "🏊" },
-];
-
-function getUpcomingMeets(ages: number[]): Meet[] {
+async function fetchUpcomingMeets(): Promise<Meet[]> {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const seen = new Set<string>();
-  const result: Meet[] = [];
-  for (const meet of SG_MEETS_2026) {
-    if (meet.endDate < today) continue;
-    const eligible =
-      ages.length === 0 ||
-      ages.some((age) => {
-        if (meet.minAge != null && age < meet.minAge) return false;
-        if (meet.maxAge != null && age > meet.maxAge) return false;
-        return true;
-      });
-    if (!eligible) continue;
-    if (!seen.has(meet.name)) { seen.add(meet.name); result.push(meet); }
+  const todayStr = today.toISOString().slice(0, 10);
+
+  const { data, error } = await supabase
+    .from("upcoming_meets")
+    .select("id, name, start_date, end_date, meet_type, location")
+    .gte("start_date", todayStr)
+    .order("start_date", { ascending: true })
+    .limit(5);
+
+  if (error || !data) return [];
+
+  return (data as {
+    id: string; name: string; start_date: string; end_date: string | null;
+    meet_type: string | null; location: string | null;
+  }[]).map((m) => ({
+    id: m.id,
+    name: m.name,
+    startDate: new Date(m.start_date),
+    endDate: m.end_date ? new Date(m.end_date) : null,
+    meetType: m.meet_type,
+    location: m.location,
+  }));
+}
+
+function meetEmoji(meetType: string | null): string {
+  switch (meetType) {
+    case "SNAG": return "🌟";
+    case "ETC": return "🎉";
+    case "NSG": return "🏫";
+    case "NSC": return "🏆";
+    default: return "🏊";
   }
-  return result.sort((a, b) => a.startDate.getTime() - b.startDate.getTime()).slice(0, 5);
 }
 
 function isHappeningNow(meet: Meet): boolean {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const start = new Date(meet.startDate); start.setHours(0, 0, 0, 0);
-  const end = new Date(meet.endDate); end.setHours(0, 0, 0, 0);
+  const end = new Date(meet.endDate ?? meet.startDate); end.setHours(0, 0, 0, 0);
   return today >= start && today <= end;
 }
 
@@ -248,7 +256,7 @@ export default function DashboardPage() {
 
     if (mySwimmers.length === 0) { setPhase1Done(true); setPhase2Done(true); return; }
 
-    setUpcomingMeets(getUpcomingMeets(mySwimmers.map((s) => s.age)));
+    void fetchUpcomingMeets().then(setUpcomingMeets);
 
     // Show skeleton swimmer cards immediately — phase 2 loads behind the scenes
     // We set placeholder stats so cards render right away
@@ -566,16 +574,18 @@ export default function DashboardPage() {
               {upcomingMeets.map((meet) => {
                 const now = isHappeningNow(meet);
                 return (
-                  <div key={meet.name}
+                  <div key={meet.id}
                     className="flex items-center gap-3 rounded-2xl px-4 py-3"
                     style={{
                       background: now ? "rgba(110,231,183,0.08)" : "rgba(255,255,255,0.04)",
                       border: now ? "1px solid rgba(110,231,183,0.25)" : "1px solid rgba(255,255,255,0.08)",
                     }}>
-                    <span style={{ fontSize: 20 }}>{meet.emoji}</span>
+                    <span style={{ fontSize: 20 }}>{meetEmoji(meet.meetType)}</span>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-white truncate">{meet.name}</p>
-                      <p className="text-[10px] text-white/35 mt-0.5">{formatMeetMonth(meet)}</p>
+                      <p className="text-[10px] text-white/35 mt-0.5">
+                        {formatMeetMonth(meet)}{meet.location ? ` · ${meet.location}` : ""}
+                      </p>
                     </div>
                     {now && (
                       <span className="text-xs font-bold flex-shrink-0" style={{ color: "#6EE7B7" }}>Now!</span>
@@ -584,9 +594,6 @@ export default function DashboardPage() {
                 );
               })}
             </div>
-            <p className="text-[10px] text-white/25 text-center mt-2">
-              Dates indicative · Source: Singapore Aquatics
-            </p>
           </div>
         )}
 
