@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
 // Only this account can see/use this page.
-const ADMIN_USER_ID = "8f6975a9-aba1-44aa-867a-97d422d11c4a";
+const ADMIN_USER_ID = "9156c797-d133-4a7f-aa93-03688f2bdfd1";
 
 type UpcomingMeet = {
   id: string;
