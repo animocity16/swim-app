@@ -163,21 +163,35 @@ export default function AdminMeetsPage() {
 
           <div className="space-y-1.5">
             <label className="label">Start date</label>
-            <input
-              type="date"
-              className="input"
-              value={form.start_date}
-              onChange={(e) => setForm({ ...form, start_date: e.target.value })}
-            />
+            <div className="input" style={{ padding: 0, overflow: "hidden", display: "flex", alignItems: "center" }}>
+              <input
+                type="date"
+                value={form.start_date}
+                onChange={(e) => setForm({ ...form, start_date: e.target.value })}
+                style={{
+                  width: "100%", height: "100%", minWidth: 0,
+                  background: "transparent", border: "none", outline: "none",
+                  color: "#fff", padding: "0 16px", colorScheme: "dark",
+                  boxSizing: "border-box",
+                }}
+              />
+            </div>
           </div>
           <div className="space-y-1.5">
             <label className="label">End date (optional)</label>
-            <input
-              type="date"
-              className="input"
-              value={form.end_date}
-              onChange={(e) => setForm({ ...form, end_date: e.target.value })}
-            />
+            <div className="input" style={{ padding: 0, overflow: "hidden", display: "flex", alignItems: "center" }}>
+              <input
+                type="date"
+                value={form.end_date}
+                onChange={(e) => setForm({ ...form, end_date: e.target.value })}
+                style={{
+                  width: "100%", height: "100%", minWidth: 0,
+                  background: "transparent", border: "none", outline: "none",
+                  color: "#fff", padding: "0 16px", colorScheme: "dark",
+                  boxSizing: "border-box",
+                }}
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
