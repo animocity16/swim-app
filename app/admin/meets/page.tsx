@@ -137,10 +137,10 @@ export default function AdminMeetsPage() {
     <div className="shell">
       <div className="container-app space-y-5">
 
-        <div className="pt-2">
-          <p className="label" style={{ color: "#BA7517" }}>Natrix Admin</p>
-          <h1 className="title mt-1">Upcoming Meets</h1>
-          <p className="mt-1 text-sm muted">
+        <div className="pt-2 pb-1">
+          <p className="label" style={{ color: "#BA7517", marginBottom: "4px" }}>Natrix Admin</p>
+          <h1 className="title">Upcoming Meets</h1>
+          <p className="mt-2 text-sm muted">
             Add, edit, or remove meets on the calendar. Changes go live instantly.
           </p>
         </div>
@@ -161,25 +161,23 @@ export default function AdminMeetsPage() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <label className="label">Start date</label>
-              <input
-                type="date"
-                className="input"
-                value={form.start_date}
-                onChange={(e) => setForm({ ...form, start_date: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="label">End date</label>
-              <input
-                type="date"
-                className="input"
-                value={form.end_date}
-                onChange={(e) => setForm({ ...form, end_date: e.target.value })}
-              />
-            </div>
+          <div className="space-y-1.5">
+            <label className="label">Start date</label>
+            <input
+              type="date"
+              className="input"
+              value={form.start_date}
+              onChange={(e) => setForm({ ...form, start_date: e.target.value })}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="label">End date (optional)</label>
+            <input
+              type="date"
+              className="input"
+              value={form.end_date}
+              onChange={(e) => setForm({ ...form, end_date: e.target.value })}
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
