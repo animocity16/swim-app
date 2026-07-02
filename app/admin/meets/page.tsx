@@ -16,7 +16,7 @@ type UpcomingMeet = {
   notes: string | null;
 };
 
-const MEET_TYPES = ["SNAG", "ETC", "NSG", "NSC", "Other"];
+const MEET_TYPES = ["Club Meet", "SAQ Meet", "International Meet", "Overseas Meet", "Other"];
 
 const emptyForm = {
   id: null as string | null,
