@@ -22,11 +22,10 @@ async function extractText(buffer: ArrayBuffer): Promise<string> {
   // pdfjs-dist legacy build runs fine in Node without a worker
   const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
   const pdf = await pdfjsLib.getDocument({
-    data: buffer,
-    useWorkerFetch: false,
-    isEvalSupported: false,
-    disableFontFace: true,
-  }).promise;
+  data: buffer,
+  useWorkerFetch: false,
+  disableFontFace: true,
+}).promise;
 
   let fullText = "";
   for (let i = 1; i <= pdf.numPages; i++) {
