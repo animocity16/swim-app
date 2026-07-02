@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { DOMMatrix } from "canvas";
+// @ts-expect-error - polyfilling for pdfjs-dist server-side
+globalThis.DOMMatrix = DOMMatrix;
 
 export const runtime = "nodejs";
 
