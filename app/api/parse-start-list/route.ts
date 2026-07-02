@@ -19,7 +19,8 @@ type ParsedEvent = {
 // ─── PDF text extraction (server-side, pure Node, no worker) ──────────────────
 
 async function extractText(buffer: ArrayBuffer): Promise<string> {
-  const pdfParse = (await import("pdf-parse")).default;
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const pdfParse = require("pdf-parse");
   const data = await pdfParse(Buffer.from(buffer));
   return data.text;
 }
