@@ -180,7 +180,8 @@ body::after {
 
   /* Content container */
   .container-app {
-    @apply mx-auto w-full max-w-md px-4 pt-6 pb-28;
+    @apply mx-auto w-full max-w-md px-4 pb-28;
+    padding-top: calc(env(safe-area-inset-top) + 1.5rem);
   }
 
   /* Card — frosted glass */
