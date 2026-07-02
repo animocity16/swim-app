@@ -276,27 +276,16 @@ export default function UpcomingMeetDetailPage() {
     setUploadError(null);
 
     try {
-      // Dynamically import pdfjs
-      const pdfjsLib = await import("pdfjs-dist");
-      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("swimmerNames", JSON.stringify(swimmerNames));
 
-      const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const res = await fetch("/api/parse-start-list", { method: "POST", body: formData });
+      const data = await res.json();
 
-      let fullText = "";
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const content = await page.getTextContent();
-        const pageText = content.items
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-.map((item: any) => item.str ?? "")
-          .join(" ")
-          .replace(/\s{2,}/g, "\n");
-        fullText += pageText + "\n";
-      }
+      if (!res.ok) throw new Error(data.error || "Failed to parse PDF");
 
-      // Parse PDF text
-      const parsed = parsePDF(fullText, swimmerNames);
+      const parsed: ParsedEvent[] = data.events;
 
       if (parsed.length === 0) {
         setUploadError("No matching swimmers found in this PDF. Check the start list is for the right session.");
