@@ -288,7 +288,8 @@ export default function UpcomingMeetDetailPage() {
         const page = await pdf.getPage(i);
         const content = await page.getTextContent();
         const pageText = content.items
-          .map((item: { str?: string }) => item.str ?? "")
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+.map((item: any) => item.str ?? "")
           .join(" ")
           .replace(/\s{2,}/g, "\n");
         fullText += pageText + "\n";
