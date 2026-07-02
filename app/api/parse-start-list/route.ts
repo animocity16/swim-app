@@ -1,7 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { DOMMatrix } from "canvas";
-// @ts-expect-error - polyfilling for pdfjs-dist server-side
-globalThis.DOMMatrix = DOMMatrix;
 
 export const runtime = "nodejs";
 
@@ -19,32 +16,15 @@ type ParsedEvent = {
   swimmerName: string;
 };
 
-// ─── PDF text extraction (server-side, no worker needed) ──────────────────────
+// ─── PDF text extraction (server-side, pure Node, no worker) ──────────────────
 
 async function extractText(buffer: ArrayBuffer): Promise<string> {
-  // pdfjs-dist legacy build runs fine in Node without a worker
-  const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
-  const pdf = await pdfjsLib.getDocument({
-  data: buffer,
-  useWorkerFetch: false,
-  disableFontFace: true,
-}).promise;
-
-  let fullText = "";
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const content = await page.getTextContent();
-    const pageText = content.items
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .map((item: any) => item.str ?? "")
-      .join(" ")
-      .replace(/\s{2,}/g, "\n");
-    fullText += pageText + "\n";
-  }
-  return fullText;
+  const pdfParse = (await import("pdf-parse")).default;
+  const data = await pdfParse(Buffer.from(buffer));
+  return data.text;
 }
 
-// ─── Parser (same logic as before) ─────────────────────────────────────────────
+// ─── Parser ─────────────────────────────────────────────────────────────────────
 
 function parsePDF(text: string, swimmerNames: string[]): ParsedEvent[] {
   const results: ParsedEvent[] = [];
