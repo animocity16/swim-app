@@ -1,3 +1,7 @@
+import { DOMMatrix } from "canvas";
+// @ts-expect-error - polyfill required for pdf-parse's internal pdfjs dependency
+globalThis.DOMMatrix = DOMMatrix;
+
 import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -16,10 +20,9 @@ type ParsedEvent = {
   swimmerName: string;
 };
 
-// ─── PDF text extraction (server-side, pure Node, no worker) ──────────────────
+// ─── PDF text extraction ────────────────────────────────────────────────────────
 
 async function extractText(buffer: ArrayBuffer): Promise<string> {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const pdfParse = require("pdf-parse");
   const data = await pdfParse(Buffer.from(buffer));
   return data.text;
