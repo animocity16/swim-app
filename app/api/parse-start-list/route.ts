@@ -3,6 +3,7 @@ import { DOMMatrix } from "canvas";
 globalThis.DOMMatrix = DOMMatrix;
 
 import { NextRequest, NextResponse } from "next/server";
+// @ts-expect-error - pdf-parse ships CommonJS-style types that don't match ESM import cleanly
 import pdfParse from "pdf-parse";
 
 export const runtime = "nodejs";
