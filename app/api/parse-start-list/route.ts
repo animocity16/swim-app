@@ -3,6 +3,7 @@ import { DOMMatrix } from "canvas";
 globalThis.DOMMatrix = DOMMatrix;
 
 import { NextRequest, NextResponse } from "next/server";
+import pdfParse from "pdf-parse";
 
 export const runtime = "nodejs";
 
@@ -23,7 +24,6 @@ type ParsedEvent = {
 // ─── PDF text extraction ────────────────────────────────────────────────────────
 
 async function extractText(buffer: ArrayBuffer): Promise<string> {
-  const pdfParse = require("pdf-parse");
   const data = await pdfParse(Buffer.from(buffer));
   return data.text;
 }
