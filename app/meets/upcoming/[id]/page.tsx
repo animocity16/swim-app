@@ -223,6 +223,8 @@ export default function UpcomingMeetDetailPage() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [debugData, setDebugData] = useState<{ swimmerNames: string[]; totalLines: number; rawTextSample: string; first80Lines: string[] } | null>(null);
+
   const [warmUp, setWarmUp] = useState("");
   const [callRoom, setCallRoom] = useState("");
   const [savingTimes, setSavingTimes] = useState(false);
@@ -279,11 +281,14 @@ export default function UpcomingMeetDetailPage() {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("swimmerNames", JSON.stringify(swimmerNames));
+      formData.append("debug", "true");
 
       const res = await fetch("/api/parse-start-list", { method: "POST", body: formData });
       const data = await res.json();
 
       if (!res.ok) throw new Error(data.error || "Failed to parse PDF");
+
+      if (data.debug) setDebugData(data.debug);
 
       const parsed: ParsedEvent[] = data.events;
 
@@ -471,6 +476,34 @@ export default function UpcomingMeetDetailPage() {
             </p>
           )}
         </div>
+
+        {debugData && (
+          <div style={{
+            background: "rgba(255,255,255,0.03)",
+            border: "1px solid rgba(255,255,255,0.1)",
+            borderRadius: "16px",
+            padding: "14px",
+            fontFamily: "monospace",
+            fontSize: "10px",
+            color: "rgba(255,255,255,0.6)",
+            whiteSpace: "pre-wrap",
+            maxHeight: "400px",
+            overflowY: "auto",
+          }}>
+            <p style={{ color: "#FDE68A", fontWeight: 700, marginBottom: "6px" }}>
+              DEBUG — swimmer names in DB: {JSON.stringify(debugData.swimmerNames)}
+            </p>
+            <p style={{ color: "#FDE68A", fontWeight: 700, marginBottom: "6px" }}>
+              Total lines extracted: {debugData.totalLines}
+            </p>
+            <p style={{ color: "#93C5FD", fontWeight: 700, marginTop: "10px", marginBottom: "6px" }}>
+              First 80 lines:
+            </p>
+            {debugData.first80Lines.map((line, i) => (
+              <div key={i}>{i}: {line}</div>
+            ))}
+          </div>
+        )}
 
         {/* Events list */}
         {events.length > 0 ? (

@@ -119,6 +119,7 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
     const swimmerNamesRaw = formData.get("swimmerNames") as string | null;
+    const debug = formData.get("debug") === "true";
 
     if (!file) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
@@ -132,6 +133,19 @@ export async function POST(req: NextRequest) {
 
     const text = await extractTextFromPdf(buffer);
     const parsed = parsePDF(text, swimmerNames);
+
+    if (debug) {
+      const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+      return NextResponse.json({
+        events: parsed,
+        debug: {
+          swimmerNames,
+          totalLines: lines.length,
+          rawTextSample: text.slice(0, 3000),
+          first80Lines: lines.slice(0, 80),
+        },
+      });
+    }
 
     return NextResponse.json({ events: parsed });
   } catch (err) {
