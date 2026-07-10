@@ -197,10 +197,10 @@ function SkeletonActivity() {
 
 function NatrixMark({ size = 34 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 40 40" style={{ opacity: 0.85, flexShrink: 0 }}>
+    <svg width={size} height={size} viewBox="0 0 40 40" style={{ opacity: 0.9, flexShrink: 0 }}>
       <circle cx="20" cy="20" r="19" fill="none" stroke="#D97706" strokeWidth="2" />
       <path
-        d="M20 10 C26 10 28 14 25 17 C22 20 16 20 16 24 C16 28 20 29 24 27"
+        d="M20 12 a8 8 0 1 1 -8 8 a5 5 0 1 1 5 5"
         fill="none"
         stroke="#D97706"
         strokeWidth="2.2"
@@ -590,7 +590,26 @@ export default function DashboardPage() {
               </Link>
             ))}
           </div>
-        ) : null}
+        ) : (
+          <div className="space-y-3">
+            <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">Standards</p>
+            <Link
+              href={swimmerStats[0] ? `/swimmers/${swimmerStats[0].swimmer.id}?tab=standards` : "/standards"}
+              className="flex items-center gap-4 rounded-3xl p-4 transition"
+              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+            >
+              <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl text-2xl"
+                style={{ background: "rgba(217,119,6,0.12)" }}>🎯</div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-white">No standards set yet</p>
+                <p className="text-xs text-white/40 mt-0.5">Add a standard set to track qualifying times</p>
+              </div>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-white/20 flex-shrink-0">
+                <path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </Link>
+          </div>
+        )}
 
         {/* ── Activity & Meets — collapsed squares, tap to expand ────────────── */}
         <div>
