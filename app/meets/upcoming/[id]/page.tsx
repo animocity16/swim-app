@@ -317,6 +317,122 @@ function SwimmerGroup({
   );
 }
 
+// ─── Swimmer picker (collapsible) ──────────────────────────────────────────────
+
+function SwimmerPicker({
+  swimmerGroups,
+  selectedSwimmers,
+  onToggle,
+  onBulkToggle,
+}: {
+  swimmerGroups: { name: string; group_type: string | null }[];
+  selectedSwimmers: string[];
+  onToggle: (name: string) => void;
+  onBulkToggle: (group: string[], select: boolean) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const primary = swimmerGroups.filter((s) => s.group_type === "primary").map((s) => s.name);
+  const following = swimmerGroups.filter((s) => s.group_type !== "primary").map((s) => s.name);
+
+  const Pill = ({ name }: { name: string }) => {
+    const active = selectedSwimmers.includes(name);
+    return (
+      <button
+        type="button"
+        onClick={() => onToggle(name)}
+        style={{
+          padding: "7px 14px",
+          borderRadius: "20px",
+          border: `1px solid ${active ? "rgba(100,180,255,0.4)" : "rgba(255,255,255,0.12)"}`,
+          background: active ? "rgba(100,180,255,0.15)" : "rgba(255,255,255,0.04)",
+          color: active ? "rgba(150,200,255,0.95)" : "rgba(255,255,255,0.4)",
+          fontSize: "12px",
+          fontWeight: active ? 600 : 400,
+          cursor: "pointer",
+        }}
+      >
+        {active ? "✓ " : ""}{name}
+      </button>
+    );
+  };
+
+  const GroupHeader = ({ label, group }: { label: string; group: string[] }) => {
+    const allSelected = group.every((n) => selectedSwimmers.includes(n));
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+        <p style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+          {label}
+        </p>
+        <button
+          type="button"
+          onClick={() => onBulkToggle(group, !allSelected)}
+          style={{ fontSize: "11px", color: "rgba(100,180,255,0.8)", background: "none", border: "none", cursor: "pointer" }}
+        >
+          {allSelected ? "Clear" : "Select all"}
+        </button>
+      </div>
+    );
+  };
+
+  return (
+    <div style={{
+      background: "rgba(255,255,255,0.05)",
+      border: "1px solid rgba(255,255,255,0.1)",
+      borderRadius: "14px",
+      overflow: "hidden",
+    }}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "12px 14px", background: "none", border: "none", cursor: "pointer",
+        }}
+      >
+        <span style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
+          <span style={{ fontSize: "13px", fontWeight: 700, color: "#fff", flexShrink: 0 }}>Swimmers</span>
+          <span style={{
+            fontSize: "12px", color: "rgba(255,255,255,0.4)",
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}>
+            {selectedSwimmers.length === 0
+              ? "None selected"
+              : selectedSwimmers.length <= 2
+                ? selectedSwimmers.join(", ")
+                : `${selectedSwimmers[0]} +${selectedSwimmers.length - 1} more`}
+          </span>
+        </span>
+        <svg
+          width="16" height="16" viewBox="0 0 16 16" fill="none"
+          style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s", flexShrink: 0 }}
+        >
+          <path d="M4 6L8 10L12 6" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+      {open && (
+        <div style={{ padding: "0 14px 14px", display: "flex", flexDirection: "column", gap: "16px" }}>
+          {primary.length > 0 && (
+            <div>
+              <GroupHeader label="My Swimmers" group={primary} />
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                {primary.map((name) => <Pill key={name} name={name} />)}
+              </div>
+            </div>
+          )}
+          {following.length > 0 && (
+            <div>
+              <GroupHeader label="Following" group={following} />
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                {following.map((name) => <Pill key={name} name={name} />)}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function UpcomingMeetDetailPage() {
@@ -336,10 +452,6 @@ export default function UpcomingMeetDetailPage() {
   const [debugSearchTerm, setDebugSearchTerm] = useState("");
   const [lastFile, setLastFile] = useState<File | null>(null);
 
-  const [warmUp, setWarmUp] = useState("");
-  const [callRoom, setCallRoom] = useState("");
-  const [savingTimes, setSavingTimes] = useState(false);
-
   const load = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { router.replace("/login"); return; }
@@ -353,13 +465,6 @@ export default function UpcomingMeetDetailPage() {
 
     if (!meetData) { router.replace("/meets"); return; }
     setMeet(meetData as UpcomingMeet);
-
-    // Pre-fill warm up / call room from notes if saved there
-    const notes = (meetData as UpcomingMeet).notes ?? "";
-    const warmMatch = notes.match(/WARMUP:([^\|]+)/);
-    const callMatch = notes.match(/CALLROOM:([^\|]+)/);
-    if (warmMatch) setWarmUp(warmMatch[1].trim());
-    if (callMatch) setCallRoom(callMatch[1].trim());
 
     // Load this user's swimmers
     const { data: swimmers } = await supabase
@@ -390,6 +495,14 @@ export default function UpcomingMeetDetailPage() {
   function toggleSwimmer(name: string) {
     setSelectedSwimmers((prev) =>
       prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]
+    );
+  }
+
+  function bulkToggleSwimmers(group: string[], select: boolean) {
+    setSelectedSwimmers((prev) =>
+      select
+        ? Array.from(new Set([...prev, ...group]))
+        : prev.filter((n) => !group.includes(n))
     );
   }
 
@@ -477,30 +590,6 @@ export default function UpcomingMeetDetailPage() {
     setUploading(false);
   }
 
-  async function saveTimes() {
-    if (!meet) return;
-    setSavingTimes(true);
-
-    // Store warm up + call room in notes field using a simple format
-    const existingNotes = (meet.notes ?? "")
-      .replace(/WARMUP:[^\|]+\|?/g, "")
-      .replace(/CALLROOM:[^\|]+\|?/g, "")
-      .trim();
-
-    const timeParts = [];
-    if (warmUp.trim()) timeParts.push(`WARMUP:${warmUp.trim()}`);
-    if (callRoom.trim()) timeParts.push(`CALLROOM:${callRoom.trim()}`);
-
-    const newNotes = [existingNotes, ...timeParts].filter(Boolean).join(" | ");
-
-    await supabase
-      .from("upcoming_meets")
-      .update({ notes: newNotes })
-      .eq("id", meetId);
-
-    setSavingTimes(false);
-  }
-
   // ── Loading ─────────────────────────────────────────────────────────────────
   if (loading) {
     return (
@@ -545,108 +634,15 @@ export default function UpcomingMeetDetailPage() {
           </p>
         </div>
 
-        {/* Warm up + Call room */}
-        <div style={{ display: "flex", gap: "10px" }}>
-          {[
-            { label: "Warm up", value: warmUp, set: setWarmUp },
-            { label: "Call room", value: callRoom, set: setCallRoom },
-          ].map(({ label, value, set }) => (
-            <div key={label} style={{ flex: 1 }}>
-              <p style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "6px" }}>
-                {label}
-              </p>
-              <input
-                type="text"
-                placeholder="e.g. 8:15 AM"
-                value={value}
-                onChange={(e) => set(e.target.value)}
-                onBlur={saveTimes}
-                style={{
-                  width: "100%", background: "rgba(255,255,255,0.06)",
-                  border: "1px solid rgba(255,255,255,0.12)", borderRadius: "12px",
-                  padding: "10px 12px", color: "#fff", fontSize: "13px",
-                  outline: "none", boxSizing: "border-box",
-                }}
-              />
-            </div>
-          ))}
-        </div>
-        {savingTimes && (
-          <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.3)", marginTop: "-8px" }}>Saving...</p>
+        {/* Swimmer picker — collapsed by default to keep the page short */}
+        {swimmerNames.length > 0 && (
+          <SwimmerPicker
+            swimmerGroups={swimmerGroups}
+            selectedSwimmers={selectedSwimmers}
+            onToggle={toggleSwimmer}
+            onBulkToggle={bulkToggleSwimmers}
+          />
         )}
-
-        {/* Swimmer selection */}
-        {swimmerNames.length > 0 && (() => {
-          const primary = swimmerGroups.filter((s) => s.group_type === "primary").map((s) => s.name);
-          const following = swimmerGroups.filter((s) => s.group_type !== "primary").map((s) => s.name);
-
-          const Pill = ({ name }: { name: string }) => {
-            const active = selectedSwimmers.includes(name);
-            return (
-              <button
-                type="button"
-                onClick={() => toggleSwimmer(name)}
-                style={{
-                  padding: "7px 14px",
-                  borderRadius: "20px",
-                  border: `1px solid ${active ? "rgba(100,180,255,0.4)" : "rgba(255,255,255,0.12)"}`,
-                  background: active ? "rgba(100,180,255,0.15)" : "rgba(255,255,255,0.04)",
-                  color: active ? "rgba(150,200,255,0.95)" : "rgba(255,255,255,0.4)",
-                  fontSize: "12px",
-                  fontWeight: active ? 600 : 400,
-                  cursor: "pointer",
-                }}
-              >
-                {active ? "✓ " : ""}{name}
-              </button>
-            );
-          };
-
-          const GroupHeader = ({ label, group }: { label: string; group: string[] }) => {
-            const allSelected = group.every((n) => selectedSwimmers.includes(n));
-            return (
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
-                <p style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                  {label}
-                </p>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setSelectedSwimmers((prev) =>
-                      allSelected
-                        ? prev.filter((n) => !group.includes(n))
-                        : Array.from(new Set([...prev, ...group]))
-                    )
-                  }
-                  style={{ fontSize: "11px", color: "rgba(100,180,255,0.8)", background: "none", border: "none", cursor: "pointer" }}
-                >
-                  {allSelected ? "Clear" : "Select all"}
-                </button>
-              </div>
-            );
-          };
-
-          return (
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              {primary.length > 0 && (
-                <div>
-                  <GroupHeader label="My Swimmers" group={primary} />
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                    {primary.map((name) => <Pill key={name} name={name} />)}
-                  </div>
-                </div>
-              )}
-              {following.length > 0 && (
-                <div>
-                  <GroupHeader label="Following" group={following} />
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                    {following.map((name) => <Pill key={name} name={name} />)}
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })()}
 
         {/* PDF Upload */}
         <div>
