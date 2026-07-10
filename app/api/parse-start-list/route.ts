@@ -18,9 +18,18 @@ type ParsedEvent = {
 };
 
 // ─── PDF text extraction ─────────────────────────────────────────────────────
-// Reconstructs row breaks by inserting a newline wherever there's a large gap
-// between text chunks (column boundaries) — unpdf's simple extractText() merges
-// everything into one blob, which breaks our row-based parser.
+// HY-TEK Meet Manager start lists are often printed in TWO newspaper-style
+// columns per page (left column top-to-bottom, then right column top-to-bottom)
+// to save paper. If we naively group text into rows purely by y-coordinate,
+// a left-column row and a right-column row that happen to sit at the same
+// page height get sorted left-to-right and glued into ONE line — silently
+// merging two unrelated heats (e.g. Event 304 Heat 7 + Event 305 Heat 2,
+// lane-for-lane) and scrambling the event/heat state our line parser relies on.
+//
+// Fix: detect the column gap on each page, split items into left/right
+// columns BEFORE row-grouping, and process each column as its own top-to-
+// bottom line stream (left column fully, then right column fully) — matching
+// the actual human reading order of the printed page.
 
 async function extractTextFromPdf(buffer: ArrayBuffer): Promise<string> {
   const pdf = await getDocumentProxy(new Uint8Array(buffer));
@@ -36,20 +45,64 @@ async function extractTextFromPdf(buffer: ArrayBuffer): Promise<string> {
       .filter((it) => "str" in it && it.str.trim() !== "")
       .map((it) => ({ str: it.str, x: it.transform[4], y: it.transform[5] }));
 
-    // Group into rows by y-coordinate (same row = same vertical position on page)
-    const Y_TOLERANCE = 2;
-    const sorted = [...items].sort((a, b) => b.y - a.y || a.x - b.x);
-    const rows: Item[][] = [];
-    for (const item of sorted) {
-      const row = rows.find((r) => Math.abs(r[0].y - item.y) <= Y_TOLERANCE);
-      if (row) row.push(item);
-      else rows.push([item]);
+    if (items.length === 0) continue;
+
+    // ── Detect a 2-column page layout ──
+    // Look for the single largest horizontal gap between distinct x-positions,
+    // but only count it as a column break if it falls roughly in the middle
+    // third of the page width (real column gutters are centered; gaps between
+    // fields within a single row, like "Age" -> "Team", tend to scatter across
+    // the whole width rather than cluster in the middle).
+    const xs = [...new Set(items.map((it) => it.x))].sort((a, b) => a - b);
+    let splitX: number | null = null;
+    if (xs.length > 1) {
+      const pageWidth = xs[xs.length - 1] - xs[0];
+      let maxGap = 0;
+      let gapMid = 0;
+      for (let j = 1; j < xs.length; j++) {
+        const gap = xs[j] - xs[j - 1];
+        const mid = xs[j - 1] + gap / 2;
+        const relPos = pageWidth > 0 ? (mid - xs[0]) / pageWidth : 0;
+        if (gap > maxGap && relPos > 0.35 && relPos < 0.65) {
+          maxGap = gap;
+          gapMid = mid;
+        }
+      }
+      // Require a meaningfully wide gap (real column gutters are much wider
+      // than the space between fields in the same row) to avoid false
+      // positives on genuinely single-column pages (e.g. cover/title page).
+      if (maxGap > 40) {
+        splitX = gapMid;
+      }
     }
 
-    // Sort each row left-to-right, then join into one line
-    const pageLines = rows.map((row) =>
-      row.sort((a, b) => a.x - b.x).map((it) => it.str).join(" ")
-    );
+    const columns: Item[][] =
+      splitX === null
+        ? [items]
+        : [
+            items.filter((it) => it.x < (splitX as number)),
+            items.filter((it) => it.x >= (splitX as number)),
+          ];
+
+    const pageLines: string[] = [];
+    const Y_TOLERANCE = 2;
+
+    for (const colItems of columns) {
+      if (colItems.length === 0) continue;
+
+      const sorted = [...colItems].sort((a, b) => b.y - a.y || a.x - b.x);
+      const rows: Item[][] = [];
+      for (const item of sorted) {
+        const row = rows.find((r) => Math.abs(r[0].y - item.y) <= Y_TOLERANCE);
+        if (row) row.push(item);
+        else rows.push([item]);
+      }
+
+      const colLines = rows.map((row) =>
+        row.sort((a, b) => a.x - b.x).map((it) => it.str).join(" ")
+      );
+      pageLines.push(...colLines);
+    }
 
     fullText += pageLines.join("\n") + "\n";
   }
@@ -199,7 +252,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ events: parsed });
   } catch (err) {
     console.error("PDF parse error:", err);
-    const message = err instanceof Error ? err.message : "Failed to parse PDF";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: "Failed to parse PDF" }, { status: 500 });
   }
 }
