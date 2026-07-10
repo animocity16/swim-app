@@ -28,6 +28,7 @@ type MeetEvent = {
   lane: number;
   seed_time: string | null;
   start_time: string | null;
+  warmup_time: string | null;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -171,7 +172,28 @@ function SkeletonCard() {
 
 // ─── Event Card ───────────────────────────────────────────────────────────────
 
-function EventCard({ event }: { event: MeetEvent }) {
+function EventCard({
+  event,
+  onWarmupSaved,
+}: {
+  event: MeetEvent;
+  onWarmupSaved: (eventId: string, value: string | null) => void;
+}) {
+  const [warmup, setWarmup] = useState(event.warmup_time ?? "");
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    const trimmed = warmup.trim();
+    if (trimmed === (event.warmup_time ?? "")) return;
+    setSaving(true);
+    const { error } = await supabase
+      .from("meet_events")
+      .update({ warmup_time: trimmed || null })
+      .eq("id", event.id);
+    setSaving(false);
+    if (!error) onWarmupSaved(event.id, trimmed || null);
+  }
+
   return (
     <div style={{
       background: "rgba(255,255,255,0.05)",
@@ -201,13 +223,58 @@ function EventCard({ event }: { event: MeetEvent }) {
           )}
         </div>
       </div>
+
+      <div style={{
+        marginTop: "10px",
+        paddingTop: "10px",
+        borderTop: "1px solid rgba(255,255,255,0.08)",
+        display: "flex",
+        alignItems: "center",
+        gap: "8px",
+      }}>
+        <span style={{
+          fontSize: "10px", color: "rgba(255,255,255,0.35)",
+          textTransform: "uppercase", letterSpacing: "0.06em",
+          flexShrink: 0,
+        }}>
+          Warm up
+        </span>
+        <input
+          type="text"
+          placeholder="e.g. 8:15 AM"
+          value={warmup}
+          onChange={(e) => setWarmup(e.target.value)}
+          onBlur={save}
+          style={{
+            flex: 1, background: "rgba(255,255,255,0.06)",
+            border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px",
+            padding: "6px 10px", color: "#fff", fontSize: "12px",
+            outline: "none", boxSizing: "border-box", minWidth: 0,
+          }}
+        />
+        {saving && (
+          <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.3)", flexShrink: 0 }}>
+            Saving…
+          </span>
+        )}
+      </div>
     </div>
   );
 }
 
 // ─── Swimmer group (collapsible) ───────────────────────────────────────────────
 
-function SwimmerGroup({ name, events, defaultOpen }: { name: string; events: MeetEvent[]; defaultOpen: boolean }) {
+function SwimmerGroup({
+  name,
+  events,
+  defaultOpen,
+  onWarmupSaved,
+}: {
+  name: string;
+  events: MeetEvent[];
+  defaultOpen: boolean;
+  onWarmupSaved: (eventId: string, value: string | null) => void;
+}) {
   const [open, setOpen] = useState(defaultOpen);
   return (
     <div>
@@ -242,7 +309,7 @@ function SwimmerGroup({ name, events, defaultOpen }: { name: string; events: Mee
       {open && (
         <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px", paddingLeft: "4px" }}>
           {events.map((ev) => (
-            <EventCard key={ev.id} event={ev} />
+            <EventCard key={ev.id} event={ev} onWarmupSaved={onWarmupSaved} />
           ))}
         </div>
       )}
@@ -326,6 +393,12 @@ export default function UpcomingMeetDetailPage() {
     );
   }
 
+  function handleWarmupSaved(eventId: string, value: string | null) {
+    setEvents((prev) =>
+      prev.map((e) => (e.id === eventId ? { ...e, warmup_time: value } : e))
+    );
+  }
+
   async function runDebugSearch() {
     if (!lastFile) return;
     const formData = new FormData();
@@ -376,6 +449,8 @@ export default function UpcomingMeetDetailPage() {
       // Upsert events — accumulates across multiple PDF uploads (different
       // days/sessions) instead of wiping previously imported events. Re-uploading
       // the same session's PDF just refreshes those specific events.
+      // Note: warmup_time is deliberately NOT included here — it's a manually
+      // entered field, and re-uploading a PDF must never wipe it out.
       const rows = parsed.map((ev) => ({
         meet_id: meetId,
         swimmer_name: ev.swimmerName,
@@ -688,7 +763,13 @@ export default function UpcomingMeetDetailPage() {
               }
               const names = Array.from(grouped.keys()).sort();
               return names.map((name, i) => (
-                <SwimmerGroup key={name} name={name} events={grouped.get(name)!} defaultOpen={names.length === 1 || i === 0} />
+                <SwimmerGroup
+                  key={name}
+                  name={name}
+                  events={grouped.get(name)!}
+                  defaultOpen={names.length === 1 || i === 0}
+                  onWarmupSaved={handleWarmupSaved}
+                />
               ));
             })()}
           </div>
@@ -706,8 +787,6 @@ export default function UpcomingMeetDetailPage() {
             </div>
           )
         )}
-
-        <div className="h-4" />
       </div>
     </div>
   );
