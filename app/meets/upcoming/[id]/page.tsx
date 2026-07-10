@@ -260,6 +260,7 @@ export default function UpcomingMeetDetailPage() {
   const [meet, setMeet] = useState<UpcomingMeet | null>(null);
   const [events, setEvents] = useState<MeetEvent[]>([]);
   const [swimmerNames, setSwimmerNames] = useState<string[]>([]);
+  const [swimmerGroups, setSwimmerGroups] = useState<{ name: string; group_type: string | null }[]>([]);
   const [selectedSwimmers, setSelectedSwimmers] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -294,11 +295,15 @@ export default function UpcomingMeetDetailPage() {
     // Load this user's swimmers
     const { data: swimmers } = await supabase
       .from("swimmers")
-      .select("name")
+      .select("name, group_type")
       .eq("user_id", session.user.id);
-    const names = (swimmers ?? []).map((s: { name: string }) => s.name);
+    const swimmerList = (swimmers ?? []) as { name: string; group_type: string | null }[];
+    const names = swimmerList.map((s) => s.name);
     setSwimmerNames(names);
-    setSelectedSwimmers(names);
+    setSwimmerGroups(swimmerList);
+    // Default: only "primary" (My Swimmers) selected, not the whole Following list
+    const primaryNames = swimmerList.filter((s) => s.group_type === "primary").map((s) => s.name);
+    setSelectedSwimmers(primaryNames.length > 0 ? primaryNames : names);
 
     // Load saved events for this meet
     const { data: eventsData } = await supabase
@@ -352,10 +357,9 @@ export default function UpcomingMeetDetailPage() {
         return;
       }
 
-      // Delete existing events for this meet first
-      await supabase.from("meet_events").delete().eq("meet_id", meetId);
-
-      // Insert new events
+      // Upsert events — accumulates across multiple PDF uploads (different
+      // days/sessions) instead of wiping previously imported events. Re-uploading
+      // the same session's PDF just refreshes those specific events.
       const rows = parsed.map((ev) => ({
         meet_id: meetId,
         swimmer_name: ev.swimmerName,
@@ -369,7 +373,9 @@ export default function UpcomingMeetDetailPage() {
         start_time: ev.startTime,
       }));
 
-      const { error } = await supabase.from("meet_events").insert(rows);
+      const { error } = await supabase
+        .from("meet_events")
+        .upsert(rows, { onConflict: "meet_id,swimmer_name,event_number" });
       if (error) throw new Error(error.message);
 
       await load();
@@ -479,37 +485,77 @@ export default function UpcomingMeetDetailPage() {
         )}
 
         {/* Swimmer selection */}
-        {swimmerNames.length > 0 && (
-          <div>
-            <p style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "8px" }}>
-              Match events for
-            </p>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-              {swimmerNames.map((name) => {
-                const active = selectedSwimmers.includes(name);
-                return (
-                  <button
-                    key={name}
-                    type="button"
-                    onClick={() => toggleSwimmer(name)}
-                    style={{
-                      padding: "7px 14px",
-                      borderRadius: "20px",
-                      border: `1px solid ${active ? "rgba(100,180,255,0.4)" : "rgba(255,255,255,0.12)"}`,
-                      background: active ? "rgba(100,180,255,0.15)" : "rgba(255,255,255,0.04)",
-                      color: active ? "rgba(150,200,255,0.95)" : "rgba(255,255,255,0.4)",
-                      fontSize: "12px",
-                      fontWeight: active ? 600 : 400,
-                      cursor: "pointer",
-                    }}
-                  >
-                    {active ? "✓ " : ""}{name}
-                  </button>
-                );
-              })}
+        {swimmerNames.length > 0 && (() => {
+          const primary = swimmerGroups.filter((s) => s.group_type === "primary").map((s) => s.name);
+          const following = swimmerGroups.filter((s) => s.group_type !== "primary").map((s) => s.name);
+
+          const Pill = ({ name }: { name: string }) => {
+            const active = selectedSwimmers.includes(name);
+            return (
+              <button
+                type="button"
+                onClick={() => toggleSwimmer(name)}
+                style={{
+                  padding: "7px 14px",
+                  borderRadius: "20px",
+                  border: `1px solid ${active ? "rgba(100,180,255,0.4)" : "rgba(255,255,255,0.12)"}`,
+                  background: active ? "rgba(100,180,255,0.15)" : "rgba(255,255,255,0.04)",
+                  color: active ? "rgba(150,200,255,0.95)" : "rgba(255,255,255,0.4)",
+                  fontSize: "12px",
+                  fontWeight: active ? 600 : 400,
+                  cursor: "pointer",
+                }}
+              >
+                {active ? "✓ " : ""}{name}
+              </button>
+            );
+          };
+
+          const GroupHeader = ({ label, group }: { label: string; group: string[] }) => {
+            const allSelected = group.every((n) => selectedSwimmers.includes(n));
+            return (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+                <p style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  {label}
+                </p>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSelectedSwimmers((prev) =>
+                      allSelected
+                        ? prev.filter((n) => !group.includes(n))
+                        : Array.from(new Set([...prev, ...group]))
+                    )
+                  }
+                  style={{ fontSize: "11px", color: "rgba(100,180,255,0.8)", background: "none", border: "none", cursor: "pointer" }}
+                >
+                  {allSelected ? "Clear" : "Select all"}
+                </button>
+              </div>
+            );
+          };
+
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              {primary.length > 0 && (
+                <div>
+                  <GroupHeader label="My Swimmers" group={primary} />
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                    {primary.map((name) => <Pill key={name} name={name} />)}
+                  </div>
+                </div>
+              )}
+              {following.length > 0 && (
+                <div>
+                  <GroupHeader label="Following" group={following} />
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                    {following.map((name) => <Pill key={name} name={name} />)}
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* PDF Upload */}
         <div>
