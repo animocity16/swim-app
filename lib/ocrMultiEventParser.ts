@@ -606,14 +606,27 @@ function extractFinalTimeMs(rawText: string): number {
 function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
   console.log("[splitDebug] parseSplitsDirectly called, finalMs=", finalMs, "rawText.length=", rawText.length);
   _lastSplitDebug = `called finalMs=${finalMs} len=${rawText.length}`;
-  // ── Strategy: Cumulative-sequence extraction via DP ───────────────────────
+  // ── Strategy ────────────────────────────────────────────────────────────
   //
-  //  1. Strip "X Stroke Split" rows and their noise times carefully
-  //  2. Collect all standalone time values from SPLITS sections
-  //  3. Detect target chain length from event distance (400 Free = 8 splits)
-  //  4. Find the chain of EXACTLY that length ending nearest finalMs,
-  //     with minimum leg-time variance as tiebreaker
-  //  5. Generate labels mathematically
+  // Individual leg times (plain "43.81" style, no colon) are the most
+  // reliably OCR'd numbers on this screen — they're short, low-digit-count,
+  // and Tesseract rarely misreads them. Cumulative/running-total times
+  // ("mm:ss.hh") are longer and far more prone to misreads (e.g. "3:58.93"
+  // getting read as "3:68.93"), AND when a user scans two overlapping
+  // screenshots to capture all splits of a long event, the combined OCR
+  // text can contain duplicate/out-of-place leg values from the overlap.
+  //
+  // So instead of reconstructing the race from a bag of (noisy, possibly
+  // duplicated) cumulative times, we:
+  //  1. Collect every plausible individual-leg-length time value, in the
+  //     order it appears in the text (duplicates included).
+  //  2. Search for the best ORDER-PRESERVING subsequence of exactly
+  //     targetChainLength values whose sum matches finalMs. This
+  //     automatically discards stray duplicate/out-of-place values from
+  //     overlapping screenshots, because including them would break the sum.
+  //  3. Only if that fails (e.g. a screenshot only exposes the cumulative
+  //     column, not individual legs) do we fall back to the older
+  //     cumulative-chain DP approach.
 
   function repairTimeToMs(s: string): number {
     const t = s.trim();
@@ -688,7 +701,13 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
     if (!inSplits) continue;
     if (isTimeOnly(line)) {
       const ms = repairTimeToMs(line);
-      if (ms > 0) collectedTimes.push(ms);
+      if (ms <= 0) continue;
+      // Skip the "Finals 6:13.92" legend-caption value that sits above the
+      // actual per-split rows (and any stray repeat of the finals total) —
+      // it's not a real split, just the race total shown again. The chain
+      // search below already anchors on finalMs separately when needed.
+      if (targetChainLength > 1 && Math.abs(ms - finalMs) <= 500) continue;
+      collectedTimes.push(ms);
     }
   }
 
@@ -820,7 +839,6 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
   // Nothing usable left for the DP chain step — bail rather than fabricate.
   if (collectedTimes.length === 0) return [];
 
-  // ── Step 4: DP — keep ALL equal-length chains at each position ────────────
   // MIN_LEG is deliberately low (8s) to allow unusual splits like 13.14s
   // which can occur due to unusual pacing or OCR quirks.
   const MIN_LEG = 8_000;
@@ -828,7 +846,117 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
   const MIN_FIRST = splitUnit === 25 ? 8_000 : 20_000;
   const MAX_LEG = 130_000; // 2m10s maximum
   const TOLERANCE = 5_000;
+  const SUM_TOLERANCE = 1_500; // how close a chain's total must land to finalMs
 
+  // ── Step 3.6: Order-preserving leg-subsequence match (preferred) ──────────
+  // collectedTimes holds every standalone time seen in the splits section, in
+  // the order it appeared — including individual leg times, cumulative/
+  // running-total times, and (from overlapping multi-screenshot scans) stray
+  // duplicates. Individual leg times are short (well under MAX_LEG) and are
+  // the numbers Tesseract reads most reliably, so: filter down to plausible
+  // single-leg-length values, keep their original order, and search for the
+  // best exactly-targetChainLength subsequence whose sum lands on finalMs.
+  // Any stray duplicate/out-of-place value will throw the sum off, so this
+  // naturally self-corrects for overlapping-screenshot noise without needing
+  // to trust the (more error-prone) cumulative numbers at all.
+  if (targetChainLength > 1) {
+    const legPool = collectedTimes.filter((ms) => ms >= MIN_LEG && ms <= MAX_LEG);
+
+    function bestLegSubsequence(
+      arr: number[],
+      k: number,
+      target: number,
+      tolerance: number
+    ): number[] | null {
+      const n = arr.length;
+      if (n < k || n > 40) return null; // guard against pathological search sizes
+      let bestValues: number[] | null = null;
+      let bestIndices: number[] | null = null;
+      let bestDiff = Infinity;
+      let bestSpan = Infinity;
+      let bestStart = -1;
+      const chosenValues: number[] = [];
+      const chosenIndices: number[] = [];
+
+      function backtrack(start: number, sum: number) {
+        if (sum > target + tolerance) return; // all values positive — sum only grows
+        if (chosenValues.length === k) {
+          const diff = Math.abs(sum - target);
+          if (diff > tolerance) return;
+          // Duplicate leg values (from overlapping/rescanned screenshots)
+          // can produce more than one combination that sums correctly.
+          // Prefer, in order: (1) the smallest sum error, (2) the tightest
+          // span (chosen[last]-chosen[first]) — the real 8 rows sit
+          // together in the text, while stray duplicates from an earlier
+          // preview/overlap are scattered — (3) the later starting point,
+          // to favor the fuller/cleaner later table over an earlier partial
+          // one when everything else ties.
+          const span = chosenIndices[chosenIndices.length - 1] - chosenIndices[0];
+          const start0 = chosenIndices[0];
+          const better =
+            diff < bestDiff ||
+            (diff === bestDiff && span < bestSpan) ||
+            (diff === bestDiff && span === bestSpan && start0 > bestStart);
+          if (better) {
+            bestDiff = diff;
+            bestSpan = span;
+            bestStart = start0;
+            bestValues = [...chosenValues];
+            bestIndices = [...chosenIndices];
+          }
+          return;
+        }
+        const remaining = k - chosenValues.length;
+        if (n - start < remaining) return;
+        // Prune branches that can't possibly reach the target even in the
+        // best case (all remaining picks at MIN_LEG) or worst case (MAX_LEG).
+        if (sum + remaining * MIN_LEG > target + tolerance) return;
+        for (let i = start; i <= n - remaining; i++) {
+          chosenValues.push(arr[i]);
+          chosenIndices.push(i);
+          backtrack(i + 1, sum + arr[i]);
+          chosenValues.pop();
+          chosenIndices.pop();
+        }
+      }
+      backtrack(0, 0);
+      return bestValues;
+    }
+
+    const legChain = bestLegSubsequence(legPool, targetChainLength, finalMs, SUM_TOLERANCE);
+    _lastSplitDebug += ` | legPool=${JSON.stringify(legPool)} legChain=${JSON.stringify(legChain)}`;
+
+    if (legChain) {
+      const isIMLeg = /\b(individual\s*medley|\bim\b)/i.test(rawText);
+      const IM_STROKES_LEG = ["Fly", "Back", "Breast", "Free"];
+      function strokeLabelLeg(text: string): string {
+        const t = text.toLowerCase();
+        if (t.includes("butterfly") || / fly\b/i.test(t)) return "Fly";
+        if (t.includes("backstroke") || / back\b/i.test(t)) return "Back";
+        if (t.includes("breaststroke") || / breast\b/i.test(t)) return "Breast";
+        return "Free";
+      }
+      const strokeLeg = isIMLeg ? "" : strokeLabelLeg(rawText);
+
+      let cum = 0;
+      return legChain.map((legMs, idx) => {
+        cum += legMs;
+        const dist = (idx + 1) * splitUnit;
+        const legStroke = isIMLeg ? (IM_STROKES_LEG[idx % 4] ?? "Free") : strokeLeg;
+        return {
+          label: `${dist} ${legStroke}`,
+          order: idx + 1,
+          distance: dist,
+          splitMs: legMs,
+          cumulativeMs: cum,
+        };
+      });
+    }
+  }
+
+  // ── Step 4: DP fallback — keep ALL equal-length chains at each position ───
+  // Used only when Step 3.6 couldn't find a clean set of individual leg
+  // times (e.g. a screenshot that only exposes the cumulative column).
   const candidates = [...new Set(collectedTimes)]
     .filter((ms) => ms > 0 && ms <= finalMs + TOLERANCE)
     .sort((a, b) => a - b);
