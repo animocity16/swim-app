@@ -162,6 +162,7 @@ export async function POST(req: NextRequest) {
     }
 
     const swimmerNames: string[] = JSON.parse(swimmerNamesRaw);
+    const debugSearch = (formData.get("debugSearch") as string | null) ?? "";
     const buffer = await file.arrayBuffer();
 
     const text = await extractTextFromPdf(buffer);
@@ -169,13 +170,28 @@ export async function POST(req: NextRequest) {
 
     if (debug) {
       const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+      let windowLines = lines.slice(0, 80);
+
+      if (debugSearch.trim()) {
+        const idx = lines.findIndex((l) => l.toLowerCase().includes(debugSearch.trim().toLowerCase()));
+        if (idx !== -1) {
+          const start = Math.max(0, idx - 15);
+          const end = Math.min(lines.length, idx + 25);
+          windowLines = lines.slice(start, end).map((l, i) => `[${start + i}] ${l}`);
+        } else {
+          windowLines = [`No line found containing "${debugSearch}"`];
+        }
+      } else {
+        windowLines = windowLines.map((l, i) => `[${i}] ${l}`);
+      }
+
       return NextResponse.json({
         events: parsed,
         debug: {
           swimmerNames,
           totalLines: lines.length,
           rawTextSample: text.slice(0, 3000),
-          first80Lines: lines.slice(0, 80),
+          first80Lines: windowLines,
         },
       });
     }

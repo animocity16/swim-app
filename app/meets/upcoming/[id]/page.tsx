@@ -266,6 +266,8 @@ export default function UpcomingMeetDetailPage() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [debugData, setDebugData] = useState<{ swimmerNames: string[]; totalLines: number; rawTextSample: string; first80Lines: string[] } | null>(null);
+  const [debugSearchTerm, setDebugSearchTerm] = useState("");
+  const [lastFile, setLastFile] = useState<File | null>(null);
 
   const [warmUp, setWarmUp] = useState("");
   const [callRoom, setCallRoom] = useState("");
@@ -324,6 +326,18 @@ export default function UpcomingMeetDetailPage() {
     );
   }
 
+  async function runDebugSearch() {
+    if (!lastFile) return;
+    const formData = new FormData();
+    formData.append("file", lastFile);
+    formData.append("swimmerNames", JSON.stringify(selectedSwimmers));
+    formData.append("debug", "true");
+    formData.append("debugSearch", debugSearchTerm);
+    const res = await fetch("/api/parse-start-list", { method: "POST", body: formData });
+    const data = await res.json();
+    if (data.debug) setDebugData(data.debug);
+  }
+
   async function handlePDFUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file || !file.name.endsWith(".pdf")) return;
@@ -335,12 +349,14 @@ export default function UpcomingMeetDetailPage() {
 
     setUploading(true);
     setUploadError(null);
+    setLastFile(file);
 
     try {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("swimmerNames", JSON.stringify(selectedSwimmers));
       formData.append("debug", "true");
+      formData.append("debugSearch", debugSearchTerm);
 
       const res = await fetch("/api/parse-start-list", { method: "POST", body: formData });
       const data = await res.json();
@@ -623,6 +639,25 @@ export default function UpcomingMeetDetailPage() {
             maxHeight: "400px",
             overflowY: "auto",
           }}>
+            <div style={{ display: "flex", gap: "6px", marginBottom: "10px" }}>
+              <input
+                type="text"
+                placeholder="Search e.g. Mikaela or BREAK"
+                value={debugSearchTerm}
+                onChange={(e) => setDebugSearchTerm(e.target.value)}
+                style={{
+                  flex: 1, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)",
+                  borderRadius: "8px", padding: "6px 10px", color: "#fff", fontSize: "11px", outline: "none",
+                }}
+              />
+              <button
+                type="button"
+                onClick={runDebugSearch}
+                style={{ padding: "6px 12px", borderRadius: "8px", border: "none", background: "rgba(100,180,255,0.25)", color: "#fff", fontSize: "11px", cursor: "pointer" }}
+              >
+                Find
+              </button>
+            </div>
             <p style={{ color: "#FDE68A", fontWeight: 700, marginBottom: "6px" }}>
               DEBUG — swimmer names in DB: {JSON.stringify(debugData.swimmerNames)}
             </p>
