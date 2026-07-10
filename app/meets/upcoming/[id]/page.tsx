@@ -187,11 +187,6 @@ function EventCard({ event }: { event: MeetEvent }) {
           <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.4)" }}>
             Event {event.event_number} · Heat {event.heat} · Lane {event.lane}
           </p>
-          {event.swimmer_name && (
-            <p style={{ fontSize: "11px", color: "rgba(100,180,255,0.7)", marginTop: "2px" }}>
-              {event.swimmer_name}
-            </p>
-          )}
         </div>
         <div style={{ textAlign: "right", flexShrink: 0 }}>
           {event.seed_time && (
@@ -210,6 +205,51 @@ function EventCard({ event }: { event: MeetEvent }) {
   );
 }
 
+// ─── Swimmer group (collapsible) ───────────────────────────────────────────────
+
+function SwimmerGroup({ name, events, defaultOpen }: { name: string; events: MeetEvent[]; defaultOpen: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "12px 14px",
+          background: "rgba(255,255,255,0.05)",
+          border: "1px solid rgba(255,255,255,0.1)",
+          borderRadius: "14px",
+          cursor: "pointer",
+        }}
+      >
+        <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <span style={{ fontSize: "14px", fontWeight: 700, color: "#fff" }}>{name}</span>
+          <span style={{
+            fontSize: "10px", fontWeight: 700, color: "rgba(100,180,255,0.8)",
+            background: "rgba(100,180,255,0.12)", borderRadius: "20px", padding: "2px 8px",
+          }}>
+            {events.length}
+          </span>
+        </span>
+        <svg
+          width="16" height="16" viewBox="0 0 16 16" fill="none"
+          style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}
+        >
+          <path d="M4 6L8 10L12 6" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+      {open && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px", paddingLeft: "4px" }}>
+          {events.map((ev) => (
+            <EventCard key={ev.id} event={ev} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function UpcomingMeetDetailPage() {
@@ -220,6 +260,7 @@ export default function UpcomingMeetDetailPage() {
   const [meet, setMeet] = useState<UpcomingMeet | null>(null);
   const [events, setEvents] = useState<MeetEvent[]>([]);
   const [swimmerNames, setSwimmerNames] = useState<string[]>([]);
+  const [selectedSwimmers, setSelectedSwimmers] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -255,7 +296,9 @@ export default function UpcomingMeetDetailPage() {
       .from("swimmers")
       .select("name")
       .eq("user_id", session.user.id);
-    setSwimmerNames((swimmers ?? []).map((s: { name: string }) => s.name));
+    const names = (swimmers ?? []).map((s: { name: string }) => s.name);
+    setSwimmerNames(names);
+    setSelectedSwimmers(names);
 
     // Load saved events for this meet
     const { data: eventsData } = await supabase
@@ -270,9 +313,20 @@ export default function UpcomingMeetDetailPage() {
 
   useEffect(() => { void load(); }, [load]);
 
+  function toggleSwimmer(name: string) {
+    setSelectedSwimmers((prev) =>
+      prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]
+    );
+  }
+
   async function handlePDFUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file || !file.name.endsWith(".pdf")) return;
+
+    if (selectedSwimmers.length === 0) {
+      setUploadError("Select at least one swimmer to match events for.");
+      return;
+    }
 
     setUploading(true);
     setUploadError(null);
@@ -280,7 +334,7 @@ export default function UpcomingMeetDetailPage() {
     try {
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("swimmerNames", JSON.stringify(swimmerNames));
+      formData.append("swimmerNames", JSON.stringify(selectedSwimmers));
       formData.append("debug", "true");
 
       const res = await fetch("/api/parse-start-list", { method: "POST", body: formData });
@@ -424,6 +478,39 @@ export default function UpcomingMeetDetailPage() {
           <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.3)", marginTop: "-8px" }}>Saving...</p>
         )}
 
+        {/* Swimmer selection */}
+        {swimmerNames.length > 0 && (
+          <div>
+            <p style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "8px" }}>
+              Match events for
+            </p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+              {swimmerNames.map((name) => {
+                const active = selectedSwimmers.includes(name);
+                return (
+                  <button
+                    key={name}
+                    type="button"
+                    onClick={() => toggleSwimmer(name)}
+                    style={{
+                      padding: "7px 14px",
+                      borderRadius: "20px",
+                      border: `1px solid ${active ? "rgba(100,180,255,0.4)" : "rgba(255,255,255,0.12)"}`,
+                      background: active ? "rgba(100,180,255,0.15)" : "rgba(255,255,255,0.04)",
+                      color: active ? "rgba(150,200,255,0.95)" : "rgba(255,255,255,0.4)",
+                      fontSize: "12px",
+                      fontWeight: active ? 600 : 400,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {active ? "✓ " : ""}{name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* PDF Upload */}
         <div>
           <label
@@ -507,13 +594,22 @@ export default function UpcomingMeetDetailPage() {
 
         {/* Events list */}
         {events.length > 0 ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
             <p style={{ fontSize: "10px", color: "rgba(255,255,255,0.3)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-              {events.length} event{events.length !== 1 ? "s" : ""} found
+              {events.length} event{events.length !== 1 ? "s" : ""} across {new Set(events.map((e) => e.swimmer_name)).size} swimmer{new Set(events.map((e) => e.swimmer_name)).size !== 1 ? "s" : ""}
             </p>
-            {events.map((ev) => (
-              <EventCard key={ev.id} event={ev} />
-            ))}
+            {(() => {
+              const grouped = new Map<string, MeetEvent[]>();
+              for (const ev of events) {
+                const key = ev.swimmer_name || "Unknown";
+                if (!grouped.has(key)) grouped.set(key, []);
+                grouped.get(key)!.push(ev);
+              }
+              const names = Array.from(grouped.keys()).sort();
+              return names.map((name, i) => (
+                <SwimmerGroup key={name} name={name} events={grouped.get(name)!} defaultOpen={names.length === 1 || i === 0} />
+              ));
+            })()}
           </div>
         ) : (
           !uploading && (
