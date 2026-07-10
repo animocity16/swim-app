@@ -195,6 +195,21 @@ function SkeletonActivity() {
   );
 }
 
+function NatrixMark({ size = 34 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 40 40" style={{ opacity: 0.85, flexShrink: 0 }}>
+      <circle cx="20" cy="20" r="19" fill="none" stroke="#D97706" strokeWidth="2" />
+      <path
+        d="M20 10 C26 10 28 14 25 17 C22 20 16 20 16 24 C16 28 20 29 24 27"
+        fill="none"
+        stroke="#D97706"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 function QualifiedArc({ qualified, total }: { qualified: number; total: number }) {
   const pct = total > 0 ? qualified / total : 0;
   const R = 30, cx = 36, cy = 36;
@@ -209,6 +224,67 @@ function QualifiedArc({ qualified, total }: { qualified: number; total: number }
       <text x={cx} y={cy - 3} textAnchor="middle" fill="#6EE7B7" fontSize="15" fontWeight="700">{qualified}</text>
       <text x={cx} y={cy + 10} textAnchor="middle" fill="rgba(255,255,255,0.35)" fontSize="8" fontWeight="500">of {total}</text>
     </svg>
+  );
+}
+
+// ─── Collapsed square tile (Recent activity / Upcoming meets) ─────────────────
+
+function ChevronIcon({ dir = "right" }: { dir?: "right" | "left" }) {
+  const d = dir === "right" ? "M6 3L11 8L6 13" : "M10 3L5 8L10 13";
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+      <path d={d} stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function SquareTile({
+  emoji,
+  label,
+  bigValue,
+  subline,
+  tint,
+  loading,
+  disabled,
+  onClick,
+}: {
+  emoji: string;
+  label: string;
+  bigValue: number;
+  subline?: string | null;
+  tint: string;
+  loading?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="group flex aspect-square flex-col justify-between rounded-3xl p-4 text-left transition active:scale-[0.97] disabled:opacity-50 disabled:active:scale-100"
+      style={{ background: tint, border: "1px solid rgba(255,255,255,0.08)" }}
+    >
+      <div className="flex items-center justify-between">
+        <span style={{ fontSize: 22 }}>{emoji}</span>
+        {!disabled && (
+          <span className="text-white/25 transition group-active:translate-x-0.5">
+            <ChevronIcon />
+          </span>
+        )}
+      </div>
+      <div>
+        {loading ? (
+          <div className="h-7 w-10 rounded-full bg-white/10 animate-pulse mb-1" />
+        ) : (
+          <p className="text-2xl font-bold leading-none text-white">{bigValue}</p>
+        )}
+        <p className="mt-1.5 text-[10px] font-medium uppercase tracking-widest text-white/35">{label}</p>
+        {subline && (
+          <p className="mt-1 text-xs text-white/45 truncate">{subline}</p>
+        )}
+      </div>
+    </button>
   );
 }
 
@@ -227,6 +303,9 @@ export default function DashboardPage() {
   const [phase2Done, setPhase2Done]             = useState(false);
   const [recentResults, setRecentResults]       = useState<RecentResult[]>([]);
   const [standardsSummaries, setStandardsSummaries] = useState<StandardsSummary[]>([]);
+
+  // Which square tile (if any) is expanded
+  const [expandedSection, setExpandedSection] = useState<"activity" | "meets" | null>(null);
 
   useEffect(() => { void loadDashboard(); }, []);
 
@@ -445,9 +524,12 @@ export default function DashboardPage() {
       <div className="container-app space-y-6">
 
         {/* Header */}
-        <div className="pt-2">
-          <p className="text-xs font-medium uppercase tracking-widest text-white/30">{greeting}</p>
-          <h1 className="mt-0.5 text-3xl font-bold tracking-tight text-white">{userName ?? "Home"}</h1>
+        <div className="pt-2 flex items-start justify-between">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-widest text-white/30">{greeting}</p>
+            <h1 className="mt-0.5 text-3xl font-bold tracking-tight text-white">{userName ?? "Home"}</h1>
+          </div>
+          <NatrixMark />
         </div>
 
         {/* ── Swimmer cards — visible as soon as phase 1 done ───────────────── */}
@@ -510,92 +592,129 @@ export default function DashboardPage() {
           </div>
         ) : null}
 
-        {/* ── Recent activity — skeleton until phase 2 done ─────────────────── */}
-        {!phase2Done ? (
-          <div>
-            <div className="h-3 w-28 rounded-full bg-white/10 animate-pulse mb-3" />
-            <SkeletonActivity />
-          </div>
-        ) : recentResults.length > 0 ? (
-          <div>
-            <p className="mb-3 text-[10px] font-medium uppercase tracking-widest text-white/30">Recent activity</p>
-            <div className="rounded-3xl overflow-hidden"
-              style={{ border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)" }}>
-              {recentResults.map((result, i) => {
-                const strokeColor = getStrokeColor(result.event);
-                return (
-                  <Link key={result.id} href={`/swimmers/${result.swimmer_id}`}
-                    className="flex items-center gap-3 px-4 py-3 transition hover:bg-white/5"
-                    style={{ borderBottom: i < recentResults.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none" }}>
-                    <div className="w-1 h-8 rounded-full flex-shrink-0" style={{ background: strokeColor }} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-white truncate">{shortEvent(result.event)}</p>
-                      <p className="text-xs text-white/35 mt-0.5">
-                        {result.swimmer_name.split(" ")[0]}
-                        {result.swam_at ? ` · ${formatDate(result.swam_at)}` : ""}
-                        {result.meet_name ? ` · ${result.meet_name}` : ""}
-                      </p>
-                    </div>
-                    <div className="text-right flex-shrink-0">
-                      <p className="text-base font-bold text-white">{formatMs(result.time_ms)}</p>
-                      <p className="text-[10px] text-white/30">{result.course}</p>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-        ) : phase2Done ? (
-          <div className="rounded-3xl border border-white/10 bg-white/5 p-6 space-y-4">
-            <div className="text-center">
-              <p className="text-base font-semibold text-white">No results yet</p>
-              <p className="mt-1 text-sm text-white/40">Import existing times or scan a Meet Mobile result.</p>
-            </div>
+        {/* ── Activity & Meets — collapsed squares, tap to expand ────────────── */}
+        <div>
+          {expandedSection === null ? (
             <div className="grid grid-cols-2 gap-3">
-              <Link href="/scan"
-                className="flex items-center justify-center gap-2 rounded-2xl py-3 text-sm font-semibold text-white/70 transition"
-                style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)" }}>
-                Import
-              </Link>
-              <Link href="/scan"
-                className="flex items-center justify-center gap-2 rounded-2xl py-3 text-sm font-semibold text-white transition"
-                style={{ background: "#D97706" }}>
-                Scan result
-              </Link>
+              <SquareTile
+                emoji="⏱️"
+                label="Recent activity"
+                bigValue={recentResults.length}
+                subline={
+                  phase2Done && recentResults[0]
+                    ? `${shortEvent(recentResults[0].event)} · ${formatMs(recentResults[0].time_ms)}`
+                    : phase2Done
+                      ? "No results yet"
+                      : null
+                }
+                tint="linear-gradient(135deg, rgba(6,40,65,0.55) 0%, rgba(6,40,65,0.3) 100%)"
+                loading={!phase2Done}
+                onClick={() => setExpandedSection("activity")}
+              />
+              <SquareTile
+                emoji={upcomingMeets[0] ? meetEmoji(upcomingMeets[0].meetType) : "🏊"}
+                label="Upcoming meets"
+                bigValue={upcomingMeets.length}
+                subline={upcomingMeets[0]?.name ?? "None scheduled"}
+                tint="linear-gradient(135deg, rgba(217,119,6,0.16) 0%, rgba(6,40,65,0.3) 100%)"
+                disabled={upcomingMeets.length === 0}
+                onClick={() => setExpandedSection("meets")}
+              />
             </div>
-          </div>
-        ) : null}
+          ) : (
+            <div>
+              <button
+                type="button"
+                onClick={() => setExpandedSection(null)}
+                className="mb-3 flex items-center gap-1 text-[10px] font-medium uppercase tracking-widest text-white/40 transition hover:text-white/60"
+              >
+                <ChevronIcon dir="left" />
+                {expandedSection === "activity" ? "Recent activity" : "Upcoming meets"}
+              </button>
 
-        {/* ── Upcoming meets ─────────────────────────────────────────────────── */}
-        {upcomingMeets.length > 0 && (
-          <div>
-            <p className="mb-2 text-[10px] font-medium uppercase tracking-widest text-white/30">Upcoming meets</p>
-            <div className="space-y-2">
-              {upcomingMeets.map((meet) => {
-                const now = isHappeningNow(meet);
-                return (
-                  <div key={meet.id}
-                    className="flex items-center gap-3 rounded-2xl px-4 py-3"
-                    style={{
-                      background: now ? "rgba(110,231,183,0.08)" : "rgba(255,255,255,0.04)",
-                      border: now ? "1px solid rgba(110,231,183,0.25)" : "1px solid rgba(255,255,255,0.08)",
-                    }}>
-                    <span style={{ fontSize: 20 }}>{meetEmoji(meet.meetType)}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-white truncate">{meet.name}</p>
-                      <p className="text-[10px] text-white/35 mt-0.5">
-                        {formatMeetMonth(meet)}{meet.location ? ` · ${meet.location}` : ""}
-                      </p>
-                    </div>
-                    {now && (
-                      <span className="text-xs font-bold flex-shrink-0" style={{ color: "#6EE7B7" }}>Now!</span>
-                    )}
+              {/* ── Recent activity (expanded) ──────────────────────────────── */}
+              {expandedSection === "activity" && (
+                recentResults.length > 0 ? (
+                  <div className="rounded-3xl overflow-hidden"
+                    style={{ border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)" }}>
+                    {recentResults.map((result, i) => {
+                      const strokeColor = getStrokeColor(result.event);
+                      return (
+                        <Link key={result.id} href={`/swimmers/${result.swimmer_id}`}
+                          className="flex items-center gap-3 px-4 py-3 transition hover:bg-white/5"
+                          style={{ borderBottom: i < recentResults.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none" }}>
+                          <div className="w-1 h-8 rounded-full flex-shrink-0" style={{ background: strokeColor }} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-white truncate">{shortEvent(result.event)}</p>
+                            <p className="text-xs text-white/35 mt-0.5">
+                              {result.swimmer_name.split(" ")[0]}
+                              {result.swam_at ? ` · ${formatDate(result.swam_at)}` : ""}
+                              {result.meet_name ? ` · ${result.meet_name}` : ""}
+                            </p>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <p className="text-base font-bold text-white">{formatMs(result.time_ms)}</p>
+                            <p className="text-[10px] text-white/30">{result.course}</p>
+                          </div>
+                        </Link>
+                      );
+                    })}
                   </div>
-                );
-              })}
+                ) : (
+                  <div className="rounded-3xl border border-white/10 bg-white/5 p-6 space-y-4">
+                    <div className="text-center">
+                      <p className="text-base font-semibold text-white">No results yet</p>
+                      <p className="mt-1 text-sm text-white/40">Import existing times or scan a Meet Mobile result.</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Link href="/scan"
+                        className="flex items-center justify-center gap-2 rounded-2xl py-3 text-sm font-semibold text-white/70 transition"
+                        style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)" }}>
+                        Import
+                      </Link>
+                      <Link href="/scan"
+                        className="flex items-center justify-center gap-2 rounded-2xl py-3 text-sm font-semibold text-white transition"
+                        style={{ background: "#D97706" }}>
+                        Scan result
+                      </Link>
+                    </div>
+                  </div>
+                )
+              )}
+
+              {/* ── Upcoming meets (expanded) ───────────────────────────────── */}
+              {expandedSection === "meets" && (
+                <div className="space-y-2">
+                  {upcomingMeets.map((meet) => {
+                    const now = isHappeningNow(meet);
+                    return (
+                      <Link key={meet.id} href={`/meets/upcoming/${meet.id}`}
+                        className="flex items-center gap-3 rounded-2xl px-4 py-3 transition active:scale-[0.98]"
+                        style={{
+                          background: now ? "rgba(110,231,183,0.08)" : "rgba(255,255,255,0.04)",
+                          border: now ? "1px solid rgba(110,231,183,0.25)" : "1px solid rgba(255,255,255,0.08)",
+                        }}>
+                        <span style={{ fontSize: 20 }}>{meetEmoji(meet.meetType)}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-white truncate">{meet.name}</p>
+                          <p className="text-[10px] text-white/35 mt-0.5">
+                            {formatMeetMonth(meet)}{meet.location ? ` · ${meet.location}` : ""}
+                          </p>
+                        </div>
+                        {now && (
+                          <span className="text-xs font-bold flex-shrink-0" style={{ color: "#6EE7B7" }}>Now!</span>
+                        )}
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className="flex-shrink-0 text-white/20">
+                          <path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         <div className="h-6" />
       </div>
