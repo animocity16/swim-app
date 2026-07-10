@@ -29,12 +29,29 @@ async function extractTextFromPdf(buffer: ArrayBuffer): Promise<string> {
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
     const content = await page.getTextContent();
-    const pageText = content.items
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .map((item: any) => ("str" in item ? item.str : ""))
-      .join(" ")
-      .replace(/\s{2,}/g, "\n");
-    fullText += pageText + "\n";
+
+    type Item = { str: string; x: number; y: number };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const items: Item[] = (content.items as any[])
+      .filter((it) => "str" in it && it.str.trim() !== "")
+      .map((it) => ({ str: it.str, x: it.transform[4], y: it.transform[5] }));
+
+    // Group into rows by y-coordinate (same row = same vertical position on page)
+    const Y_TOLERANCE = 2;
+    const sorted = [...items].sort((a, b) => b.y - a.y || a.x - b.x);
+    const rows: Item[][] = [];
+    for (const item of sorted) {
+      const row = rows.find((r) => Math.abs(r[0].y - item.y) <= Y_TOLERANCE);
+      if (row) row.push(item);
+      else rows.push([item]);
+    }
+
+    // Sort each row left-to-right, then join into one line
+    const pageLines = rows.map((row) =>
+      row.sort((a, b) => a.x - b.x).map((it) => it.str).join(" ")
+    );
+
+    fullText += pageLines.join("\n") + "\n";
   }
 
   return fullText;
