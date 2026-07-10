@@ -1,27 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { extractText } from "unpdf";
 
 export const runtime = "nodejs";
-
-// ─── TEMPORARILY DISABLED ────────────────────────────────────────────────────
-// This route's PDF text extraction (pdf-parse + canvas) is blocking production
-// builds — `canvas` isn't installed (it needs native system libraries that are
-// painful to get working on Vercel) and the pdf-parse internal-file import was
-// relying on an unpinned transitive dependency.
-//
-// The parsing logic below (parsePDF) is untouched and ready to go — it just
-// needs a working PDF-text-extraction function wired back in. You already have
-// `unpdf` installed, which is built for serverless environments and doesn't
-// need `canvas` at all — that's likely the cleaner path forward here rather
-// than re-fighting pdf-parse + canvas. Something like:
-//
-//   import { extractText } from "unpdf";
-//   async function extractTextFromPdf(buffer: ArrayBuffer): Promise<string> {
-//     const { text } = await extractText(new Uint8Array(buffer), { mergePages: true });
-//     return text;
-//   }
-//
-// Swap that in for the removed extractText() below, delete this block comment,
-// and this route is back in business.
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -37,7 +17,14 @@ type ParsedEvent = {
   swimmerName: string;
 };
 
-// ─── Parser (unchanged — still ready to use once extraction is wired back in) ──
+// ─── PDF text extraction (unpdf — built for serverless, no canvas/DOM needed) ──
+
+async function extractTextFromPdf(buffer: ArrayBuffer): Promise<string> {
+  const { text } = await extractText(new Uint8Array(buffer), { mergePages: true });
+  return text;
+}
+
+// ─── Parser ─────────────────────────────────────────────────────────────────────
 
 function parsePDF(text: string, swimmerNames: string[]): ParsedEvent[] {
   const results: ParsedEvent[] = [];
@@ -128,10 +115,28 @@ function parsePDF(text: string, swimmerNames: string[]): ParsedEvent[] {
 // ─── Route handler ──────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  // Reference parsePDF so it isn't flagged as unused while extraction is disabled.
-  void parsePDF;
-  return NextResponse.json(
-    { error: "Start list parsing is temporarily disabled while we swap the PDF extraction method. Check back soon!" },
-    { status: 501 }
-  );
+  try {
+    const formData = await req.formData();
+    const file = formData.get("file") as File | null;
+    const swimmerNamesRaw = formData.get("swimmerNames") as string | null;
+
+    if (!file) {
+      return NextResponse.json({ error: "No file provided" }, { status: 400 });
+    }
+    if (!swimmerNamesRaw) {
+      return NextResponse.json({ error: "No swimmer names provided" }, { status: 400 });
+    }
+
+    const swimmerNames: string[] = JSON.parse(swimmerNamesRaw);
+    const buffer = await file.arrayBuffer();
+
+    const text = await extractTextFromPdf(buffer);
+    const parsed = parsePDF(text, swimmerNames);
+
+    return NextResponse.json({ events: parsed });
+  } catch (err) {
+    console.error("PDF parse error:", err);
+    const message = err instanceof Error ? err.message : "Failed to parse PDF";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
