@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { extractText } from "unpdf";
+import { getDocumentProxy } from "unpdf";
 
 export const runtime = "nodejs";
 
@@ -17,11 +17,27 @@ type ParsedEvent = {
   swimmerName: string;
 };
 
-// ─── PDF text extraction (unpdf — built for serverless, no canvas/DOM needed) ──
+// ─── PDF text extraction ─────────────────────────────────────────────────────
+// Reconstructs row breaks by inserting a newline wherever there's a large gap
+// between text chunks (column boundaries) — unpdf's simple extractText() merges
+// everything into one blob, which breaks our row-based parser.
 
 async function extractTextFromPdf(buffer: ArrayBuffer): Promise<string> {
-  const { text } = await extractText(new Uint8Array(buffer), { mergePages: true });
-  return text;
+  const pdf = await getDocumentProxy(new Uint8Array(buffer));
+  let fullText = "";
+
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    const pageText = content.items
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((item: any) => ("str" in item ? item.str : ""))
+      .join(" ")
+      .replace(/\s{2,}/g, "\n");
+    fullText += pageText + "\n";
+  }
+
+  return fullText;
 }
 
 // ─── Parser ─────────────────────────────────────────────────────────────────────
