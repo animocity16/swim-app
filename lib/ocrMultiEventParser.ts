@@ -663,11 +663,23 @@ function parseSplitsDirectly(rawText: string, finalMs: number): ParsedSplit[] {
 
   // ── Step 1: Detect event distance for target chain length ─────────────────
   // 400 Free → 8 splits of 50m, 50 Fly SC → 2 splits of 25m, etc.
+  // IM events ALWAYS cycle through exactly 4 strokes (Fly → Back → Breast →
+  // Free), so an IM leg is always eventDist/4 — 25m for a 100 IM SCM/SCY,
+  // 50m for a 200 IM, 100m for a 400 IM — never the flat 50m unit used for
+  // single-stroke events. Without this, a 100 IM SCM was being treated as a
+  // 2-leg race (50m unit) instead of 4 legs of 25m, which merged the Fly
+  // and Back legs together and mislabeled the checkpoints.
+  const isIMEventGlobal = /\b(individual\s*medley|\bim\b)/i.test(rawText);
   const eventDistMatch = rawText.match(/\b(50|100|200|400|800|1500)\s*(meter|m)?\s*(individual\s*)?(free|freestyle|back|backstroke|fly|butterfly|breast|breaststroke|medley|im)\b/i);
   const eventDist = eventDistMatch ? Number(eventDistMatch[1]) : 0;
-  // 50m events split at 25m (turn + finish); all others split every 50m
-  const splitUnit = eventDist === 50 ? 25 : 50;
-  const targetChainLength = eventDist > 0 ? eventDist / splitUnit : 0; // 0 = unconstrained
+  // 50m events split at 25m (turn + finish); IM events always split into 4
+  // legs of eventDist/4; everything else splits every 50m.
+  const splitUnit = isIMEventGlobal && eventDist > 0
+    ? eventDist / 4
+    : (eventDist === 50 ? 25 : 50);
+  const targetChainLength = isIMEventGlobal && eventDist > 0
+    ? 4
+    : (eventDist > 0 ? eventDist / splitUnit : 0); // 0 = unconstrained
 
   // ── Step 2: Mark Split label lines and their noise times for removal ───────
   const removeIdx = new Set<number>();
