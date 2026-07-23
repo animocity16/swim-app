@@ -130,6 +130,8 @@ export default function SwimCloudScanPage() {
   const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState("");
   const [rawText, setRawText] = useState("");
+  const [copyLabel, setCopyLabel] = useState("Copy");
+  const [routeDebug, setRouteDebug] = useState("");
 
   const [rows, setRows] = useState<SwimCloudRankingRow[]>([]);
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
@@ -169,7 +171,7 @@ export default function SwimCloudScanPage() {
   function reset() {
     setFile1(null); setFile2(null); setFile3(null);
     setPreview1(null); setPreview2(null); setPreview3(null);
-    setStep("idle"); setProgress(0); setMessage(""); setRawText("");
+    setStep("idle"); setProgress(0); setMessage(""); setRawText(""); setRouteDebug("");
     setRows([]); setSelectedRows(new Set());
     setSavingSelected(false); setSavedNames([]);
     setManualMeetName(""); setManualMeetDate("");
@@ -186,10 +188,21 @@ export default function SwimCloudScanPage() {
     });
   }
 
+  async function handleCopyRawText() {
+    try {
+      await navigator.clipboard.writeText(rawText);
+      setCopyLabel("Copied!");
+      setTimeout(() => setCopyLabel("Copy"), 1500);
+    } catch {
+      setCopyLabel("Failed");
+      setTimeout(() => setCopyLabel("Copy"), 1500);
+    }
+  }
+
   async function handleScan() {
     if (!file1) return;
     setStep("scanning");
-    setProgress(0); setMessage(""); setRawText("");
+    setProgress(0); setMessage(""); setRawText(""); setRouteDebug("");
     setRows([]); setSelectedRows(new Set()); setSavedNames([]);
 
     try {
@@ -216,7 +229,10 @@ export default function SwimCloudScanPage() {
 
       setRawText(combined);
 
-      if (!isSwimCloudRankingsPage(combined)) {
+      const _isRankings = isSwimCloudRankingsPage(combined);
+      setRouteDebug(`isSwimCloudRankingsPage=${_isRankings} combined.length=${combined.length}`);
+
+      if (!_isRankings) {
         setMessage("⚠️ This doesn't look like a SwimCloud rankings page. Try a clearer screenshot.");
       }
 
@@ -460,6 +476,28 @@ export default function SwimCloudScanPage() {
                 <p className="mt-1 text-xs text-white/70">{savedNames.join(", ")}</p>
               </div>
             )}
+
+            {/* ── Debug: raw OCR text ── kept intentionally, same as Meet Mobile scan */}
+            <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40">
+                  Raw OCR text (debug)
+                </p>
+                <button
+                  type="button"
+                  onClick={handleCopyRawText}
+                  className="rounded-full border border-white/15 px-2.5 py-1 text-[10px] font-semibold text-white/60"
+                >
+                  {copyLabel}
+                </button>
+              </div>
+              {routeDebug && (
+                <p className="mt-1 text-[10px] text-white/30">{routeDebug}</p>
+              )}
+              <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words text-[10px] leading-relaxed text-white/50">
+                {rawText || "(empty)"}
+              </pre>
+            </div>
 
             <button type="button" onClick={reset}
               className="w-full rounded-2xl border border-white/15 bg-white/5 py-4 text-base font-semibold text-white/60 transition hover:bg-white/10">
