@@ -75,7 +75,6 @@ export default function BottomNav() {
   const pathname = usePathname();
   const router = useRouter();
   const [scanMenuOpen, setScanMenuOpen] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
   const scanWrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -102,31 +101,15 @@ export default function BottomNav() {
   }
 
   function handleSwimCloud() {
-  setScanMenuOpen(false);
-  router.push("/scan/swimcloud");
-}
+    setScanMenuOpen(false);
+    router.push("/scan/swimcloud");
+  }
 
   return (
     <nav
       className="fixed bottom-3 left-1/2 z-50"
       style={{ transform: "translateX(-50%)", width: "calc(100% - 32px)", maxWidth: "420px" }}
     >
-      {toast && (
-        <div
-          className="absolute left-1/2 mb-3 rounded-full px-4 py-2 text-[11px] font-semibold text-white"
-          style={{
-            bottom: "100%",
-            transform: "translateX(-50%)",
-            background: "rgba(6,40,65,0.95)",
-            border: "1px solid rgba(253,230,138,0.3)",
-            boxShadow: "0 8px 24px rgba(0,20,50,0.5)",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {toast}
-        </div>
-      )}
-
       <div
         style={{
           background: "rgba(6,40,65,0.72)",
@@ -206,25 +189,10 @@ export default function BottomNav() {
                 type="button"
                 onClick={handleSwimCloud}
                 className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-xs font-semibold transition hover:bg-white/5"
-                style={{ color: "rgba(255,255,255,0.4)" }}
+                style={{ color: "rgba(255,255,255,0.85)" }}
               >
-                <span className="flex items-center gap-1.5">
-                  SwimCloud
-                  <span
-                    style={{
-                      fontSize: "8px",
-                      fontWeight: 700,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.04em",
-                      color: "#EF9F27",
-                      background: "rgba(186,117,23,0.2)",
-                      borderRadius: "999px",
-                      padding: "2px 6px",
-                    }}
-                  >
-                    
-                  </span>
-                </span>
+                SwimCloud
+                <span style={{ fontSize: "14px" }}>☁️</span>
               </button>
             </div>
           )}
