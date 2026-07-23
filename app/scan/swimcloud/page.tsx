@@ -15,6 +15,7 @@ import {
 } from "@/lib/ocrSwimCloudProfileParser";
 import { canonicalCourse, canonicalEventName } from "@/lib/events";
 import { supabase } from "@/lib/supabaseClient";
+import { setActiveSwimmerId, resolveActiveSwimmer } from "@/lib/activeSwimmer";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -121,6 +122,7 @@ function SlotButton({
 export default function SwimCloudScanPage() {
   const router = useRouter();
   const [swimmers, setSwimmers] = useState<Swimmer[]>([]);
+  const [primarySwimmers, setPrimarySwimmers] = useState<Swimmer[]>([]);
   const [loadingSwimmers, setLoadingSwimmers] = useState(true);
 
   const [subMode, setSubMode] = useState<SubMode>("rankings");
@@ -177,7 +179,9 @@ export default function SwimCloudScanPage() {
     if (!session) { router.replace("/login"); return; }
     const { data } = await supabase.from("swimmers")
       .select("id, name, age, swim_club, group_type").order("name", { ascending: true });
-    setSwimmers((data as Swimmer[]) || []);
+    const all = (data as Swimmer[]) || [];
+    setSwimmers(all);
+    setPrimarySwimmers(all.filter((s) => s.group_type === "primary"));
     setLoadingSwimmers(false);
   }
 
@@ -227,6 +231,12 @@ export default function SwimCloudScanPage() {
       setCopyLabel("Failed");
       setTimeout(() => setCopyLabel("Copy"), 1500);
     }
+  }
+
+  function selectSwimmer(s: Swimmer) {
+    setPickedSwimmer(s);
+    setShowSwimmerPicker(false);
+    setActiveSwimmerId(s.id);
   }
 
   async function handleScan() {
@@ -294,7 +304,17 @@ export default function SwimCloudScanPage() {
         setProfileInitials(parsed.initials);
         setProfileClub(parsed.club);
         setSelectedProfileRows(new Set(parsed.results.map((_, i) => i)));
-        setShowSwimmerPicker(true);
+
+        // No name in SwimCloud profile OCR, so we can't fuzzy-match — but
+        // we CAN remember whoever was picked last, same trick Meet Mobile
+        // uses, so back-to-back scans of the same kid skip the picker.
+        const remembered = resolveActiveSwimmer(primarySwimmers);
+        if (remembered) {
+          setPickedSwimmer(remembered);
+          setShowSwimmerPicker(false);
+        } else {
+          setShowSwimmerPicker(true);
+        }
 
         if (parsed.results.length === 0) {
           setMessage("⚠️ No events detected. Try again with a clearer screenshot.");
@@ -384,9 +404,8 @@ export default function SwimCloudScanPage() {
     }).select().single();
     if (error || !newSwimmer) { setMessage(`⚠️ Couldn't create profile: ${error?.message}`); return; }
     await loadSwimmers();
-    setPickedSwimmer(newSwimmer as Swimmer);
+    selectSwimmer(newSwimmer as Swimmer);
     setCreatingNewSwimmer(false);
-    setShowSwimmerPicker(false);
   }
 
   async function handleSaveProfileSelected() {
@@ -448,7 +467,6 @@ export default function SwimCloudScanPage() {
 
         {step !== "done" && (
           <>
-            {/* Sub-mode toggle */}
             <div className="space-y-1.5">
               <p className="text-[11px] font-semibold text-white/50">Scan type</p>
               <div className="flex gap-2">
@@ -472,7 +490,6 @@ export default function SwimCloudScanPage() {
               </div>
             </div>
 
-            {/* Course selector */}
             <div className="space-y-1.5">
               <p className="text-[11px] font-semibold text-white/50">Course</p>
               <div className="flex gap-2">
@@ -493,7 +510,6 @@ export default function SwimCloudScanPage() {
               </div>
             </div>
 
-            {/* Screenshot slots */}
             <div className="grid grid-cols-3 gap-2">
               <SlotButton label="Screenshot 1" hint={subMode === "rankings" ? "Rankings page" : "Profile page"} preview={preview1} inputRef={ref1} required
                 onChange={(e) => handleFile(e, setFile1, setPreview1)} />
@@ -618,19 +634,21 @@ export default function SwimCloudScanPage() {
               </p>
             )}
 
-            {/* Swimmer picker — always shown for profile mode, no auto-match possible */}
             {showSwimmerPicker && !pickedSwimmer && (
               <div className="space-y-2 rounded-2xl border border-white/10 bg-white/5 p-3">
                 <p className="text-[11px] font-semibold text-white/50">
                   Whose results are these?
                   {profileInitials && <span className="text-white/30"> — avatar shows "{profileInitials}"</span>}
                 </p>
+                <p className="text-[10px] text-white/30">
+                  SwimCloud doesn't show the full name on this page — pick once and we'll remember for next time.
+                </p>
                 <div className="max-h-48 space-y-1.5 overflow-auto">
                   {swimmers.map((s, i) => (
                     <button
                       key={s.id}
                       type="button"
-                      onClick={() => { setPickedSwimmer(s); setShowSwimmerPicker(false); }}
+                      onClick={() => selectSwimmer(s)}
                       className="flex w-full items-center gap-3 rounded-xl border border-white/10 bg-black/20 p-2.5 text-left transition hover:border-amber-400/40"
                     >
                       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
@@ -681,7 +699,7 @@ export default function SwimCloudScanPage() {
                 </div>
                 <button type="button" onClick={() => { setPickedSwimmer(null); setShowSwimmerPicker(true); }}
                   className="text-[11px] font-semibold text-white/40 underline">
-                  Change
+                  Not them? Change
                 </button>
               </div>
             )}
@@ -759,8 +777,6 @@ export default function SwimCloudScanPage() {
     </div>
   );
 }
-
-// ─── Debug box (shared between both modes) ─────────────────────────────────
 
 function DebugBox({
   rawText, routeDebug, copyLabel, onCopy,
