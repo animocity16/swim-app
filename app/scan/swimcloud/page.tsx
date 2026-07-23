@@ -471,8 +471,8 @@ export default function SwimCloudScanPage() {
               <p className="text-[11px] font-semibold text-white/50">Scan type</p>
               <div className="flex gap-2">
                 {([
-                  { key: "rankings", label: "Rankings" },
-                  { key: "profile", label: "Swimmer profile" },
+                  { key: "rankings", label: "Multiple swimmers" },
+                  { key: "profile", label: "Single swimmer" },
                 ] as { key: SubMode; label: string }[]).map((opt) => (
                   <button
                     key={opt.key}
