@@ -318,6 +318,8 @@ export default function SwimCloudScanPage() {
 
         if (parsed.results.length === 0) {
           setMessage("⚠️ No events detected. Try again with a clearer screenshot.");
+        } else if (parsed.skippedCount > 0) {
+          setMessage(`ℹ️ ${parsed.results.length} event(s) read clearly. ${parsed.skippedCount} couldn't be read reliably and were skipped — check the debug text below if any are missing.`);
         }
       }
 
