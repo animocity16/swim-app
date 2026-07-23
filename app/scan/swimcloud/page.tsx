@@ -134,7 +134,7 @@ export default function SwimCloudScanPage() {
   const [primarySwimmers, setPrimarySwimmers] = useState<Swimmer[]>([]);
   const [loadingSwimmers, setLoadingSwimmers] = useState(true);
 
-  const [subMode, setSubMode] = useState<SubMode>("rankings");
+  const [subMode, setSubMode] = useState<SubMode>("profile");
   const [meetCourse, setMeetCourse] = useState<MeetCourse>("LCM");
 
   const [file1, setFile1] = useState<File | null>(null);
