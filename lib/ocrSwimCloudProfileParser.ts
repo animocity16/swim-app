@@ -1,4 +1,4 @@
-// ✅ ocrSwimCloudProfileParser.ts — v3, adds same-stroke distance inference
+// ✅ ocrSwimCloudProfileParser.ts — v4, detects real name when OCR captures it
 export type SwimCloudProfileRow = {
   event: string;
   timeStr: string;
@@ -11,6 +11,7 @@ export type SwimCloudProfileRow = {
 
 export type ParsedSwimCloudProfile = {
   initials: string | null;
+  name: string | null;
   club: string | null;
   results: SwimCloudProfileRow[];
   skippedCount: number;
@@ -51,12 +52,33 @@ function timeToMs(timeStr: string): number {
   return Number(sec) * 1_000 + Number(hundredths ?? "0") * 10;
 }
 
-function extractInitialsAndClub(lines: string[]): { initials: string | null; club: string | null } {
-  for (const line of lines.slice(0, 8)) {
-    const m = line.match(/^(?:IN\s+)?([A-Z]{2})\s+([A-Za-z][A-Za-z' ]{2,40})$/);
-    if (m) return { initials: m[1], club: m[2].trim() };
+const CLUB_KEYWORD_RE = /\b(Club|Swimming|Swim|Academy|Aquatic|Aquatics|Team|Institute|Squad|Lab)\b/i;
+const PERSON_NAME_RE = /^[A-Z][a-z]+(\s+[A-Z][a-z]+){1,3}$/;
+
+// SwimCloud usually only renders 2-letter avatar initials into text, but
+// sometimes (rendering/zoom dependent) the actual name comes through too —
+// e.g. "IN Jerome Songhan Ng" (initials "JN" misread as "IN" + real name).
+// When that happens, prefer the real name — it lets profile scans
+// auto-match a swimmer the same way rankings mode does, instead of always
+// requiring a manual pick.
+function extractInitialsNameClub(lines: string[]): { initials: string | null; name: string | null; club: string | null } {
+  for (let i = 0; i < Math.min(8, lines.length); i++) {
+    const m = lines[i].match(/^([A-Z]{2})\s+([A-Za-z][A-Za-z' ]{2,50})$/);
+    if (!m) continue;
+    const initials = m[1];
+    const rest = m[2].trim();
+
+    if (!CLUB_KEYWORD_RE.test(rest) && PERSON_NAME_RE.test(rest)) {
+      const nextLine = lines[i + 1];
+      const club = nextLine && !/^\d/.test(nextLine) && !STROKE_WORD_RE.test(nextLine.slice(0, 20))
+        ? nextLine.trim()
+        : null;
+      return { initials, name: rest, club };
+    }
+
+    return { initials, name: null, club: rest };
   }
-  return { initials: null, club: null };
+  return { initials: null, name: null, club: null };
 }
 
 type BoundaryInfo = { idx: number; event: string | null };
@@ -102,13 +124,6 @@ function findRawBoundaries(lines: string[]): RawBoundary[] {
 
 const DISTANCE_LADDER = [50, 100, 200, 400, 800, 1500];
 
-// SwimCloud profile pages consistently list same-stroke events in ascending
-// distance order. When a row's stroke survived OCR but its distance didn't
-// ("o0 Breast" / "> Breast"), we can infer the distance from that ordering —
-// not a blind guess, but real evidence already present on the same page.
-// Only applies when a later same-stroke row DOES have a known distance to
-// anchor against; an isolated stroke with no corroborating row is left
-// unresolved rather than guessed.
 function inferDistances(raw: RawBoundary[]): BoundaryInfo[] {
   return raw.map((b, i) => {
     if (!b.stroke) return { idx: b.idx, event: null };
@@ -181,7 +196,7 @@ export function isSwimCloudProfilePage(rawText: string): boolean {
 
 export function parseSwimCloudProfileOCR(rawText: string): ParsedSwimCloudProfile {
   const lines = rawText.replace(/\r/g, "\n").split("\n").map((l) => l.trim()).filter(Boolean);
-  const { initials, club } = extractInitialsAndClub(lines);
+  const { initials, name, club } = extractInitialsNameClub(lines);
 
   const boundaries = findBoundaries(lines);
   const results: SwimCloudProfileRow[] = [];
@@ -209,5 +224,5 @@ export function parseSwimCloudProfileOCR(rawText: string): ParsedSwimCloudProfil
     results.push({ event, timeStr: found.timeStr, timeMs, round, place, delta, isPB });
   }
 
-  return { initials, club, results, skippedCount };
+  return { initials, name, club, results, skippedCount };
 }

@@ -293,27 +293,27 @@ export default function SwimCloudScanPage() {
           setMessage("⚠️ No results detected. Try again with a clearer screenshot.");
         }
       } else {
-        const _isProfile = isSwimCloudProfilePage(combined);
-        setRouteDebug(`isSwimCloudProfilePage=${_isProfile} combined.length=${combined.length}`);
-        if (!_isProfile) {
-          setMessage("⚠️ This doesn't look like a SwimCloud swimmer profile page. Try a clearer screenshot.");
-        }
-
         const parsed = parseSwimCloudProfileOCR(combined);
         setProfileRows(parsed.results);
         setProfileInitials(parsed.initials);
         setProfileClub(parsed.club);
         setSelectedProfileRows(new Set(parsed.results.map((_, i) => i)));
+        if (parsed.name) setNewSwimmerName(parsed.name);
 
-        // No name in SwimCloud profile OCR, so we can't fuzzy-match — but
-        // we CAN remember whoever was picked last, same trick Meet Mobile
-        // uses, so back-to-back scans of the same kid skip the picker.
-        const remembered = resolveActiveSwimmer(primarySwimmers);
-        if (remembered) {
-          setPickedSwimmer(remembered);
-          setShowSwimmerPicker(false);
+        // Occasionally SwimCloud's OCR does capture the real name — try
+        // that first, same fuzzy match rankings mode uses. Only fall back
+        // to remembered/manual pick when no name came through.
+        const nameMatch = parsed.name ? fuzzyMatchSwimmer(parsed.name, swimmers) : null;
+        if (nameMatch) {
+          selectSwimmer(nameMatch);
         } else {
-          setShowSwimmerPicker(true);
+          const remembered = resolveActiveSwimmer(primarySwimmers);
+          if (remembered) {
+            setPickedSwimmer(remembered);
+            setShowSwimmerPicker(false);
+          } else {
+            setShowSwimmerPicker(true);
+          }
         }
 
         if (parsed.results.length === 0) {
