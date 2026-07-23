@@ -557,6 +557,13 @@ export default function SwimCloudScanPage() {
             <p className="text-[10px] text-white/30">
               Add more slots if the page scrolls past what fits in one screenshot.
             </p>
+            {subMode === "profile" && (
+              <p className="rounded-xl border border-amber-400/20 bg-amber-400/5 px-3 py-2 text-[10px] text-amber-200/70">
+                💡 Tip: scroll down a touch before you screenshot, so the first event row isn't
+                sitting right against the swimmer's name and photo. A little space above it makes
+                that first row read much more reliably.
+              </p>
+            )}
 
             <button
               type="button"
