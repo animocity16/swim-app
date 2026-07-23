@@ -1,18 +1,4 @@
-// ✅ ocrSwimCloudProfileParser.ts — v2, hardened against heavily garbled OCR
-//
-// v1 assumed a "round" keyword (Timed Finals/Extracted) always appears and
-// used it as the row anchor. Real OCR from a second, messier scan showed
-// that assumption doesn't hold — round text can be dropped entirely, event
-// names can lose their leading digits ("50 Breast" → "o0 Breast" / "> Breast"),
-// and times routinely lose their decimal point or colon ("2:35.74" → "23574").
-//
-// v2 anchors on the STROKE WORD instead (Free/Back/Breast/Fly/IM), since
-// that survives OCR far more reliably than digits do. When even the stroke
-// word is lost, it still detects "a new row started here" from a place
-// ordinal + number-like token, so a neighboring row's time can't get
-// misattributed to it — the row itself just gets safely dropped instead of
-// silently corrupting whichever row came before it.
-
+// ✅ ocrSwimCloudProfileParser.ts — v3, adds same-stroke distance inference
 export type SwimCloudProfileRow = {
   event: string;
   timeStr: string;
@@ -74,49 +60,79 @@ function extractInitialsAndClub(lines: string[]): { initials: string | null; clu
 }
 
 type BoundaryInfo = { idx: number; event: string | null };
+type RawBoundary = { idx: number; stroke: string | null; distance: string | null };
 
-function findBoundaries(lines: string[]): BoundaryInfo[] {
-  const boundaries: BoundaryInfo[] = [];
+function normalizeStroke(raw: string): string {
+  const s = raw.toLowerCase();
+  if (s.startsWith("free")) return "Free";
+  if (s.startsWith("back")) return "Back";
+  if (s.startsWith("breast")) return "Breast";
+  if (s.startsWith("fly") || s.startsWith("butterfly")) return "Fly";
+  if (s === "im") return "IM";
+  if (s.startsWith("fr-r")) return "FR-R";
+  if (s.startsWith("med-r")) return "MED-R";
+  return raw;
+}
+
+function findRawBoundaries(lines: string[]): RawBoundary[] {
+  const raw: RawBoundary[] = [];
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
-    // Glued IM misread: "200M" → "200 IM"
     const gluedIM = line.match(GLUED_IM_RE);
-    if (gluedIM) {
-      boundaries.push({ idx: i, event: `${gluedIM[1]} IM` });
-      continue;
-    }
+    if (gluedIM) { raw.push({ idx: i, stroke: "IM", distance: gluedIM[1] }); continue; }
 
-    // Clean or near-clean event line: distance + stroke word, in either order
-    // of garbling — stroke word is the reliable anchor, distance is a bonus.
     const strokeMatch = line.slice(0, 20).match(STROKE_WORD_RE);
     if (strokeMatch) {
       const distMatch = line.match(DISTANCE_RE);
-      let stroke = strokeMatch[1];
-      const strokeLower = stroke.toLowerCase();
-      if (strokeLower.startsWith("free")) stroke = "Free";
-      else if (strokeLower.startsWith("back")) stroke = "Back";
-      else if (strokeLower.startsWith("breast")) stroke = "Breast";
-      else if (strokeLower.startsWith("fly") || strokeLower.startsWith("butterfly")) stroke = "Fly";
-      const event = distMatch ? `${distMatch[1]} ${stroke}` : null; // null = boundary only, unrecoverable
-      boundaries.push({ idx: i, event });
+      raw.push({ idx: i, stroke: normalizeStroke(strokeMatch[1]), distance: distMatch ? distMatch[1] : null });
       continue;
     }
 
-    // Implicit boundary: no stroke word survived OCR at all, but this line
-    // still clearly looks like the START of a new row's data (place ordinal
-    // + a number-like token). We can't name the event, but we MUST treat
-    // this as a boundary anyway — otherwise its time gets misattributed to
-    // whatever row came before it.
     const hasPlace = PLACE_RE.test(line);
     const hasNumberish = TIME_RE.test(line) || /\b\d{3,6}\b/.test(line);
     if (hasPlace && hasNumberish) {
-      boundaries.push({ idx: i, event: null });
+      raw.push({ idx: i, stroke: null, distance: null });
     }
   }
 
-  return boundaries;
+  return raw;
+}
+
+const DISTANCE_LADDER = [50, 100, 200, 400, 800, 1500];
+
+// SwimCloud profile pages consistently list same-stroke events in ascending
+// distance order. When a row's stroke survived OCR but its distance didn't
+// ("o0 Breast" / "> Breast"), we can infer the distance from that ordering —
+// not a blind guess, but real evidence already present on the same page.
+// Only applies when a later same-stroke row DOES have a known distance to
+// anchor against; an isolated stroke with no corroborating row is left
+// unresolved rather than guessed.
+function inferDistances(raw: RawBoundary[]): BoundaryInfo[] {
+  return raw.map((b, i) => {
+    if (!b.stroke) return { idx: b.idx, event: null };
+    if (b.distance) return { idx: b.idx, event: `${b.distance} ${b.stroke}` };
+
+    let nextKnown: number | null = null;
+    for (let j = i + 1; j < raw.length; j++) {
+      if (raw[j].stroke === b.stroke && raw[j].distance) {
+        nextKnown = Number(raw[j].distance);
+        break;
+      }
+    }
+    if (nextKnown) {
+      const candidates = DISTANCE_LADDER.filter((d) => d < nextKnown!);
+      const inferred = candidates.length > 0 ? candidates[candidates.length - 1] : nextKnown;
+      return { idx: b.idx, event: `${inferred} ${b.stroke}` };
+    }
+
+    return { idx: b.idx, event: null };
+  });
+}
+
+function findBoundaries(lines: string[]): BoundaryInfo[] {
+  return inferDistances(findRawBoundaries(lines));
 }
 
 function findDeltaInBlock(blockText: string, consumedToken: string): number | null {
@@ -177,7 +193,7 @@ export function parseSwimCloudProfileOCR(rawText: string): ParsedSwimCloudProfil
     const blockText = lines.slice(startIdx, endIdx).join(" ");
 
     const event = boundaries[b].event;
-    if (!event) { skippedCount++; continue; } // couldn't identify the event — drop safely, don't guess
+    if (!event) { skippedCount++; continue; }
 
     const found = findTimeInBlock(blockText);
     if (!found) { skippedCount++; continue; }
