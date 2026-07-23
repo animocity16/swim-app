@@ -306,6 +306,11 @@ export default function SwimCloudScanPage() {
         const nameMatch = parsed.name ? fuzzyMatchSwimmer(parsed.name, swimmers) : null;
         if (nameMatch) {
           selectSwimmer(nameMatch);
+        } else if (parsed.name) {
+          // We have a real name and it's someone we don't recognize — don't
+          // fall back to whoever was last picked, that could silently save
+          // this swim under the wrong kid. Force the picker instead.
+          setShowSwimmerPicker(true);
         } else {
           const remembered = resolveActiveSwimmer(primarySwimmers);
           if (remembered) {
