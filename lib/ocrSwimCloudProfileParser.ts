@@ -1,6 +1,15 @@
-// ✅ ocrSwimCloudProfileParser.ts — v4, detects real name when OCR captures it
+// ✅ ocrSwimCloudProfileParser.ts — v5, surfaces unidentified-but-clean rows for manual event tagging
 export type SwimCloudProfileRow = {
   event: string;
+  timeStr: string;
+  timeMs: number;
+  round: string | null;
+  place: number | null;
+  delta: number | null;
+  isPB: boolean;
+};
+
+export type UnresolvedProfileRow = {
   timeStr: string;
   timeMs: number;
   round: string | null;
@@ -14,6 +23,7 @@ export type ParsedSwimCloudProfile = {
   name: string | null;
   club: string | null;
   results: SwimCloudProfileRow[];
+  unresolved: UnresolvedProfileRow[];
   skippedCount: number;
 };
 
@@ -55,12 +65,6 @@ function timeToMs(timeStr: string): number {
 const CLUB_KEYWORD_RE = /\b(Club|Swimming|Swim|Academy|Aquatic|Aquatics|Team|Institute|Squad|Lab)\b/i;
 const PERSON_NAME_RE = /^[A-Z][a-z]+(\s+[A-Z][a-z]+){1,3}$/;
 
-// SwimCloud usually only renders 2-letter avatar initials into text, but
-// sometimes (rendering/zoom dependent) the actual name comes through too —
-// e.g. "IN Jerome Songhan Ng" (initials "JN" misread as "IN" + real name).
-// When that happens, prefer the real name — it lets profile scans
-// auto-match a swimmer the same way rankings mode does, instead of always
-// requiring a manual pick.
 function extractInitialsNameClub(lines: string[]): { initials: string | null; name: string | null; club: string | null } {
   for (let i = 0; i < Math.min(8, lines.length); i++) {
     const m = lines[i].match(/^([A-Z]{2})\s+([A-Za-z][A-Za-z' ]{2,50})$/);
@@ -165,7 +169,7 @@ function findDeltaInBlock(blockText: string, consumedToken: string): number | nu
   return null;
 }
 
-function findTimeInBlock(blockText: string): { timeStr: string; consumedToken: string } | null {
+function findTimeInBlock(blockText: string, allowDigitRepair: boolean): { timeStr: string; consumedToken: string } | null {
   const tokens = blockText.split(/\s+/);
   for (const rawToken of tokens) {
     const token = rawToken.replace(/^[^\d]+|[^\d.:]+$/g, "");
@@ -176,7 +180,7 @@ function findTimeInBlock(blockText: string): { timeStr: string; consumedToken: s
       if (ms >= 3000 && ms <= 1_800_000) return { timeStr: direct[1], consumedToken: rawToken };
       continue;
     }
-    if (/^\d{4,5}$/.test(token)) {
+    if (allowDigitRepair && /^\d{4,5}$/.test(token)) {
       const repaired = repairTime(token);
       if (repaired) {
         const ms = timeToMs(repaired);
@@ -200,6 +204,7 @@ export function parseSwimCloudProfileOCR(rawText: string): ParsedSwimCloudProfil
 
   const boundaries = findBoundaries(lines);
   const results: SwimCloudProfileRow[] = [];
+  const unresolved: UnresolvedProfileRow[] = [];
   let skippedCount = 0;
 
   for (let b = 0; b < boundaries.length; b++) {
@@ -208,9 +213,7 @@ export function parseSwimCloudProfileOCR(rawText: string): ParsedSwimCloudProfil
     const blockText = lines.slice(startIdx, endIdx).join(" ");
 
     const event = boundaries[b].event;
-    if (!event) { skippedCount++; continue; }
-
-    const found = findTimeInBlock(blockText);
+    const found = findTimeInBlock(blockText, event !== null);
     if (!found) { skippedCount++; continue; }
 
     const timeMs = timeToMs(found.timeStr);
@@ -221,8 +224,13 @@ export function parseSwimCloudProfileOCR(rawText: string): ParsedSwimCloudProfil
     const isPB = /\bPB\b/i.test(blockText);
     const delta = findDeltaInBlock(blockText, found.consumedToken);
 
+    if (!event) {
+      unresolved.push({ timeStr: found.timeStr, timeMs, round, place, delta, isPB });
+      continue;
+    }
+
     results.push({ event, timeStr: found.timeStr, timeMs, round, place, delta, isPB });
   }
 
-  return { initials, name, club, results, skippedCount };
+  return { initials, name, club, results, unresolved, skippedCount };
 }
