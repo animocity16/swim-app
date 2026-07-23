@@ -8,6 +8,11 @@ import {
   isSwimCloudRankingsPage,
   type SwimCloudRankingRow,
 } from "@/lib/ocrSwimCloudRankingsParser";
+import {
+  parseSwimCloudProfileOCR,
+  isSwimCloudProfilePage,
+  type SwimCloudProfileRow,
+} from "@/lib/ocrSwimCloudProfileParser";
 import { canonicalCourse, canonicalEventName } from "@/lib/events";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -23,8 +28,9 @@ type Swimmer = {
 
 type Step = "idle" | "scanning" | "done";
 type MeetCourse = "LCM" | "SCM";
+type SubMode = "rankings" | "profile";
 
-// ─── Helpers (carried over unchanged from the Meet Mobile scan flow) ────────
+// ─── Helpers ──────────────────────────────────────────────────────────────
 
 function fuzzyMatchSwimmer(ocrName: string, swimmers: Swimmer[]): Swimmer | null {
   const clean = ocrName.trim().toLowerCase();
@@ -117,6 +123,7 @@ export default function SwimCloudScanPage() {
   const [swimmers, setSwimmers] = useState<Swimmer[]>([]);
   const [loadingSwimmers, setLoadingSwimmers] = useState(true);
 
+  const [subMode, setSubMode] = useState<SubMode>("rankings");
   const [meetCourse, setMeetCourse] = useState<MeetCourse>("LCM");
 
   const [file1, setFile1] = useState<File | null>(null);
@@ -133,10 +140,22 @@ export default function SwimCloudScanPage() {
   const [copyLabel, setCopyLabel] = useState("Copy");
   const [routeDebug, setRouteDebug] = useState("");
 
+  // ── Rankings mode ──────────────────────────────────────────────────────
   const [rows, setRows] = useState<SwimCloudRankingRow[]>([]);
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
   const [savingSelected, setSavingSelected] = useState(false);
   const [savedNames, setSavedNames] = useState<string[]>([]);
+
+  // ── Profile mode ───────────────────────────────────────────────────────
+  const [profileRows, setProfileRows] = useState<SwimCloudProfileRow[]>([]);
+  const [profileInitials, setProfileInitials] = useState<string | null>(null);
+  const [profileClub, setProfileClub] = useState<string | null>(null);
+  const [selectedProfileRows, setSelectedProfileRows] = useState<Set<number>>(new Set());
+  const [pickedSwimmer, setPickedSwimmer] = useState<Swimmer | null>(null);
+  const [showSwimmerPicker, setShowSwimmerPicker] = useState(false);
+  const [creatingNewSwimmer, setCreatingNewSwimmer] = useState(false);
+  const [newSwimmerName, setNewSwimmerName] = useState("");
+  const [newSwimmerAge, setNewSwimmerAge] = useState("");
 
   const [manualMeetName, setManualMeetName] = useState("");
   const [manualMeetDate, setManualMeetDate] = useState("");
@@ -174,6 +193,9 @@ export default function SwimCloudScanPage() {
     setStep("idle"); setProgress(0); setMessage(""); setRawText(""); setRouteDebug("");
     setRows([]); setSelectedRows(new Set());
     setSavingSelected(false); setSavedNames([]);
+    setProfileRows([]); setProfileInitials(null); setProfileClub(null);
+    setSelectedProfileRows(new Set()); setPickedSwimmer(null); setShowSwimmerPicker(false);
+    setCreatingNewSwimmer(false); setNewSwimmerName(""); setNewSwimmerAge("");
     setManualMeetName(""); setManualMeetDate("");
     if (ref1.current) ref1.current.value = "";
     if (ref2.current) ref2.current.value = "";
@@ -182,6 +204,14 @@ export default function SwimCloudScanPage() {
 
   function toggleRow(index: number) {
     setSelectedRows((prev) => {
+      const next = new Set(prev);
+      next.has(index) ? next.delete(index) : next.add(index);
+      return next;
+    });
+  }
+
+  function toggleProfileRow(index: number) {
+    setSelectedProfileRows((prev) => {
       const next = new Set(prev);
       next.has(index) ? next.delete(index) : next.add(index);
       return next;
@@ -204,6 +234,8 @@ export default function SwimCloudScanPage() {
     setStep("scanning");
     setProgress(0); setMessage(""); setRawText(""); setRouteDebug("");
     setRows([]); setSelectedRows(new Set()); setSavedNames([]);
+    setProfileRows([]); setProfileInitials(null); setProfileClub(null);
+    setSelectedProfileRows(new Set()); setPickedSwimmer(null); setShowSwimmerPicker(false);
 
     try {
       const files = [file1, file2, file3].filter(Boolean) as File[];
@@ -229,29 +261,44 @@ export default function SwimCloudScanPage() {
 
       setRawText(combined);
 
-      const _isRankings = isSwimCloudRankingsPage(combined);
-      setRouteDebug(`isSwimCloudRankingsPage=${_isRankings} combined.length=${combined.length}`);
+      if (subMode === "rankings") {
+        const _isRankings = isSwimCloudRankingsPage(combined);
+        setRouteDebug(`isSwimCloudRankingsPage=${_isRankings} combined.length=${combined.length}`);
+        if (!_isRankings) {
+          setMessage("⚠️ This doesn't look like a SwimCloud rankings page. Try a clearer screenshot.");
+        }
 
-      if (!_isRankings) {
-        setMessage("⚠️ This doesn't look like a SwimCloud rankings page. Try a clearer screenshot.");
-      }
+        const parsed = parseSwimCloudRankingsOCR(combined);
+        const correctedResults = parsed.results.map((r) => ({ ...r, course: meetCourse }));
+        setRows(correctedResults);
+        if (parsed.meetName) setManualMeetName(parsed.meetName);
 
-      const parsed = parseSwimCloudRankingsOCR(combined);
-      const correctedResults = parsed.results.map((r) => ({
-        ...r,
-        course: meetCourse,
-      }));
-      setRows(correctedResults);
-      if (parsed.meetName) setManualMeetName(parsed.meetName);
+        const preSelected = new Set<number>();
+        correctedResults.forEach((row, idx) => {
+          if (fuzzyMatchSwimmer(row.name, swimmers)) preSelected.add(idx);
+        });
+        setSelectedRows(preSelected);
 
-      const preSelected = new Set<number>();
-      correctedResults.forEach((row, idx) => {
-        if (fuzzyMatchSwimmer(row.name, swimmers)) preSelected.add(idx);
-      });
-      setSelectedRows(preSelected);
+        if (correctedResults.length === 0) {
+          setMessage("⚠️ No results detected. Try again with a clearer screenshot.");
+        }
+      } else {
+        const _isProfile = isSwimCloudProfilePage(combined);
+        setRouteDebug(`isSwimCloudProfilePage=${_isProfile} combined.length=${combined.length}`);
+        if (!_isProfile) {
+          setMessage("⚠️ This doesn't look like a SwimCloud swimmer profile page. Try a clearer screenshot.");
+        }
 
-      if (correctedResults.length === 0) {
-        setMessage("⚠️ No results detected. Try again with a clearer screenshot.");
+        const parsed = parseSwimCloudProfileOCR(combined);
+        setProfileRows(parsed.results);
+        setProfileInitials(parsed.initials);
+        setProfileClub(parsed.club);
+        setSelectedProfileRows(new Set(parsed.results.map((_, i) => i)));
+        setShowSwimmerPicker(true);
+
+        if (parsed.results.length === 0) {
+          setMessage("⚠️ No events detected. Try again with a clearer screenshot.");
+        }
       }
 
       setStep("done");
@@ -260,6 +307,8 @@ export default function SwimCloudScanPage() {
       setStep("done");
     }
   }
+
+  // ── Save: rankings mode ────────────────────────────────────────────────
 
   async function handleSaveSelected() {
     if (selectedRows.size === 0) return;
@@ -320,6 +369,64 @@ export default function SwimCloudScanPage() {
     setSelectedRows(new Set());
   }
 
+  // ── Save: profile mode ─────────────────────────────────────────────────
+
+  async function handleCreateSwimmerForProfile() {
+    if (!newSwimmerName.trim()) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setMessage("⚠️ Not logged in."); return; }
+    const { data: newSwimmer, error } = await supabase.from("swimmers").insert({
+      user_id: user.id,
+      name: newSwimmerName.trim(),
+      age: newSwimmerAge.trim() ? parseInt(newSwimmerAge.trim(), 10) : null,
+      swim_club: profileClub,
+      group_type: "following",
+    }).select().single();
+    if (error || !newSwimmer) { setMessage(`⚠️ Couldn't create profile: ${error?.message}`); return; }
+    await loadSwimmers();
+    setPickedSwimmer(newSwimmer as Swimmer);
+    setCreatingNewSwimmer(false);
+    setShowSwimmerPicker(false);
+  }
+
+  async function handleSaveProfileSelected() {
+    if (!pickedSwimmer || selectedProfileRows.size === 0) return;
+    setSavingSelected(true);
+    const saved: string[] = [];
+    const errors: string[] = [];
+    const meetType = detectMeetType(rawText, profileClub);
+    const resolvedMeetName = manualMeetName.trim() || null;
+    const courseName = canonicalCourse(meetCourse);
+
+    for (const index of Array.from(selectedProfileRows)) {
+      const row = profileRows[index];
+      if (!row) continue;
+
+      const eventName = canonicalEventName(row.event);
+      if (!eventName) { errors.push(`${row.event}: no event`); continue; }
+
+      const dupQuery = supabase.from("swim_times").select("id")
+        .eq("swimmer_id", pickedSwimmer.id).eq("event", eventName).eq("course", courseName).eq("time_ms", row.timeMs);
+      if (resolvedMeetName) dupQuery.eq("meet_name", resolvedMeetName);
+      const { data: existing } = await dupQuery.limit(1);
+      if (existing && existing.length > 0) { errors.push(`${row.event}: already saved`); continue; }
+
+      const { error } = await supabase.from("swim_times").insert({
+        swimmer_id: pickedSwimmer.id, event: eventName, course: courseName, time_ms: row.timeMs,
+        place: row.place ?? null, meet_name: resolvedMeetName, swam_at: manualMeetDate.trim() || null,
+        meet_type: meetType,
+      });
+      error ? errors.push(`${row.event}: ${error.message}`) : saved.push(row.event);
+    }
+
+    setSavedNames((prev) => [...prev, ...saved]);
+    setMessage(saved.length > 0
+      ? `✓ Saved ${saved.length} result(s)${errors.length > 0 ? ` · Issues: ${errors.join(", ")}` : ""}`
+      : `⚠️ Nothing saved. ${errors.join(", ")}`);
+    setSavingSelected(false);
+    setSelectedProfileRows(new Set());
+  }
+
   if (loadingSwimmers) return (
     <div className="shell"><div className="container-app"><p className="muted">Loading...</p></div></div>
   );
@@ -331,15 +438,41 @@ export default function SwimCloudScanPage() {
           <p className="text-[10px] font-medium uppercase tracking-widest" style={{ color: "#BA7517" }}>
             SwimScan
           </p>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight text-white">SwimCloud rankings</h1>
+          <h1 className="mt-1 text-3xl font-bold tracking-tight text-white">SwimCloud</h1>
           <p className="mt-1 text-xs text-white/40">
-            Screenshot an event rankings page and we'll pull out every swimmer's time.
+            {subMode === "rankings"
+              ? "Screenshot an event rankings page and we'll pull out every swimmer's time."
+              : "Screenshot a swimmer's profile page and we'll pull out every event."}
           </p>
         </div>
 
         {step !== "done" && (
           <>
-            {/* Course selector — SwimCloud never shows this on screen */}
+            {/* Sub-mode toggle */}
+            <div className="space-y-1.5">
+              <p className="text-[11px] font-semibold text-white/50">Scan type</p>
+              <div className="flex gap-2">
+                {([
+                  { key: "rankings", label: "Rankings" },
+                  { key: "profile", label: "Swimmer profile" },
+                ] as { key: SubMode; label: string }[]).map((opt) => (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => setSubMode(opt.key)}
+                    className="flex-1 rounded-xl py-2.5 text-sm font-semibold transition"
+                    style={{
+                      background: subMode === opt.key ? "#D97706" : "rgba(255,255,255,0.06)",
+                      color: subMode === opt.key ? "#1C1204" : "rgba(255,255,255,0.5)",
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Course selector */}
             <div className="space-y-1.5">
               <p className="text-[11px] font-semibold text-white/50">Course</p>
               <div className="flex gap-2">
@@ -362,7 +495,7 @@ export default function SwimCloudScanPage() {
 
             {/* Screenshot slots */}
             <div className="grid grid-cols-3 gap-2">
-              <SlotButton label="Screenshot 1" hint="Rankings page" preview={preview1} inputRef={ref1} required
+              <SlotButton label="Screenshot 1" hint={subMode === "rankings" ? "Rankings page" : "Profile page"} preview={preview1} inputRef={ref1} required
                 onChange={(e) => handleFile(e, setFile1, setPreview1)} />
               <SlotButton label="Screenshot 2" hint="Optional" preview={preview2} inputRef={ref2}
                 onChange={(e) => handleFile(e, setFile2, setPreview2)} />
@@ -370,7 +503,7 @@ export default function SwimCloudScanPage() {
                 onChange={(e) => handleFile(e, setFile3, setPreview3)} />
             </div>
             <p className="text-[10px] text-white/30">
-              Add more slots if the rankings list scrolls past what fits in one screenshot.
+              Add more slots if the page scrolls past what fits in one screenshot.
             </p>
 
             <button
@@ -380,7 +513,7 @@ export default function SwimCloudScanPage() {
               className="w-full rounded-2xl py-4 text-base font-semibold transition disabled:opacity-40"
               style={{ background: "#D97706", color: "#1C1204" }}
             >
-              {step === "scanning" ? `Scanning… ${Math.round(progress)}%` : "Scan rankings"}
+              {step === "scanning" ? `Scanning… ${Math.round(progress)}%` : "Scan"}
             </button>
 
             {message && (
@@ -389,7 +522,7 @@ export default function SwimCloudScanPage() {
           </>
         )}
 
-        {step === "done" && (
+        {step === "done" && subMode === "rankings" && (
           <div className="space-y-4">
             {message && (
               <p className="rounded-2xl border border-white/10 bg-white/5 p-3 text-center text-xs text-white/60">
@@ -429,22 +562,13 @@ export default function SwimCloudScanPage() {
                         className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3"
                         style={{ borderColor: checked ? "rgba(253,230,138,0.3)" : undefined }}
                       >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleRow(i)}
-                          className="h-4 w-4 shrink-0"
-                        />
-                        <div
-                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[11px] font-bold"
-                          style={{ background: color.bg, color: color.text }}
-                        >
+                        <input type="checkbox" checked={checked} onChange={() => toggleRow(i)} className="h-4 w-4 shrink-0" />
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[11px] font-bold"
+                          style={{ background: color.bg, color: color.text }}>
                           {getInitials(row.name)}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold text-white">
-                            #{row.place} {row.name}
-                          </p>
+                          <p className="truncate text-sm font-semibold text-white">#{row.place} {row.name}</p>
                           <p className="truncate text-[11px] text-white/40">
                             {row.club ?? "No club"} {matched ? "· existing profile" : "· new profile will be created"}
                           </p>
@@ -477,27 +601,153 @@ export default function SwimCloudScanPage() {
               </div>
             )}
 
-            {/* ── Debug: raw OCR text ── kept intentionally, same as Meet Mobile scan */}
-            <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
-              <div className="flex items-center justify-between">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40">
-                  Raw OCR text (debug)
+            <DebugBox rawText={rawText} routeDebug={routeDebug} copyLabel={copyLabel} onCopy={handleCopyRawText} />
+
+            <button type="button" onClick={reset}
+              className="w-full rounded-2xl border border-white/15 bg-white/5 py-4 text-base font-semibold text-white/60 transition hover:bg-white/10">
+              Scan another
+            </button>
+          </div>
+        )}
+
+        {step === "done" && subMode === "profile" && (
+          <div className="space-y-4">
+            {message && (
+              <p className="rounded-2xl border border-white/10 bg-white/5 p-3 text-center text-xs text-white/60">
+                {message}
+              </p>
+            )}
+
+            {/* Swimmer picker — always shown for profile mode, no auto-match possible */}
+            {showSwimmerPicker && !pickedSwimmer && (
+              <div className="space-y-2 rounded-2xl border border-white/10 bg-white/5 p-3">
+                <p className="text-[11px] font-semibold text-white/50">
+                  Whose results are these?
+                  {profileInitials && <span className="text-white/30"> — avatar shows "{profileInitials}"</span>}
                 </p>
-                <button
-                  type="button"
-                  onClick={handleCopyRawText}
-                  className="rounded-full border border-white/15 px-2.5 py-1 text-[10px] font-semibold text-white/60"
-                >
-                  {copyLabel}
+                <div className="max-h-48 space-y-1.5 overflow-auto">
+                  {swimmers.map((s, i) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => { setPickedSwimmer(s); setShowSwimmerPicker(false); }}
+                      className="flex w-full items-center gap-3 rounded-xl border border-white/10 bg-black/20 p-2.5 text-left transition hover:border-amber-400/40"
+                    >
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
+                        style={{ background: avatarColor(i).bg, color: avatarColor(i).text }}>
+                        {getInitials(s.name)}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-white">{s.name}</p>
+                        <p className="truncate text-[11px] text-white/40">{s.swim_club ?? "No club"}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
+                {!creatingNewSwimmer ? (
+                  <button type="button" onClick={() => setCreatingNewSwimmer(true)}
+                    className="w-full rounded-xl border border-dashed border-white/20 py-2.5 text-xs font-semibold text-white/50">
+                    + Not listed — create a new profile
+                  </button>
+                ) : (
+                  <div className="space-y-2 rounded-xl border border-white/10 bg-black/20 p-2.5">
+                    <input value={newSwimmerName} onChange={(e) => setNewSwimmerName(e.target.value)}
+                      placeholder="Swimmer name"
+                      className="w-full rounded-lg border border-white/10 bg-white/5 px-2.5 py-2 text-sm text-white placeholder:text-white/30" />
+                    <input value={newSwimmerAge} onChange={(e) => setNewSwimmerAge(e.target.value)}
+                      placeholder="Age (optional — not shown on SwimCloud)" inputMode="numeric"
+                      className="w-full rounded-lg border border-white/10 bg-white/5 px-2.5 py-2 text-sm text-white placeholder:text-white/30" />
+                    <button type="button" onClick={handleCreateSwimmerForProfile}
+                      disabled={!newSwimmerName.trim()}
+                      className="w-full rounded-lg py-2 text-xs font-semibold disabled:opacity-40"
+                      style={{ background: "#D97706", color: "#1C1204" }}>
+                      Create & use this profile
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {pickedSwimmer && (
+              <div className="flex items-center gap-3 rounded-2xl border p-3"
+                style={{ borderColor: "rgba(253,230,138,0.3)", background: "rgba(217,119,6,0.08)" }}>
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[11px] font-bold"
+                  style={{ background: "#92400E", color: "#FDE68A" }}>
+                  {getInitials(pickedSwimmer.name)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-white">Saving to {pickedSwimmer.name}</p>
+                </div>
+                <button type="button" onClick={() => { setPickedSwimmer(null); setShowSwimmerPicker(true); }}
+                  className="text-[11px] font-semibold text-white/40 underline">
+                  Change
                 </button>
               </div>
-              {routeDebug && (
-                <p className="mt-1 text-[10px] text-white/30">{routeDebug}</p>
-              )}
-              <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words text-[10px] leading-relaxed text-white/50">
-                {rawText || "(empty)"}
-              </pre>
-            </div>
+            )}
+
+            {pickedSwimmer && profileRows.length > 0 && (
+              <>
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold text-white/50">Meet name</label>
+                  <input
+                    value={manualMeetName}
+                    onChange={(e) => setManualMeetName(e.target.value)}
+                    placeholder="e.g. Pesta Sukan"
+                    className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white placeholder:text-white/30"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold text-white/50">Meet date (optional)</label>
+                  <input
+                    type="date"
+                    value={manualMeetDate}
+                    onChange={(e) => setManualMeetDate(e.target.value)}
+                    className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  {profileRows.map((row, i) => {
+                    const checked = selectedProfileRows.has(i);
+                    return (
+                      <label key={i}
+                        className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3"
+                        style={{ borderColor: checked ? "rgba(253,230,138,0.3)" : undefined }}>
+                        <input type="checkbox" checked={checked} onChange={() => toggleProfileRow(i)} className="h-4 w-4 shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-white">{row.event}</p>
+                          <p className="truncate text-[11px] text-white/40">
+                            {row.round ?? "Round unknown"}{row.place ? ` · ${row.place}${row.place === 1 ? "st" : row.place === 2 ? "nd" : row.place === 3 ? "rd" : "th"}` : ""}
+                            {row.delta != null ? ` · ${row.delta > 0 ? "+" : ""}${row.delta.toFixed(2)}` : ""}
+                          </p>
+                        </div>
+                        <p className="shrink-0 text-sm font-bold text-white">{row.timeStr}</p>
+                      </label>
+                    );
+                  })}
+                </div>
+
+                <button
+                  type="button"
+                  disabled={selectedProfileRows.size === 0 || savingSelected}
+                  onClick={handleSaveProfileSelected}
+                  className="w-full rounded-2xl py-4 text-base font-semibold transition disabled:opacity-40"
+                  style={{ background: "#D97706", color: "#1C1204" }}
+                >
+                  {savingSelected ? "Saving…" : `Save ${selectedProfileRows.size} selected`}
+                </button>
+              </>
+            )}
+
+            {savedNames.length > 0 && (
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                <p className="text-[11px] font-semibold text-white/50">Saved this session</p>
+                <p className="mt-1 text-xs text-white/70">{savedNames.join(", ")}</p>
+              </div>
+            )}
+
+            <DebugBox rawText={rawText} routeDebug={routeDebug} copyLabel={copyLabel} onCopy={handleCopyRawText} />
 
             <button type="button" onClick={reset}
               className="w-full rounded-2xl border border-white/15 bg-white/5 py-4 text-base font-semibold text-white/60 transition hover:bg-white/10">
@@ -506,6 +756,30 @@ export default function SwimCloudScanPage() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ─── Debug box (shared between both modes) ─────────────────────────────────
+
+function DebugBox({
+  rawText, routeDebug, copyLabel, onCopy,
+}: { rawText: string; routeDebug: string; copyLabel: string; onCopy: () => void }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40">
+          Raw OCR text (debug)
+        </p>
+        <button type="button" onClick={onCopy}
+          className="rounded-full border border-white/15 px-2.5 py-1 text-[10px] font-semibold text-white/60">
+          {copyLabel}
+        </button>
+      </div>
+      {routeDebug && <p className="mt-1 text-[10px] text-white/30">{routeDebug}</p>}
+      <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words text-[10px] leading-relaxed text-white/50">
+        {rawText || "(empty)"}
+      </pre>
     </div>
   );
 }
