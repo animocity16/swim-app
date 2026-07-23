@@ -1,23 +1,17 @@
-// ✅ ocrSwimCloudRankingsParser.ts
+// ✅ ocrSwimCloudRankingsParser.ts — v2, rebuilt against real device OCR text
 //
-// Parses SwimCloud's "Event Rankings" page — a ranked list of swimmers
-// for a single event (e.g. 100 Back / Women / 9-10 / Timed Finals).
+// Real SwimCloud OCR does NOT put rank on its own line and time on its own
+// line the way a first-pass guess would assume. It actually reads:
 //
-// SwimCloud's layout is much cleaner than Meet Mobile's: no "PLACE" labels,
-// no garbled club|age separators. The header breadcrumb reads
-// "100 Back  Women  9 - 10" on one row (dropdown selectors), followed by
-// a round label ("Timed Finals"), a "Name / Time" table header, then rows.
+//   Tessa Ng
+//   1 Aquatic Performance Swim Club 2:43.76
 //
-// KEY OCR REALITY: SwimCloud's table has two visual columns — rank+name+club
-// on the left, time on the right. Tesseract tends to read left-column text
-// as one block and right-column times as a separate block, NOT strictly
-// row-by-row. So this parser derives row count from rank markers in the
-// left block, then zips in times from a separately-collected list, rather
-// than assuming line N+1 always follows line N in reading order.
-//
-// SwimCloud also never shows swimmer age on this page — only name + club.
-// Age-based tiebreaking (used for Meet Mobile matching) isn't available;
-// club is the only disambiguator here.
+// Name on its own line, then rank + club + time all squashed together on
+// the line right after it. Rank digits sometimes misread (e.g. "5" → ">"),
+// so place is assigned by row order on the page instead of trusting the
+// OCR'd digit. When a floating UI element (like the "Events" button)
+// overlaps a row in the screenshot, the name can fracture into 2-3 broken
+// fragments — this looks back up to 2 lines and skips junk to recover it.
 
 export type SwimCloudRankingRow = {
   place: number;
@@ -42,8 +36,9 @@ export type ParsedSwimCloudRankings = {
   results: SwimCloudRankingRow[];
 };
 
-const TIME_RE = /^\d{1,2}:\d{2}\.\d{2}$|^\d{2}\.\d{2}$/;
-const RANK_RE = /^\d{1,3}$/;
+const TIME_TAIL_RE = /(\d{1,2}:\d{2}\.\d{2}|\d{2}\.\d{2})\s*$/;
+const RANK_PREFIX_RE = /^(\d{1,3}|[>=~]{1,2})\s+/;
+const NAME_LINE_RE = /^[A-Za-z][A-Za-z'.\- ]{2,40}$/;
 
 const NOISE_LINES = new Set([
   "search", "events", "ask", "name", "time", "www.swimcloud.com",
@@ -93,6 +88,28 @@ function normalizeEventFromMatch(m: RegExpMatchArray): string {
   return `${dist} ${stroke}`;
 }
 
+// Strip trailing junk symbols OCR sometimes glues onto a name when a UI
+// element (like the floating "Events" button) overlaps that row.
+// "Rachelle Wong =" → "Rachelle Wong"
+function cleanLine(l: string): string {
+  return l.replace(/[=.,;:\-\s]+$/, "").trim();
+}
+
+function isBreadcrumbLine(l: string): boolean {
+  return EVENT_RE.test(l) && (GENDER_RE.test(l) || AGE_GROUP_RE.test(l));
+}
+
+function isNoiseLine(l: string): boolean {
+  const lower = l.toLowerCase();
+  if (NOISE_LINES.has(lower)) return true;
+  if (ROUND_RE.test(l)) return true;
+  if (/^name\s+time$/i.test(l)) return true;
+  if (isBreadcrumbLine(l)) return true;
+  if (l.length < 3) return true;
+  if (/swimcloud|search|^</.test(lower)) return true;
+  return false;
+}
+
 function extractHeader(rawText: string, lines: string[]): {
   event: string | null;
   gender: string | null;
@@ -100,10 +117,7 @@ function extractHeader(rawText: string, lines: string[]): {
   round: string | null;
   meetName: string | null;
 } {
-  // Breadcrumb usually sits on one line: "100 Back  Women  9 - 10"
-  // but OCR sometimes splits it across 2-3 lines, so search the first
-  // handful of lines joined together.
-  const headerBlob = lines.slice(0, 8).join(" ");
+  const headerBlob = lines.slice(0, 10).join(" ");
 
   const eventMatch = headerBlob.match(EVENT_RE);
   const event = eventMatch ? normalizeEventFromMatch(eventMatch) : null;
@@ -115,20 +129,21 @@ function extractHeader(rawText: string, lines: string[]): {
   const ageGroup = ageMatch ? ageMatch[1].replace(/\s+/g, " ").trim() : null;
 
   let round: string | null = null;
-  for (const line of lines.slice(0, 10)) {
+  for (const line of lines.slice(0, 12)) {
     if (ROUND_RE.test(line)) { round = line; break; }
   }
 
-  // Meet name: the back-link line above the breadcrumb, e.g. "Pesta Sukan".
-  // Heuristic: first short multi-word-or-single-word capitalized line
-  // before the event breadcrumb that isn't a noise word.
+  // Meet name sits on the back-link line, e.g. "< Pesta Sukan" — OCR keeps
+  // the "<" as a literal character, so strip leading non-letter junk first.
   let meetName: string | null = null;
-  for (const line of lines.slice(0, 5)) {
-    const lower = line.toLowerCase();
+  for (const line of lines.slice(0, 6)) {
+    const stripped = line.replace(/^[^A-Za-z]+/, "").trim();
+    if (stripped.length < 3) continue;
+    const lower = stripped.toLowerCase();
     if (NOISE_LINES.has(lower)) continue;
-    if (EVENT_RE.test(line) || GENDER_RE.test(line) || AGE_GROUP_RE.test(line)) continue;
-    if (ROUND_RE.test(line)) continue;
-    if (/^[A-Z][A-Za-z' ]{2,40}$/.test(line)) { meetName = line.trim(); break; }
+    if (isBreadcrumbLine(stripped) || ROUND_RE.test(stripped)) continue;
+    if (/swimcloud|search/i.test(stripped)) continue;
+    if (/^[A-Z][A-Za-z' ]{2,40}$/.test(stripped)) { meetName = stripped; break; }
   }
 
   return { event, gender, ageGroup, round, meetName };
@@ -139,72 +154,60 @@ export function isSwimCloudRankingsPage(rawText: string): boolean {
   if (!flat.includes("name") || !flat.includes("time")) return false;
 
   const lines = rawText.split("\n").map((l) => l.trim()).filter(Boolean);
-  const rankCount = lines.filter((l) => RANK_RE.test(l)).length;
-  const timeCount = lines.filter((l) => TIME_RE.test(l)).length;
+  const dataLineCount = lines.filter((l) => TIME_TAIL_RE.test(l)).length;
 
-  return rankCount >= 2 && timeCount >= 2;
+  return dataLineCount >= 2;
 }
 
 export function parseSwimCloudRankingsOCR(rawText: string): ParsedSwimCloudRankings {
   const lines = rawText.replace(/\r/g, "\n").split("\n").map((l) => l.trim()).filter(Boolean);
-  const { event, gender, ageGroup, round, meetName } = extractHeader(rawText, lines);
-
-  // Locate the "Name" / "Time" table header — everything before it is
-  // breadcrumb/round noise, everything after is table data.
-  let tableStart = lines.findIndex((l) => l.toLowerCase() === "name");
-  if (tableStart === -1) tableStart = 0;
-  const tableLines = lines.slice(tableStart + 1);
-
-  // Collect times in order (right column).
-  const times = tableLines.filter((l) => TIME_RE.test(l));
-
-  // Collect rank markers with their position (left column).
-  const rankIdxs: number[] = [];
-  tableLines.forEach((l, i) => {
-    if (RANK_RE.test(l) && !TIME_RE.test(l)) rankIdxs.push(i);
-  });
-
-  // Between each rank marker and the next, the first line is the name,
-  // remaining lines (joined) are the club — skipping any time values
-  // that ended up interleaved in this block.
-  const nameClubPairs: { name: string; club: string | null }[] = [];
-  for (let r = 0; r < rankIdxs.length; r++) {
-    const start = rankIdxs[r] + 1;
-    const end = r + 1 < rankIdxs.length ? rankIdxs[r + 1] : tableLines.length;
-    const segment = tableLines.slice(start, end).filter((l) => !TIME_RE.test(l));
-    if (segment.length === 0) continue;
-    const name = segment[0].trim();
-    const club = segment.length > 1 ? segment.slice(1).join(" ").trim() : null;
-    nameClubPairs.push({ name, club: club || null });
-  }
+  const header = extractHeader(rawText, lines);
 
   const results: SwimCloudRankingRow[] = [];
-  const rowCount = Math.min(rankIdxs.length, nameClubPairs.length, times.length) || nameClubPairs.length;
+  const consumedNameIdx = new Set<number>();
 
-  for (let i = 0; i < rowCount; i++) {
-    const pair = nameClubPairs[i];
-    if (!pair || !pair.name) continue;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const timeMatch = line.match(TIME_TAIL_RE);
+    if (!timeMatch) continue;
 
-    const rawTime = times[i];
-    const timeStr = rawTime ? repairTime(rawTime) : null;
+    const timeStr = repairTime(timeMatch[1]);
     if (!timeStr) continue;
+
+    let prefix = line.slice(0, timeMatch.index).trim();
+    prefix = prefix.replace(RANK_PREFIX_RE, "").trim();
+    const club = prefix.length > 0 ? prefix : null;
+
+    // Find the swimmer's name on a nearby preceding line, skipping short
+    // junk fragments (like "E ." left behind by an overlapping UI button).
+    let name: string | null = null;
+    for (let k = 1; k <= 2; k++) {
+      const idx = i - k;
+      if (idx < 0) break;
+      if (consumedNameIdx.has(idx)) break;
+      const cleaned = cleanLine(lines[idx]);
+      if (cleaned.length < 3) continue;
+      if (isNoiseLine(cleaned)) break;
+      if (NAME_LINE_RE.test(cleaned)) { name = cleaned; consumedNameIdx.add(idx); break; }
+    }
+    if (!name) continue;
 
     const timeMs = timeToMs(timeStr);
     if (timeMs <= 0 || timeMs > 1_800_000) continue;
 
     results.push({
-      place: i + 1,
-      name: pair.name,
-      club: pair.club,
+      place: results.length + 1,
+      name,
+      club,
       timeStr,
       timeMs,
-      event,
-      round,
-      gender,
-      ageGroup,
+      event: header.event,
+      round: header.round,
+      gender: header.gender,
+      ageGroup: header.ageGroup,
       course: "UNKNOWN",
     });
   }
 
-  return { event, round, gender, ageGroup, meetName, course: "UNKNOWN", results };
+  return { ...header, course: "UNKNOWN", results };
 }
