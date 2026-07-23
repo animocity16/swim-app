@@ -15,6 +15,7 @@ type UpcomingMeet = {
   start_date: string;
   end_date: string | null;
   notes: string | null;
+  created_by: string | null;
 };
 
 type PastMeet = {
@@ -213,7 +214,7 @@ function PastMeetCard({ meet, onLongPress }: { meet: PastMeet; onLongPress: (mee
 
 // ─── Upcoming Meet card ────────────────────────────────────────────────────────
 
-function UpcomingMeetCard({ meet }: { meet: UpcomingMeet }) {
+function UpcomingMeetCard({ meet, mine }: { meet: UpcomingMeet; mine: boolean }) {
   return (
     <Link
       href={`/meets/upcoming/${meet.id}`}
@@ -237,6 +238,16 @@ function UpcomingMeetCard({ meet }: { meet: UpcomingMeet }) {
         <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.4)", marginTop: "2px" }}>
           {[formatDateRange(meet.start_date, meet.end_date), meet.location].filter(Boolean).join(" · ")}
         </p>
+        {mine && (
+          <span style={{
+            display: "inline-block", marginTop: "5px",
+            background: "rgba(56,189,248,0.15)", border: "1px solid rgba(56,189,248,0.3)",
+            borderRadius: "20px", padding: "2px 8px",
+            fontSize: "9px", fontWeight: 700, color: "#7DD3FC",
+          }}>
+            Added by you
+          </span>
+        )}
       </div>
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
         <path d="M5 3L9 7L5 11" stroke="rgba(255,255,255,0.25)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -289,14 +300,16 @@ export default function MeetsPage() {
   const [pendingDelete, setPendingDelete] = useState<PastMeet | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [swimmerIds, setSwimmerIds] = useState<number[]>([]);
+  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => { void load(); }, []);
 
   async function load() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { router.replace("/login"); return; }
+    setUserId(session.user.id);
 
-    // ── Load upcoming meets ───────────────────────────────────────────────────
+    // ── Load upcoming meets (official + this parent's own, thanks to RLS) ─────
     const { data: upcoming } = await supabase
       .from("upcoming_meets")
       .select("*")
@@ -415,6 +428,11 @@ export default function MeetsPage() {
         {/* Upcoming tab */}
         {tab === "upcoming" && (
           <div>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "6px" }}>
+              <Link href="/meets/manage" style={{ fontSize: "12px", fontWeight: 600, color: "#FDE68A", textDecoration: "none" }}>
+                + Add your meet
+              </Link>
+            </div>
             {upcomingMeets.length === 0 ? (
               <div className="rounded-3xl p-8 text-center" style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}>
                 <div style={{ fontSize: "32px", marginBottom: "10px" }}>📅</div>
@@ -428,7 +446,7 @@ export default function MeetsPage() {
                 {upcomingYears.map((year, i) => (
                   <YearGroup key={year} year={year} defaultOpen={i === 0}>
                     {(upcomingByYear.get(year) ?? []).map((meet) => (
-                      <UpcomingMeetCard key={meet.id} meet={meet} />
+                      <UpcomingMeetCard key={meet.id} meet={meet} mine={meet.created_by === userId} />
                     ))}
                   </YearGroup>
                 ))}
