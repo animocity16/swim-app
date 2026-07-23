@@ -102,9 +102,9 @@ export default function BottomNav() {
   }
 
   function handleSwimCloud() {
-    setToast("SwimCloud scanning is coming soon!");
-    setTimeout(() => setToast(null), 2200);
-  }
+  setScanMenuOpen(false);
+  router.push("/scan/swimcloud");
+}
 
   return (
     <nav
@@ -222,7 +222,7 @@ export default function BottomNav() {
                       padding: "2px 6px",
                     }}
                   >
-                    Soon
+                    
                   </span>
                 </span>
               </button>
