@@ -12,6 +12,7 @@ import {
   parseSwimCloudProfileOCR,
   isSwimCloudProfilePage,
   type SwimCloudProfileRow,
+  type UnresolvedProfileRow,
 } from "@/lib/ocrSwimCloudProfileParser";
 import { canonicalCourse, canonicalEventName } from "@/lib/events";
 import { supabase } from "@/lib/supabaseClient";
@@ -83,6 +84,14 @@ function avatarColor(index: number) {
   return AVATAR_COLORS[index % AVATAR_COLORS.length];
 }
 
+const STANDARD_EVENTS = [
+  "50 Free", "100 Free", "200 Free", "400 Free", "800 Free", "1500 Free",
+  "50 Back", "100 Back", "200 Back",
+  "50 Breast", "100 Breast", "200 Breast",
+  "50 Fly", "100 Fly", "200 Fly",
+  "200 IM", "400 IM",
+];
+
 // ─── Upload slot ──────────────────────────────────────────────────────────
 
 function SlotButton({
@@ -150,6 +159,8 @@ export default function SwimCloudScanPage() {
 
   // ── Profile mode ───────────────────────────────────────────────────────
   const [profileRows, setProfileRows] = useState<SwimCloudProfileRow[]>([]);
+  const [profileUnresolvedRows, setProfileUnresolvedRows] = useState<UnresolvedProfileRow[]>([]);
+  const [unresolvedChoices, setUnresolvedChoices] = useState<Record<number, string>>({});
   const [profileInitials, setProfileInitials] = useState<string | null>(null);
   const [profileClub, setProfileClub] = useState<string | null>(null);
   const [selectedProfileRows, setSelectedProfileRows] = useState<Set<number>>(new Set());
@@ -197,7 +208,8 @@ export default function SwimCloudScanPage() {
     setStep("idle"); setProgress(0); setMessage(""); setRawText(""); setRouteDebug("");
     setRows([]); setSelectedRows(new Set());
     setSavingSelected(false); setSavedNames([]);
-    setProfileRows([]); setProfileInitials(null); setProfileClub(null);
+    setProfileRows([]); setProfileUnresolvedRows([]); setUnresolvedChoices({});
+    setProfileInitials(null); setProfileClub(null);
     setSelectedProfileRows(new Set()); setPickedSwimmer(null); setShowSwimmerPicker(false);
     setCreatingNewSwimmer(false); setNewSwimmerName(""); setNewSwimmerAge("");
     setManualMeetName(""); setManualMeetDate("");
@@ -244,7 +256,8 @@ export default function SwimCloudScanPage() {
     setStep("scanning");
     setProgress(0); setMessage(""); setRawText(""); setRouteDebug("");
     setRows([]); setSelectedRows(new Set()); setSavedNames([]);
-    setProfileRows([]); setProfileInitials(null); setProfileClub(null);
+    setProfileRows([]); setProfileUnresolvedRows([]); setUnresolvedChoices({});
+    setProfileInitials(null); setProfileClub(null);
     setSelectedProfileRows(new Set()); setPickedSwimmer(null); setShowSwimmerPicker(false);
 
     try {
@@ -295,21 +308,16 @@ export default function SwimCloudScanPage() {
       } else {
         const parsed = parseSwimCloudProfileOCR(combined);
         setProfileRows(parsed.results);
+        setProfileUnresolvedRows(parsed.unresolved);
         setProfileInitials(parsed.initials);
         setProfileClub(parsed.club);
         setSelectedProfileRows(new Set(parsed.results.map((_, i) => i)));
         if (parsed.name) setNewSwimmerName(parsed.name);
 
-        // Occasionally SwimCloud's OCR does capture the real name — try
-        // that first, same fuzzy match rankings mode uses. Only fall back
-        // to remembered/manual pick when no name came through.
         const nameMatch = parsed.name ? fuzzyMatchSwimmer(parsed.name, swimmers) : null;
         if (nameMatch) {
           selectSwimmer(nameMatch);
         } else if (parsed.name) {
-          // We have a real name and it's someone we don't recognize — don't
-          // fall back to whoever was last picked, that could silently save
-          // this swim under the wrong kid. Force the picker instead.
           setShowSwimmerPicker(true);
         } else {
           const remembered = resolveActiveSwimmer(primarySwimmers);
@@ -321,10 +329,15 @@ export default function SwimCloudScanPage() {
           }
         }
 
-        if (parsed.results.length === 0) {
+        const totalReadable = parsed.results.length + parsed.unresolved.length;
+        if (totalReadable === 0) {
           setMessage("⚠️ No events detected. Try again with a clearer screenshot.");
-        } else if (parsed.skippedCount > 0) {
-          setMessage(`ℹ️ ${parsed.results.length} event(s) read clearly. ${parsed.skippedCount} couldn't be read reliably and were skipped — check the debug text below if any are missing.`);
+        } else if (parsed.unresolved.length > 0 || parsed.skippedCount > 0) {
+          const parts: string[] = [];
+          parts.push(`${parsed.results.length} event(s) read clearly`);
+          if (parsed.unresolved.length > 0) parts.push(`${parsed.unresolved.length} need the event picked manually (below)`);
+          if (parsed.skippedCount > 0) parts.push(`${parsed.skippedCount} couldn't be read at all`);
+          setMessage(`ℹ️ ${parts.join(" · ")}.`);
         }
       }
 
@@ -416,7 +429,8 @@ export default function SwimCloudScanPage() {
   }
 
   async function handleSaveProfileSelected() {
-    if (!pickedSwimmer || selectedProfileRows.size === 0) return;
+    const chosenUnresolvedIdxs = Object.keys(unresolvedChoices).filter((k) => unresolvedChoices[Number(k)]);
+    if (!pickedSwimmer || (selectedProfileRows.size === 0 && chosenUnresolvedIdxs.length === 0)) return;
     setSavingSelected(true);
     const saved: string[] = [];
     const errors: string[] = [];
@@ -424,25 +438,36 @@ export default function SwimCloudScanPage() {
     const resolvedMeetName = manualMeetName.trim() || null;
     const courseName = canonicalCourse(meetCourse);
 
+    async function saveOne(eventRaw: string, timeMs: number, place: number | null) {
+      const eventName = canonicalEventName(eventRaw);
+      if (!eventName) { errors.push(`${eventRaw}: no event`); return; }
+
+      const dupQuery = supabase.from("swim_times").select("id")
+        .eq("swimmer_id", pickedSwimmer!.id).eq("event", eventName).eq("course", courseName).eq("time_ms", timeMs);
+      if (resolvedMeetName) dupQuery.eq("meet_name", resolvedMeetName);
+      const { data: existing } = await dupQuery.limit(1);
+      if (existing && existing.length > 0) { errors.push(`${eventRaw}: already saved`); return; }
+
+      const { error } = await supabase.from("swim_times").insert({
+        swimmer_id: pickedSwimmer!.id, event: eventName, course: courseName, time_ms: timeMs,
+        place: place ?? null, meet_name: resolvedMeetName, swam_at: manualMeetDate.trim() || null,
+        meet_type: meetType,
+      });
+      error ? errors.push(`${eventRaw}: ${error.message}`) : saved.push(eventRaw);
+    }
+
     for (const index of Array.from(selectedProfileRows)) {
       const row = profileRows[index];
       if (!row) continue;
+      await saveOne(row.event, row.timeMs, row.place);
+    }
 
-      const eventName = canonicalEventName(row.event);
-      if (!eventName) { errors.push(`${row.event}: no event`); continue; }
-
-      const dupQuery = supabase.from("swim_times").select("id")
-        .eq("swimmer_id", pickedSwimmer.id).eq("event", eventName).eq("course", courseName).eq("time_ms", row.timeMs);
-      if (resolvedMeetName) dupQuery.eq("meet_name", resolvedMeetName);
-      const { data: existing } = await dupQuery.limit(1);
-      if (existing && existing.length > 0) { errors.push(`${row.event}: already saved`); continue; }
-
-      const { error } = await supabase.from("swim_times").insert({
-        swimmer_id: pickedSwimmer.id, event: eventName, course: courseName, time_ms: row.timeMs,
-        place: row.place ?? null, meet_name: resolvedMeetName, swam_at: manualMeetDate.trim() || null,
-        meet_type: meetType,
-      });
-      error ? errors.push(`${row.event}: ${error.message}`) : saved.push(row.event);
+    for (const idxStr of chosenUnresolvedIdxs) {
+      const idx = Number(idxStr);
+      const row = profileUnresolvedRows[idx];
+      const chosenEvent = unresolvedChoices[idx];
+      if (!row || !chosenEvent) continue;
+      await saveOne(chosenEvent, row.timeMs, row.place);
     }
 
     setSavedNames((prev) => [...prev, ...saved]);
@@ -451,11 +476,15 @@ export default function SwimCloudScanPage() {
       : `⚠️ Nothing saved. ${errors.join(", ")}`);
     setSavingSelected(false);
     setSelectedProfileRows(new Set());
+    setUnresolvedChoices({});
   }
 
   if (loadingSwimmers) return (
     <div className="shell"><div className="container-app"><p className="muted">Loading...</p></div></div>
   );
+
+  const chosenUnresolvedCount = Object.values(unresolvedChoices).filter(Boolean).length;
+  const totalToSave = selectedProfileRows.size + chosenUnresolvedCount;
 
   return (
     <div className="shell">
@@ -711,7 +740,7 @@ export default function SwimCloudScanPage() {
               </div>
             )}
 
-            {pickedSwimmer && profileRows.length > 0 && (
+            {pickedSwimmer && (profileRows.length > 0 || profileUnresolvedRows.length > 0) && (
               <>
                 <div className="space-y-1.5">
                   <label className="text-[11px] font-semibold text-white/50">Meet name</label>
@@ -732,35 +761,71 @@ export default function SwimCloudScanPage() {
                   />
                 </div>
 
-                <div className="space-y-2">
-                  {profileRows.map((row, i) => {
-                    const checked = selectedProfileRows.has(i);
-                    return (
-                      <label key={i}
-                        className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3"
-                        style={{ borderColor: checked ? "rgba(253,230,138,0.3)" : undefined }}>
-                        <input type="checkbox" checked={checked} onChange={() => toggleProfileRow(i)} className="h-4 w-4 shrink-0" />
+                {profileRows.length > 0 && (
+                  <div className="space-y-2">
+                    {profileRows.map((row, i) => {
+                      const checked = selectedProfileRows.has(i);
+                      return (
+                        <label key={i}
+                          className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3"
+                          style={{ borderColor: checked ? "rgba(253,230,138,0.3)" : undefined }}>
+                          <input type="checkbox" checked={checked} onChange={() => toggleProfileRow(i)} className="h-4 w-4 shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-white">{row.event}</p>
+                            <p className="truncate text-[11px] text-white/40">
+                              {row.round ?? "Round unknown"}{row.place ? ` · ${row.place}${row.place === 1 ? "st" : row.place === 2 ? "nd" : row.place === 3 ? "rd" : "th"}` : ""}
+                              {row.delta != null ? ` · ${row.delta > 0 ? "+" : ""}${row.delta.toFixed(2)}` : ""}
+                            </p>
+                          </div>
+                          <p className="shrink-0 text-sm font-bold text-white">{row.timeStr}</p>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {profileUnresolvedRows.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-[11px] font-semibold text-white/50">
+                      Couldn't identify the event — pick it, or leave blank to skip
+                    </p>
+                    {profileUnresolvedRows.map((row, i) => (
+                      <div key={i}
+                        className="flex items-center gap-3 rounded-2xl border p-3"
+                        style={{
+                          borderColor: unresolvedChoices[i] ? "rgba(253,230,138,0.3)" : "rgba(255,255,255,0.1)",
+                          background: "rgba(255,255,255,0.05)",
+                        }}>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold text-white">{row.event}</p>
-                          <p className="truncate text-[11px] text-white/40">
-                            {row.round ?? "Round unknown"}{row.place ? ` · ${row.place}${row.place === 1 ? "st" : row.place === 2 ? "nd" : row.place === 3 ? "rd" : "th"}` : ""}
+                          <select
+                            value={unresolvedChoices[i] ?? ""}
+                            onChange={(e) => setUnresolvedChoices((prev) => ({ ...prev, [i]: e.target.value }))}
+                            className="w-full rounded-lg border border-white/15 bg-black/30 px-2 py-1.5 text-xs font-semibold text-white"
+                          >
+                            <option value="">Choose event…</option>
+                            {STANDARD_EVENTS.map((ev) => (
+                              <option key={ev} value={ev}>{ev}</option>
+                            ))}
+                          </select>
+                          <p className="mt-1 truncate text-[11px] text-white/40">
+                            {row.round ?? "Round unknown"}{row.place ? ` · ${row.place}th` : ""}
                             {row.delta != null ? ` · ${row.delta > 0 ? "+" : ""}${row.delta.toFixed(2)}` : ""}
                           </p>
                         </div>
                         <p className="shrink-0 text-sm font-bold text-white">{row.timeStr}</p>
-                      </label>
-                    );
-                  })}
-                </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 <button
                   type="button"
-                  disabled={selectedProfileRows.size === 0 || savingSelected}
+                  disabled={totalToSave === 0 || savingSelected}
                   onClick={handleSaveProfileSelected}
                   className="w-full rounded-2xl py-4 text-base font-semibold transition disabled:opacity-40"
                   style={{ background: "#D97706", color: "#1C1204" }}
                 >
-                  {savingSelected ? "Saving…" : `Save ${selectedProfileRows.size} selected`}
+                  {savingSelected ? "Saving…" : `Save ${totalToSave} selected`}
                 </button>
               </>
             )}
