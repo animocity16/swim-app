@@ -82,6 +82,50 @@ function formatSpeed(timeMs: number | null | undefined, event: string): string |
   return `${speed.toFixed(2)} m/s`;
 }
 
+// ─── Per-split pacing ─────────────────────────────────────────────────────
+
+function splitSpeedMps(split: SwimSplitRow): number | null {
+  if (!split.split_time_ms || split.split_time_ms <= 0) return null;
+  if (!split.split_distance || split.split_distance <= 0) return null;
+  return split.split_distance / (split.split_time_ms / 1000);
+}
+
+const FADE_THRESHOLD = 0.05; // >5% drop first-to-last lap counts as "fading"
+
+type PacingSummary = { label: string; colorHex: string; icon: "down" | "up" | "flat" } | null;
+
+function getPacingSummary(sortedSplits: SwimSplitRow[]): PacingSummary {
+  const speeds = sortedSplits.map(splitSpeedMps).filter((s): s is number => s != null);
+  if (speeds.length < 2) return null;
+
+  const first = speeds[0];
+  const last = speeds[speeds.length - 1];
+  if (!first || first <= 0) return null;
+
+  const delta = last - first;
+  const pctChange = delta / first;
+
+  if (pctChange <= -FADE_THRESHOLD) {
+    return {
+      label: `Fading pace, ${delta.toFixed(2)} m/s by the last lap`,
+      colorHex: "#F87171",
+      icon: "down",
+    };
+  }
+  if (pctChange >= FADE_THRESHOLD) {
+    return {
+      label: `Negative split, +${delta.toFixed(2)} m/s by the last lap`,
+      colorHex: "#34D399",
+      icon: "up",
+    };
+  }
+  return {
+    label: "Even pacing across the swim",
+    colorHex: "#94A3B8",
+    icon: "flat",
+  };
+}
+
 function getStrokeKey(event: string) {
   const e = event.toLowerCase();
   if (e.includes("breaststroke") || e.includes("breast")) return "breaststroke";
@@ -607,34 +651,65 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
                               )}
 
                               {/* Splits table */}
-                              {!isEditing && showSplits && splits.length > 0 && (
-                                <div className="mt-2 rounded-xl overflow-hidden"
-                                  style={{ background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                                  <div className="grid grid-cols-[1fr_72px_80px] gap-2 px-3 py-2 items-center"
-                                    style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                                    <span className="text-[9px] font-semibold uppercase tracking-widest text-white/30">Split</span>
-                                    <span className="text-[9px] font-semibold uppercase tracking-widest text-white/30 text-right">Leg</span>
-                                    <span className="text-[9px] font-semibold uppercase tracking-widest text-white/30 text-right">Cum.</span>
-                                  </div>
-                                  {splits
-                                    .sort((a, b) => (a.split_order ?? 0) - (b.split_order ?? 0))
-                                    .map((split, sIdx, arr) => (
-                                      <div key={split.id}
-                                        className="grid grid-cols-[1fr_72px_80px] gap-2 px-3 py-2 items-center"
-                                        style={{ borderBottom: sIdx === arr.length - 1 ? "none" : "1px solid rgba(255,255,255,0.04)" }}>
-                                        <p className="text-xs font-medium text-white/75">
-                                          {split.split_label || "Split"}
-                                        </p>
-                                        <p className="text-xs font-bold tabular-nums text-right" style={{ color: "#FDE68A" }}>
-                                          {formatMs(split.split_time_ms)}
-                                        </p>
-                                        <p className="text-xs tabular-nums text-right text-white/50">
-                                          {split.cumulative_time_ms != null ? formatMs(split.cumulative_time_ms) : "—"}
-                                        </p>
+                              {!isEditing && showSplits && splits.length > 0 && (() => {
+                                const sortedSplits = [...splits].sort(
+                                  (a, b) => (a.split_order ?? 0) - (b.split_order ?? 0)
+                                );
+                                const speeds = sortedSplits.map(splitSpeedMps);
+                                const validSpeeds = speeds.filter((s): s is number => s != null);
+                                const fastest = validSpeeds.length > 1 ? Math.max(...validSpeeds) : null;
+                                const slowest = validSpeeds.length > 1 ? Math.min(...validSpeeds) : null;
+                                const pacing = getPacingSummary(sortedSplits);
+
+                                return (
+                                  <div className="mt-2 rounded-xl overflow-hidden"
+                                    style={{ background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                                    {pacing && (
+                                      <div className="flex items-center gap-1.5 px-3 py-1.5"
+                                        style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                                        <span className="text-[10px] font-semibold" style={{ color: pacing.colorHex }}>
+                                          {pacing.icon === "down" ? "↓" : pacing.icon === "up" ? "↑" : "→"}
+                                        </span>
+                                        <span className="text-[10px] font-medium" style={{ color: pacing.colorHex }}>
+                                          {pacing.label}
+                                        </span>
                                       </div>
-                                    ))}
-                                </div>
-                              )}
+                                    )}
+                                    <div className="grid grid-cols-[1fr_60px_68px_72px] gap-2 px-3 py-2 items-center"
+                                      style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                                      <span className="text-[9px] font-semibold uppercase tracking-widest text-white/30">Split</span>
+                                      <span className="text-[9px] font-semibold uppercase tracking-widest text-white/30 text-right">Leg</span>
+                                      <span className="text-[9px] font-semibold uppercase tracking-widest text-white/30 text-right">Cum.</span>
+                                      <span className="text-[9px] font-semibold uppercase tracking-widest text-white/30 text-right">Speed</span>
+                                    </div>
+                                    {sortedSplits.map((split, sIdx, arr) => {
+                                      const speed = speeds[sIdx];
+                                      let speedColor = "rgba(255,255,255,0.5)";
+                                      if (speed != null && fastest != null && speed === fastest) speedColor = "#34D399";
+                                      else if (speed != null && slowest != null && speed === slowest) speedColor = "#F87171";
+
+                                      return (
+                                        <div key={split.id}
+                                          className="grid grid-cols-[1fr_60px_68px_72px] gap-2 px-3 py-2 items-center"
+                                          style={{ borderBottom: sIdx === arr.length - 1 ? "none" : "1px solid rgba(255,255,255,0.04)" }}>
+                                          <p className="text-xs font-medium text-white/75">
+                                            {split.split_label || "Split"}
+                                          </p>
+                                          <p className="text-xs font-bold tabular-nums text-right" style={{ color: "#FDE68A" }}>
+                                            {formatMs(split.split_time_ms)}
+                                          </p>
+                                          <p className="text-xs tabular-nums text-right text-white/50">
+                                            {split.cumulative_time_ms != null ? formatMs(split.cumulative_time_ms) : "—"}
+                                          </p>
+                                          <p className="text-xs font-semibold tabular-nums text-right" style={{ color: speedColor }}>
+                                            {speed != null ? `${speed.toFixed(2)}` : "—"}
+                                          </p>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                );
+                              })()}
                             </div>
                           );
                         })}
