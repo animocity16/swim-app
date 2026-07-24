@@ -83,23 +83,35 @@ function formatSpeed(timeMs: number | null | undefined, event: string): string |
 }
 
 // ─── Per-split pacing ─────────────────────────────────────────────────────
+// NOTE: split_distance as stored is CUMULATIVE distance at that checkpoint
+// (e.g. 50, 100, 150, 200 for a 200m race split every 50m) — not the
+// distance of that individual leg. Leg distance must be derived as the
+// difference between consecutive cumulative values.
 
-function splitSpeedMps(split: SwimSplitRow): number | null {
-  if (!split.split_time_ms || split.split_time_ms <= 0) return null;
-  if (!split.split_distance || split.split_distance <= 0) return null;
-  return split.split_distance / (split.split_time_ms / 1000);
+function computeSplitSpeeds(sortedSplits: SwimSplitRow[]): (number | null)[] {
+  let prevCumDistance = 0;
+  return sortedSplits.map((split) => {
+    if (!split.split_time_ms || split.split_time_ms <= 0) return null;
+    if (split.split_distance == null || split.split_distance <= 0) return null;
+
+    const legDistance = split.split_distance - prevCumDistance;
+    prevCumDistance = split.split_distance;
+
+    if (legDistance <= 0) return null;
+    return legDistance / (split.split_time_ms / 1000);
+  });
 }
 
 const FADE_THRESHOLD = 0.05; // >5% drop first-to-last lap counts as "fading"
 
 type PacingSummary = { label: string; colorHex: string; icon: "down" | "up" | "flat" } | null;
 
-function getPacingSummary(sortedSplits: SwimSplitRow[]): PacingSummary {
-  const speeds = sortedSplits.map(splitSpeedMps).filter((s): s is number => s != null);
-  if (speeds.length < 2) return null;
+function getPacingSummary(speeds: (number | null)[]): PacingSummary {
+  const validSpeeds = speeds.filter((s): s is number => s != null);
+  if (validSpeeds.length < 2) return null;
 
-  const first = speeds[0];
-  const last = speeds[speeds.length - 1];
+  const first = validSpeeds[0];
+  const last = validSpeeds[validSpeeds.length - 1];
   if (!first || first <= 0) return null;
 
   const delta = last - first;
@@ -655,11 +667,11 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
                                 const sortedSplits = [...splits].sort(
                                   (a, b) => (a.split_order ?? 0) - (b.split_order ?? 0)
                                 );
-                                const speeds = sortedSplits.map(splitSpeedMps);
+                                const speeds = computeSplitSpeeds(sortedSplits);
                                 const validSpeeds = speeds.filter((s): s is number => s != null);
                                 const fastest = validSpeeds.length > 1 ? Math.max(...validSpeeds) : null;
                                 const slowest = validSpeeds.length > 1 ? Math.min(...validSpeeds) : null;
-                                const pacing = getPacingSummary(sortedSplits);
+                                const pacing = getPacingSummary(speeds);
 
                                 return (
                                   <div className="mt-2 rounded-xl overflow-hidden"
