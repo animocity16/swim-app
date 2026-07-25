@@ -687,7 +687,7 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
                                         </span>
                                       </div>
                                     )}
-                                    <div className="grid grid-cols-[1fr_60px_68px_72px] gap-2 px-3 py-2 items-center"
+                                    <div className="grid grid-cols-[1fr_56px_62px_80px] gap-2 px-3 py-2 items-center"
                                       style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
                                       <span className="text-[9px] font-semibold uppercase tracking-widest text-white/30">Split</span>
                                       <span className="text-[9px] font-semibold uppercase tracking-widest text-white/30 text-right">Leg</span>
@@ -702,7 +702,7 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
 
                                       return (
                                         <div key={split.id}
-                                          className="grid grid-cols-[1fr_60px_68px_72px] gap-2 px-3 py-2 items-center"
+                                          className="grid grid-cols-[1fr_56px_62px_80px] gap-2 px-3 py-2 items-center"
                                           style={{ borderBottom: sIdx === arr.length - 1 ? "none" : "1px solid rgba(255,255,255,0.04)" }}>
                                           <p className="text-xs font-medium text-white/75">
                                             {split.split_label || "Split"}
@@ -713,8 +713,8 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
                                           <p className="text-xs tabular-nums text-right text-white/50">
                                             {split.cumulative_time_ms != null ? formatMs(split.cumulative_time_ms) : "—"}
                                           </p>
-                                          <p className="text-xs font-semibold tabular-nums text-right" style={{ color: speedColor }}>
-                                            {speed != null ? `${speed.toFixed(2)}` : "—"}
+                                          <p className="text-[11px] font-semibold tabular-nums text-right whitespace-nowrap" style={{ color: speedColor }}>
+                                            {speed != null ? `${speed.toFixed(2)} m/s` : "—"}
                                           </p>
                                         </div>
                                       );
