@@ -71,6 +71,9 @@ export default function TutorialOverlay() {
   const [visible, setVisible] = useState(false);
   const frameRef = useRef<number | null>(null);
 
+  // Hidden on auth/onboarding screens AND anywhere under /demo — the demo
+  // is a logged-out, read-only preview and has no swimmers/scan/standards
+  // routes of its own for the tutorial to walk through.
   const hidden = [
     "/login",
     "/forgot-password",
@@ -79,6 +82,7 @@ export default function TutorialOverlay() {
     "/signup",
     "/onboarding",
     "/auth",
+    "/demo",
   ].some((p) => pathname.startsWith(p));
 
   useEffect(() => {

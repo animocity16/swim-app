@@ -69,6 +69,8 @@ export default function SwimmersPage() {
   // Flat filter — mirrors the demo: one row of chips, All + every club + every school
   const [filterMode, setFilterMode]   = useState<FilterMode>("all");
   const [filterValue, setFilterValue] = useState<string | null>(null);
+  const [clubSectionOpen, setClubSectionOpen] = useState(false);
+  const [schoolSectionOpen, setSchoolSectionOpen] = useState(false);
 
   // Add form state
   const [name, setName]               = useState("");
@@ -386,35 +388,57 @@ export default function SwimmersPage() {
 
               {clubs.length > 0 && (
                 <div>
-                  <p className="text-[10px] font-medium uppercase tracking-widest text-white/30 mb-1.5 px-1">Club</p>
-                  <div className="flex flex-wrap gap-2">
-                    {clubs.map((club) => (
-                      <button key={club} type="button" onClick={() => selectFilter("club", club)}
-                        className="rounded-full px-3.5 py-1.5 text-xs font-semibold transition"
-                        style={filterMode === "club" && filterValue === club
-                          ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
-                          : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}>
-                        {club}
-                      </button>
-                    ))}
-                  </div>
+                  <button type="button" onClick={() => setClubSectionOpen((v) => !v)}
+                    className="flex items-center gap-1.5 mb-1.5 px-1">
+                    <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">
+                      Club {filterMode === "club" && filterValue ? `· ${filterValue}` : ""}
+                    </p>
+                    <svg width="10" height="10" viewBox="0 0 16 16" fill="none"
+                      className={`text-white/25 transition-transform duration-200 ${clubSectionOpen ? "rotate-180" : ""}`}>
+                      <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </button>
+                  {clubSectionOpen && (
+                    <div className="flex flex-wrap gap-2">
+                      {clubs.map((club) => (
+                        <button key={club} type="button" onClick={() => selectFilter("club", club)}
+                          className="rounded-full px-3.5 py-1.5 text-xs font-semibold transition"
+                          style={filterMode === "club" && filterValue === club
+                            ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
+                            : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}>
+                          {club}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
               {schools.length > 0 && (
                 <div>
-                  <p className="text-[10px] font-medium uppercase tracking-widest text-white/30 mb-1.5 px-1">School</p>
-                  <div className="flex flex-wrap gap-2">
-                    {schools.map((school) => (
-                      <button key={school} type="button" onClick={() => selectFilter("school", school)}
-                        className="rounded-full px-3.5 py-1.5 text-xs font-semibold transition"
-                        style={filterMode === "school" && filterValue === school
-                          ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
-                          : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}>
-                        {school}
-                      </button>
-                    ))}
-                  </div>
+                  <button type="button" onClick={() => setSchoolSectionOpen((v) => !v)}
+                    className="flex items-center gap-1.5 mb-1.5 px-1">
+                    <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">
+                      School {filterMode === "school" && filterValue ? `· ${filterValue}` : ""}
+                    </p>
+                    <svg width="10" height="10" viewBox="0 0 16 16" fill="none"
+                      className={`text-white/25 transition-transform duration-200 ${schoolSectionOpen ? "rotate-180" : ""}`}>
+                      <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </button>
+                  {schoolSectionOpen && (
+                    <div className="flex flex-wrap gap-2">
+                      {schools.map((school) => (
+                        <button key={school} type="button" onClick={() => selectFilter("school", school)}
+                          className="rounded-full px-3.5 py-1.5 text-xs font-semibold transition"
+                          style={filterMode === "school" && filterValue === school
+                            ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
+                            : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}>
+                          {school}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
