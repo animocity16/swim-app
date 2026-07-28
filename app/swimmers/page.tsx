@@ -373,32 +373,50 @@ export default function SwimmersPage() {
               Following ({followingSwimmers.length})
             </p>
 
-            <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
-              <button type="button" onClick={() => selectFilter("all", null)}
-                className="flex-shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition"
-                style={filterMode === "all"
-                  ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
-                  : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}>
-                All
-              </button>
-              {clubs.map((club) => (
-                <button key={club} type="button" onClick={() => selectFilter("club", club)}
-                  className="flex-shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition"
-                  style={filterMode === "club" && filterValue === club
+            <div className="space-y-2.5">
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={() => selectFilter("all", null)}
+                  className="rounded-full px-3.5 py-1.5 text-xs font-semibold transition"
+                  style={filterMode === "all"
                     ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
                     : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}>
-                  {club}
+                  All
                 </button>
-              ))}
-              {schools.map((school) => (
-                <button key={school} type="button" onClick={() => selectFilter("school", school)}
-                  className="flex-shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition"
-                  style={filterMode === "school" && filterValue === school
-                    ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
-                    : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}>
-                  {school}
-                </button>
-              ))}
+              </div>
+
+              {clubs.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-medium uppercase tracking-widest text-white/30 mb-1.5 px-1">Club</p>
+                  <div className="flex flex-wrap gap-2">
+                    {clubs.map((club) => (
+                      <button key={club} type="button" onClick={() => selectFilter("club", club)}
+                        className="rounded-full px-3.5 py-1.5 text-xs font-semibold transition"
+                        style={filterMode === "club" && filterValue === club
+                          ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
+                          : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}>
+                        {club}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {schools.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-medium uppercase tracking-widest text-white/30 mb-1.5 px-1">School</p>
+                  <div className="flex flex-wrap gap-2">
+                    {schools.map((school) => (
+                      <button key={school} type="button" onClick={() => selectFilter("school", school)}
+                        className="rounded-full px-3.5 py-1.5 text-xs font-semibold transition"
+                        style={filterMode === "school" && filterValue === school
+                          ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
+                          : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}>
+                        {school}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {filteredFollowing.length === 0 ? (

@@ -67,7 +67,7 @@ export default function DemoComparePage() {
         </div>
 
         {/* Event selector */}
-        <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
+        <div className="flex flex-wrap gap-2">
           {events.map((event) => (
             <button key={event} type="button" onClick={() => setSelectedEvent(event)}
               className="flex-shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition"
