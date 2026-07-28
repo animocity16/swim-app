@@ -39,12 +39,9 @@ const AVATAR_COLORS = [
 
 function avatarColor(index: number) { return AVATAR_COLORS[index % AVATAR_COLORS.length]; }
 function getInitials(name: string) { return name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase(); }
-function groupColor(groupName: string) {
-  let hash = 0;
-  for (let i = 0; i < groupName.length; i++) hash = groupName.charCodeAt(i) + ((hash << 5) - hash);
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
-}
 function raceAgeFromBirthYear(birthYear: number): number { return new Date().getFullYear() - birthYear; }
+
+type FilterMode = "all" | "club" | "school";
 
 // ─── Skeleton loader ──────────────────────────────────────────────────────────
 
@@ -69,8 +66,9 @@ export default function SwimmersPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [swimmers, setSwimmers]       = useState<Swimmer[]>([]);
 
-  const [groupBy, setGroupBy]                 = useState<"club" | "school">("club");
-  const [expandedGroups, setExpandedGroups]   = useState<Record<string, boolean>>({});
+  // Flat filter — mirrors the demo: one row of chips, All + every club + every school
+  const [filterMode, setFilterMode]   = useState<FilterMode>("all");
+  const [filterValue, setFilterValue] = useState<string | null>(null);
 
   // Add form state
   const [name, setName]               = useState("");
@@ -96,9 +94,6 @@ export default function SwimmersPage() {
     let mounted = true;
 
     async function initPage() {
-      // ── Fire session check and swimmers query in parallel ──────────────────
-      // The Supabase client uses its locally cached token for the data request,
-      // so both can fly at the same time — no artificial delay needed.
       const sessionPromise = supabase.auth.getSession();
       const dataPromise = supabase
         .from("swimmers")
@@ -111,7 +106,6 @@ export default function SwimmersPage() {
 
       setAuthChecked(true);
 
-      // Data query was already in-flight, just await the result
       const { data, error } = await dataPromise;
       if (!mounted) return;
       if (error) setStatus(`Error: ${error.message}`);
@@ -194,27 +188,35 @@ export default function SwimmersPage() {
     await fetchSwimmers();
   }
 
-  function toggleGroup(groupName: string) {
-    setExpandedGroups((prev) => ({ ...prev, [groupName]: !prev[groupName] }));
+  function selectFilter(mode: FilterMode, value: string | null) {
+    setFilterMode(mode);
+    setFilterValue(value);
   }
 
   const primarySwimmers   = swimmers.filter((s) => s.group_type === "primary");
   const followingSwimmers = swimmers.filter((s) => s.group_type === "following");
 
-  const followingGroups = useMemo(() => {
-    const map = new Map<string, Swimmer[]>();
-    for (const s of followingSwimmers) {
-      const key = (groupBy === "club" ? s.swim_club?.trim() : s.school?.trim()) || "Other";
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(s);
+  const clubs = useMemo(() => {
+    const set = new Set<string>();
+    for (const s of followingSwimmers) if (s.swim_club?.trim()) set.add(s.swim_club.trim());
+    return Array.from(set).sort();
+  }, [followingSwimmers]);
+
+  const schools = useMemo(() => {
+    const set = new Set<string>();
+    for (const s of followingSwimmers) if (s.school?.trim()) set.add(s.school.trim());
+    return Array.from(set).sort();
+  }, [followingSwimmers]);
+
+  const filteredFollowing = useMemo(() => {
+    if (filterMode === "club" && filterValue) {
+      return followingSwimmers.filter((s) => s.swim_club?.trim() === filterValue);
     }
-    return Array.from(map.entries())
-      .sort(([a], [b]) => {
-        if (a === "Other") return 1;
-        if (b === "Other") return -1;
-        return a.localeCompare(b);
-      });
-  }, [followingSwimmers, groupBy]);
+    if (filterMode === "school" && filterValue) {
+      return followingSwimmers.filter((s) => s.school?.trim() === filterValue);
+    }
+    return followingSwimmers;
+  }, [followingSwimmers, filterMode, filterValue]);
 
   // Show skeleton while auth/data loads
   if (!authChecked || loading) {
@@ -364,85 +366,75 @@ export default function SwimmersPage() {
           </div>
         )}
 
-        {/* Following — grouped & collapsible */}
+        {/* Following — flat filter chips (All / each club / each school), then a flat list */}
         {followingSwimmers.length > 0 && (
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">
-                Following · {followingSwimmers.length}
-              </p>
-              <div className="flex rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.12)" }}>
-                <button type="button" onClick={() => setGroupBy("club")}
-                  className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider transition"
-                  style={groupBy === "club"
-                    ? { background: "rgba(217,119,6,0.2)", color: "#FDE68A" }
-                    : { background: "transparent", color: "rgba(255,255,255,0.35)" }}>
-                  Club
+            <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">
+              Following ({followingSwimmers.length})
+            </p>
+
+            <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
+              <button type="button" onClick={() => selectFilter("all", null)}
+                className="flex-shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition"
+                style={filterMode === "all"
+                  ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
+                  : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}>
+                All
+              </button>
+              {clubs.map((club) => (
+                <button key={club} type="button" onClick={() => selectFilter("club", club)}
+                  className="flex-shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition"
+                  style={filterMode === "club" && filterValue === club
+                    ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
+                    : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}>
+                  {club}
                 </button>
-                <button type="button" onClick={() => setGroupBy("school")}
-                  className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider transition"
-                  style={groupBy === "school"
-                    ? { background: "rgba(217,119,6,0.2)", color: "#FDE68A" }
-                    : { background: "transparent", color: "rgba(255,255,255,0.35)" }}>
-                  School
+              ))}
+              {schools.map((school) => (
+                <button key={school} type="button" onClick={() => selectFilter("school", school)}
+                  className="flex-shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition"
+                  style={filterMode === "school" && filterValue === school
+                    ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
+                    : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}>
+                  {school}
                 </button>
-              </div>
+              ))}
             </div>
 
-            {followingGroups.map(([groupName, groupSwimmers]) => {
-              const isOpen = expandedGroups[groupName] === true;
-              const colors = groupColor(groupName);
-              return (
-                <div key={groupName} className="rounded-3xl border border-white/10 bg-white/5 overflow-hidden">
-                  <button type="button" onClick={() => toggleGroup(groupName)}
-                    className="flex w-full items-center justify-between px-5 py-4 text-left transition hover:bg-white/5">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl text-[10px] font-bold"
-                        style={{ background: colors.bg, color: colors.text }}>
-                        {groupName.slice(0, 3).toUpperCase()}
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-white">{groupName}</p>
-                        <p className="text-xs text-white/40">{groupSwimmers.length} swimmer{groupSwimmers.length === 1 ? "" : "s"}</p>
-                      </div>
-                    </div>
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"
-                      className={`text-white/30 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}>
-                      <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </button>
-
-                  {isOpen && (
-                    <div className="border-t border-white/8">
-                      {groupSwimmers.map((swimmer, index) => (
-                        <div key={swimmer.id} className="flex items-center gap-3 px-5 py-3 transition hover:bg-white/5"
-                          style={{ borderBottom: index < groupSwimmers.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
-                          <Link href={`/swimmers/${swimmer.id}`} className="flex flex-1 items-center gap-3 min-w-0">
-                            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-xs font-bold opacity-80"
-                              style={{ background: colors.bg, color: colors.text }}>
-                              {getInitials(swimmer.name)}
-                            </div>
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-medium text-white/80">{swimmer.name}</p>
-                              <p className="text-xs text-white/35">
-                                Age {swimmer.age}
-                                {swimmer.gender ? ` · ${swimmer.gender}` : ""}
-                                {groupBy === "club" && swimmer.school ? ` · ${swimmer.school}` : ""}
-                                {groupBy === "school" && swimmer.swim_club ? ` · ${swimmer.swim_club}` : ""}
-                              </p>
-                            </div>
-                          </Link>
-                          <button type="button" onClick={() => void deleteSwimmer(swimmer.id, swimmer.name)}
-                            className="flex-shrink-0 rounded-xl border border-red-500/20 bg-red-500/10 px-2.5 py-1 text-xs text-red-300 transition hover:bg-red-500/20">
-                            Remove
-                          </button>
+            {filteredFollowing.length === 0 ? (
+              <p className="text-sm text-white/40 px-1">No swimmers match this filter.</p>
+            ) : (
+              <div className="space-y-3">
+                {filteredFollowing.map((swimmer, index) => {
+                  const colors = avatarColor(primarySwimmers.length + index);
+                  return (
+                    <div key={swimmer.id}
+                      className="flex items-center gap-4 rounded-3xl border border-white/10 bg-white/5 p-4 transition hover:bg-white/10">
+                      <Link href={`/swimmers/${swimmer.id}`} className="flex flex-1 items-center gap-4 min-w-0">
+                        <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl text-sm font-bold"
+                          style={{ background: colors.bg, color: colors.text }}>
+                          {getInitials(swimmer.name)}
                         </div>
-                      ))}
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-base font-semibold text-white">{swimmer.name}</p>
+                          <p className="mt-0.5 text-sm text-white/40">
+                            Age {swimmer.age}
+                            {swimmer.swim_club ? ` · ${swimmer.swim_club}` : ""}
+                          </p>
+                          {swimmer.school && (
+                            <p className="mt-0.5 text-xs text-white/30 truncate">{swimmer.school}</p>
+                          )}
+                        </div>
+                      </Link>
+                      <button type="button" onClick={() => void deleteSwimmer(swimmer.id, swimmer.name)}
+                        className="flex-shrink-0 rounded-xl border border-red-500/20 bg-red-500/10 px-2.5 py-1 text-xs text-red-300 transition hover:bg-red-500/20">
+                        Remove
+                      </button>
                     </div>
-                  )}
-                </div>
-              );
-            })}
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 

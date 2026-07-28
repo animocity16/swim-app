@@ -420,53 +420,30 @@ export default function ComparePage() {
               </div>
             )}
 
-            {/* Swimmer list — sorted by most times recorded */}
+            {/* Swimmer chips — flat wrapped pills, tap to toggle (matches the demo picker) */}
             {followingSwimmers.length === 0 ? (
               <p className="text-sm text-white/40">No following swimmers yet — add some in Brood.</p>
             ) : filteredFollowing.length === 0 ? (
               <p className="text-sm text-white/40">No swimmers match this filter.</p>
             ) : (
-              <div className="space-y-2">
+              <div className="flex flex-wrap gap-2">
                 {filteredFollowing.map((s, i) => {
                   const selected = selectedIds.has(s.id);
                   const disabled = !selected && selectedIds.size >= MAX_COMPARE;
                   const colors = avatarColor(primarySwimmers.length + i);
-                  const count = timesCountMap.get(s.id) ?? 0;
                   return (
                     <button key={s.id} type="button" onClick={() => void toggleSelected(s.id)} disabled={disabled}
-                      className="flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition"
+                      className="flex items-center gap-1.5 rounded-full pl-1 pr-3 py-1 text-xs font-medium transition"
                       style={selected
-                        ? { background: "rgba(217,119,6,0.12)", border: "1px solid rgba(253,230,138,0.35)" }
+                        ? { background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.25)", color: "white" }
                         : disabled
-                        ? { background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", opacity: 0.4 }
-                        : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                      <div className="h-5 w-5 flex-shrink-0 rounded-md flex items-center justify-center"
-                        style={selected
-                          ? { background: "#D97706", border: "1px solid #D97706" }
-                          : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)" }}>
-                        {selected && (
-                          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                            <path d="M2 5L4 7L8 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        )}
-                      </div>
-                      <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-xs font-bold"
-                        style={{ background: colors.bg, color: colors.text }}>{getInitials(s.name)}</div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-white/85">{s.name}</p>
-                        <p className="text-xs text-white/35">
-                          Age {s.age}
-                          {s.swim_club ? ` · ${s.swim_club}` : ""}
-                          {s.school && filterMode !== "school" ? ` · ${s.school}` : ""}
-                        </p>
-                      </div>
-                      {/* Times count badge */}
-                      {count > 0 && (
-                        <span className="flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                          style={{ background: "rgba(217,119,6,0.15)", color: "#FDE68A", border: "1px solid rgba(253,230,138,0.2)" }}>
-                          {count} times
-                        </span>
-                      )}
+                        ? { background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.2)" }
+                        : { background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.6)" }}>
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-bold"
+                        style={{ background: colors.bg, color: colors.text, opacity: selected ? 1 : 0.5 }}>
+                        {getInitials(s.name)}
+                      </span>
+                      {shortName(s.name)}
                     </button>
                   );
                 })}
