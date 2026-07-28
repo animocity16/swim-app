@@ -150,6 +150,22 @@ export default function LoginPage() {
           </button>
         </form>
 
+        {/* Divider */}
+        <div className="flex items-center gap-3">
+          <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.12)" }} />
+          <span className="text-[11px] text-white/30 uppercase tracking-widest">or</span>
+          <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.12)" }} />
+        </div>
+
+        {/* Try Demo — no login required, drops straight into a sample account */}
+        <Link
+          href="/demo/dashboard"
+          className="flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-bold transition"
+          style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.18)", color: "#FDE68A" }}
+        >
+          👀 Try the demo — no signup needed
+        </Link>
+
         <div className="text-center pt-2">
           <p className="text-sm text-white/40">
             Don&apos;t have an account?{" "}

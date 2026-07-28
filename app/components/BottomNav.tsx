@@ -71,6 +71,10 @@ const SCAN_ICON = (active: boolean) => (
 
 const HIDDEN_ON = ["/login", "/signup", "/forgot-password", "/reset-password", "/invite", "/auth", "/onboarding"];
 
+// Nav items that don't make sense in the read-only demo (nothing to scan,
+// nothing to configure) get swapped out or hidden when browsing /demo/*.
+const DEMO_HIDDEN_HREFS = ["/settings"];
+
 export default function BottomNav() {
   const pathname = usePathname();
   const router = useRouter();
@@ -93,7 +97,11 @@ export default function BottomNav() {
 
   if (HIDDEN_ON.some((p) => pathname.startsWith(p))) return null;
 
-  const scanActive = pathname.startsWith("/scan");
+  const isDemo = pathname.startsWith("/demo");
+  const prefix = isDemo ? "/demo" : "";
+  const items = isDemo ? NAV_ITEMS.filter((item) => !DEMO_HIDDEN_HREFS.includes(item.href)) : NAV_ITEMS;
+
+  const scanActive = !isDemo && pathname.startsWith("/scan");
 
   function handleMeetMobile() {
     setScanMenuOpen(false);
@@ -124,12 +132,13 @@ export default function BottomNav() {
           boxShadow: "0 8px 32px rgba(0,20,50,0.45), inset 0 1px 0 rgba(255,255,255,0.12)",
         }}
       >
-        {NAV_ITEMS.slice(0, 2).map((item) => {
-          const active = item.href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(item.href);
+        {items.slice(0, 2).map((item) => {
+          const href = `${prefix}${item.href}`;
+          const active = item.href === "/dashboard" ? pathname === href : pathname.startsWith(href);
           return (
             <Link
               key={item.href}
-              href={item.href}
+              href={href}
               data-tutorial={item.tutorial}
               style={{
                 display: "flex",
@@ -158,9 +167,10 @@ export default function BottomNav() {
           );
         })}
 
-        {/* Scan — dropdown trigger */}
+        {/* Scan — dropdown trigger. In demo mode this is disabled since the
+            demo is read-only (nothing to save a scan into). */}
         <div ref={scanWrapRef} style={{ position: "relative" }}>
-          {scanMenuOpen && (
+          {scanMenuOpen && !isDemo && (
             <div
               className="absolute left-1/2"
               style={{
@@ -200,7 +210,10 @@ export default function BottomNav() {
           <button
             type="button"
             data-tutorial="scan"
-            onClick={() => setScanMenuOpen((v) => !v)}
+            onClick={() => {
+              if (isDemo) { router.push("/signup"); return; }
+              setScanMenuOpen((v) => !v);
+            }}
             style={{
               display: "flex",
               flexDirection: "column",
@@ -212,6 +225,7 @@ export default function BottomNav() {
               background: scanActive || scanMenuOpen ? "rgba(217,119,6,0.2)" : "transparent",
               border: scanActive || scanMenuOpen ? "1px solid rgba(253,230,138,0.25)" : "1px solid transparent",
               minWidth: "44px",
+              opacity: isDemo ? 0.5 : 1,
             }}
           >
             {SCAN_ICON(scanActive || scanMenuOpen)}
@@ -227,12 +241,13 @@ export default function BottomNav() {
           </button>
         </div>
 
-        {NAV_ITEMS.slice(2).map((item) => {
-          const active = pathname.startsWith(item.href);
+        {items.slice(2).map((item) => {
+          const href = `${prefix}${item.href}`;
+          const active = pathname.startsWith(href);
           return (
             <Link
               key={item.href}
-              href={item.href}
+              href={href}
               data-tutorial={item.tutorial}
               style={{
                 display: "flex",
