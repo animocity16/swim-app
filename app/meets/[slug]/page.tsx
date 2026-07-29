@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -36,6 +37,7 @@ type LeaderboardEntry = {
   bronze: number;
   total: number;
   total_points: number;
+  breakdown: { event: string; place: number | null; points: number }[];
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -81,12 +83,28 @@ function getDistance(event: string): number {
   return m ? Number(m[0]) : 9999;
 }
 
+function ordinal(n: number): string {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return `${n}${s[(v - 20) % 10] || s[v] || s[0]}`;
+}
+
+function placeColor(place: number | null): string {
+  if (place === 1) return "#FDE68A";
+  if (place === 2) return "#CBD5E1";
+  if (place === 3) return "#FDBA74";
+  return "rgba(255,255,255,0.45)";
+}
+
 function buildLeaderboard(groups: EventGroup[]): LeaderboardEntry[] {
   const map = new Map<number, LeaderboardEntry>();
   for (const g of groups) {
-    g.results.forEach((r, idx) => {
+    g.results.forEach((r) => {
       if (!map.has(r.swimmer_id)) {
-        map.set(r.swimmer_id, { swimmer_id: r.swimmer_id, swimmer_name: r.swimmer_name, gold: 0, silver: 0, bronze: 0, total: 0, total_points: 0 });
+        map.set(r.swimmer_id, {
+          swimmer_id: r.swimmer_id, swimmer_name: r.swimmer_name,
+          gold: 0, silver: 0, bronze: 0, total: 0, total_points: 0, breakdown: [],
+        });
       }
       const e = map.get(r.swimmer_id)!;
       // Medal counts come from the swimmer's true official place in the
@@ -97,10 +115,22 @@ function buildLeaderboard(groups: EventGroup[]): LeaderboardEntry[] {
       else if (r.place === 2) { e.silver += 1; e.total += 1; }
       else if (r.place === 3) { e.bronze += 1; e.total += 1; }
       // Points are summed across every swim in the meet, not just podium finishes
-      if (r.fina_points != null) e.total_points += r.fina_points;
+      if (r.fina_points != null) {
+        e.total_points += r.fina_points;
+        e.breakdown.push({ event: g.event, place: r.place, points: r.fina_points });
+      }
     });
   }
-  return Array.from(map.values()).sort((a, b) => {
+  const entries = Array.from(map.values());
+  for (const entry of entries) {
+    entry.breakdown.sort((a, b) => {
+      const sA = STROKE_ORDER.indexOf(getStroke(a.event));
+      const sB = STROKE_ORDER.indexOf(getStroke(b.event));
+      if (sA !== sB) return sA - sB;
+      return getDistance(a.event) - getDistance(b.event);
+    });
+  }
+  return entries.sort((a, b) => {
     if (b.total_points !== a.total_points) return b.total_points - a.total_points;
     return a.swimmer_name.localeCompare(b.swimmer_name);
   });
@@ -335,6 +365,7 @@ function DeleteSheet({
 
 function Leaderboard({ entries }: { entries: LeaderboardEntry[] }) {
   const [open, setOpen] = useState(true);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
   if (entries.length === 0) return null;
 
   return (
@@ -361,34 +392,68 @@ function Leaderboard({ entries }: { entries: LeaderboardEntry[] }) {
 
       {open && (
         <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "12px" }}>
-          {entries.map((e, idx) => (
-            <div key={e.swimmer_id} style={{
-              display: "flex", alignItems: "center", gap: "10px",
-              padding: "8px 10px", borderRadius: "12px",
-              background: idx === 0 ? "rgba(234,179,8,0.08)" : "rgba(255,255,255,0.03)",
-            }}>
-              <span style={{ fontSize: "11px", fontWeight: 700, color: "rgba(255,255,255,0.3)", width: "16px", flexShrink: 0 }}>
-                {idx + 1}
-              </span>
-              <span style={{
-                flex: 1, minWidth: 0, fontSize: "13px", fontWeight: 600, color: "#fff",
-                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          {entries.map((e, idx) => {
+            const isExpanded = expandedId === e.swimmer_id;
+            return (
+              <div key={e.swimmer_id} style={{
+                borderRadius: "12px",
+                background: idx === 0 ? "rgba(234,179,8,0.08)" : "rgba(255,255,255,0.03)",
+                overflow: "hidden",
               }}>
-                {e.swimmer_name}
-              </span>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
-                {e.gold > 0 && <span style={{ fontSize: "11px", fontWeight: 700, color: "#FDE68A" }}>🥇{e.gold}</span>}
-                {e.silver > 0 && <span style={{ fontSize: "11px", fontWeight: 700, color: "#CBD5E1" }}>🥈{e.silver}</span>}
-                {e.bronze > 0 && <span style={{ fontSize: "11px", fontWeight: 700, color: "#FDBA74" }}>🥉{e.bronze}</span>}
-                <span style={{
-                  fontSize: "10px", fontWeight: 700, color: "rgba(255,255,255,0.4)",
-                  background: "rgba(255,255,255,0.06)", borderRadius: "8px", padding: "2px 6px",
-                }}>
-                  {e.total_points} pts
-                </span>
+                <button
+                  type="button"
+                  onClick={() => setExpandedId(isExpanded ? null : e.swimmer_id)}
+                  style={{
+                    width: "100%", display: "flex", alignItems: "center", gap: "10px",
+                    padding: "8px 10px", background: "transparent", border: "none", cursor: "pointer",
+                  }}
+                >
+                  <span style={{ fontSize: "11px", fontWeight: 700, color: "rgba(255,255,255,0.3)", width: "16px", flexShrink: 0 }}>
+                    {idx + 1}
+                  </span>
+                  <span style={{
+                    flex: 1, minWidth: 0, fontSize: "13px", fontWeight: 600, color: "#fff",
+                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "left",
+                  }}>
+                    {e.swimmer_name}
+                  </span>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+                    {e.gold > 0 && <span style={{ fontSize: "11px", fontWeight: 700, color: "#FDE68A" }}>🥇{e.gold}</span>}
+                    {e.silver > 0 && <span style={{ fontSize: "11px", fontWeight: 700, color: "#CBD5E1" }}>🥈{e.silver}</span>}
+                    {e.bronze > 0 && <span style={{ fontSize: "11px", fontWeight: 700, color: "#FDBA74" }}>🥉{e.bronze}</span>}
+                    <span style={{
+                      fontSize: "10px", fontWeight: 700, color: "rgba(255,255,255,0.4)",
+                      background: "rgba(255,255,255,0.06)", borderRadius: "8px", padding: "2px 6px",
+                    }}>
+                      {e.total_points} pts
+                    </span>
+                    <svg width="10" height="10" viewBox="0 0 16 16" fill="none"
+                      style={{ transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.15s", opacity: 0.35, flexShrink: 0 }}>
+                      <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                </button>
+
+                {isExpanded && (
+                  <div style={{ padding: "0 10px 10px 36px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                    {e.breakdown.map((b, bIdx) => (
+                      <div key={`${b.event}-${bIdx}`} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "11px" }}>
+                        <span style={{ color: "rgba(255,255,255,0.55)" }}>{b.event}</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <span style={{ fontWeight: 700, color: placeColor(b.place) }}>
+                            {b.place != null ? ordinal(b.place) : "—"}
+                          </span>
+                          <span style={{ color: "rgba(255,255,255,0.6)", fontWeight: 600, minWidth: "52px", textAlign: "right" }}>
+                            {b.points} pts
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
