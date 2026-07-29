@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -60,6 +61,24 @@ function groupByYear<T>(items: T[], getDate: (item: T) => string | null): Map<st
     map.get(year)!.push(item);
   }
   return map;
+}
+
+// A meet counts as "over" the moment its last day has passed — not when
+// someone happens to scan a result for it. end_date wins if set, otherwise
+// fall back to start_date. Compared at day resolution so a meet doesn't flip
+// to Past partway through its own final day.
+function toDateOnly(dateStr: string): Date {
+  const d = new Date(dateStr);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function isMeetOverdue(meet: UpcomingMeet): boolean {
+  const refDateStr = meet.end_date ?? meet.start_date;
+  const refDate = toDateOnly(refDateStr);
+  if (isNaN(refDate.getTime())) return false;
+  const today = toDateOnly(new Date().toISOString());
+  return refDate.getTime() < today.getTime();
 }
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
@@ -156,7 +175,7 @@ function DeleteSheet({
   );
 }
 
-// ─── Past Meet card with long-press ───────────────────────────────────────────
+// ─── Past Meet card with long-press (has logged results — links to FINA points page) ─
 
 function PastMeetCard({ meet, onLongPress }: { meet: PastMeet; onLongPress: (meet: PastMeet) => void }) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -256,6 +275,46 @@ function UpcomingMeetCard({ meet, mine }: { meet: UpcomingMeet; mine: boolean })
   );
 }
 
+// ─── Overdue meet card (date has passed, no results logged yet) ──────────────
+// Sits in the Past tab alongside PastMeetCard, but styled distinctly since
+// there's nothing to show FINA points for until a result gets scanned.
+
+function OverdueMeetCard({ meet }: { meet: UpcomingMeet }) {
+  return (
+    <Link
+      href={`/meets/upcoming/${meet.id}`}
+      style={{
+        display: "flex", alignItems: "center", gap: "14px",
+        background: "rgba(255,255,255,0.04)", border: "1px dashed rgba(255,255,255,0.15)",
+        borderRadius: "20px", padding: "14px 16px",
+        textDecoration: "none",
+      }}
+    >
+      <div style={{
+        width: "44px", height: "44px", borderRadius: "14px",
+        background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: "20px", flexShrink: 0,
+      }}>🏅</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontSize: "14px", fontWeight: 700, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {meet.name}
+        </p>
+        <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.4)", marginTop: "2px" }}>
+          {[formatDateRange(meet.start_date, meet.end_date), meet.location].filter(Boolean).join(" · ")}
+        </p>
+      </div>
+      <span style={{
+        background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)",
+        borderRadius: "20px", padding: "3px 10px",
+        fontSize: "10px", fontWeight: 700, color: "rgba(255,255,255,0.45)", whiteSpace: "nowrap", flexShrink: 0,
+      }}>
+        Awaiting results
+      </span>
+    </Link>
+  );
+}
+
 // ─── Year group (collapsible) ─────────────────────────────────────────────────
 
 function YearGroup({ year, defaultOpen, children }: { year: string; defaultOpen: boolean; children: React.ReactNode }) {
@@ -295,6 +354,7 @@ export default function MeetsPage() {
   const router = useRouter();
   const [tab, setTab] = useState<"upcoming" | "past">("upcoming");
   const [upcomingMeets, setUpcomingMeets] = useState<UpcomingMeet[]>([]);
+  const [overdueMeets, setOverdueMeets] = useState<UpcomingMeet[]>([]);
   const [pastMeets, setPastMeets] = useState<PastMeet[]>([]);
   const [loading, setLoading] = useState(true);
   const [pendingDelete, setPendingDelete] = useState<PastMeet | null>(null);
@@ -315,7 +375,13 @@ export default function MeetsPage() {
       .select("*")
       .order("start_date", { ascending: true });
 
-    setUpcomingMeets((upcoming ?? []) as UpcomingMeet[]);
+    const allUpcomingRows = (upcoming ?? []) as UpcomingMeet[];
+
+    // A meet whose last day has already passed moves to the Past tab, even if
+    // nobody has scanned a result for it yet — it's date-driven, not
+    // results-driven.
+    setUpcomingMeets(allUpcomingRows.filter((m) => !isMeetOverdue(m)));
+    setOverdueMeets(allUpcomingRows.filter((m) => isMeetOverdue(m)));
 
     // ── Load past meets from swim_times ───────────────────────────────────────
     const { data: swimmers } = await supabase.from("swimmers").select("id");
@@ -365,13 +431,21 @@ export default function MeetsPage() {
     if (!error) setPastMeets((prev) => prev.filter((m) => m.meetName !== pendingDelete.meetName));
   }
 
-  // ── Group past meets by year ────────────────────────────────────────────────
+  // ── Group past meets (results-based) by year ───────────────────────────────
   const pastByYear = groupByYear(pastMeets, (m) => m.latestDate);
   const pastYears = Array.from(pastByYear.keys()).sort((a, b) => b.localeCompare(a));
 
   // ── Group upcoming meets by year ────────────────────────────────────────────
   const upcomingByYear = groupByYear(upcomingMeets, (m) => m.start_date);
   const upcomingYears = Array.from(upcomingByYear.keys()).sort((a, b) => a.localeCompare(b));
+
+  // Overdue meets that don't already have a matching results-based past
+  // entry (matched by name) — shown separately so they aren't lost once
+  // their date passes, but also aren't duplicated once results do arrive.
+  const pastMeetNamesLower = new Set(pastMeets.map((m) => m.meetName.trim().toLowerCase()));
+  const overdueWithoutResults = overdueMeets.filter(
+    (m) => !pastMeetNamesLower.has(m.name.trim().toLowerCase())
+  );
 
   // ── Loading ─────────────────────────────────────────────────────────────────
   if (loading) {
@@ -457,8 +531,8 @@ export default function MeetsPage() {
 
         {/* Past tab */}
         {tab === "past" && (
-          <div>
-            {pastMeets.length === 0 ? (
+          <div className="space-y-5">
+            {pastMeets.length === 0 && overdueWithoutResults.length === 0 ? (
               <div className="rounded-3xl p-8 text-center" style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}>
                 <div style={{ fontSize: "32px", marginBottom: "10px" }}>🏅</div>
                 <p className="font-semibold text-white">No past meets yet</p>
@@ -467,15 +541,32 @@ export default function MeetsPage() {
                 </p>
               </div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column" }}>
-                {pastYears.map((year, i) => (
-                  <YearGroup key={year} year={year} defaultOpen={i === 0}>
-                    {(pastByYear.get(year) ?? []).map((meet) => (
-                      <PastMeetCard key={meet.meetName} meet={meet} onLongPress={setPendingDelete} />
+              <>
+                {pastMeets.length > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    {pastYears.map((year, i) => (
+                      <YearGroup key={year} year={year} defaultOpen={i === 0}>
+                        {(pastByYear.get(year) ?? []).map((meet) => (
+                          <PastMeetCard key={meet.meetName} meet={meet} onLongPress={setPendingDelete} />
+                        ))}
+                      </YearGroup>
                     ))}
-                  </YearGroup>
-                ))}
-              </div>
+                  </div>
+                )}
+
+                {overdueWithoutResults.length > 0 && (
+                  <div>
+                    <p style={{ fontSize: "12px", fontWeight: 600, color: "rgba(255,255,255,0.35)", letterSpacing: "0.08em", padding: "8px 4px" }}>
+                      AWAITING RESULTS
+                    </p>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                      {overdueWithoutResults.map((meet) => (
+                        <OverdueMeetCard key={meet.id} meet={meet} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
