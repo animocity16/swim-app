@@ -232,10 +232,22 @@ export default function ComparePage() {
 
   // ─── Derived data ──────────────────────────────────────────────────────────
 
-  const primarySwimmers = allSwimmers.filter((s) => s.group_type === "primary");
-  const followingSwimmers = allSwimmers.filter((s) => s.group_type === "following");
-  const mySwimmer = allSwimmers.find((s) => s.id === mySwimmerId) ?? null;
-  const selectedSwimmers = allSwimmers.filter((s) => selectedIds.has(s.id));
+  const primarySwimmers = useMemo(
+    () => allSwimmers.filter((s) => s.group_type === "primary"),
+    [allSwimmers]
+  );
+  const followingSwimmers = useMemo(
+    () => allSwimmers.filter((s) => s.group_type === "following"),
+    [allSwimmers]
+  );
+  const mySwimmer = useMemo(
+    () => allSwimmers.find((s) => s.id === mySwimmerId) ?? null,
+    [allSwimmers, mySwimmerId]
+  );
+  const selectedSwimmers = useMemo(
+    () => allSwimmers.filter((s) => selectedIds.has(s.id)),
+    [allSwimmers, selectedIds]
+  );
 
   const clubOptions = useMemo(() => {
     const set = new Set<string>();
