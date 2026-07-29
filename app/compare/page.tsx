@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { canonicalEventName, canonicalCourse, eventKey } from "@/lib/events";
+import { calcFinaPoints, type Gender } from "@/lib/finaPoints";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -22,15 +23,20 @@ type SwimTimeRow = {
   event: string;
   course: string;
   time_ms: number;
+  meet_name: string | null;
+  swam_at: string | null;
 };
 
 type EventKey = string;
 type Scope = "all" | "club" | "school";
+type RankScope = "overall" | "event";
+type RankPointMode = "avg" | "total";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const MAX_COMPARE = 10;
 const RANK_COUNTS = [3, 5, 10, 20];
+const ALL_TIME_LABEL = "All time (best)";
 
 function formatMs(ms: number | null | undefined) {
   if (ms == null || isNaN(ms)) return "—";
@@ -64,6 +70,13 @@ function shortName(name: string): string {
   const parts = name.trim().split(" ");
   if (parts.length === 1) return parts[0];
   return `${parts[0]} ${parts[parts.length - 1][0]}.`;
+}
+
+function getYearFromDate(dateStr: string | null): string {
+  if (!dateStr) return "Unknown";
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return "Unknown";
+  return String(d.getFullYear());
 }
 
 const AVATAR_COLORS = [
@@ -131,10 +144,15 @@ export default function ComparePage() {
   const [clubValue, setClubValue] = useState<string | null>(null);
   const [schoolValue, setSchoolValue] = useState<string | null>(null);
 
-  // Rank: independent toggle, combinable with Scope
+  // Rank: independent toggle, combinable with Scope. Scored by real FINA points.
   const [rankOn, setRankOn] = useState(false);
+  const [rankScope, setRankScope] = useState<RankScope>("overall");
+  const [rankPointMode, setRankPointMode] = useState<RankPointMode>("avg");
+  const [rankEventChoice, setRankEventChoice] = useState<string | null>(null);
+  const [rankMeetChoice, setRankMeetChoice] = useState<string | null>(null); // null = All time (best)
+  const [rankMeetPanelOpen, setRankMeetPanelOpen] = useState(false);
+  const [rankMeetOpenYears, setRankMeetOpenYears] = useState<Set<string>>(new Set());
   const [rankCount, setRankCount] = useState<number | null>(null);
-  const [rankedIds, setRankedIds] = useState<number[] | null>(null);
 
   // Results: gated behind a stroke choice
   const [activeStroke, setActiveStroke] = useState<string | null>(null);
@@ -169,7 +187,7 @@ export default function ComparePage() {
 
     const { data } = await supabase
       .from("swim_times")
-      .select("swimmer_id, event, course, time_ms")
+      .select("swimmer_id, event, course, time_ms, meet_name, swam_at")
       .in("swimmer_id", missing);
 
     const grouped = new Map<number, SwimTimeRow[]>();
@@ -225,7 +243,33 @@ export default function ComparePage() {
   function toggleRank() {
     setRankOn((prev) => {
       const next = !prev;
-      if (!next) { setRankCount(null); setRankedIds(null); }
+      if (!next) {
+        setRankCount(null);
+        setRankEventChoice(null);
+        setRankMeetChoice(null);
+        setRankMeetPanelOpen(false);
+      }
+      return next;
+    });
+  }
+
+  function handleRankScopeChange(next: RankScope) {
+    setRankScope(next);
+    setRankEventChoice(null);
+    setRankMeetChoice(null);
+    setRankMeetPanelOpen(false);
+  }
+
+  function handleRankEventChoice(event: string) {
+    setRankEventChoice(event);
+    setRankMeetChoice(null); // meet list depends on the chosen event, so reset
+  }
+
+  function toggleMeetYear(year: string) {
+    setRankMeetOpenYears((prev) => {
+      const next = new Set(prev);
+      if (next.has(year)) next.delete(year);
+      else next.add(year);
       return next;
     });
   }
@@ -261,10 +305,6 @@ export default function ComparePage() {
     return Array.from(set).sort();
   }, [followingSwimmers]);
 
-  // The base candidate list: null means "not resolvable yet" (e.g. Club chosen
-  // but no specific club picked). Scope defaults to "all" whenever it isn't
-  // specifically an open Club/School filter — this is what lets Rank work on
-  // its own without Scope being touched at all.
   const baseList = useMemo((): Swimmer[] | null => {
     if (scope === "club" && scopeOpen) {
       return clubValue ? followingSwimmers.filter((s) => s.swim_club?.trim() === clubValue) : null;
@@ -277,72 +317,136 @@ export default function ComparePage() {
 
   const anythingActive = (scope !== null && scopeOpen) || rankOn;
 
-  // Bulk-load times for the whole base list once Rank needs to compute an
-  // overall-skill ordering across it — this is a different loading path from
-  // the lazy per-swimmer fetch used when just browsing/selecting manually.
+  // Bulk-load full times (now including meet_name/swam_at) for the whole base
+  // list whenever Rank is on and a candidate group is resolved — needed both
+  // for computing FINA scores and for populating the event/meet pickers.
   useEffect(() => {
-    if (!rankOn || !rankCount || !baseList) { setRankedIds(null); return; }
+    if (!rankOn || !baseList) return;
+    const ids = baseList.map((s) => s.id);
+    const missing = ids.filter((id) => !timesMap.has(id));
+    if (missing.length === 0) return;
 
     let cancelled = false;
-    async function computeRanking() {
+    async function fetchMissing() {
       setRankLoading(true);
-      const ids = baseList!.map((s) => s.id);
-      const updated = await loadTimesForIds(ids, timesMap);
-      if (cancelled) return;
-      setTimesMap(updated);
-
-      // Average rank across every event each swimmer has a PB in, among this candidate group
-      const pbMaps = new Map<number, Map<EventKey, number>>();
-      for (const id of ids) pbMaps.set(id, getPBMap(updated.get(id) ?? []));
-
-      const eventKeys = new Set<EventKey>();
-      for (const map of pbMaps.values()) for (const key of map.keys()) eventKeys.add(key);
-
-      const rankSum = new Map<number, number>();
-      const rankCountMap = new Map<number, number>();
-      for (const id of ids) { rankSum.set(id, 0); rankCountMap.set(id, 0); }
-
-      for (const key of eventKeys) {
-        const entries = ids
-          .map((id) => ({ id, ms: pbMaps.get(id)?.get(key) }))
-          .filter((e) => e.ms != null) as { id: number; ms: number }[];
-        entries.sort((a, b) => a.ms - b.ms);
-        entries.forEach((e, i) => {
-          rankSum.set(e.id, (rankSum.get(e.id) ?? 0) + (i + 1));
-          rankCountMap.set(e.id, (rankCountMap.get(e.id) ?? 0) + 1);
-        });
-      }
-
-      const ranked = ids
-        .filter((id) => (rankCountMap.get(id) ?? 0) > 0)
-        .sort((a, b) => {
-          const avgA = (rankSum.get(a) ?? 0) / (rankCountMap.get(a) ?? 1);
-          const avgB = (rankSum.get(b) ?? 0) / (rankCountMap.get(b) ?? 1);
-          return avgA - avgB;
-        })
-        .slice(0, rankCount ?? 0);
-
-      if (!cancelled) { setRankedIds(ranked); setRankLoading(false); }
+      const updated = await loadTimesForIds(missing, timesMap);
+      if (!cancelled) { setTimesMap(updated); setRankLoading(false); }
     }
-
-    void computeRanking();
+    void fetchMissing();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rankOn, rankCount, baseList]);
+  }, [rankOn, baseList]);
+
+  const baseListTimesReady = useMemo(() => {
+    if (!baseList) return false;
+    return baseList.every((s) => timesMap.has(s.id));
+  }, [baseList, timesMap]);
+
+  // Every event any candidate in the base list has actually logged — sorted
+  // stroke-then-distance, same ordering used everywhere else in the app.
+  const candidateEvents = useMemo(() => {
+    if (!baseList || !baseListTimesReady) return [];
+    const set = new Set<string>();
+    for (const s of baseList) {
+      for (const row of timesMap.get(s.id) ?? []) set.add(canonicalEventName(row.event));
+    }
+    return Array.from(set).sort((a, b) => {
+      const sA = STROKE_ORDER.indexOf(getStrokeName(a));
+      const sB = STROKE_ORDER.indexOf(getStrokeName(b));
+      if (sA !== sB) return sA - sB;
+      return getEventDistance(a) - getEventDistance(b);
+    });
+  }, [baseList, baseListTimesReady, timesMap]);
+
+  // Meets where at least one candidate actually swam the chosen event —
+  // grouped by year so the list stays short as meets accumulate over time.
+  const candidateMeetsByYear = useMemo(() => {
+    if (!baseList || !baseListTimesReady || rankScope !== "event" || !rankEventChoice) {
+      return new Map<string, string[]>();
+    }
+    const byYear = new Map<string, Set<string>>();
+    for (const s of baseList) {
+      for (const row of timesMap.get(s.id) ?? []) {
+        if (canonicalEventName(row.event) !== rankEventChoice) continue;
+        if (!row.meet_name) continue;
+        const year = getYearFromDate(row.swam_at);
+        if (!byYear.has(year)) byYear.set(year, new Set());
+        byYear.get(year)!.add(row.meet_name);
+      }
+    }
+    const result = new Map<string, string[]>();
+    for (const [year, names] of byYear) result.set(year, Array.from(names).sort());
+    return result;
+  }, [baseList, baseListTimesReady, rankScope, rankEventChoice, timesMap]);
+
+  const candidateMeetYears = useMemo(
+    () => Array.from(candidateMeetsByYear.keys()).sort((a, b) => b.localeCompare(a)),
+    [candidateMeetsByYear]
+  );
+
+  // ─── FINA-points ranking ────────────────────────────────────────────────────
+
+  const rankedResults = useMemo((): { id: number; points: number }[] | null => {
+    if (!rankOn || !rankCount || !baseList || !baseListTimesReady) return null;
+    if (rankScope === "event" && !rankEventChoice) return null;
+
+    const genderById = new Map(allSwimmers.map((s) => [s.id, (s.gender as Gender | null) ?? null]));
+
+    const scored: { id: number; points: number }[] = [];
+
+    for (const s of baseList) {
+      const rows = timesMap.get(s.id) ?? [];
+      const gender = genderById.get(s.id) ?? null;
+
+      if (rankScope === "overall") {
+        const pbMap = getPBMap(rows);
+        const points: number[] = [];
+        for (const [key, ms] of pbMap) {
+          const [event, course] = key.split("|");
+          const pts = calcFinaPoints(ms, event, course, gender);
+          if (pts != null) points.push(pts);
+        }
+        if (points.length === 0) continue;
+        const score = rankPointMode === "avg"
+          ? Math.round(points.reduce((a, b) => a + b, 0) / points.length)
+          : points.reduce((a, b) => a + b, 0);
+        scored.push({ id: s.id, points: score });
+      } else {
+        const matching = rows.filter((r) => {
+          if (canonicalEventName(r.event) !== rankEventChoice) return false;
+          if (rankMeetChoice && r.meet_name !== rankMeetChoice) return false;
+          return true;
+        });
+        const points = matching
+          .map((r) => calcFinaPoints(r.time_ms, rankEventChoice!, canonicalCourse(r.course), gender))
+          .filter((p): p is number => p != null);
+        if (points.length === 0) continue;
+        scored.push({ id: s.id, points: Math.max(...points) });
+      }
+    }
+
+    scored.sort((a, b) => b.points - a.points);
+    return scored.slice(0, rankCount);
+  }, [rankOn, rankCount, baseList, baseListTimesReady, rankScope, rankPointMode, rankEventChoice, rankMeetChoice, timesMap, allSwimmers]);
 
   // The list of swimmers actually shown for tapping/selecting right now
-  const visibleList = useMemo((): Swimmer[] | null => {
+  const visibleList = useMemo((): { swimmer: Swimmer; points: number | null }[] | null => {
     if (!anythingActive) return null;
     if (baseList === null) return null;
     if (rankOn) {
+      if (rankScope === "event" && !rankEventChoice) return null;
       if (!rankCount) return null;
-      if (rankedIds === null) return null;
-      return rankedIds
-        .map((id) => baseList.find((s) => s.id === id))
-        .filter((s): s is Swimmer => !!s);
+      if (rankLoading || !baseListTimesReady) return null;
+      if (rankedResults === null) return null;
+      return rankedResults
+        .map((r) => {
+          const swimmer = baseList.find((s) => s.id === r.id);
+          return swimmer ? { swimmer, points: r.points } : null;
+        })
+        .filter((e): e is { swimmer: Swimmer; points: number } => !!e);
     }
-    return baseList;
-  }, [anythingActive, baseList, rankOn, rankCount, rankedIds]);
+    return baseList.map((s) => ({ swimmer: s, points: null }));
+  }, [anythingActive, baseList, rankOn, rankScope, rankEventChoice, rankCount, rankLoading, baseListTimesReady, rankedResults]);
 
   // ─── PB maps for the results section ──────────────────────────────────────
 
@@ -372,8 +476,6 @@ export default function ComparePage() {
       .sort((a, b) => getEventDistance(a.event) - getEventDistance(b.event));
   }, [myPBMap, selectedPBMaps, selectedIds]);
 
-  // Only the events for the currently chosen stroke — results stay hidden
-  // until a stroke is picked, instead of dumping every shared event at once.
   const strokeEvents = useMemo(() => {
     if (!activeStroke) return [];
     return sharedEvents.filter((ev) => getStrokeName(ev.event) === activeStroke);
@@ -494,23 +596,121 @@ export default function ComparePage() {
             )}
           </div>
 
-          {/* Rank */}
+          {/* Rank — real FINA points, Overall or Per-event */}
           <div>
             <p className="text-[9px] font-medium uppercase tracking-widest text-white/25 mb-2">Sort</p>
             <button type="button" onClick={toggleRank}
               className="w-full rounded-2xl py-2 text-xs font-semibold transition"
               style={scopeBtnStyle(rankOn)}>
-              Rank by overall skill
+              Rank by FINA points
             </button>
 
             {rankOn && (
-              <div className="flex flex-wrap gap-2 mt-2">
-                {RANK_COUNTS.map((n) => (
-                  <button key={n} type="button" onClick={() => setRankCount(n)}
-                    className={chipBase} style={rankCount === n ? chipActive : chipInactive}>
-                    Top {n}
+              <div className="mt-2 space-y-2">
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => handleRankScopeChange("overall")}
+                    className="flex-1 rounded-2xl py-1.5 text-xs font-semibold transition"
+                    style={scopeBtnStyle(rankScope === "overall")}>
+                    Overall
                   </button>
-                ))}
+                  <button type="button" onClick={() => handleRankScopeChange("event")}
+                    className="flex-1 rounded-2xl py-1.5 text-xs font-semibold transition"
+                    style={scopeBtnStyle(rankScope === "event")}>
+                    One event
+                  </button>
+                </div>
+
+                {rankScope === "overall" && (
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setRankPointMode("avg")}
+                      className={chipBase} style={{ flex: 1, ...(rankPointMode === "avg" ? chipActive : chipInactive) }}>
+                      Average pts
+                    </button>
+                    <button type="button" onClick={() => setRankPointMode("total")}
+                      className={chipBase} style={{ flex: 1, ...(rankPointMode === "total" ? chipActive : chipInactive) }}>
+                      Total pts
+                    </button>
+                  </div>
+                )}
+
+                {rankScope === "event" && (
+                  <>
+                    {!baseListTimesReady ? (
+                      <p className="text-xs text-white/35">Loading events…</p>
+                    ) : candidateEvents.length === 0 ? (
+                      <p className="text-xs text-white/35">No logged events found for this group yet.</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {candidateEvents.map((event) => (
+                          <button key={event} type="button" onClick={() => handleRankEventChoice(event)}
+                            className={chipBase} style={rankEventChoice === event ? chipActive : chipInactive}>
+                            {event}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {rankEventChoice && (
+                      <div>
+                        <button type="button" onClick={() => setRankMeetPanelOpen((v) => !v)}
+                          className="w-full flex items-center justify-between rounded-2xl px-3 py-2"
+                          style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                          <span className="text-xs font-semibold" style={{ color: "#FDE68A" }}>
+                            {rankMeetChoice ?? ALL_TIME_LABEL}
+                          </span>
+                          <svg width="12" height="12" viewBox="0 0 16 16" fill="none"
+                            style={{ transform: rankMeetPanelOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.15s" }}>
+                            <path d="M4 6L8 10L12 6" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </button>
+
+                        {rankMeetPanelOpen && (
+                          <div className="mt-2 space-y-2">
+                            <button type="button" onClick={() => setRankMeetChoice(null)}
+                              className="w-full rounded-2xl px-3 py-1.5 text-xs font-semibold text-left transition"
+                              style={rankMeetChoice === null ? chipActive : chipInactive}>
+                              {ALL_TIME_LABEL}
+                            </button>
+                            {candidateMeetYears.length === 0 ? (
+                              <p className="text-xs text-white/35 px-1">No meets logged for this event yet.</p>
+                            ) : candidateMeetYears.map((year) => (
+                              <div key={year}>
+                                <button type="button" onClick={() => toggleMeetYear(year)}
+                                  className="w-full flex items-center justify-between py-1 px-1">
+                                  <span className="text-[11px] font-semibold tracking-wide text-white/35">{year}</span>
+                                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none"
+                                    style={{ transform: rankMeetOpenYears.has(year) ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.15s" }}>
+                                    <path d="M4 6L8 10L12 6" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                  </svg>
+                                </button>
+                                {rankMeetOpenYears.has(year) && (
+                                  <div className="flex flex-col gap-1.5 pb-1">
+                                    {(candidateMeetsByYear.get(year) ?? []).map((meet) => (
+                                      <button key={meet} type="button" onClick={() => setRankMeetChoice(meet)}
+                                        className="w-full rounded-2xl px-3 py-1.5 text-xs font-medium text-left transition"
+                                        style={rankMeetChoice === meet ? chipActive : chipInactive}>
+                                        {meet}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+
+                <div className="flex flex-wrap gap-2">
+                  {RANK_COUNTS.map((n) => (
+                    <button key={n} type="button" onClick={() => setRankCount(n)}
+                      className={chipBase} style={rankCount === n ? chipActive : chipInactive}>
+                      Top {n}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -522,7 +722,7 @@ export default function ComparePage() {
                 Selected ({selectedIds.size}/{MAX_COMPARE})
               </p>
               <div className="flex flex-wrap gap-2">
-                {selectedSwimmers.map((s, i) => {
+                {selectedSwimmers.map((s) => {
                   const idx = allSwimmers.findIndex((x) => x.id === s.id);
                   const colors = avatarColor(idx);
                   return (
@@ -546,22 +746,26 @@ export default function ComparePage() {
             <p className="text-sm text-white/35 text-center py-2">
               Tap All, Club, School, or Rank above to see swimmers.
             </p>
-          ) : rankLoading ? (
+          ) : rankOn && (rankLoading || (baseList && !baseListTimesReady)) ? (
             <div className="flex items-center justify-center gap-3 py-4">
               <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-amber-400" />
-              <p className="text-sm text-white/50">Ranking swimmers…</p>
+              <p className="text-sm text-white/50">Loading times…</p>
             </div>
           ) : visibleList === null ? (
             <p className="text-sm text-white/35 text-center py-2">
-              {scope === "club" && scopeOpen && "Choose a club above to see its swimmers."}
-              {scope === "school" && scopeOpen && "Choose a school above to see its swimmers."}
+              {scope === "club" && scopeOpen && !rankOn && "Choose a club above to see its swimmers."}
+              {scope === "school" && scopeOpen && !rankOn && "Choose a school above to see its swimmers."}
+              {rankOn && rankScope === "event" && !rankEventChoice && "Choose an event above."}
               {rankOn && !rankCount && "Choose how many to show above."}
             </p>
           ) : visibleList.length === 0 ? (
-            <p className="text-sm text-white/40 text-center py-2">No swimmers found here.</p>
+            <p className="text-sm text-white/40 text-center py-2">
+              {rankOn ? "No swimmers have FINA points here yet." : "No swimmers found here."}
+            </p>
           ) : (
             <div className="max-h-[260px] overflow-y-auto rounded-2xl space-y-1.5 pr-1">
-              {visibleList.map((s, i) => {
+              {visibleList.map((entry, i) => {
+                const s = entry.swimmer;
                 if (selectedIds.has(s.id)) return null;
                 const globalIdx = allSwimmers.findIndex((x) => x.id === s.id);
                 const colors = avatarColor(globalIdx);
@@ -582,6 +786,11 @@ export default function ComparePage() {
                         {[s.swim_club, s.school].filter(Boolean).join(" · ")}
                       </p>
                     </div>
+                    {entry.points != null && (
+                      <span className="text-xs font-semibold flex-shrink-0" style={{ color: "#FDE68A" }}>
+                        {entry.points} pts
+                      </span>
+                    )}
                   </button>
                 );
               })}
