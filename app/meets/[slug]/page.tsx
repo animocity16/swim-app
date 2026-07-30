@@ -22,21 +22,25 @@ type ResultRow = {
   is_pb: boolean;
   fina_points: number | null;
   gender: Gender | null;
+  age: number | null;
 };
 
-// Grouped by event name — and by gender ONLY when the scanned official
-// placings actually collide (two different swimmers both "1st", etc.),
-// which is the one reliable signal that boys and girls were scored as
-// separate fields under the same event name. A genuinely combined field
-// (mixed gender, or a combined age group) never produces duplicate
-// placings, so it's left as a single group untouched.
-//   gender === null           -> not split, single combined field
+// Grouped by event name — split by gender, and further by age, ONLY where
+// the scanned official placings actually collide (two different swimmers
+// both "1st", etc.). That collision is the one reliable signal that this
+// event name actually covers two or more separately-scored fields (boys vs
+// girls, or two age groups) that got merged together. A genuinely combined
+// field — mixed gender, or a real combined-age event — never produces
+// duplicate placings, so it's left as a single group, untouched.
+//   gender === null            -> not split by gender
 //   gender === "Male"/"Female" -> split, this is that gender's field
-//   gender === "unspecified"  -> split occurred, but this swimmer has no
-//                                 gender set on their Brood profile
+//   gender === "unspecified"   -> split occurred, swimmer has no gender set
+//   ageGroup === null          -> not split by age
+//   ageGroup === "unspecified" -> split occurred, swimmer has no age set
 type EventGroup = {
   event: string;
   gender: Gender | "unspecified" | null;
+  ageGroup: number | "unspecified" | null;
   results: ResultRow[];
 };
 
@@ -114,8 +118,18 @@ function genderLabel(gender: Gender | "unspecified" | null): string {
   return ""; // not split — no label needed
 }
 
-function groupKeyOf(event: string, gender: Gender | "unspecified" | null): string {
-  return `${event}|${gender ?? "combined"}`;
+function ageGroupLabel(ageGroup: number | "unspecified" | null): string {
+  if (ageGroup === "unspecified") return "Age unknown";
+  if (typeof ageGroup === "number") return `Age ${ageGroup}`;
+  return ""; // not split — no label needed
+}
+
+function groupKeyOf(
+  event: string,
+  gender: Gender | "unspecified" | null,
+  ageGroup: number | "unspecified" | null
+): string {
+  return `${event}|${gender ?? "combined"}|${ageGroup ?? "combined"}`;
 }
 
 function buildLeaderboard(groups: EventGroup[]): LeaderboardEntry[] {
@@ -673,10 +687,10 @@ export default function MeetDetailPage() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { router.replace("/login"); return; }
 
-    const { data: swimmers } = await supabase.from("swimmers").select("id, name, swim_club, gender");
-    const swimmerMap = new Map<number, { name: string; swim_club: string | null; gender: Gender | null }>();
-    for (const s of (swimmers ?? []) as { id: number; name: string; swim_club: string | null; gender: Gender | null }[]) {
-      swimmerMap.set(s.id, { name: s.name, swim_club: s.swim_club ?? null, gender: s.gender ?? null });
+    const { data: swimmers } = await supabase.from("swimmers").select("id, name, swim_club, gender, age");
+    const swimmerMap = new Map<number, { name: string; swim_club: string | null; gender: Gender | null; age: number | null }>();
+    for (const s of (swimmers ?? []) as { id: number; name: string; swim_club: string | null; gender: Gender | null; age: number | null }[]) {
+      swimmerMap.set(s.id, { name: s.name, swim_club: s.swim_club ?? null, gender: s.gender ?? null, age: s.age ?? null });
     }
     const swimmerIds = Array.from(swimmerMap.keys());
     if (swimmerIds.length === 0) { setLoading(false); return; }
@@ -714,7 +728,7 @@ export default function MeetDetailPage() {
 
   function buildGroups(
     meetTimesArr: { id: number; event: string; course: string; time_ms: number; place: number | null; swam_at: string | null; swimmer_id: number }[],
-    swimmerMap: Map<number, { name: string; swim_club: string | null; gender: Gender | null }>,
+    swimmerMap: Map<number, { name: string; swim_club: string | null; gender: Gender | null; age: number | null }>,
     pbMap: Map<string, number>,
   ) {
     const rows: ResultRow[] = meetTimesArr.map((t) => {
@@ -728,10 +742,23 @@ export default function MeetDetailPage() {
         is_pb: bestEver === t.time_ms,
         fina_points: calcFinaPoints(t.time_ms, canonicalEventName(t.event), canonicalCourse(t.course), sw?.gender),
         gender: sw?.gender ?? null,
+        age: sw?.age ?? null,
       };
     });
 
-    // ── Group by event name — split by gender ONLY where placings collide ────
+    function hasPlaceCollision(items: ResultRow[]): boolean {
+      const placeCounts = new Map<number, number>();
+      for (const r of items) {
+        if (r.place == null) continue;
+        placeCounts.set(r.place, (placeCounts.get(r.place) ?? 0) + 1);
+      }
+      return Array.from(placeCounts.values()).some((c) => c > 1);
+    }
+
+    // ── Group by event name — split by gender, then by age, ONLY where the
+    // scanned placings actually collide at each level. A genuinely combined
+    // field is left alone no matter what caused it (mixed gender, combined
+    // age, or just a normal single field).
     const byEvent = new Map<string, ResultRow[]>();
     for (const row of rows) {
       if (!byEvent.has(row.event)) byEvent.set(row.event, []);
@@ -740,29 +767,41 @@ export default function MeetDetailPage() {
 
     const finalGroups: EventGroup[] = [];
     for (const [eventName, eventRows] of byEvent) {
-      const placeCounts = new Map<number, number>();
-      for (const r of eventRows) {
-        if (r.place == null) continue;
-        placeCounts.set(r.place, (placeCounts.get(r.place) ?? 0) + 1);
+      if (!hasPlaceCollision(eventRows)) {
+        finalGroups.push({ event: eventName, gender: null, ageGroup: null, results: eventRows });
+        continue;
       }
-      const hasCollision = Array.from(placeCounts.values()).some((c) => c > 1);
 
-      if (!hasCollision) {
-        // Single combined field — mixed gender or combined age group, doesn't
-        // matter which; the placings are already internally consistent.
-        finalGroups.push({ event: eventName, gender: null, results: eventRows });
-      } else {
-        const byGender = new Map<string, ResultRow[]>();
-        for (const r of eventRows) {
-          const key = r.gender ?? "unspecified";
-          if (!byGender.has(key)) byGender.set(key, []);
-          byGender.get(key)!.push(r);
+      const byGender = new Map<string, ResultRow[]>();
+      for (const r of eventRows) {
+        const key = r.gender ?? "unspecified";
+        if (!byGender.has(key)) byGender.set(key, []);
+        byGender.get(key)!.push(r);
+      }
+
+      for (const [genderKey, genderRows] of byGender) {
+        const genderVal: Gender | "unspecified" = genderKey === "unspecified" ? "unspecified" : (genderKey as Gender);
+
+        if (!hasPlaceCollision(genderRows)) {
+          finalGroups.push({ event: eventName, gender: genderVal, ageGroup: null, results: genderRows });
+          continue;
         }
-        for (const [key, subRows] of byGender) {
+
+        // Splitting by gender wasn't enough — same-gender swimmers are still
+        // colliding, most likely because this event actually spans two age
+        // groups scored separately. Split by age as a second pass.
+        const byAge = new Map<string, ResultRow[]>();
+        for (const r of genderRows) {
+          const key = r.age != null ? String(r.age) : "unspecified";
+          if (!byAge.has(key)) byAge.set(key, []);
+          byAge.get(key)!.push(r);
+        }
+        for (const [ageKey, ageRows] of byAge) {
           finalGroups.push({
             event: eventName,
-            gender: key === "unspecified" ? "unspecified" : (key as Gender),
-            results: subRows,
+            gender: genderVal,
+            ageGroup: ageKey === "unspecified" ? "unspecified" : Number(ageKey),
+            results: ageRows,
           });
         }
       }
@@ -774,7 +813,9 @@ export default function MeetDetailPage() {
       if (sA !== sB) return sA - sB;
       const dA = getDistance(a.event) - getDistance(b.event);
       if (dA !== 0) return dA;
-      return genderLabel(a.gender).localeCompare(genderLabel(b.gender));
+      const genderCmp = genderLabel(a.gender).localeCompare(genderLabel(b.gender));
+      if (genderCmp !== 0) return genderCmp;
+      return ageGroupLabel(a.ageGroup).localeCompare(ageGroupLabel(b.ageGroup));
     });
 
     // Sort results within each group by time asc
@@ -884,7 +925,7 @@ export default function MeetDetailPage() {
             <Leaderboard entries={buildLeaderboard(groups)} />
           <div style={{ display: "flex", flexDirection: "column", gap: "20px", marginTop: "20px" }}>
             {groups.map((group) => {
-              const groupKey = groupKeyOf(group.event, group.gender);
+              const groupKey = groupKeyOf(group.event, group.gender, group.ageGroup);
               const isCollapsed = collapsed.has(groupKey);
               const podiumPlaces = new Set([1, 2, 3]);
               const restResults = group.results.filter((r) => r.place == null || !podiumPlaces.has(r.place));
@@ -902,6 +943,9 @@ export default function MeetDetailPage() {
                       {group.event}
                       {group.gender !== null && (
                         <span style={{ color: "rgba(255,255,255,0.25)" }}> · {genderLabel(group.gender)}</span>
+                      )}
+                      {group.ageGroup !== null && (
+                        <span style={{ color: "rgba(255,255,255,0.25)" }}> · {ageGroupLabel(group.ageGroup)}</span>
                       )}
                       {" "}<span style={{ color: "rgba(255,255,255,0.2)" }}>· {group.results.length}</span>
                     </p>
