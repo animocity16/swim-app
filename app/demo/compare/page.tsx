@@ -85,7 +85,10 @@ const RANK_STYLES: Record<number, { bg: string; border: string; numColor: string
 export default function DemoComparePage() {
   const mySwimmerId = DEMO_PRIMARY_SWIMMER_ID;
   const mySwimmer = DEMO_SWIMMERS.find((s) => s.id === mySwimmerId)!;
-  const followingSwimmers = DEMO_SWIMMERS.filter((s) => s.group_type === "following");
+  const followingSwimmers = useMemo(
+    () => DEMO_SWIMMERS.filter((s) => s.group_type === "following"),
+    []
+  );
 
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
