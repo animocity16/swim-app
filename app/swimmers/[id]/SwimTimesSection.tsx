@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -49,7 +50,7 @@ type StrokeGroup = {
   events: EventGroup[];
 };
 
-type EditingTime = { id: number; meetName: string; swamAt: string };
+type EditingTime = { id: number; meetName: string; swamAt: string; course: string };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -324,6 +325,7 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
     await supabase.from("swim_times").update({
       meet_name: editingTime.meetName.trim() || null,
       swam_at: editingTime.swamAt || null,
+      course: canonicalCourse(editingTime.course),
     }).eq("id", editingTime.id);
     setEditingTime(null);
     setSavingEdit(false);
@@ -604,6 +606,22 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
                                     onChange={(e) => setEditingTime((p) => p ? { ...p, swamAt: e.target.value } : p)}
                                     className="input"
                                   />
+                                  <p className="text-[10px] font-medium uppercase tracking-wider text-white/30">Course</p>
+                                  <div className="flex gap-1.5">
+                                    {["LCM", "SCM", "SCY"].map((c) => (
+                                      <button
+                                        key={c}
+                                        type="button"
+                                        onClick={() => setEditingTime((p) => p ? { ...p, course: c } : p)}
+                                        className="flex-1 rounded-xl py-2 text-xs font-bold transition"
+                                        style={editingTime?.course === c
+                                          ? { background: "#D97706", border: "1px solid #D97706", color: "#fff" }
+                                          : { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}
+                                      >
+                                        {c}
+                                      </button>
+                                    ))}
+                                  </div>
                                   <div className="flex gap-2">
                                     <button type="button" onClick={handleSaveEdit} disabled={savingEdit}
                                       className="flex-1 rounded-xl py-2 text-xs font-semibold text-white disabled:opacity-50"
@@ -650,7 +668,7 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
                                   </div>
                                   <div className="flex gap-1.5 flex-shrink-0">
                                     <button type="button"
-                                      onClick={() => setEditingTime({ id: time.id, meetName: time.meet_name ?? "", swamAt: time.swam_at ?? "" })}
+                                      onClick={() => setEditingTime({ id: time.id, meetName: time.meet_name ?? "", swamAt: time.swam_at ?? "", course: time.course })}
                                       className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-[11px] text-white/50 transition hover:bg-white/10">
                                       Edit
                                     </button>

@@ -375,6 +375,9 @@ export default function ScanPage() {
   const [showPicker, setShowPicker] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [savedSwimmer, setSavedSwimmer] = useState<Swimmer | null>(null);
+  const [savedTimeId, setSavedTimeId] = useState<number | null>(null);
+  const [savedCourse, setSavedCourse] = useState<"LCM" | "SCM" | "SCY" | null>(null);
+  const [savingCourseChange, setSavingCourseChange] = useState(false);
 
   // ── Event results mode ────────────────────────────────────────────────────
   const [eventRows, setEventRows] = useState<EventResultRow[]>([]);
@@ -465,7 +468,7 @@ export default function ScanPage() {
     setParsedResult(null); setDetectedEvent(null);
     setEditedTime(""); setEditedCourse(meetCourse); setTimeError(null);
     setAutoMatchedSwimmer(null); setShowPicker(false);
-    setIsSaving(false); setSavedSwimmer(null);
+    setIsSaving(false); setSavedSwimmer(null); setSavedTimeId(null); setSavedCourse(null);
     setEventRows([]); setSelectedRows(new Set());
     setSavingSelected(false); setSavedNames([]); setRowTypes({});
     setScheduleResults([]); setScheduleSwimmerName(null); setScheduleMeetName(null);
@@ -551,6 +554,7 @@ export default function ScanPage() {
         splitsWarning = " (parser found no splits for this swim)";
       }
       setMessage(`✓ Saved to ${swimmer.name}${splitsWarning}`); setSavedSwimmer(swimmer); setShowPicker(false); setAutoMatchedSwimmer(swimmer);
+      setSavedTimeId(swimRow?.id ?? null); setSavedCourse(editedCourse);
     }
     setIsSaving(false);
   }
@@ -588,11 +592,11 @@ export default function ScanPage() {
     const eventName = canonicalEventName(parsedResult.event);
     const courseName = canonicalCourse(editedCourse);
     const meetType = detectMeetType(rawText, parsedResult.meetName ?? null);
-    const { error } = await supabase.from("swim_times").insert({
+    const { data: swimRow, error } = await supabase.from("swim_times").insert({
       swimmer_id: newSwimmer.id, event: eventName, course: courseName,
       time_ms: confirmedMs, place: parsedResult.place ?? null,
       meet_name: parsedResult.meetName ?? null, swam_at: parsedResult.swamAt ?? null, meet_type: meetType,
-    });
+    }).select().single();
 
     if (error) { setMessage(`⚠️ ${error.message}`); } else {
       // ── Auto-save event name as a chip ──
@@ -608,9 +612,20 @@ export default function ScanPage() {
       }
       setMessage(`✓ Created ${newSwimmer.name} and saved result`);
       setSavedSwimmer(newSwimmer as Swimmer);
+      setSavedTimeId(swimRow?.id ?? null); setSavedCourse(editedCourse);
       setShowPicker(false); setShowCreateForm(false);
     }
     setCreatingNewSwimmer(false);
+  }
+
+  // ── Quick post-save course correction ───────────────────────────────────
+  async function handleQuickCourseChange(newCourse: "LCM" | "SCM" | "SCY") {
+    if (!savedTimeId || newCourse === savedCourse) return;
+    setSavingCourseChange(true);
+    const { error } = await supabase.from("swim_times")
+      .update({ course: canonicalCourse(newCourse) }).eq("id", savedTimeId);
+    if (!error) setSavedCourse(newCourse);
+    setSavingCourseChange(false);
   }
 
   // ── Save event results ────────────────────────────────────────────────────
@@ -775,7 +790,7 @@ export default function ScanPage() {
     setStep("scanning");
     setProgress(0); setMessage(""); setRawText(""); setScanMode(null);
     setParsedResult(null); setDetectedEvent(null); setEditedTime(""); setTimeError(null);
-    setAutoMatchedSwimmer(null); setShowPicker(false); setSavedSwimmer(null);
+    setAutoMatchedSwimmer(null); setShowPicker(false); setSavedSwimmer(null); setSavedTimeId(null); setSavedCourse(null);
     setEventRows([]); setSelectedRows(new Set()); setSavedNames([]); setRowTypes({});
     setScheduleResults([]); setScheduleSwimmerName(null); setScheduleMeetName(null);
     setSelectedScheduleRows(new Set()); setScheduleMatchedSwimmer(null); setShowSchedulePicker(false);
@@ -1223,12 +1238,31 @@ export default function ScanPage() {
                 )}
 
                 {scanMode === "single" && savedSwimmer && (
-                  <div className="rounded-2xl p-4 space-y-1"
+                  <div className="rounded-2xl p-4 space-y-2"
                     style={{ background: "rgba(186,117,23,0.08)", border: "1px solid rgba(186,117,23,0.2)" }}>
                     <p className="text-xs text-white/40 uppercase tracking-widest">Saved to</p>
                     <p className="text-base font-semibold text-white">{savedSwimmer.name}</p>
                     {detectedEvent && <p className="text-sm text-white/50">{detectedEvent}</p>}
                     {editedTime && <p className="text-2xl font-bold text-white">{editedTime}</p>}
+
+                    {savedTimeId && savedCourse && (
+                      <div className="pt-1">
+                        <p className="text-[10px] text-white/35 pb-1.5">Wrong course? Fix it here:</p>
+                        <div className="flex gap-1.5">
+                          {(["LCM", "SCM", "SCY"] as const).map((c) => (
+                            <button key={c} type="button" disabled={savingCourseChange}
+                              onClick={() => void handleQuickCourseChange(c)}
+                              className="flex-1 rounded-xl py-2 text-xs font-bold transition disabled:opacity-50"
+                              style={savedCourse === c
+                                ? { background: "#D97706", border: "1px solid #D97706", color: "#fff" }
+                                : { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.5)" }}>
+                              {c}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     <p className="text-[10px] text-white/35 pt-1">Event name saved as chip — tap it on the scan page to apply to multi-scans.</p>
                   </div>
                 )}
