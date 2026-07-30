@@ -21,11 +21,22 @@ type ResultRow = {
   swim_club: string | null;
   is_pb: boolean;
   fina_points: number | null;
+  gender: Gender | null;
 };
 
-// Group by event name only — course is shown as a tag per row
+// Grouped by event name — and by gender ONLY when the scanned official
+// placings actually collide (two different swimmers both "1st", etc.),
+// which is the one reliable signal that boys and girls were scored as
+// separate fields under the same event name. A genuinely combined field
+// (mixed gender, or a combined age group) never produces duplicate
+// placings, so it's left as a single group untouched.
+//   gender === null           -> not split, single combined field
+//   gender === "Male"/"Female" -> split, this is that gender's field
+//   gender === "unspecified"  -> split occurred, but this swimmer has no
+//                                 gender set on their Brood profile
 type EventGroup = {
   event: string;
+  gender: Gender | "unspecified" | null;
   results: ResultRow[];
 };
 
@@ -94,6 +105,17 @@ function placeColor(place: number | null): string {
   if (place === 2) return "#CBD5E1";
   if (place === 3) return "#FDBA74";
   return "rgba(255,255,255,0.45)";
+}
+
+function genderLabel(gender: Gender | "unspecified" | null): string {
+  if (gender === "Male") return "Boys";
+  if (gender === "Female") return "Girls";
+  if (gender === "unspecified") return "Unspecified";
+  return ""; // not split — no label needed
+}
+
+function groupKeyOf(event: string, gender: Gender | "unspecified" | null): string {
+  return `${event}|${gender ?? "combined"}`;
 }
 
 function buildLeaderboard(groups: EventGroup[]): LeaderboardEntry[] {
@@ -705,22 +727,54 @@ export default function MeetDetailPage() {
         swimmer_name: sw?.name ?? "Unknown", swim_club: sw?.swim_club ?? null,
         is_pb: bestEver === t.time_ms,
         fina_points: calcFinaPoints(t.time_ms, canonicalEventName(t.event), canonicalCourse(t.course), sw?.gender),
+        gender: sw?.gender ?? null,
       };
     });
 
-    // ── Group by event name ONLY — ignore course differences ──────────────────
-    const groupMap = new Map<string, EventGroup>();
+    // ── Group by event name — split by gender ONLY where placings collide ────
+    const byEvent = new Map<string, ResultRow[]>();
     for (const row of rows) {
-      const key = row.event; // course intentionally excluded from key
-      if (!groupMap.has(key)) groupMap.set(key, { event: row.event, results: [] });
-      groupMap.get(key)!.results.push(row);
+      if (!byEvent.has(row.event)) byEvent.set(row.event, []);
+      byEvent.get(row.event)!.push(row);
     }
 
-    const sortedGroups = Array.from(groupMap.values()).sort((a, b) => {
+    const finalGroups: EventGroup[] = [];
+    for (const [eventName, eventRows] of byEvent) {
+      const placeCounts = new Map<number, number>();
+      for (const r of eventRows) {
+        if (r.place == null) continue;
+        placeCounts.set(r.place, (placeCounts.get(r.place) ?? 0) + 1);
+      }
+      const hasCollision = Array.from(placeCounts.values()).some((c) => c > 1);
+
+      if (!hasCollision) {
+        // Single combined field — mixed gender or combined age group, doesn't
+        // matter which; the placings are already internally consistent.
+        finalGroups.push({ event: eventName, gender: null, results: eventRows });
+      } else {
+        const byGender = new Map<string, ResultRow[]>();
+        for (const r of eventRows) {
+          const key = r.gender ?? "unspecified";
+          if (!byGender.has(key)) byGender.set(key, []);
+          byGender.get(key)!.push(r);
+        }
+        for (const [key, subRows] of byGender) {
+          finalGroups.push({
+            event: eventName,
+            gender: key === "unspecified" ? "unspecified" : (key as Gender),
+            results: subRows,
+          });
+        }
+      }
+    }
+
+    const sortedGroups = finalGroups.sort((a, b) => {
       const sA = STROKE_ORDER.indexOf(getStroke(a.event));
       const sB = STROKE_ORDER.indexOf(getStroke(b.event));
       if (sA !== sB) return sA - sB;
-      return getDistance(a.event) - getDistance(b.event);
+      const dA = getDistance(a.event) - getDistance(b.event);
+      if (dA !== 0) return dA;
+      return genderLabel(a.gender).localeCompare(genderLabel(b.gender));
     });
 
     // Sort results within each group by time asc
@@ -830,21 +884,26 @@ export default function MeetDetailPage() {
             <Leaderboard entries={buildLeaderboard(groups)} />
           <div style={{ display: "flex", flexDirection: "column", gap: "20px", marginTop: "20px" }}>
             {groups.map((group) => {
-              const isCollapsed = collapsed.has(group.event);
+              const groupKey = groupKeyOf(group.event, group.gender);
+              const isCollapsed = collapsed.has(groupKey);
               const podiumPlaces = new Set([1, 2, 3]);
               const restResults = group.results.filter((r) => r.place == null || !podiumPlaces.has(r.place));
               return (
-                <div key={group.event}>
+                <div key={groupKey}>
                   <button
                     type="button"
-                    onClick={() => toggleEvent(group.event)}
+                    onClick={() => toggleEvent(groupKey)}
                     style={{
                       width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
                       background: "transparent", border: "none", padding: "0 2px 8px", cursor: "pointer",
                     }}
                   >
                     <p style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(255,255,255,0.35)" }}>
-                      {group.event} <span style={{ color: "rgba(255,255,255,0.2)" }}>· {group.results.length}</span>
+                      {group.event}
+                      {group.gender !== null && (
+                        <span style={{ color: "rgba(255,255,255,0.25)" }}> · {genderLabel(group.gender)}</span>
+                      )}
+                      {" "}<span style={{ color: "rgba(255,255,255,0.2)" }}>· {group.results.length}</span>
                     </p>
                     <svg width="14" height="14" viewBox="0 0 16 16" fill="none"
                       style={{ transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)", transition: "transform 0.15s", opacity: 0.4, flexShrink: 0 }}>
