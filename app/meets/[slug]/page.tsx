@@ -42,6 +42,11 @@ type EventGroup = {
   gender: Gender | "unspecified" | null;
   ageGroup: number | "unspecified" | null;
   results: ResultRow[];
+  // True only when a placing collision survives even after splitting by
+  // gender and age — almost always a genuine scan/data-entry mistake (e.g.
+  // a place number misread) rather than a grouping problem. Surfaced as a
+  // visible warning instead of being silently hidden.
+  hasWarning: boolean;
 };
 
 type LeaderboardEntry = {
@@ -697,13 +702,14 @@ export default function MeetDetailPage() {
 
     const { data: meetTimes } = await supabase
       .from("swim_times")
-      .select("id, event, course, time_ms, place, swam_at, swimmer_id")
+      .select("id, event, course, time_ms, place, swam_at, swimmer_id, age_at_swim")
       .in("swimmer_id", swimmerIds)
       .eq("meet_name", meetName);
 
     const meetTimesArr = (meetTimes ?? []) as {
       id: number; event: string; course: string; time_ms: number;
       place: number | null; swam_at: string | null; swimmer_id: number;
+      age_at_swim: number | null;
     }[];
 
     if (meetTimesArr.length === 0) { setLoading(false); return; }
@@ -727,7 +733,7 @@ export default function MeetDetailPage() {
   }
 
   function buildGroups(
-    meetTimesArr: { id: number; event: string; course: string; time_ms: number; place: number | null; swam_at: string | null; swimmer_id: number }[],
+    meetTimesArr: { id: number; event: string; course: string; time_ms: number; place: number | null; swam_at: string | null; swimmer_id: number; age_at_swim: number | null }[],
     swimmerMap: Map<number, { name: string; swim_club: string | null; gender: Gender | null; age: number | null }>,
     pbMap: Map<string, number>,
   ) {
@@ -742,7 +748,11 @@ export default function MeetDetailPage() {
         is_pb: bestEver === t.time_ms,
         fina_points: calcFinaPoints(t.time_ms, canonicalEventName(t.event), canonicalCourse(t.course), sw?.gender),
         gender: sw?.gender ?? null,
-        age: sw?.age ?? null,
+        // Prefer the age captured directly from the scan at the time of this
+        // specific meet — it's the ground truth for what field a swimmer was
+        // actually in. Only fall back to their current Brood profile age for
+        // older results scanned before age_at_swim existed.
+        age: t.age_at_swim ?? sw?.age ?? null,
       };
     });
 
@@ -768,7 +778,7 @@ export default function MeetDetailPage() {
     const finalGroups: EventGroup[] = [];
     for (const [eventName, eventRows] of byEvent) {
       if (!hasPlaceCollision(eventRows)) {
-        finalGroups.push({ event: eventName, gender: null, ageGroup: null, results: eventRows });
+        finalGroups.push({ event: eventName, gender: null, ageGroup: null, results: eventRows, hasWarning: false });
         continue;
       }
 
@@ -783,7 +793,7 @@ export default function MeetDetailPage() {
         const genderVal: Gender | "unspecified" = genderKey === "unspecified" ? "unspecified" : (genderKey as Gender);
 
         if (!hasPlaceCollision(genderRows)) {
-          finalGroups.push({ event: eventName, gender: genderVal, ageGroup: null, results: genderRows });
+          finalGroups.push({ event: eventName, gender: genderVal, ageGroup: null, results: genderRows, hasWarning: false });
           continue;
         }
 
@@ -802,6 +812,9 @@ export default function MeetDetailPage() {
             gender: genderVal,
             ageGroup: ageKey === "unspecified" ? "unspecified" : Number(ageKey),
             results: ageRows,
+            // If a collision is STILL here after both splits, gender and age
+            // genuinely aren't the cause — don't guess further, just flag it.
+            hasWarning: hasPlaceCollision(ageRows),
           });
         }
       }
@@ -948,6 +961,11 @@ export default function MeetDetailPage() {
                         <span style={{ color: "rgba(255,255,255,0.25)" }}> · {ageGroupLabel(group.ageGroup)}</span>
                       )}
                       {" "}<span style={{ color: "rgba(255,255,255,0.2)" }}>· {group.results.length}</span>
+                      {group.hasWarning && (
+                        <span style={{ color: "#FCA5A5", marginLeft: "6px", letterSpacing: "normal" }} title="Duplicate placing found — likely a scan mistake, hold a result to correct it">
+                          ⚠️ check placings
+                        </span>
+                      )}
                     </p>
                     <svg width="14" height="14" viewBox="0 0 16 16" fill="none"
                       style={{ transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)", transition: "transform 0.15s", opacity: 0.4, flexShrink: 0 }}>

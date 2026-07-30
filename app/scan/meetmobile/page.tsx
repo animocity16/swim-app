@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -658,6 +659,7 @@ export default function ScanPage() {
           swimmer_id: newSwimmer.id, event: en2, course: cn2, time_ms: row.timeMs,
           place: row.place ?? null, meet_name: resolvedEventMeetName ?? row.meetName ?? null,
           swam_at: (eventMeetDate.trim() || row.swamAt) ?? null, meet_type: meetType,
+          age_at_swim: row.age ?? null,
         });
         saved.push(`${row.name} (added)`); continue;
       }
@@ -674,6 +676,7 @@ export default function ScanPage() {
         swimmer_id: matched.id, event: eventName, course: courseName, time_ms: row.timeMs,
         place: row.place ?? null, meet_name: resolvedEventMeetName ?? row.meetName ?? null,
         swam_at: (eventMeetDate.trim() || row.swamAt) ?? null, meet_type: meetType,
+        age_at_swim: row.age ?? null,
       });
       error ? errors.push(`${row.name}: ${error.message}`) : saved.push(row.name);
     }
