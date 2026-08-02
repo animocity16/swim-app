@@ -47,14 +47,26 @@ export type ParsedSwimmerSchedule = {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+// FIX: OCR frequently misreads a "5" as a "6" in the tens digit of a seconds
+// field (e.g. actual "52" gets read as "62"). Rather than discarding the whole
+// result when seconds >= 60, reverse that swap the same way ocrMultiEventParser.ts
+// already does. Only values in [60,70) are treated as a probable 5→6 misread;
+// anything else is still invalid and rejected.
+function repairOCRSeconds(sec: number): number | null {
+  if (sec < 60) return sec;
+  if (sec < 70) return sec - 10;
+  return null;
+}
+
 function timeToMs(timeStr: string): number {
   if (!timeStr) return 0;
   const s = timeStr.trim();
   if (s.includes(":")) {
     const [mm, rest] = s.split(":");
     const [sec, hun] = rest.split(".");
-    if (Number(sec) >= 60) return 0;
-    return Number(mm) * 60_000 + Number(sec) * 1_000 + Number(hun ?? "0") * 10;
+    const fixedSec = repairOCRSeconds(Number(sec));
+    if (fixedSec == null) return 0;
+    return Number(mm) * 60_000 + fixedSec * 1_000 + Number(hun ?? "0") * 10;
   }
   const [sec, hun] = s.split(".");
   return Number(sec) * 1_000 + Number(hun ?? "0") * 10;
@@ -68,21 +80,26 @@ function timeToMs(timeStr: string): number {
 //   "215.72" → "2:15.72"
 //   "11803"  → "1:18.03" (5 raw digits)
 //   "1:3817" → "1:38.17" (OCR drops decimal in mm:sscc format)
+//   "2:62.93" → "2:52.93" (OCR misreads "5" as "6" in seconds tens digit)
 function repairTime(raw: string): string | null {
   // Normalize comma-as-decimal first (OCR reads "47,53" instead of "47.53")
   const s = raw.trim().replace(/,/g, ".");
+
   if (/^\d{1,2}:\d{2}\.\d{2}$/.test(s)) {
-    const sec = Number(s.split(":")[1].split(".")[0]);
-    if (sec >= 60) return null;
-    return s;
+    const [mm, rest] = s.split(":");
+    const [rawSec, hun] = rest.split(".");
+    const fixedSec = repairOCRSeconds(Number(rawSec));
+    if (fixedSec == null) return null;
+    return `${mm}:${String(fixedSec).padStart(2, "0")}.${hun}`;
   }
   // FIX: "1:3817" → "1:38.17" — OCR drops the decimal point in mm:sscc format
   if (/^\d{1,2}:\d{4}$/.test(s)) {
     const [mm, rest] = s.split(":");
-    const sec = rest.slice(0, 2);
+    const rawSec = rest.slice(0, 2);
     const hun = rest.slice(2);
-    if (Number(sec) >= 60) return null;
-    return `${mm}:${sec}.${hun}`;
+    const fixedSec = repairOCRSeconds(Number(rawSec));
+    if (fixedSec == null) return null;
+    return `${mm}:${String(fixedSec).padStart(2, "0")}.${hun}`;
   }
   if (/^\d{2}\.\d{2}$/.test(s)) return s;
   // "4753" → "47.53" (4-digit: OCR dropped the decimal point for sub-minute times)
@@ -93,17 +110,19 @@ function repairTime(raw: string): string | null {
     return `${s.slice(0, 2)}.${s.slice(2)}`;
   }
   if (/^\d{5}$/.test(s)) {
-    const sec = Number(s.slice(1, 3));
-    if (sec >= 60) return null;
-    return `${s[0]}:${s.slice(1, 3)}.${s.slice(3)}`;
+    const rawSec = Number(s.slice(1, 3));
+    const fixedSec = repairOCRSeconds(rawSec);
+    if (fixedSec == null) return null;
+    return `${s[0]}:${String(fixedSec).padStart(2, "0")}.${s.slice(3)}`;
   }
   // "118.03" or "215.72" — 3 digits, dot, 2 digits
   if (/^\d{3}\.\d{2}$/.test(s)) {
     const mins = s[0];
-    const sec = s.slice(1, 3);
+    const rawSec = s.slice(1, 3);
     const hun = s.slice(4);
-    if (Number(sec) >= 60) return null;
-    return `${mins}:${sec}.${hun}`;
+    const fixedSec = repairOCRSeconds(Number(rawSec));
+    if (fixedSec == null) return null;
+    return `${mins}:${String(fixedSec).padStart(2, "0")}.${hun}`;
   }
   return null;
 }
@@ -202,13 +221,16 @@ function isEventDescriptionLine(line: string): boolean {
 //   "3:02.40 | Place:"   (place missing)
 //   "3676 | Place: 18"   (OCR drops decimal → 4-digit raw time)
 //   "47,53 | Place: 29"  (OCR reads decimal as comma)
-//   "1:3817 | Place: 6"  (OCR drops decimal in mm:sscc → repairTime handles)
+//   "1:3817 | Place: 6"  (OCR drops decimal in mm:sscc format → repairTime handles)
 //   "45.31] Place: 9"    (OCR reads pipe as ] bracket)
+//   "2:62.93 | Place: 4" (OCR misreads "5" as "6" in seconds tens digit → repairTime handles)
 //
 // FIX 1: pipe character is now optional and accepts OCR alternatives (l, 1, I, ]).
 // FIX 2: 4-digit raw times (e.g. "4753") now accepted for sub-minute events.
 // FIX 3: comma-decimal (e.g. "47,53") now accepted.
 // FIX 4: mm:sscc format without decimal (e.g. "1:3817") now accepted.
+// FIX 5: seconds >= 60 no longer silently drops the whole event — repairTime
+//        first tries reversing a likely 5→6 OCR misread before giving up.
 
 function extractTimePlaceFromLine(line: string): {
   timeStr: string; timeMs: number; place: number | null;
