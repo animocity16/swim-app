@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabaseClient";
 import SwimTimesSection from "./SwimTimesSection";
 import ProgressTab from "./ProgressTab";
 import StandardsTab from "./StandardsTab";
+import DiaryTab from "./DiaryTab";
 
 type Swimmer = {
   id: number;
@@ -23,7 +24,7 @@ type Swimmer = {
   user_id?: string | null;
 };
 
-type Tab = "times" | "progress" | "standards";
+type Tab = "times" | "progress" | "standards" | "diary";
 
 const AVATAR_COLORS = [
   { bg: "#0F6E56", text: "#9FE1CB" },
@@ -56,7 +57,6 @@ export default function SwimmerProfilePage() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
-  // Edit mode
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState("");
   const [editAge, setEditAge] = useState("");
@@ -131,8 +131,6 @@ export default function SwimmerProfilePage() {
     setSaving(false);
   }
 
-  // ─── Loading ──────────────────────────────────────────────────────────────────
-
   if (loading) {
     return (
       <div className="shell">
@@ -182,8 +180,6 @@ export default function SwimmerProfilePage() {
   const isPrimary = swimmer.group_type === "primary";
   const avatarBg   = isPrimary ? "var(--natrix-avatar-colour, " + colors.bg + ")" : colors.bg;
   const avatarText = isPrimary ? "var(--natrix-avatar-text, " + colors.text + ")" : colors.text;
-
-  // ─── Edit mode view ───────────────────────────────────────────────────────────
 
   if (editing) {
     return (
@@ -251,13 +247,10 @@ export default function SwimmerProfilePage() {
     );
   }
 
-  // ─── Main profile view ────────────────────────────────────────────────────────
-
   return (
     <div className="shell">
       <div className="container-app space-y-5">
 
-        {/* Back nav */}
         <div className="flex items-center justify-between pt-2">
           <Link href="/swimmers" className="flex items-center gap-2 text-white/50 text-sm">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -274,7 +267,6 @@ export default function SwimmerProfilePage() {
           </button>
         </div>
 
-        {/* Profile card */}
         <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
           <div className="flex items-center gap-4">
             <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-2xl text-lg font-bold"
@@ -294,7 +286,6 @@ export default function SwimmerProfilePage() {
             </div>
           </div>
 
-          {/* Badges row */}
           <div className="flex flex-wrap gap-2 mt-4">
             {isPrimary && (
               <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold"
@@ -320,8 +311,8 @@ export default function SwimmerProfilePage() {
         {/* Tab bar */}
         <div className="flex rounded-2xl overflow-hidden"
           style={{ background: "rgba(0,20,50,0.3)", border: "1px solid rgba(255,255,255,0.1)" }}>
-          {(["times", "progress", "standards"] as Tab[]).map((tab) => {
-            const labels: Record<Tab, string> = { times: "Times", progress: "Progress", standards: "Standards" };
+          {(["times", "progress", "standards", "diary"] as Tab[]).map((tab) => {
+            const labels: Record<Tab, string> = { times: "Times", progress: "Progress", standards: "Standards", diary: "Diary" };
             const active = activeTab === tab;
             return (
               <button key={tab} type="button" onClick={() => setActiveTab(tab)}
@@ -335,7 +326,6 @@ export default function SwimmerProfilePage() {
           })}
         </div>
 
-        {/* Tab content */}
         {activeTab === "times" && (
           <SwimTimesSection
             swimmerId={swimmer.id}
@@ -355,6 +345,10 @@ export default function SwimmerProfilePage() {
             swimmerGender={swimmer.gender}
             swimmerSquad={swimmer.squad}
           />
+        )}
+
+        {activeTab === "diary" && (
+          <DiaryTab swimmerId={swimmer.id} swimmerName={swimmer.name} />
         )}
 
         <div className="h-4" />
