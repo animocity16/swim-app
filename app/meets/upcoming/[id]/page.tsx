@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { createWorker } from "tesseract.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -154,6 +155,179 @@ function parsePDF(text: string, swimmerNames: string[]): ParsedEvent[] {
   }
 
   return results;
+}
+
+// ─── PDF text-layer extraction (fast path, runs in the browser) ─────────────
+// Some start lists export with a real, selectable text layer, in which case
+// we can read it directly - instant and free, no OCR needed.
+//
+// HY-TEK Meet Manager start lists are often printed in TWO newspaper-style
+// columns per page (left column top-to-bottom, then right column top-to-bottom)
+// to save paper. If we naively group text into rows purely by y-coordinate,
+// a left-column row and a right-column row that happen to sit at the same
+// page height get sorted left-to-right and glued into ONE line - silently
+// merging two unrelated heats and scrambling the event/heat state our line
+// parser relies on.
+//
+// Fix: detect the column gap on each page, split items into left/right
+// columns BEFORE row-grouping, and process each column as its own top-to-
+// bottom line stream - matching the actual human reading order of the page.
+
+async function getPdfjs() {
+  const pdfjsLib = await import("pdfjs-dist");
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+  return pdfjsLib;
+}
+
+async function extractTextFromTextLayer(file: File): Promise<string> {
+  const pdfjsLib = await getPdfjs();
+  const buffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+  let fullText = "";
+
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+
+    type Item = { str: string; x: number; y: number };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const items: Item[] = (content.items as any[])
+      .filter((it) => "str" in it && it.str.trim() !== "")
+      .map((it) => ({ str: it.str, x: it.transform[4], y: it.transform[5] }));
+
+    if (items.length === 0) continue;
+
+    const xs = [...new Set(items.map((it) => it.x))].sort((a, b) => a - b);
+    let splitX: number | null = null;
+    if (xs.length > 1) {
+      const pageWidth = xs[xs.length - 1] - xs[0];
+      let maxGap = 0;
+      let gapMid = 0;
+      for (let j = 1; j < xs.length; j++) {
+        const gap = xs[j] - xs[j - 1];
+        const mid = xs[j - 1] + gap / 2;
+        const relPos = pageWidth > 0 ? (mid - xs[0]) / pageWidth : 0;
+        if (gap > maxGap && relPos > 0.35 && relPos < 0.65) {
+          maxGap = gap;
+          gapMid = mid;
+        }
+      }
+      if (maxGap > 40) {
+        splitX = gapMid;
+      }
+    }
+
+    const columns: Item[][] =
+      splitX === null
+        ? [items]
+        : [
+            items.filter((it) => it.x < (splitX as number)),
+            items.filter((it) => it.x >= (splitX as number)),
+          ];
+
+    const pageLines: string[] = [];
+    const Y_TOLERANCE = 2;
+
+    for (const colItems of columns) {
+      if (colItems.length === 0) continue;
+      const sorted = [...colItems].sort((a, b) => b.y - a.y || a.x - b.x);
+      const rows: Item[][] = [];
+      for (const item of sorted) {
+        const row = rows.find((r) => Math.abs(r[0].y - item.y) <= Y_TOLERANCE);
+        if (row) row.push(item);
+        else rows.push([item]);
+      }
+      const colLines = rows.map((row) =>
+        row.sort((a, b) => a.x - b.x).map((it) => it.str).join(" ")
+      );
+      pageLines.push(...colLines);
+    }
+
+    fullText += pageLines.join("\n") + "\n";
+  }
+
+  return fullText;
+}
+
+// ─── OCR fallback (scanned / image-only PDFs) ────────────────────────────────
+// Some start lists have NO real text layer at all - the whole results table
+// is a single full-page image per page, with only a tiny caption as actual
+// text. Text extraction has nothing real to return in that case, so we
+// render each page to a canvas and run OCR on it instead, splitting into
+// left/right halves first to preserve the same two-column reading order as
+// the text-layer path above. This all runs in the browser - no server
+// timeout risk, just a wait while your phone/laptop does the work.
+
+async function extractTextViaOcr(
+  file: File,
+  onProgress?: (message: string) => void
+): Promise<string> {
+  const pdfjsLib = await getPdfjs();
+  const buffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+
+  const worker = await createWorker("eng");
+  await worker.setParameters({
+    tessedit_pageseg_mode: "6" as any, // uniform block of text - good for dense tables
+  });
+
+  let fullText = "";
+  try {
+    for (let i = 1; i <= pdf.numPages; i++) {
+      onProgress?.(`Reading page ${i} of ${pdf.numPages} (this can take a bit)...`);
+
+      const page = await pdf.getPage(i);
+      const scale = 3; // higher scale = sharper text = better OCR accuracy
+      const viewport = page.getViewport({ scale });
+
+      const pageCanvas = document.createElement("canvas");
+      pageCanvas.width = viewport.width;
+      pageCanvas.height = viewport.height;
+      const pageCtx = pageCanvas.getContext("2d")!;
+      await page.render({ canvasContext: pageCtx, viewport, canvas: pageCanvas }).promise;
+
+      const halfWidth = Math.floor(pageCanvas.width / 2);
+      const halves: [number, number][] = [
+        [0, halfWidth],
+        [halfWidth, pageCanvas.width - halfWidth],
+      ];
+
+      for (const [startX, w] of halves) {
+        const colCanvas = document.createElement("canvas");
+        colCanvas.width = w;
+        colCanvas.height = pageCanvas.height;
+        const colCtx = colCanvas.getContext("2d")!;
+        colCtx.drawImage(pageCanvas, startX, 0, w, pageCanvas.height, 0, 0, w, pageCanvas.height);
+
+        const { data: ocrData } = await worker.recognize(colCanvas);
+        fullText += ocrData.text + "\n";
+      }
+    }
+  } finally {
+    await worker.terminate();
+  }
+
+  return fullText;
+}
+
+async function extractStartListText(
+  file: File,
+  onProgress?: (message: string) => void
+): Promise<{ text: string; usedOcr: boolean }> {
+  onProgress?.("Reading PDF text...");
+  const textLayerResult = await extractTextFromTextLayer(file);
+
+  // Heuristic: a real text layer for a start list should contain at least
+  // one "Event ..." header. If it doesn't, there's no usable text layer -
+  // the PDF is image-only - so fall back to OCR.
+  const looksLikeRealTextLayer = /Event\s+\d+/i.test(textLayerResult);
+  if (looksLikeRealTextLayer) {
+    return { text: textLayerResult, usedOcr: false };
+  }
+
+  onProgress?.("No readable text found - running OCR instead...");
+  const ocrResult = await extractTextViaOcr(file, onProgress);
+  return { text: ocrResult, usedOcr: true };
 }
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
@@ -451,6 +625,7 @@ export default function UpcomingMeetDetailPage() {
   const [debugData, setDebugData] = useState<{ swimmerNames: string[]; totalLines: number; rawTextSample: string; first80Lines: string[] } | null>(null);
   const [debugSearchTerm, setDebugSearchTerm] = useState("");
   const [lastFile, setLastFile] = useState<File | null>(null);
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -512,16 +687,35 @@ export default function UpcomingMeetDetailPage() {
     );
   }
 
+  function buildDebugInfo(text: string) {
+    const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+    let windowLines = lines.slice(0, 80);
+
+    if (debugSearchTerm.trim()) {
+      const idx = lines.findIndex((l) => l.toLowerCase().includes(debugSearchTerm.trim().toLowerCase()));
+      if (idx !== -1) {
+        const start = Math.max(0, idx - 15);
+        const end = Math.min(lines.length, idx + 25);
+        windowLines = lines.slice(start, end).map((l, i) => `[${start + i}] ${l}`);
+      } else {
+        windowLines = [`No line found containing "${debugSearchTerm}"`];
+      }
+    } else {
+      windowLines = windowLines.map((l, i) => `[${i}] ${l}`);
+    }
+
+    return {
+      swimmerNames: selectedSwimmers,
+      totalLines: lines.length,
+      rawTextSample: text.slice(0, 3000),
+      first80Lines: windowLines,
+    };
+  }
+
   async function runDebugSearch() {
     if (!lastFile) return;
-    const formData = new FormData();
-    formData.append("file", lastFile);
-    formData.append("swimmerNames", JSON.stringify(selectedSwimmers));
-    formData.append("debug", "true");
-    formData.append("debugSearch", debugSearchTerm);
-    const res = await fetch("/api/parse-start-list", { method: "POST", body: formData });
-    const data = await res.json();
-    if (data.debug) setDebugData(data.debug);
+    const { text } = await extractStartListText(lastFile);
+    setDebugData(buildDebugInfo(text));
   }
 
   async function handlePDFUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -535,27 +729,23 @@ export default function UpcomingMeetDetailPage() {
 
     setUploading(true);
     setUploadError(null);
+    setUploadStatus(null);
     setLastFile(file);
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("swimmerNames", JSON.stringify(selectedSwimmers));
-      formData.append("debug", "true");
-      formData.append("debugSearch", debugSearchTerm);
+      // Runs entirely in the browser — text extraction first, and OCR (also
+      // in-browser) only if the PDF turns out to have no real text layer.
+      // Nothing is uploaded to a server for this step.
+      const { text } = await extractStartListText(file, (msg) => setUploadStatus(msg));
 
-      const res = await fetch("/api/parse-start-list", { method: "POST", body: formData });
-      const data = await res.json();
+      setDebugData(buildDebugInfo(text));
 
-      if (!res.ok) throw new Error(data.error || "Failed to parse PDF");
-
-      if (data.debug) setDebugData(data.debug);
-
-      const parsed: ParsedEvent[] = data.events;
+      const parsed: ParsedEvent[] = parsePDF(text, selectedSwimmers);
 
       if (parsed.length === 0) {
         setUploadError("No matching swimmers found in this PDF. Check the start list is for the right session.");
         setUploading(false);
+        setUploadStatus(null);
         return;
       }
 
@@ -588,6 +778,7 @@ export default function UpcomingMeetDetailPage() {
     }
 
     setUploading(false);
+    setUploadStatus(null);
   }
 
   // ── Loading ─────────────────────────────────────────────────────────────────
@@ -661,7 +852,9 @@ export default function UpcomingMeetDetailPage() {
             {uploading ? (
               <>
                 <div style={{ fontSize: "24px" }}>⏳</div>
-                <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.5)" }}>Reading PDF...</p>
+                <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.5)" }}>
+                  {uploadStatus ?? "Reading PDF..."}
+                </p>
               </>
             ) : events.length > 0 ? (
               <>
