@@ -92,10 +92,20 @@ function parsePDF(text: string, swimmerNames: string[]): ParsedEvent[] {
   // Event header pattern: "Event 501 Boys 7-12 50 LC Meter Backstroke"
   const eventRe = /^Event\s+(\d+)\s+.+?(\d+)\s+LC\s+Meter\s+(.+)$/i;
   // Heat header: "Heat 1 of 23 Finals Starts at 09:00 AM"
-  const heatStartRe = /^Heat\s+(\d+)\s+of\s+\d+.*?Starts at\s+(\d+:\d+\s+[AP]M)/i;
+  // Spacing around "of" / "Starts at" made optional (\s*) rather than
+  // required (\s+) because OCR frequently merges words together with no
+  // space at all - e.g. "Heat 1of2 Finals Startsat 09:16 AM".
+  const heatStartRe = /^Heat\s+(\d+)\s*of\s*\d+.*?Starts\s*at\s+(\d+:\d+\s*[AP]M)/i;
   const heatRe = /^Heat\s+(\d+)/i;
   // Lane row: "4 Taguchi, Maxwell Shouki 12 SSC 34.31"
-  const laneRe = /^(\d)\s+(.+?)\s+\d+\s+[A-Z0-9\-]+\s+([\d:]+\.?\d*|NT)\s*$/;
+  // Two things loosened here versus a real PDF text layer:
+  // - Team code is matched case-insensitively (/i) - OCR often reads
+  //   printed team codes like "SSC" back as lowercase "ssc".
+  // - No longer anchored to end-of-line after the time - the blank line
+  //   printed for a scorer to pencil in the actual result often gets read
+  //   by OCR as a trailing underscore or two, which would otherwise stop
+  //   the whole line from matching at all.
+  const laneRe = /^(\d)\s+(.+?)\s+\d+\s+[A-Z0-9\-]+\s+([\d:]+\.?\d*|NT)/i;
 
   for (const line of lines) {
     // Event header
