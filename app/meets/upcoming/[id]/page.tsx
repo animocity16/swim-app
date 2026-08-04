@@ -175,7 +175,15 @@ function parsePDF(text: string, swimmerNames: string[]): ParsedEvent[] {
 
 async function getPdfjs() {
   const pdfjsLib = await import("pdfjs-dist");
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+  // Load the worker file straight out of the installed pdfjs-dist package
+  // instead of fetching it from an external CDN at runtime. This guarantees
+  // the worker always matches the exact version bundled with the app (no
+  // version-mismatch or CORS/network surprises in production), and is the
+  // pattern pdfjs-dist itself recommends for bundlers like Next.js.
+  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+    "pdfjs-dist/build/pdf.worker.min.mjs",
+    import.meta.url
+  ).toString();
   return pdfjsLib;
 }
 
@@ -333,7 +341,17 @@ async function extractStartListText(
   onProgress?: (message: string) => void
 ): Promise<{ text: string; usedOcr: boolean }> {
   onProgress?.("Reading PDF text...");
-  const textLayerResult = await extractTextFromTextLayer(file);
+
+  // The text-layer attempt is wrapped so that ANY failure here (not just
+  // "no text found") falls through to OCR rather than failing the whole
+  // upload - text-layer reading is a nice-to-have fast path, OCR is the
+  // path that actually has to work for image-only PDFs like this one.
+  let textLayerResult = "";
+  try {
+    textLayerResult = await extractTextFromTextLayer(file);
+  } catch (err) {
+    console.error("Text-layer extraction failed, falling back to OCR:", err);
+  }
 
   // Heuristic: a real text layer for a start list should contain at least
   // one "Event ..." header. If it doesn't, there's no usable text layer -
