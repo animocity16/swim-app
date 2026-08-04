@@ -258,6 +258,19 @@ async function extractTextFromTextLayer(file: File): Promise<string> {
 // the text-layer path above. This all runs in the browser - no server
 // timeout risk, just a wait while your phone/laptop does the work.
 
+// Canvas → Blob, wrapped as a Promise. Tesseract's worker runs in a separate
+// thread and talks to the page via postMessage, which can carry a Blob but
+// can't carry a live <canvas> element - handing it a raw canvas is what was
+// throwing "undefined is not a function" on iOS Safari.
+function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error("Could not convert page image to a blob for OCR."));
+    }, "image/png");
+  });
+}
+
 async function extractTextViaOcr(
   file: File,
   onProgress?: (message: string) => void
@@ -266,10 +279,14 @@ async function extractTextViaOcr(
   const buffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
 
-  const worker = await createWorker("eng");
-  await worker.setParameters({
-    tessedit_pageseg_mode: "6" as any, // uniform block of text - good for dense tables
+  const worker = await createWorker("eng", 1, {
+    logger: (m: any) => {
+      if (m.status === "recognizing text") {
+        onProgress?.(`Reading text (${Math.round(m.progress * 100)}%)...`);
+      }
+    },
   });
+  await (worker as any).setParameters({ tessedit_pageseg_mode: "6" });
 
   let fullText = "";
   try {
@@ -299,7 +316,8 @@ async function extractTextViaOcr(
         const colCtx = colCanvas.getContext("2d")!;
         colCtx.drawImage(pageCanvas, startX, 0, w, pageCanvas.height, 0, 0, w, pageCanvas.height);
 
-        const { data: ocrData } = await worker.recognize(colCanvas);
+        const blob = await canvasToBlob(colCanvas);
+        const { data: ocrData } = await worker.recognize(blob);
         fullText += ocrData.text + "\n";
       }
     }
@@ -774,7 +792,13 @@ export default function UpcomingMeetDetailPage() {
 
       await load();
     } catch (err) {
-      setUploadError(err instanceof Error ? err.message : "Failed to parse PDF");
+      // Full message + stack, not just Safari's truncated one-liner - this
+      // is the only console you get on a phone with no Mac to plug into.
+      const detail =
+        err instanceof Error
+          ? `${err.message}${err.stack ? "\n\n" + err.stack : ""}`
+          : String(err);
+      setUploadError(detail);
     }
 
     setUploading(false);
@@ -884,9 +908,15 @@ export default function UpcomingMeetDetailPage() {
             style={{ display: "none" }}
           />
           {uploadError && (
-            <p style={{ fontSize: "12px", color: "#f87171", marginTop: "8px", textAlign: "center" }}>
+            <pre style={{
+              fontSize: "11px", color: "#f87171", marginTop: "8px", textAlign: "left",
+              whiteSpace: "pre-wrap", wordBreak: "break-word",
+              background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)",
+              borderRadius: "10px", padding: "10px", maxHeight: "200px", overflowY: "auto",
+              fontFamily: "monospace",
+            }}>
               {uploadError}
-            </p>
+            </pre>
           )}
         </div>
 
