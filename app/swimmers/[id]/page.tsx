@@ -309,17 +309,17 @@ export default function SwimmerProfilePage() {
         </div>
 
         {/* Tab bar */}
-        <div className="flex rounded-2xl overflow-hidden"
+        <div className="flex gap-1.5 overflow-x-auto rounded-2xl p-1.5 scrollbar-none"
           style={{ background: "rgba(0,20,50,0.3)", border: "1px solid rgba(255,255,255,0.1)" }}>
           {(["times", "progress", "standards", "diary"] as Tab[]).map((tab) => {
             const labels: Record<Tab, string> = { times: "Times", progress: "Progress", standards: "Standards", diary: "Diary" };
             const active = activeTab === tab;
             return (
               <button key={tab} type="button" onClick={() => setActiveTab(tab)}
-                className="flex-1 py-3 text-xs font-semibold uppercase tracking-wider transition"
+                className="flex-shrink-0 whitespace-nowrap rounded-xl px-4 py-2.5 text-xs font-semibold uppercase tracking-wide transition"
                 style={active
-                  ? { background: "rgba(217,119,6,0.2)", color: "#FDE68A", borderBottom: "2px solid #D97706" }
-                  : { color: "rgba(255,255,255,0.4)" }}>
+                  ? { background: "rgba(217,119,6,0.2)", color: "#FDE68A", border: "1px solid rgba(253,230,138,0.35)" }
+                  : { color: "rgba(255,255,255,0.4)", border: "1px solid transparent" }}>
                 {labels[tab]}
               </button>
             );
