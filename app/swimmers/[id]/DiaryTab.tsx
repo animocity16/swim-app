@@ -65,6 +65,7 @@ function parseTimeInputToMs(value: string) {
 export default function DiaryTab({ swimmerId, swimmerName = "Swimmer" }: Props) {
   const [rows, setRows] = useState<TrainingRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [newDistance, setNewDistance] = useState(100);
@@ -74,6 +75,7 @@ export default function DiaryTab({ swimmerId, swimmerName = "Swimmer" }: Props) 
   const [newLoggedBy, setNewLoggedBy] = useState("Parent");
   const [saving, setSaving] = useState(false);
   const [addStatus, setAddStatus] = useState("");
+  const [addStatusIsError, setAddStatusIsError] = useState(false);
 
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editDate, setEditDate] = useState("");
@@ -84,17 +86,29 @@ export default function DiaryTab({ swimmerId, swimmerName = "Swimmer" }: Props) 
 
   async function loadEntries() {
     setLoading(true);
+    setLoadError("");
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("training_times")
         .select("id, swimmer_id, distance, stroke, time_ms, swam_at, logged_by, created_at")
         .eq("swimmer_id", swimmerId)
         .order("swam_at", { ascending: false })
         .order("created_at", { ascending: false });
 
+      if (error) {
+        console.error("DiaryTab loadEntries error:", error);
+        setLoadError(error.message || "Couldn't load diary entries.");
+        setRows([]);
+        return;
+      }
+
       setRows(((data as TrainingRow[]) || []).filter(
         (r) => typeof r.id === "number" && typeof r.time_ms === "number"
       ));
+    } catch (err: any) {
+      console.error("DiaryTab loadEntries exception:", err);
+      setLoadError(err?.message || "Couldn't load diary entries.");
+      setRows([]);
     } finally {
       setLoading(false);
     }
@@ -102,28 +116,55 @@ export default function DiaryTab({ swimmerId, swimmerName = "Swimmer" }: Props) 
 
   async function handleAdd() {
     const ms = parseTimeInputToMs(newTime);
-    if (!ms) { setAddStatus("Enter a valid time e.g. 35.04 or 1:12.33"); return; }
+    if (!ms) {
+      setAddStatusIsError(true);
+      setAddStatus("Enter a valid time e.g. 35.04 or 1:12.33");
+      return;
+    }
     setSaving(true);
+    setAddStatusIsError(false);
     setAddStatus("Saving...");
-    const { error } = await supabase.from("training_times").insert([{
-      swimmer_id: swimmerId,
-      distance: newDistance,
-      stroke: newStroke,
-      time_ms: ms,
-      swam_at: newDate || null,
-      logged_by: newLoggedBy,
-    }]);
-    if (error) { setAddStatus(`Error: ${error.message}`); setSaving(false); return; }
-    setNewDistance(100); setNewStroke("Free"); setNewTime(""); setNewDate("");
-    setShowAddForm(false); setAddStatus("");
-    await loadEntries();
-    setSaving(false);
+    try {
+      const { error } = await supabase.from("training_times").insert([{
+        swimmer_id: swimmerId,
+        distance: newDistance,
+        stroke: newStroke,
+        time_ms: ms,
+        swam_at: newDate || null,
+        logged_by: newLoggedBy,
+      }]);
+      if (error) {
+        console.error("DiaryTab handleAdd error:", error);
+        setAddStatusIsError(true);
+        setAddStatus(`Couldn't save: ${error.message}`);
+        return;
+      }
+      setNewDistance(100); setNewStroke("Free"); setNewTime(""); setNewDate("");
+      setShowAddForm(false); setAddStatus(""); setAddStatusIsError(false);
+      await loadEntries();
+    } catch (err: any) {
+      console.error("DiaryTab handleAdd exception:", err);
+      setAddStatusIsError(true);
+      setAddStatus(`Couldn't save: ${err?.message || "unknown error"}`);
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleDelete(id: number) {
     if (!window.confirm("Delete this diary entry?")) return;
-    await supabase.from("training_times").delete().eq("id", id);
-    await loadEntries();
+    try {
+      const { error } = await supabase.from("training_times").delete().eq("id", id);
+      if (error) {
+        console.error("DiaryTab handleDelete error:", error);
+        window.alert(`Couldn't delete: ${error.message}`);
+        return;
+      }
+      await loadEntries();
+    } catch (err: any) {
+      console.error("DiaryTab handleDelete exception:", err);
+      window.alert(`Couldn't delete: ${err?.message || "unknown error"}`);
+    }
   }
 
   function startEdit(row: TrainingRow) {
@@ -135,13 +176,24 @@ export default function DiaryTab({ swimmerId, swimmerName = "Swimmer" }: Props) 
   async function handleSaveEdit() {
     if (editingId == null) return;
     setSavingEdit(true);
-    await supabase.from("training_times").update({
-      swam_at: editDate || null,
-      logged_by: editLoggedBy,
-    }).eq("id", editingId);
-    setEditingId(null);
-    setSavingEdit(false);
-    await loadEntries();
+    try {
+      const { error } = await supabase.from("training_times").update({
+        swam_at: editDate || null,
+        logged_by: editLoggedBy,
+      }).eq("id", editingId);
+      if (error) {
+        console.error("DiaryTab handleSaveEdit error:", error);
+        window.alert(`Couldn't save changes: ${error.message}`);
+        return;
+      }
+      setEditingId(null);
+      await loadEntries();
+    } catch (err: any) {
+      console.error("DiaryTab handleSaveEdit exception:", err);
+      window.alert(`Couldn't save changes: ${err?.message || "unknown error"}`);
+    } finally {
+      setSavingEdit(false);
+    }
   }
 
   const sorted = useMemo(() => rows, [rows]);
@@ -173,6 +225,12 @@ export default function DiaryTab({ swimmerId, swimmerName = "Swimmer" }: Props) 
       <p className="text-[11px] text-white/35 leading-relaxed">
         Practice times logged by you or {swimmerName}. Kept separate from meet results, PBs, and standards.
       </p>
+
+      {loadError && (
+        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3">
+          <p className="text-xs text-red-300">Couldn't load diary: {loadError}</p>
+        </div>
+      )}
 
       {/* Add form */}
       {showAddForm && (
@@ -225,7 +283,11 @@ export default function DiaryTab({ swimmerId, swimmerName = "Swimmer" }: Props) 
             </div>
           </div>
 
-          {addStatus && <p className="text-xs text-white/50">{addStatus}</p>}
+          {addStatus && (
+            <p className={`text-xs font-semibold ${addStatusIsError ? "text-red-300" : "text-white/50"}`}>
+              {addStatus}
+            </p>
+          )}
           <button type="button" onClick={handleAdd} disabled={saving}
             className="w-full rounded-2xl py-3 text-sm font-semibold text-white transition disabled:opacity-50"
             style={{ background: "#D97706" }}>
@@ -235,7 +297,7 @@ export default function DiaryTab({ swimmerId, swimmerName = "Swimmer" }: Props) 
       )}
 
       {/* Empty state */}
-      {sorted.length === 0 && (
+      {sorted.length === 0 && !loadError && (
         <div className="rounded-2xl border border-white/10 bg-white/5 py-8 text-center">
           <p className="text-sm text-white/40">No diary entries yet — log one above after practice.</p>
         </div>
