@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, type CSSProperties } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { createWorker } from "tesseract.js";
@@ -421,12 +421,24 @@ function SkeletonCard() {
 function EventCard({
   event,
   onWarmupSaved,
+  onDeleted,
+  onUpdated,
 }: {
   event: MeetEvent;
   onWarmupSaved: (eventId: string, value: string | null) => void;
+  onDeleted: (eventId: string) => void;
+  onUpdated: (eventId: string, updates: Partial<MeetEvent>) => void;
 }) {
   const [warmup, setWarmup] = useState(event.warmup_time ?? "");
   const [saving, setSaving] = useState(false);
+
+  const [editing, setEditing] = useState(false);
+  const [editHeat, setEditHeat] = useState(String(event.heat));
+  const [editLane, setEditLane] = useState(String(event.lane));
+  const [editSeedTime, setEditSeedTime] = useState(event.seed_time ?? "");
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   async function save() {
     const trimmed = warmup.trim();
@@ -440,70 +452,235 @@ function EventCard({
     if (!error) onWarmupSaved(event.id, trimmed || null);
   }
 
+  function startEdit() {
+    setEditHeat(String(event.heat));
+    setEditLane(String(event.lane));
+    setEditSeedTime(event.seed_time ?? "");
+    setEditError(null);
+    setEditing(true);
+  }
+
+  async function saveEdit() {
+    const heatNum = parseInt(editHeat, 10);
+    const laneNum = parseInt(editLane, 10);
+
+    if (!Number.isFinite(heatNum) || heatNum <= 0) {
+      setEditError("Heat must be a positive number.");
+      return;
+    }
+    if (!Number.isFinite(laneNum) || laneNum < 0) {
+      setEditError("Lane must be a number.");
+      return;
+    }
+
+    const trimmedSeed = editSeedTime.trim();
+    setEditSaving(true);
+    setEditError(null);
+
+    const updates = { heat: heatNum, lane: laneNum, seed_time: trimmedSeed || null };
+    const { error } = await supabase.from("meet_events").update(updates).eq("id", event.id);
+
+    setEditSaving(false);
+    if (error) {
+      setEditError(error.message);
+      return;
+    }
+    onUpdated(event.id, updates);
+    setEditing(false);
+  }
+
+  async function handleDelete() {
+    const confirmed = window.confirm(
+      `Remove ${event.event_name} (Event ${event.event_number}) from this swimmer's schedule? This can't be undone.`
+    );
+    if (!confirmed) return;
+
+    setDeleting(true);
+    const { error } = await supabase.from("meet_events").delete().eq("id", event.id);
+    setDeleting(false);
+
+    if (!error) {
+      onDeleted(event.id);
+    } else {
+      window.alert(`Couldn't delete this event: ${error.message}`);
+    }
+  }
+
+  const iconButtonStyle: CSSProperties = {
+    background: "rgba(255,255,255,0.06)",
+    border: "1px solid rgba(255,255,255,0.12)",
+    borderRadius: "8px",
+    padding: "4px 8px",
+    color: "rgba(255,255,255,0.6)",
+    fontSize: "11px",
+    cursor: "pointer",
+    flexShrink: 0,
+  };
+
   return (
     <div style={{
       background: "rgba(255,255,255,0.05)",
       border: "1px solid rgba(255,255,255,0.1)",
       borderRadius: "16px",
       padding: "14px 16px",
+      opacity: deleting ? 0.5 : 1,
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ fontSize: "13px", fontWeight: 700, color: "#fff", marginBottom: "4px" }}>
             {event.event_name}
           </p>
-          <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.4)" }}>
-            Event {event.event_number} · Heat {event.heat} · Lane {event.lane}
-          </p>
-        </div>
-        <div style={{ textAlign: "right", flexShrink: 0 }}>
-          {event.seed_time && (
-            <p style={{ fontSize: "13px", fontWeight: 600, color: "rgba(255,255,255,0.7)" }}>
-              {event.seed_time}
-            </p>
-          )}
-          {event.start_time && (
-            <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.3)", marginTop: "2px" }}>
-              ~{event.start_time}
+          {!editing && (
+            <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.4)" }}>
+              Event {event.event_number} · Heat {event.heat} · Lane {event.lane}
             </p>
           )}
         </div>
-      </div>
-
-      <div style={{
-        marginTop: "10px",
-        paddingTop: "10px",
-        borderTop: "1px solid rgba(255,255,255,0.08)",
-        display: "flex",
-        alignItems: "center",
-        gap: "8px",
-      }}>
-        <span style={{
-          fontSize: "10px", color: "rgba(255,255,255,0.35)",
-          textTransform: "uppercase", letterSpacing: "0.06em",
-          flexShrink: 0,
-        }}>
-          Warm up
-        </span>
-        <input
-          type="text"
-          placeholder="e.g. 8:15 AM"
-          value={warmup}
-          onChange={(e) => setWarmup(e.target.value)}
-          onBlur={save}
-          style={{
-            flex: 1, background: "rgba(255,255,255,0.06)",
-            border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px",
-            padding: "6px 10px", color: "#fff", fontSize: "12px",
-            outline: "none", boxSizing: "border-box", minWidth: 0,
-          }}
-        />
-        {saving && (
-          <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.3)", flexShrink: 0 }}>
-            Saving…
-          </span>
+        {!editing && (
+          <div style={{ textAlign: "right", flexShrink: 0 }}>
+            {event.seed_time && (
+              <p style={{ fontSize: "13px", fontWeight: 600, color: "rgba(255,255,255,0.7)" }}>
+                {event.seed_time}
+              </p>
+            )}
+            {event.start_time && (
+              <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.3)", marginTop: "2px" }}>
+                ~{event.start_time}
+              </p>
+            )}
+          </div>
         )}
       </div>
+
+      {editing ? (
+        <div style={{ marginTop: "10px", display: "flex", flexDirection: "column", gap: "8px" }}>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <label style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.4)", display: "block", marginBottom: "3px" }}>
+                Heat
+              </span>
+              <input
+                type="number"
+                value={editHeat}
+                onChange={(e) => setEditHeat(e.target.value)}
+                style={{
+                  width: "100%", background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px",
+                  padding: "6px 10px", color: "#fff", fontSize: "12px",
+                  outline: "none", boxSizing: "border-box",
+                }}
+              />
+            </label>
+            <label style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.4)", display: "block", marginBottom: "3px" }}>
+                Lane
+              </span>
+              <input
+                type="number"
+                value={editLane}
+                onChange={(e) => setEditLane(e.target.value)}
+                style={{
+                  width: "100%", background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px",
+                  padding: "6px 10px", color: "#fff", fontSize: "12px",
+                  outline: "none", boxSizing: "border-box",
+                }}
+              />
+            </label>
+            <label style={{ flex: 1.4, minWidth: 0 }}>
+              <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.4)", display: "block", marginBottom: "3px" }}>
+                Seed time
+              </span>
+              <input
+                type="text"
+                placeholder="e.g. 1:23.45"
+                value={editSeedTime}
+                onChange={(e) => setEditSeedTime(e.target.value)}
+                style={{
+                  width: "100%", background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px",
+                  padding: "6px 10px", color: "#fff", fontSize: "12px",
+                  outline: "none", boxSizing: "border-box",
+                }}
+              />
+            </label>
+          </div>
+
+          {editError && (
+            <p style={{ fontSize: "11px", color: "#f87171" }}>{editError}</p>
+          )}
+
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button
+              type="button"
+              onClick={saveEdit}
+              disabled={editSaving}
+              style={{
+                flex: 1, background: "rgba(100,180,255,0.15)",
+                border: "1px solid rgba(100,180,255,0.3)", borderRadius: "8px",
+                padding: "7px 10px", color: "#9cd0ff", fontSize: "12px", fontWeight: 600,
+                cursor: editSaving ? "default" : "pointer",
+              }}
+            >
+              {editSaving ? "Saving…" : "Save"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditing(false)}
+              disabled={editSaving}
+              style={{
+                flex: 1, background: "rgba(255,255,255,0.06)",
+                border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px",
+                padding: "7px 10px", color: "rgba(255,255,255,0.6)", fontSize: "12px",
+                cursor: editSaving ? "default" : "pointer",
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div style={{
+          marginTop: "10px",
+          paddingTop: "10px",
+          borderTop: "1px solid rgba(255,255,255,0.08)",
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+        }}>
+          <span style={{
+            fontSize: "10px", color: "rgba(255,255,255,0.35)",
+            textTransform: "uppercase", letterSpacing: "0.06em",
+            flexShrink: 0,
+          }}>
+            Warm up
+          </span>
+          <input
+            type="text"
+            placeholder="e.g. 8:15 AM"
+            value={warmup}
+            onChange={(e) => setWarmup(e.target.value)}
+            onBlur={save}
+            style={{
+              flex: 1, background: "rgba(255,255,255,0.06)",
+              border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px",
+              padding: "6px 10px", color: "#fff", fontSize: "12px",
+              outline: "none", boxSizing: "border-box", minWidth: 0,
+            }}
+          />
+          {saving && (
+            <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.3)", flexShrink: 0 }}>
+              Saving…
+            </span>
+          )}
+          <button type="button" onClick={startEdit} style={iconButtonStyle}>
+            Edit
+          </button>
+          <button type="button" onClick={handleDelete} disabled={deleting} style={{ ...iconButtonStyle, color: "#f87171", borderColor: "rgba(248,113,113,0.25)" }}>
+            {deleting ? "…" : "Delete"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -515,11 +692,15 @@ function SwimmerGroup({
   events,
   defaultOpen,
   onWarmupSaved,
+  onDeleted,
+  onUpdated,
 }: {
   name: string;
   events: MeetEvent[];
   defaultOpen: boolean;
   onWarmupSaved: (eventId: string, value: string | null) => void;
+  onDeleted: (eventId: string) => void;
+  onUpdated: (eventId: string, updates: Partial<MeetEvent>) => void;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
@@ -555,7 +736,13 @@ function SwimmerGroup({
       {open && (
         <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px", paddingLeft: "4px" }}>
           {events.map((ev) => (
-            <EventCard key={ev.id} event={ev} onWarmupSaved={onWarmupSaved} />
+            <EventCard
+              key={ev.id}
+              event={ev}
+              onWarmupSaved={onWarmupSaved}
+              onDeleted={onDeleted}
+              onUpdated={onUpdated}
+            />
           ))}
         </div>
       )}
@@ -756,6 +943,16 @@ export default function UpcomingMeetDetailPage() {
   function handleWarmupSaved(eventId: string, value: string | null) {
     setEvents((prev) =>
       prev.map((e) => (e.id === eventId ? { ...e, warmup_time: value } : e))
+    );
+  }
+
+  function handleEventDeleted(eventId: string) {
+    setEvents((prev) => prev.filter((e) => e.id !== eventId));
+  }
+
+  function handleEventUpdated(eventId: string, updates: Partial<MeetEvent>) {
+    setEvents((prev) =>
+      prev.map((e) => (e.id === eventId ? { ...e, ...updates } : e))
     );
   }
 
@@ -1042,6 +1239,8 @@ export default function UpcomingMeetDetailPage() {
                   events={grouped.get(name)!}
                   defaultOpen={names.length === 1 || i === 0}
                   onWarmupSaved={handleWarmupSaved}
+                  onDeleted={handleEventDeleted}
+                  onUpdated={handleEventUpdated}
                 />
               ));
             })()}
