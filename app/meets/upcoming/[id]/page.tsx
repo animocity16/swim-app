@@ -92,10 +92,16 @@ function parsePDF(text: string, swimmerNames: string[]): ParsedEvent[] {
   // Event header pattern: "Event 501 Boys 7-12 50 LC Meter Backstroke"
   const eventRe = /^Event\s+(\d+)\s+.+?(\d+)\s+LC\s+Meter\s+(.+)$/i;
   // Heat header: "Heat 1 of 23 Finals Starts at 09:00 AM"
-  // Spacing around "of" / "Starts at" made optional (\s*) rather than
-  // required (\s+) because OCR frequently merges words together with no
-  // space at all - e.g. "Heat 1of2 Finals Startsat 09:16 AM".
-  const heatStartRe = /^Heat\s+(\d+)\s*of\s*\d+.*?Starts\s*at\s+(\d+:\d+\s*[AP]M)/i;
+  // The word "of" gives OCR real trouble - the lowercase "o" often gets read
+  // back as the digit "0", turning "5 of 6" into something like "5 0f 6" or
+  // "50f6" with no space at all. A plain greedy \d+ after "Heat" would then
+  // swallow BOTH digits and read the heat number as "50" instead of "5".
+  // Fix: capture the heat number lazily (stop as soon as possible), then
+  // explicitly allow zero or more stray "o"/"0" characters before the
+  // literal "f" of "of" - so "5 of 6", "5of6", and "5 0f 6" all correctly
+  // resolve to heat number 5, not 50.
+  const heatStartRe = /^Heat\s+(\d+?)\s*[o0]*f\s*\d+.*?Starts\s*at\s+(\d+:\d+\s*[AP]M)/i;
+  const heatOfRe = /^Heat\s+(\d+?)\s*[o0]*f\s*\d+/i;
   const heatRe = /^Heat\s+(\d+)/i;
   // Lane row: "4 Taguchi, Maxwell Shouki 12 SSC 34.31"
   // Two things loosened here versus a real PDF text layer:
@@ -132,10 +138,30 @@ function parsePDF(text: string, swimmerNames: string[]): ParsedEvent[] {
       continue;
     }
 
-    // Heat without start time
+    // Same "N of M" heat line, just without a "Starts at" time attached
+    // (e.g. a heat header repeated after a page break). Tried before the
+    // bare heatRe fallback so we still get the o/0 correction.
+    const heatOfMatch = line.match(heatOfRe);
+    if (heatOfMatch) {
+      currentHeat = parseInt(heatOfMatch[1]);
+      continue;
+    }
+
+    // Heat without start time or "of M" (rare continuation-style header)
     const heatMatch = line.match(heatRe);
-    if (heatMatch && !heatStartMatch) {
+    if (heatMatch) {
       currentHeat = parseInt(heatMatch[1]);
+      continue;
+    }
+
+    // OCR sometimes splits "Heat 5 of 6 Finals Starts at 11:35 AM" across
+    // TWO separate lines instead of one - e.g. "Heat 5 of 6 Finals" and
+    // "Starts at 11:35 AM" land as their own lines. heatStartRe above only
+    // catches the time when it's on the same line as the heat number, so
+    // this catches it standalone too, wherever it lands.
+    const startsAtMatch = line.match(/Starts\s*at\s+(\d+:\d+\s*[AP]M)/i);
+    if (startsAtMatch) {
+      currentStartTime = startsAtMatch[1];
       continue;
     }
 
