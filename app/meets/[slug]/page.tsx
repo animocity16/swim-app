@@ -240,7 +240,7 @@ function ActionSheet({
             border: "1px solid rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.06)",
             color: "#fff", fontSize: "15px", fontWeight: 600, cursor: "pointer",
           }}>
-            ✏️ Edit course
+            ✏️ Edit result
           </button>
           <button type="button" onClick={onDelete} style={{
             width: "100%", padding: "15px", borderRadius: "16px", border: "none",
@@ -263,19 +263,25 @@ function ActionSheet({
 
 // ─── Edit course sheet ────────────────────────────────────────────────────────
 
-function EditCourseSheet({
+function EditResultSheet({
   row,
   onSave,
   onCancel,
   saving,
 }: {
   row: ResultRow;
-  onSave: (course: string) => void;
+  onSave: (course: string, place: number | null) => void;
   onCancel: () => void;
   saving: boolean;
 }) {
-  const [selected, setSelected] = useState<string>(row.course);
+  const [selectedCourse, setSelectedCourse] = useState<string>(row.course);
+  const [placeText, setPlaceText] = useState<string>(row.place != null ? String(row.place) : "");
   const courses = ["LCM", "SCM", "SCY"];
+
+  const trimmed = placeText.trim();
+  const placeValid = trimmed === "" || (/^\d+$/.test(trimmed) && Number(trimmed) >= 1);
+  const parsedPlace = trimmed === "" ? null : Number(trimmed);
+  const unchanged = selectedCourse === row.course && parsedPlace === row.place;
 
   return (
     <>
@@ -293,21 +299,47 @@ function EditCourseSheet({
         <div style={{ width: "36px", height: "4px", borderRadius: "2px", background: "rgba(255,255,255,0.2)", margin: "0 auto 20px" }} />
 
         <div style={{ textAlign: "center", marginBottom: "20px" }}>
-          <p style={{ fontSize: "17px", fontWeight: 700, color: "#fff", marginBottom: "6px" }}>Edit course</p>
+          <p style={{ fontSize: "17px", fontWeight: 700, color: "#fff", marginBottom: "6px" }}>Edit result</p>
           <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.4)" }}>
             {row.swimmer_name} · {row.event} · {formatMs(row.time_ms)}
           </p>
         </div>
 
+        <p style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(255,255,255,0.35)", marginBottom: "8px" }}>
+          Official placing
+        </p>
+        <input
+          type="number"
+          inputMode="numeric"
+          min={1}
+          placeholder="e.g. 2"
+          value={placeText}
+          onChange={(e) => setPlaceText(e.target.value)}
+          style={{
+            width: "100%", padding: "14px", borderRadius: "16px", fontSize: "17px", fontWeight: 700,
+            background: "rgba(255,255,255,0.06)",
+            border: placeValid ? "1px solid rgba(255,255,255,0.15)" : "1px solid #DC2626",
+            color: "#fff", marginBottom: placeValid ? "20px" : "6px", outline: "none",
+          }}
+        />
+        {!placeValid && (
+          <p style={{ fontSize: "12px", color: "#FCA5A5", marginBottom: "14px" }}>
+            Enter a whole number of 1 or more, or leave blank for no placing.
+          </p>
+        )}
+
+        <p style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(255,255,255,0.35)", marginBottom: "8px" }}>
+          Course
+        </p>
         <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
           {courses.map((c) => (
-            <button key={c} type="button" onClick={() => setSelected(c)}
+            <button key={c} type="button" onClick={() => setSelectedCourse(c)}
               style={{
                 flex: 1, padding: "14px", borderRadius: "16px", fontSize: "15px", fontWeight: 700,
                 cursor: "pointer", transition: "all 0.15s",
-                background: selected === c ? "#D97706" : "rgba(255,255,255,0.06)",
-                border: selected === c ? "1px solid #D97706" : "1px solid rgba(255,255,255,0.12)",
-                color: selected === c ? "#fff" : "rgba(255,255,255,0.5)",
+                background: selectedCourse === c ? "#D97706" : "rgba(255,255,255,0.06)",
+                border: selectedCourse === c ? "1px solid #D97706" : "1px solid rgba(255,255,255,0.12)",
+                color: selectedCourse === c ? "#fff" : "rgba(255,255,255,0.5)",
               }}>
               {c}
             </button>
@@ -315,14 +347,14 @@ function EditCourseSheet({
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          <button type="button" onClick={() => onSave(selected)} disabled={saving || selected === row.course}
+          <button type="button" onClick={() => onSave(selectedCourse, parsedPlace)} disabled={saving || unchanged || !placeValid}
             style={{
               width: "100%", padding: "15px", borderRadius: "16px", border: "none",
-              background: saving || selected === row.course ? "rgba(217,119,6,0.3)" : "#D97706",
+              background: saving || unchanged || !placeValid ? "rgba(217,119,6,0.3)" : "#D97706",
               color: "#fff", fontSize: "15px", fontWeight: 700,
-              cursor: saving || selected === row.course ? "not-allowed" : "pointer",
+              cursor: saving || unchanged || !placeValid ? "not-allowed" : "pointer",
             }}>
-            {saving ? "Saving…" : `Save as ${selected}`}
+            {saving ? "Saving…" : "Save changes"}
           </button>
           <button type="button" onClick={onCancel} disabled={saving}
             style={{
@@ -852,22 +884,21 @@ export default function MeetDetailPage() {
     );
   }
 
-  // ── Edit course ───────────────────────────────────────────────────────────
+  // ── Edit result (course + placing) ──────────────────────────────────────
 
-  async function handleSaveCourse(newCourse: string) {
+  async function handleSaveEdit(newCourse: string, newPlace: number | null) {
     if (!editRow) return;
     setSaving(true);
-    await supabase.from("swim_times").update({ course: newCourse }).eq("id", editRow.id);
+    await supabase.from("swim_times")
+      .update({ course: newCourse, place: newPlace })
+      .eq("id", editRow.id);
     await supabase.from("swim_splits").update({ course: newCourse }).eq("swim_time_id", editRow.id);
-    setSaving(false);
-    const updatedId = editRow.id;
     setEditRow(null);
-    setGroups((prev) =>
-      prev.map((g) => ({
-        ...g,
-        results: g.results.map((r) => r.id === updatedId ? { ...r, course: newCourse } : r),
-      }))
-    );
+    // Place changes affect podium assignment and the "check placings" warning
+    // for the whole group, not just this one row — simplest and safest is to
+    // reload the meet fresh rather than try to patch nested group state by hand.
+    await load();
+    setSaving(false);
   }
 
   // ── Loading ───────────────────────────────────────────────────────────────
@@ -1024,9 +1055,9 @@ export default function MeetDetailPage() {
 
       {/* Edit course sheet */}
       {editRow && (
-        <EditCourseSheet
+        <EditResultSheet
           row={editRow}
-          onSave={handleSaveCourse}
+          onSave={handleSaveEdit}
           onCancel={() => setEditRow(null)}
           saving={saving}
         />
