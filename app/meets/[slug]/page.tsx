@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -940,8 +939,26 @@ export default function MeetDetailPage() {
             {groups.map((group) => {
               const groupKey = groupKeyOf(group.event, group.gender, group.ageGroup);
               const isCollapsed = collapsed.has(groupKey);
-              const podiumPlaces = new Set([1, 2, 3]);
-              const restResults = group.results.filter((r) => r.place == null || !podiumPlaces.has(r.place));
+              // The podium can only ever show ONE card per place number — if two
+              // swimmers both got saved as "1st" (the exact scan mistake the
+              // "check placings" warning exists to catch), only the first one
+              // in the array wins that podium slot. The old filter here decided
+              // who else to show based purely on their place NUMBER (1/2/3 =
+              // "must already be on the podium"), so the swimmer who got bumped
+              // just vanished completely — not on the podium, not in the list,
+              // nowhere to tap. Fixed by figuring out who ACTUALLY landed on
+              // the podium (by identity, not by place number) and showing
+              // everyone else — bumped duplicates included — as a normal,
+              // long-press-editable row below.
+              const podiumFirst = group.results.find((r) => r.place === 1);
+              const podiumSecond = group.results.find((r) => r.place === 2);
+              const podiumThird = group.results.find((r) => r.place === 3);
+              const podiumIds = new Set(
+                [podiumFirst, podiumSecond, podiumThird]
+                  .filter((r): r is ResultRow => r != null)
+                  .map((r) => r.id)
+              );
+              const restResults = group.results.filter((r) => !podiumIds.has(r.id));
               return (
                 <div key={groupKey}>
                   <button
