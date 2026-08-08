@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -428,8 +427,14 @@ export default function ScanPage() {
       session = (await supabase.auth.getSession()).data.session;
     }
     if (!session) { router.replace("/login"); return; }
+    // Scoped to the logged-in parent only — without this filter the query
+    // returns every swimmer in the whole app (all accounts), which let
+    // auto-match and fuzzy-match pick swimmers that don't belong to this
+    // user and silently write results onto their profile instead.
     const { data } = await supabase.from("swimmers")
-      .select("id, name, age, swim_club, group_type").order("name", { ascending: true });
+      .select("id, name, age, swim_club, group_type")
+      .eq("user_id", session.user.id)
+      .order("name", { ascending: true });
     const all = (data as Swimmer[]) || [];
     setSwimmers(all);
     const primaries = all.filter((s) => s.group_type === "primary");
