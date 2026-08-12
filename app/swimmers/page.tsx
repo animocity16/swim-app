@@ -72,6 +72,10 @@ export default function SwimmersPage() {
   const [clubSectionOpen, setClubSectionOpen] = useState(false);
   const [schoolSectionOpen, setSchoolSectionOpen] = useState(false);
 
+  // Following list is collapsed by default so it doesn't turn the page into
+  // one long scroll — tap the "Following" header to expand it.
+  const [followingOpen, setFollowingOpen] = useState(false);
+
   // Add form state
   const [name, setName]               = useState("");
   const [birthYear, setBirthYear]     = useState("");
@@ -368,114 +372,125 @@ export default function SwimmersPage() {
           </div>
         )}
 
-        {/* Following — flat filter chips (All / each club / each school), then a flat list */}
+        {/* Following — collapsed by default so a big list doesn't dominate the page */}
         {followingSwimmers.length > 0 && (
           <div className="space-y-3">
-            <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">
-              Following ({followingSwimmers.length})
-            </p>
+            <button type="button" onClick={() => setFollowingOpen((v) => !v)}
+              className="flex w-full items-center justify-between rounded-2xl px-1 py-1">
+              <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">
+                Following ({followingSwimmers.length})
+              </p>
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none"
+                className={`text-white/25 transition-transform duration-200 ${followingOpen ? "rotate-180" : ""}`}>
+                <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
 
-            <div className="space-y-2.5">
-              <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={() => selectFilter("all", null)}
-                  className="rounded-full px-3.5 py-1.5 text-xs font-semibold transition"
-                  style={filterMode === "all"
-                    ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
-                    : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}>
-                  All
-                </button>
-              </div>
+            {followingOpen && (
+              <>
+                <div className="space-y-2.5">
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={() => selectFilter("all", null)}
+                      className="rounded-full px-3.5 py-1.5 text-xs font-semibold transition"
+                      style={filterMode === "all"
+                        ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
+                        : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}>
+                      All
+                    </button>
+                  </div>
 
-              {clubs.length > 0 && (
-                <div>
-                  <button type="button" onClick={() => setClubSectionOpen((v) => !v)}
-                    className="flex items-center gap-1.5 mb-1.5 px-1">
-                    <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">
-                      Club {filterMode === "club" && filterValue ? `· ${filterValue}` : ""}
-                    </p>
-                    <svg width="10" height="10" viewBox="0 0 16 16" fill="none"
-                      className={`text-white/25 transition-transform duration-200 ${clubSectionOpen ? "rotate-180" : ""}`}>
-                      <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </button>
-                  {clubSectionOpen && (
-                    <div className="flex flex-wrap gap-2">
-                      {clubs.map((club) => (
-                        <button key={club} type="button" onClick={() => selectFilter("club", club)}
-                          className="rounded-full px-3.5 py-1.5 text-xs font-semibold transition"
-                          style={filterMode === "club" && filterValue === club
-                            ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
-                            : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}>
-                          {club}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {schools.length > 0 && (
-                <div>
-                  <button type="button" onClick={() => setSchoolSectionOpen((v) => !v)}
-                    className="flex items-center gap-1.5 mb-1.5 px-1">
-                    <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">
-                      School {filterMode === "school" && filterValue ? `· ${filterValue}` : ""}
-                    </p>
-                    <svg width="10" height="10" viewBox="0 0 16 16" fill="none"
-                      className={`text-white/25 transition-transform duration-200 ${schoolSectionOpen ? "rotate-180" : ""}`}>
-                      <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </button>
-                  {schoolSectionOpen && (
-                    <div className="flex flex-wrap gap-2">
-                      {schools.map((school) => (
-                        <button key={school} type="button" onClick={() => selectFilter("school", school)}
-                          className="rounded-full px-3.5 py-1.5 text-xs font-semibold transition"
-                          style={filterMode === "school" && filterValue === school
-                            ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
-                            : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}>
-                          {school}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {filteredFollowing.length === 0 ? (
-              <p className="text-sm text-white/40 px-1">No swimmers match this filter.</p>
-            ) : (
-              <div className="space-y-3">
-                {filteredFollowing.map((swimmer, index) => {
-                  const colors = avatarColor(primarySwimmers.length + index);
-                  return (
-                    <div key={swimmer.id}
-                      className="flex items-center gap-4 rounded-3xl border border-white/10 bg-white/5 p-4 transition hover:bg-white/10">
-                      <Link href={`/swimmers/${swimmer.id}`} className="flex flex-1 items-center gap-4 min-w-0">
-                        <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl text-sm font-bold"
-                          style={{ background: colors.bg, color: colors.text }}>
-                          {getInitials(swimmer.name)}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-base font-semibold text-white">{swimmer.name}</p>
-                          <p className="mt-0.5 text-sm text-white/40">
-                            Age {swimmer.age}
-                            {swimmer.swim_club ? ` · ${swimmer.swim_club}` : ""}
-                          </p>
-                          {swimmer.school && (
-                            <p className="mt-0.5 text-xs text-white/30 truncate">{swimmer.school}</p>
-                          )}
-                        </div>
-                      </Link>
-                      <button type="button" onClick={() => void deleteSwimmer(swimmer.id, swimmer.name)}
-                        className="flex-shrink-0 rounded-xl border border-red-500/20 bg-red-500/10 px-2.5 py-1 text-xs text-red-300 transition hover:bg-red-500/20">
-                        Remove
+                  {clubs.length > 0 && (
+                    <div>
+                      <button type="button" onClick={() => setClubSectionOpen((v) => !v)}
+                        className="flex items-center gap-1.5 mb-1.5 px-1">
+                        <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">
+                          Club {filterMode === "club" && filterValue ? `· ${filterValue}` : ""}
+                        </p>
+                        <svg width="10" height="10" viewBox="0 0 16 16" fill="none"
+                          className={`text-white/25 transition-transform duration-200 ${clubSectionOpen ? "rotate-180" : ""}`}>
+                          <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
                       </button>
+                      {clubSectionOpen && (
+                        <div className="flex flex-wrap gap-2">
+                          {clubs.map((club) => (
+                            <button key={club} type="button" onClick={() => selectFilter("club", club)}
+                              className="rounded-full px-3.5 py-1.5 text-xs font-semibold transition"
+                              style={filterMode === "club" && filterValue === club
+                                ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
+                                : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}>
+                              {club}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  );
-                })}
-              </div>
+                  )}
+
+                  {schools.length > 0 && (
+                    <div>
+                      <button type="button" onClick={() => setSchoolSectionOpen((v) => !v)}
+                        className="flex items-center gap-1.5 mb-1.5 px-1">
+                        <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">
+                          School {filterMode === "school" && filterValue ? `· ${filterValue}` : ""}
+                        </p>
+                        <svg width="10" height="10" viewBox="0 0 16 16" fill="none"
+                          className={`text-white/25 transition-transform duration-200 ${schoolSectionOpen ? "rotate-180" : ""}`}>
+                          <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </button>
+                      {schoolSectionOpen && (
+                        <div className="flex flex-wrap gap-2">
+                          {schools.map((school) => (
+                            <button key={school} type="button" onClick={() => selectFilter("school", school)}
+                              className="rounded-full px-3.5 py-1.5 text-xs font-semibold transition"
+                              style={filterMode === "school" && filterValue === school
+                                ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
+                                : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}>
+                              {school}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {filteredFollowing.length === 0 ? (
+                  <p className="text-sm text-white/40 px-1">No swimmers match this filter.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {filteredFollowing.map((swimmer, index) => {
+                      const colors = avatarColor(primarySwimmers.length + index);
+                      return (
+                        <div key={swimmer.id}
+                          className="flex items-center gap-4 rounded-3xl border border-white/10 bg-white/5 p-4 transition hover:bg-white/10">
+                          <Link href={`/swimmers/${swimmer.id}`} className="flex flex-1 items-center gap-4 min-w-0">
+                            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl text-sm font-bold"
+                              style={{ background: colors.bg, color: colors.text }}>
+                              {getInitials(swimmer.name)}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-base font-semibold text-white">{swimmer.name}</p>
+                              <p className="mt-0.5 text-sm text-white/40">
+                                Age {swimmer.age}
+                                {swimmer.swim_club ? ` · ${swimmer.swim_club}` : ""}
+                              </p>
+                              {swimmer.school && (
+                                <p className="mt-0.5 text-xs text-white/30 truncate">{swimmer.school}</p>
+                              )}
+                            </div>
+                          </Link>
+                          <button type="button" onClick={() => void deleteSwimmer(swimmer.id, swimmer.name)}
+                            className="flex-shrink-0 rounded-xl border border-red-500/20 bg-red-500/10 px-2.5 py-1 text-xs text-red-300 transition hover:bg-red-500/20">
+                            Remove
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
