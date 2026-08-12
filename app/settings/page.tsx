@@ -137,6 +137,13 @@ export default function SettingsPage() {
     try{return localStorage.getItem("natrix_theme")??"ocean";}catch{return "ocean";}
   });
 
+  // The signed-in user's own primary swimmer — drives the Appearance preview
+  // card below instead of a hardcoded name/stats.
+  const [previewSwimmer, setPreviewSwimmer] = useState<{
+    name: string; age: number | null; swim_club: string | null;
+    totalEvents: number; totalTimes: number;
+  } | null>(null);
+
   useEffect(()=>{void loadUser();},[]);
 
   async function loadUser() {
@@ -154,6 +161,36 @@ export default function SettingsPage() {
     const savedAv=meta?.avatar_hue as number|undefined;
     if(savedAv!=null&&savedAv>=0){setAvatarHue(Number(savedAv));setAvatarColourOn(true);}
     setLoading(false);
+
+    void loadPreviewSwimmer();
+  }
+
+  async function loadPreviewSwimmer() {
+    const{data:swimmerRow}=await supabase
+      .from("swimmers")
+      .select("id, name, age, swim_club")
+      .eq("group_type","primary")
+      .order("created_at",{ascending:true})
+      .limit(1)
+      .maybeSingle();
+
+    if(!swimmerRow){setPreviewSwimmer(null);return;}
+
+    const{data:timesRows}=await supabase
+      .from("swim_times")
+      .select("event, course")
+      .eq("swimmer_id",swimmerRow.id);
+
+    const times=(timesRows??[]) as {event:string;course:string}[];
+    const distinctEvents=new Set(times.map(t=>`${t.event}|${t.course}`));
+
+    setPreviewSwimmer({
+      name: swimmerRow.name,
+      age: swimmerRow.age ?? null,
+      swim_club: swimmerRow.swim_club ?? null,
+      totalEvents: distinctEvents.size,
+      totalTimes: times.length,
+    });
   }
 
   async function handleSelectFontSize(sizeId: FontSizeId) {
@@ -244,6 +281,18 @@ export default function SettingsPage() {
   const previewAvatarBg=avatarColourOn?`hsl(${avatarHue},65%,38%)`:"#0F6E56";
   const previewAvatarText=getContrastText(previewAvatarBg);
 
+  // Preview card content — falls back to a generic placeholder if this
+  // account hasn't added a swimmer yet, rather than showing someone else's.
+  const previewName = previewSwimmer?.name ?? "Your swimmer";
+  const previewInitials = previewSwimmer
+    ? previewSwimmer.name.trim().split(/\s+/).map(w=>w[0]).slice(0,2).join("").toUpperCase()
+    : "?";
+  const previewSubtitle = previewSwimmer
+    ? [previewSwimmer.age!=null?`Age ${previewSwimmer.age}`:null, previewSwimmer.swim_club].filter(Boolean).join(" · ") || "—"
+    : "Add a swimmer to see them here";
+  const previewEvents = previewSwimmer?.totalEvents ?? 0;
+  const previewResults = previewSwimmer?.totalTimes ?? 0;
+
   return(
     <div className="shell">
       <div className="container-app space-y-5">
@@ -313,15 +362,15 @@ export default function SettingsPage() {
               {/* Avatar preview */}
               <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl text-base font-bold transition-colors"
                 style={{background:previewAvatarBg,color:previewAvatarText}}>
-                ML
+                {previewInitials}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-base font-bold text-white">Mikaela Loh</p>
-                <p className="text-xs text-white/40">Age 10 · SSC</p>
+                <p className="text-base font-bold text-white truncate">{previewName}</p>
+                <p className="text-xs text-white/40 truncate">{previewSubtitle}</p>
                 <div className="flex items-center gap-3 mt-1.5">
-                  <span className="text-sm font-bold" style={{color:previewTextColour??undefined}}>10</span>
+                  <span className="text-sm font-bold" style={{color:previewTextColour??undefined}}>{previewEvents}</span>
                   <span className="text-[10px] text-white/30 uppercase">events</span>
-                  <span className="text-sm font-bold text-white/60">31</span>
+                  <span className="text-sm font-bold text-white/60">{previewResults}</span>
                   <span className="text-[10px] text-white/30 uppercase">results</span>
                 </div>
               </div>
