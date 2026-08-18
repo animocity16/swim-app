@@ -228,23 +228,14 @@ export default function CalculatorPage() {
           </div>
         )}
 
-        <div className="card-soft mt-5 text-center">
-          {loggedIn ? (
-            <>
-              <p className="text-sm text-white/60">Want to see how these compare to real race history?</p>
-              <Link href="/swimmers" className="mt-2 inline-block text-xs font-semibold" style={{ color: "#FDE68A" }}>
-                View swim times →
-              </Link>
-            </>
-          ) : (
-            <>
-              <p className="text-sm text-white/60">Want to see how these compare to real race history?</p>
-              <Link href="/search" className="mt-2 inline-block text-xs font-semibold" style={{ color: "#FDE68A" }}>
-                Search a swimmer →
-              </Link>
-            </>
-          )}
-        </div>
+        {!loggedIn && (
+          <div className="card-soft mt-5 text-center">
+            <p className="text-sm text-white/60">Want to see how these compare to real race history?</p>
+            <Link href="/search" className="mt-2 inline-block text-xs font-semibold" style={{ color: "#FDE68A" }}>
+              Search a swimmer →
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   );
