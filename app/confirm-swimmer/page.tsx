@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -19,6 +19,21 @@ function toDisplayName(hyTekName: string): string {
 }
 
 export default function ConfirmSwimmerPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="wrap">
+          <p className="statusMsg">Checking meet records for matches…</p>
+          <style jsx>{styles}</style>
+        </div>
+      }
+    >
+      <ConfirmSwimmerInner />
+    </Suspense>
+  );
+}
+
+function ConfirmSwimmerInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const swimmerId = searchParams.get('swimmer_id');

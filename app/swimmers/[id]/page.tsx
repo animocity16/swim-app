@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import SwimTimesSection from "./SwimTimesSection";
@@ -43,6 +43,14 @@ function avatarColor(id: number) {
 }
 
 export default function SwimmerProfilePage() {
+  return (
+    <Suspense fallback={null}>
+      <SwimmerProfilePageInner />
+    </Suspense>
+  );
+}
+
+function SwimmerProfilePageInner() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
