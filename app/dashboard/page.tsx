@@ -532,6 +532,23 @@ export default function DashboardPage() {
           <NatrixMark />
         </div>
 
+        {/* ── Lap calculator — quick access from Home ────────────────────────── */}
+        <Link
+          href="/calculator"
+          className="flex items-center gap-4 rounded-3xl p-4 transition active:scale-[0.98]"
+          style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+        >
+          <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl text-2xl"
+            style={{ background: "rgba(56,189,248,0.12)" }}>🧮</div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-white">Lap Calculator</p>
+            <p className="text-xs text-white/40 mt-0.5">Work out splits and target times</p>
+          </div>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-white/20 flex-shrink-0">
+            <path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </Link>
+
         {/* ── Swimmer cards — visible as soon as phase 1 done ───────────────── */}
         <div>
           <p className="mb-3 text-[10px] font-medium uppercase tracking-widest text-white/30">
