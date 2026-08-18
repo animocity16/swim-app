@@ -4,7 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { canonicalCourse, canonicalEventName, eventKey } from "@/lib/events";
 
-type Props = { swimmerId: number; swimmerName: string };
+type Props = {
+  swimmerId: number;
+  swimmerName: string;
+};
 
 type TimeRow = {
   id: number;
@@ -21,14 +24,12 @@ type EventSeries = {
   shortLabel: string;
   course: string;
   color: string;
-  strokeColor: string;
   rows: TimeRow[];
   pb: number;
   first: number;
   deltaMs: number;
+  improvementPct: number;
 };
-
-// ─── Stroke colours ───────────────────────────────────────────────────────────
 
 function getStrokeColor(event: string): string {
   const e = event.toLowerCase();
@@ -40,362 +41,638 @@ function getStrokeColor(event: string): string {
   return "#FDE68A";
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function formatMs(ms?: number | null) {
+function formatMs(ms?: number | null): string {
   if (ms == null || Number.isNaN(ms)) return "-";
   const totalSeconds = ms / 1000;
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds - minutes * 60;
-  return minutes > 0 ? `${minutes}:${seconds.toFixed(2).padStart(5, "0")}` : seconds.toFixed(2);
+
+  return minutes > 0
+    ? `${minutes}:${seconds.toFixed(2).padStart(5, "0")}`
+    : seconds.toFixed(2);
 }
 
-function formatDate(row: TimeRow): string {
-  const d = row.swam_at ?? row.created_at;
-  if (!d) return "";
-  return new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "2-digit" });
+function formatDelta(ms: number): string {
+  if (ms <= 0) return "0.00s";
+  return `${(ms / 1000).toFixed(2)}s`;
 }
 
-function getDateMs(row: TimeRow): number {
-  const d = row.swam_at ?? row.created_at;
-  return d ? new Date(d).getTime() : 0;
+function formatDate(value?: string | null): string {
+  if (!value) return "Date unknown";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return date.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function rowDate(row: TimeRow): number {
+  const raw = row.swam_at ?? row.created_at;
+  if (!raw) return 0;
+
+  const time = new Date(raw).getTime();
+  return Number.isNaN(time) ? 0 : time;
 }
 
 function shortEventName(event: string): string {
-  return canonicalEventName(event)
-    .replace("Freestyle", "Free").replace("Backstroke", "Back")
-    .replace("Breaststroke", "Breast").replace("Butterfly", "Fly");
+  const canonical = canonicalEventName(event);
+
+  return canonical
+    .replace("Freestyle", "Free")
+    .replace("Backstroke", "Back")
+    .replace("Breaststroke", "Breast")
+    .replace("Butterfly", "Fly");
 }
 
-// ─── Sparkline ────────────────────────────────────────────────────────────────
+function countPbMoments(rows: TimeRow[]): number {
+  if (rows.length === 0) return 0;
 
-function MiniSparkline({ rows, color, onTap, tappedRow }: {
-  rows: TimeRow[]; color: string;
-  onTap: (row: TimeRow | null) => void; tappedRow: TimeRow | null;
-}) {
-  const times = rows.map((r) => r.time_ms);
-  if (times.length < 2) return null;
-  const W = 300, H = 60, pad = 6;
-  const min = Math.min(...times), max = Math.max(...times);
-  const range = max - min || 1000;
-  const pts = times.map((t, i) => ({
-    x: pad + (i / (times.length - 1)) * (W - pad * 2),
-    y: H - pad - ((max - t) / range) * (H - pad * 2),
-    row: rows[i],
-  }));
-  const pathD = pts.reduce((d, p, i) => {
-    if (i === 0) return `M ${p.x.toFixed(1)} ${p.y.toFixed(1)}`;
-    const prev = pts[i - 1];
-    const cpx = ((prev.x + p.x) / 2).toFixed(1);
-    return `${d} C ${cpx} ${prev.y.toFixed(1)} ${cpx} ${p.y.toFixed(1)} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`;
-  }, "");
-  const fillD = `${pathD} L ${pts[pts.length - 1].x} ${H} L ${pts[0].x} ${H} Z`;
+  let best = Number.POSITIVE_INFINITY;
+  let count = 0;
 
+  for (const row of rows) {
+    if (row.time_ms < best) {
+      best = row.time_ms;
+      count++;
+    }
+  }
+
+  return count;
+}
+
+function makeInsight(series: EventSeries): string {
+  const { rows, shortLabel, deltaMs, pb } = series;
+
+  if (rows.length === 1) {
+    return `This is the first ${shortLabel} result on record. Add another race to start seeing progression.`;
+  }
+
+  const latest = rows[rows.length - 1];
+  const previous = rows[rows.length - 2];
+  const latestDrop = previous.time_ms - latest.time_ms;
+  const latestIsPB = latest.time_ms === pb;
+  const pbMoments = countPbMoments(rows);
+
+  if (latestIsPB && latestDrop > 0) {
+    return `${series.shortLabel}'s latest swim was a new PB — ${formatDelta(latestDrop)} faster than the previous race.`;
+  }
+
+  if (pbMoments >= 3) {
+    return `${series.shortLabel} has set ${pbMoments} PBs across ${rows.length} recorded races.`;
+  }
+
+  if (deltaMs > 0) {
+    return `${series.shortLabel} has improved ${formatDelta(deltaMs)} since the first recorded race.`;
+  }
+
+  return `${series.shortLabel} has ${rows.length} races on record. Keep adding results to build a clearer progression picture.`;
+}
+
+function Chevron({ open }: { open: boolean }) {
   return (
-    <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none"
-      style={{ overflow: "visible", touchAction: "manipulation" }}>
-      <defs>
-        <linearGradient id={`fg-${color.replace("#", "")}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.2" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={fillD} fill={`url(#fg-${color.replace("#", "")})`} />
-      <path d={pathD} stroke={color} strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-      {pts.map((p, i) => {
-        const isPB = p.row.time_ms === min;
-        const isTapped = tappedRow?.id === p.row.id;
-        const isLatest = i === pts.length - 1;
-        return (
-          <g key={p.row.id} style={{ cursor: "pointer" }} onClick={(e) => { e.stopPropagation(); onTap(isTapped ? null : p.row); }}>
-            <circle cx={p.x} cy={p.y} r={18} fill="transparent" />
-            {isTapped && <circle cx={p.x} cy={p.y} r={10} fill={color} opacity="0.15" />}
-            {isPB && <circle cx={p.x} cy={p.y} r={8} fill="none" stroke={color} strokeWidth="1.2" opacity="0.4" />}
-            {isLatest && !isPB && <circle cx={p.x} cy={p.y} r={7} fill="none" stroke={color} strokeWidth="1" opacity="0.3" />}
-            <circle cx={p.x} cy={p.y}
-              r={isTapped ? 6 : isPB || isLatest ? 4.5 : 3}
-              fill={color} opacity={isTapped ? 1 : isPB || isLatest ? 0.9 : 0.5} />
-          </g>
-        );
-      })}
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 18 18"
+      fill="none"
+      style={{
+        transform: open ? "rotate(90deg)" : "rotate(0deg)",
+        transition: "transform 0.2s ease",
+        color: "rgba(255,255,255,0.28)",
+      }}
+    >
+      <path
+        d="M7 4L12 9L7 14"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+function ProgressChart({
+  series,
+  selectedRow,
+  onSelect,
+}: {
+  series: EventSeries;
+  selectedRow: TimeRow | null;
+  onSelect: (row: TimeRow | null) => void;
+}) {
+  const rows = series.rows;
+
+  const W = 640;
+  const H = 220;
+  const PAD_X = 34;
+  const PAD_TOP = 24;
+  const PAD_BOTTOM = 38;
+
+  const times = rows.map((r) => r.time_ms);
+  const min = Math.min(...times);
+  const max = Math.max(...times);
+  const range = Math.max(max - min, 1000);
+
+  // Faster times should appear higher on the chart.
+  function xFor(i: number): number {
+    if (rows.length <= 1) return W / 2;
+    return PAD_X + (i / (rows.length - 1)) * (W - PAD_X * 2);
+  }
+
+  function yFor(ms: number): number {
+    const normalized = (ms - min) / range;
+    return PAD_TOP + normalized * (H - PAD_TOP - PAD_BOTTOM);
+  }
+
+  const points = rows.map((row, i) => ({
+    row,
+    x: xFor(i),
+    y: yFor(row.time_ms),
+  }));
+
+  const linePoints = points.map((p) => `${p.x},${p.y}`).join(" ");
+
+  return (
+    <div className="space-y-3">
+      <div
+        className="overflow-hidden rounded-2xl"
+        style={{
+          background: "rgba(0,10,30,0.32)",
+          border: "1px solid rgba(255,255,255,0.07)",
+        }}
+      >
+        <svg
+          viewBox={`0 0 ${W} ${H}`}
+          width="100%"
+          style={{ display: "block", touchAction: "manipulation" }}
+          aria-label={`${series.shortLabel} progression chart`}
+        >
+          {[0.25, 0.5, 0.75].map((fraction) => {
+            const y = PAD_TOP + fraction * (H - PAD_TOP - PAD_BOTTOM);
+            return (
+              <line
+                key={fraction}
+                x1={PAD_X}
+                x2={W - PAD_X}
+                y1={y}
+                y2={y}
+                stroke="rgba(255,255,255,0.06)"
+                strokeWidth="1"
+              />
+            );
+          })}
+
+          <polyline
+            points={linePoints}
+            fill="none"
+            stroke={series.color}
+            strokeWidth="4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            opacity="0.85"
+          />
+
+          {points.map(({ row, x, y }, i) => {
+            const isPB = row.time_ms === series.pb;
+            const isSelected = selectedRow?.id === row.id;
+
+            return (
+              <g
+                key={row.id}
+                onClick={() => onSelect(isSelected ? null : row)}
+                style={{ cursor: "pointer" }}
+              >
+                <circle
+                  cx={x}
+                  cy={y}
+                  r={isSelected ? 11 : 8}
+                  fill={isPB ? "#FDE68A" : series.color}
+                  stroke={isSelected ? "#FFFFFF" : "rgba(0,0,0,0.35)"}
+                  strokeWidth={isSelected ? 3 : 2}
+                />
+                {i === 0 && (
+                  <text
+                    x={x}
+                    y={H - 12}
+                    textAnchor="middle"
+                    fontSize="16"
+                    fill="rgba(255,255,255,0.35)"
+                  >
+                    First
+                  </text>
+                )}
+                {i === rows.length - 1 && rows.length > 1 && (
+                  <text
+                    x={x}
+                    y={H - 12}
+                    textAnchor="middle"
+                    fontSize="16"
+                    fill="rgba(255,255,255,0.35)"
+                  >
+                    Latest
+                  </text>
+                )}
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+
+      {selectedRow ? (
+        <div
+          className="rounded-2xl px-4 py-3"
+          style={{
+            background: `${series.color}10`,
+            border: `1px solid ${series.color}24`,
+          }}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-white">
+                {formatDate(selectedRow.swam_at ?? selectedRow.created_at)}
+              </p>
+              <p className="mt-0.5 truncate text-xs text-white/40">
+                {selectedRow.meet_name || "Meet not recorded"}
+              </p>
+            </div>
+            <p className="flex-shrink-0 text-lg font-bold text-white">
+              {formatMs(selectedRow.time_ms)}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <p className="text-center text-[10px] text-white/25">
+          Tap a dot to see the race details
+        </p>
+      )}
+    </div>
+  );
+}
 
 export default function ProgressTab({ swimmerId, swimmerName }: Props) {
   const [rows, setRows] = useState<TimeRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
-  const [tappedDots, setTappedDots] = useState<Record<string, TimeRow | null>>({});
-  const [pbExpanded, setPbExpanded] = useState(false);
-  const [firstResultsExpanded, setFirstResultsExpanded] = useState(false);
+  const [selectedRows, setSelectedRows] = useState<Record<string, TimeRow | null>>({});
 
-  useEffect(() => { void loadTimes(); }, [swimmerId]);
+  useEffect(() => {
+    void load();
+  }, [swimmerId]);
 
-  async function loadTimes() {
+  async function load() {
     setLoading(true);
-    const { data } = await supabase
+
+    const { data, error } = await supabase
       .from("swim_times")
       .select("id, event, course, time_ms, swam_at, created_at, meet_name")
       .eq("swimmer_id", swimmerId)
-      .order("created_at", { ascending: true });
-    setRows((data as TimeRow[]) || []);
+      .order("swam_at", { ascending: true });
+
+    if (error) {
+      console.error("ProgressTab: failed to load swim times", error);
+      setRows([]);
+      setLoading(false);
+      return;
+    }
+
+    setRows((data ?? []) as TimeRow[]);
     setLoading(false);
   }
 
   const allSeries = useMemo<EventSeries[]>(() => {
-    const map = new Map<string, TimeRow[]>();
+    const grouped = new Map<string, TimeRow[]>();
+
     for (const row of rows) {
-      const key = eventKey(canonicalEventName(row.event), canonicalCourse(row.course));
-      const existing = map.get(key) || [];
-      existing.push(row);
-      map.set(key, existing);
+      const canonicalEvent = canonicalEventName(row.event);
+      const canonicalCourseValue = canonicalCourse(row.course);
+      const key = eventKey(canonicalEvent, canonicalCourseValue);
+
+      const existing = grouped.get(key) ?? [];
+      existing.push({
+        ...row,
+        event: canonicalEvent,
+        course: canonicalCourseValue,
+      });
+      grouped.set(key, existing);
     }
-    return [...map.entries()]
-      .sort((a, b) => b[1].length - a[1].length)
+
+    return Array.from(grouped.entries())
       .map(([key, eventRows]) => {
-        const sorted = [...eventRows].sort((a, b) => getDateMs(a) - getDateMs(b));
-        const times = sorted.map((r) => r.time_ms);
-        const pb = Math.min(...times);
-        const first = times[0];
-        const color = getStrokeColor(eventRows[0].event);
+        const sorted = [...eventRows].sort((a, b) => {
+          const dateDiff = rowDate(a) - rowDate(b);
+          if (dateDiff !== 0) return dateDiff;
+          return a.id - b.id;
+        });
+
+        const first = sorted[0].time_ms;
+        const pb = Math.min(...sorted.map((r) => r.time_ms));
+        const deltaMs = Math.max(first - pb, 0);
+        const improvementPct = first > 0 ? (deltaMs / first) * 100 : 0;
+
         return {
           key,
-          shortLabel: shortEventName(eventRows[0].event),
-          course: canonicalCourse(eventRows[0].course),
-          color,
-          strokeColor: color,
+          shortLabel: shortEventName(sorted[0].event),
+          course: canonicalCourse(sorted[0].course),
+          color: getStrokeColor(sorted[0].event),
           rows: sorted,
           pb,
           first,
-          deltaMs: first - pb,
+          deltaMs,
+          improvementPct,
         };
+      })
+      .sort((a, b) => {
+        const aDistance = Number(a.shortLabel.match(/\d+/)?.[0] ?? 9999);
+        const bDistance = Number(b.shortLabel.match(/\d+/)?.[0] ?? 9999);
+
+        if (aDistance !== bDistance) return aDistance - bDistance;
+        return a.shortLabel.localeCompare(b.shortLabel);
       });
   }, [rows]);
 
-  const bestImprovement = useMemo(() => {
-    return allSeries.filter((s) => s.deltaMs > 0).sort((a, b) => b.deltaMs - a.deltaMs)[0] ?? null;
+  const totalRaces = rows.length;
+  const improvedEvents = allSeries.filter((s) => s.deltaMs > 0).length;
+
+  const strongestProgress = useMemo(() => {
+    return [...allSeries]
+      .filter((s) => s.rows.length >= 2 && s.improvementPct > 0)
+      .sort((a, b) => b.improvementPct - a.improvementPct)[0] ?? null;
   }, [allSeries]);
 
-  function setTappedDot(key: string, row: TimeRow | null) {
-    setTappedDots((prev) => ({ ...prev, [key]: row }));
+  function toggleSeries(key: string) {
+    setExpandedKey((current) => (current === key ? null : key));
   }
 
-  if (loading) return <div className="py-4 text-center text-sm text-white/40">Loading…</div>;
+  function setSelectedRow(key: string, row: TimeRow | null) {
+    setSelectedRows((current) => ({
+      ...current,
+      [key]: row,
+    }));
+  }
 
-  if (rows.length === 0) {
+  if (loading) {
     return (
-      <div className="rounded-2xl border border-white/10 bg-white/5 py-8 text-center">
-        <p className="text-sm font-semibold text-white">No times yet</p>
-        <p className="mt-1 text-xs text-white/40">Scan results to start tracking progress.</p>
+      <div className="space-y-3 py-2">
+        {[1, 2, 3].map((i) => (
+          <div
+            key={i}
+            className="h-24 animate-pulse rounded-3xl"
+            style={{
+              background: "rgba(255,255,255,0.05)",
+              border: "1px solid rgba(255,255,255,0.08)",
+            }}
+          />
+        ))}
       </div>
     );
   }
 
-  const multiResultSeries = allSeries.filter((s) => s.rows.length >= 2);
-  const singleResultSeries = allSeries.filter((s) => s.rows.length === 1);
-  const fastestPB = allSeries.length > 0
-    ? allSeries.reduce((best, s) => (s.pb < best.pb ? s : best), allSeries[0])
-    : null;
+  if (rows.length === 0) {
+    return (
+      <div
+        className="rounded-3xl py-8 text-center"
+        style={{
+          background: "rgba(255,255,255,0.04)",
+          border: "1px solid rgba(255,255,255,0.08)",
+        }}
+      >
+        <p className="text-sm font-semibold text-white">No times yet</p>
+        <p className="mt-1 text-xs text-white/40">
+          Add or scan results to start tracking progress.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
-
-      {/* Summary header */}
-      <div className="flex items-center justify-between px-1">
+      {/* Overall summary */}
+      <div
+        className="rounded-3xl p-4"
+        style={{
+          background: "rgba(255,255,255,0.055)",
+          border: "1px solid rgba(255,255,255,0.10)",
+        }}
+      >
         <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">
-          {allSeries.length} event{allSeries.length === 1 ? "" : "s"} tracked
+          Overall progress
         </p>
-        {multiResultSeries.length > 0 && (
-          <p className="text-[10px] text-white/25">tap dots for details</p>
+
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          <div>
+            <p className="text-xl font-bold text-white">{allSeries.length}</p>
+            <p className="text-[10px] text-white/35">events tracked</p>
+          </div>
+          <div>
+            <p className="text-xl font-bold text-white">{totalRaces}</p>
+            <p className="text-[10px] text-white/35">races recorded</p>
+          </div>
+          <div>
+            <p className="text-xl font-bold" style={{ color: "#6EE7B7" }}>
+              {improvedEvents}
+            </p>
+            <p className="text-[10px] text-white/35">events improved</p>
+          </div>
+        </div>
+
+        {strongestProgress && (
+          <div
+            className="mt-4 rounded-2xl px-4 py-3"
+            style={{
+              background: `${strongestProgress.color}0D`,
+              border: `1px solid ${strongestProgress.color}20`,
+            }}
+          >
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-white/30">
+              Natrix noticed
+            </p>
+            <p className="mt-1 text-sm text-white/70">
+              {swimmerName} has improved{" "}
+              <span className="font-bold text-white">
+                {strongestProgress.improvementPct.toFixed(1)}%
+              </span>{" "}
+              in {strongestProgress.shortLabel} since the first recorded race.
+            </p>
+          </div>
         )}
       </div>
 
-      {/* Best improvement highlight */}
-      {bestImprovement && (
-        <div className="rounded-2xl p-4 flex items-center gap-4"
-          style={{ background: `${bestImprovement.color}12`, border: `1px solid ${bestImprovement.color}30` }}>
-          <div className="flex-1 min-w-0">
-            <p className="text-[10px] font-medium uppercase tracking-widest text-white/30 mb-1">Best improvement</p>
-            <p className="text-sm font-semibold text-white">{bestImprovement.shortLabel} · {bestImprovement.course}</p>
-            <p className="text-xs text-white/40 mt-0.5">
-              {formatMs(bestImprovement.first)} → {formatMs(bestImprovement.pb)} · {bestImprovement.rows.length} swims
-            </p>
-          </div>
-          <div className="text-right flex-shrink-0">
-            <p className="text-2xl font-bold" style={{ color: "#6EE7B7" }}>▼ {formatMs(bestImprovement.deltaMs)}</p>
-            <p className="text-[10px] text-white/30 mt-0.5">faster</p>
-          </div>
-        </div>
-      )}
+      {/* Event list */}
+      <div className="space-y-2">
+        <p className="px-1 text-[10px] font-medium uppercase tracking-widest text-white/30">
+          Event progress
+        </p>
 
-      {/* PB ranking bar chart — all events — collapsible, collapsed by default */}
-      {allSeries.length > 1 && (
-        <div className="rounded-2xl overflow-hidden"
-          style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)" }}>
-          <button type="button" onClick={() => setPbExpanded((v) => !v)}
-            className="w-full flex items-center justify-between px-4 py-3 text-left">
-            <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">Personal bests</p>
-            <div className="flex items-center gap-2">
-              {!pbExpanded && fastestPB && (
-                <p className="text-xs text-white/40">
-                  {fastestPB.shortLabel} <span className="font-bold text-white">{formatMs(fastestPB.pb)}</span>
-                </p>
-              )}
-              <span className="text-white/30 text-xs transition-transform" style={{ transform: pbExpanded ? "rotate(180deg)" : "none" }}>▾</span>
-            </div>
-          </button>
-          {pbExpanded && (
-            <div className="px-4 pb-4 space-y-2.5">
-              {allSeries.map((s) => {
-                const maxPB = Math.max(...allSeries.map((x) => x.pb));
-                const pct = Math.max(20, (1 - (s.pb - Math.min(...allSeries.map((x) => x.pb))) / (maxPB - Math.min(...allSeries.map((x) => x.pb)) + 1)) * 85 + 15);
-                return (
-                  <div key={s.key} className="flex items-center gap-3">
-                    <p className="text-sm text-white/60 flex-shrink-0 w-20 truncate">{s.shortLabel}</p>
-                    <div className="flex-1 h-4 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
-                      <div className="h-full rounded-full flex items-center justify-end pr-2 transition-all"
-                        style={{ width: `${pct}%`, background: `${s.color}60`, minWidth: 40 }}>
-                      </div>
-                    </div>
-                    <p className="text-sm font-bold text-white flex-shrink-0 w-16 text-right">{formatMs(s.pb)}</p>
+        {allSeries.map((series) => {
+          const isOpen = expandedKey === series.key;
+          const hasProgress = series.rows.length >= 2;
+          const selectedRow = selectedRows[series.key] ?? null;
+
+          return (
+            <div
+              key={series.key}
+              className="overflow-hidden rounded-3xl"
+              style={{
+                background: isOpen
+                  ? "rgba(0,20,45,0.48)"
+                  : "rgba(255,255,255,0.045)",
+                border: isOpen
+                  ? `1px solid ${series.color}30`
+                  : "1px solid rgba(255,255,255,0.08)",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => toggleSeries(series.key)}
+                className="w-full p-4 text-left"
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
+                    style={{ background: series.color }}
+                  />
+
+                  <div className="min-w-0 flex-1">
+                    <p
+                      className="truncate text-sm font-bold"
+                      style={{ color: series.color }}
+                    >
+                      {series.shortLabel}
+                    </p>
+                    <p className="mt-0.5 text-[10px] text-white/30">
+                      {series.course} · {series.rows.length} race
+                      {series.rows.length === 1 ? "" : "s"}
+                    </p>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
 
-      {/* Sparkline cards — events with multiple results */}
-      {multiResultSeries.length > 0 && (
-        <div className="space-y-3">
-          <p className="text-[10px] font-medium uppercase tracking-widest text-white/30 px-1">Progress charts</p>
-          {multiResultSeries.map((series) => {
-            const isExpanded = expandedKey === series.key;
-            const isImproving = series.deltaMs > 0;
-            const tappedRow = tappedDots[series.key] ?? null;
+                  <div className="flex-shrink-0 text-right">
+                    <p className="text-[10px] uppercase tracking-wide text-white/30">
+                      PB
+                    </p>
+                    <p className="text-lg font-bold text-white">
+                      {formatMs(series.pb)}
+                    </p>
 
-            return (
-              <div key={series.key} className="rounded-2xl overflow-hidden"
-                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)" }}>
+                    {hasProgress && series.deltaMs > 0 ? (
+                      <p
+                        className="mt-0.5 text-[10px] font-semibold"
+                        style={{ color: "#6EE7B7" }}
+                      >
+                        ↓ {formatDelta(series.deltaMs)} faster
+                      </p>
+                    ) : (
+                      <p className="mt-0.5 text-[10px] text-white/25">
+                        {hasProgress ? "No PB drop yet" : "First result"}
+                      </p>
+                    )}
+                  </div>
 
-                {/* Header */}
-                <button type="button"
-                  onClick={() => { setExpandedKey(isExpanded ? null : series.key); setTappedDot(series.key, null); }}
-                  className="w-full text-left px-4 pt-4 pb-0">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="h-2 w-2 rounded-full flex-shrink-0" style={{ background: series.color }} />
-                      <div>
-                        <p className="text-sm font-semibold text-white">{series.shortLabel}</p>
-                        <p className="text-[10px] text-white/35 mt-0.5">
-                          {series.course} · {series.rows.length} results
-                        </p>
-                      </div>
+                  <div className="ml-1 flex-shrink-0">
+                    <Chevron open={isOpen} />
+                  </div>
+                </div>
+              </button>
+
+              {isOpen && (
+                <div
+                  className="space-y-4 px-4 pb-4"
+                  style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
+                >
+                  <div className="grid grid-cols-3 gap-2 pt-4">
+                    <div
+                      className="rounded-2xl p-3"
+                      style={{ background: "rgba(255,255,255,0.04)" }}
+                    >
+                      <p className="text-[10px] uppercase tracking-wide text-white/25">
+                        First
+                      </p>
+                      <p className="mt-1 text-sm font-bold text-white/70">
+                        {formatMs(series.first)}
+                      </p>
                     </div>
-                    <div className="text-right flex-shrink-0">
-                      <p className="text-lg font-bold text-white">{formatMs(series.pb)}</p>
-                      <p className="text-[10px] mt-0.5"
-                        style={{ color: isImproving ? "#6EE7B7" : series.deltaMs < 0 ? "#FCA5A5" : "rgba(255,255,255,0.3)" }}>
-                        {series.deltaMs > 0 ? `▼ ${formatMs(series.deltaMs)}` : series.deltaMs < 0 ? `▲ ${formatMs(Math.abs(series.deltaMs))}` : "No change"}
+
+                    <div
+                      className="rounded-2xl p-3"
+                      style={{ background: "rgba(255,255,255,0.04)" }}
+                    >
+                      <p className="text-[10px] uppercase tracking-wide text-white/25">
+                        PB
+                      </p>
+                      <p className="mt-1 text-sm font-bold text-white">
+                        {formatMs(series.pb)}
+                      </p>
+                    </div>
+
+                    <div
+                      className="rounded-2xl p-3"
+                      style={{ background: "rgba(255,255,255,0.04)" }}
+                    >
+                      <p className="text-[10px] uppercase tracking-wide text-white/25">
+                        Improved
+                      </p>
+                      <p
+                        className="mt-1 text-sm font-bold"
+                        style={{
+                          color:
+                            series.deltaMs > 0
+                              ? "#6EE7B7"
+                              : "rgba(255,255,255,0.45)",
+                        }}
+                      >
+                        {series.deltaMs > 0
+                          ? `${series.improvementPct.toFixed(1)}%`
+                          : "—"}
                       </p>
                     </div>
                   </div>
-                </button>
 
-                {/* Sparkline */}
-                <div className="px-3 pt-2 pb-1">
-                  <MiniSparkline rows={series.rows} color={series.color}
-                    onTap={(row) => setTappedDot(series.key, row)} tappedRow={tappedRow} />
-                </div>
-
-                {/* Tapped dot detail */}
-                {tappedRow ? (
-                  <div className="px-4 pb-4">
-                    <div className="rounded-xl px-3 py-2.5 flex items-center justify-between"
-                      style={{ background: `${series.color}15`, border: `1px solid ${series.color}30` }}>
-                      <div>
-                        <p className="text-sm font-bold text-white">{formatMs(tappedRow.time_ms)}</p>
-                        {tappedRow.meet_name && <p className="text-[11px] text-white/50 mt-0.5">{tappedRow.meet_name}</p>}
-                        <p className="text-[10px] text-white/35 mt-0.5">{formatDate(tappedRow)}</p>
-                      </div>
-                      {tappedRow.time_ms === series.pb && (
-                        <span className="rounded-full px-2.5 py-1 text-[10px] font-bold"
-                          style={{ background: `${series.color}25`, color: series.color }}>PB</span>
-                      )}
+                  {hasProgress ? (
+                    <ProgressChart
+                      series={series}
+                      selectedRow={selectedRow}
+                      onSelect={(row) => setSelectedRow(series.key, row)}
+                    />
+                  ) : (
+                    <div
+                      className="rounded-2xl px-4 py-5 text-center"
+                      style={{
+                        background: "rgba(255,255,255,0.035)",
+                        border: "1px solid rgba(255,255,255,0.06)",
+                      }}
+                    >
+                      <p className="text-sm font-semibold text-white/65">
+                        One result recorded
+                      </p>
+                      <p className="mt-1 text-xs text-white/35">
+                        Add another {series.shortLabel} result to start the progression chart.
+                      </p>
                     </div>
-                  </div>
-                ) : (
-                  <div className="px-4 pb-3">
-                    <p className="text-[9px] text-white/20 text-center">
-                      {isExpanded ? "tap header to collapse" : "tap a dot · tap header for full list"}
+                  )}
+
+                  <div
+                    className="rounded-2xl px-4 py-3"
+                    style={{
+                      background: `${series.color}0B`,
+                      border: `1px solid ${series.color}18`,
+                    }}
+                  >
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-white/30">
+                      Natrix noticed
+                    </p>
+                    <p className="mt-1 text-xs leading-relaxed text-white/55">
+                      {makeInsight(series)}
                     </p>
                   </div>
-                )}
-
-                {/* Expanded full list */}
-                {isExpanded && (
-                  <div className="px-4 pb-4 border-t border-white/8 pt-3 space-y-2">
-                    <p className="text-[9px] uppercase tracking-wider text-white/25 mb-2">All results</p>
-                    {[...series.rows].reverse().map((row) => {
-                      const isPB = row.time_ms === series.pb;
-                      return (
-                        <div key={row.id} className="flex items-center justify-between rounded-xl px-3 py-2"
-                          style={{
-                            background: isPB ? `${series.color}12` : "rgba(255,255,255,0.04)",
-                            border: `1px solid ${isPB ? `${series.color}25` : "rgba(255,255,255,0.07)"}`,
-                          }}>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-bold text-white">{formatMs(row.time_ms)}</span>
-                              {isPB && <span className="text-[9px] font-bold" style={{ color: series.color }}>PB</span>}
-                            </div>
-                            {row.meet_name && <p className="text-[10px] text-white/35">{row.meet_name}</p>}
-                          </div>
-                          <p className="text-[10px] text-white/30">{formatDate(row)}</p>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Single result events — collapsible, tucked away instead of floating loose */}
-      {singleResultSeries.length > 0 && (
-        <div className="rounded-2xl overflow-hidden"
-          style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)" }}>
-          <button type="button" onClick={() => setFirstResultsExpanded((v) => !v)}
-            className="w-full flex items-center justify-between px-4 py-3 text-left">
-            <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">
-              {singleResultSeries.length} event{singleResultSeries.length === 1 ? "" : "s"} with one swim · scan again to track progress
-            </p>
-            <span className="text-white/30 text-xs transition-transform flex-shrink-0 ml-2" style={{ transform: firstResultsExpanded ? "rotate(180deg)" : "none" }}>▾</span>
-          </button>
-          {firstResultsExpanded && (
-            <div>
-              {singleResultSeries.map((s, i) => (
-                <div key={s.key} className="flex items-center justify-between px-4 py-3"
-                  style={{ borderTop: i === 0 ? "1px solid rgba(255,255,255,0.07)" : "1px solid rgba(255,255,255,0.05)" }}>
-                  <div className="flex items-center gap-2">
-                    <div className="h-1.5 w-1.5 rounded-full" style={{ background: s.color }} />
-                    <p className="text-sm font-medium text-white/70">{s.shortLabel}</p>
-                    <p className="text-[10px] text-white/30">{s.course}</p>
-                  </div>
-                  <p className="text-sm font-bold" style={{ color: "#FDE68A" }}>{formatMs(s.pb)}</p>
                 </div>
-              ))}
+              )}
             </div>
-          )}
-        </div>
-      )}
-
+          );
+        })}
+      </div>
     </div>
   );
 }
