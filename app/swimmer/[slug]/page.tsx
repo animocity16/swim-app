@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { slugify } from '@/lib/slug';
+import styles from './page.module.css';
 
 // Server Component — runs at request time, so this page is fully readable
 // by Google and shareable as a real link (unlike the client-side /search
@@ -90,137 +90,43 @@ export default async function SwimmerPublicPage({ params }: { params: { slug: st
   if (!data) return notFound();
 
   return (
-    <div className="wrap">
-      <Link href="/search" className="backLink">
+    <div className={styles.wrap}>
+      <Link href="/search" className={styles.backLink}>
         ← Search another swimmer
       </Link>
 
-      <h1>{data.swimmerName}</h1>
-      {data.team && <div className="team">{data.team}</div>}
-      <p className="disclaimer">
+      <h1 className={styles.h1}>{data.swimmerName}</h1>
+      {data.team && <div className={styles.team}>{data.team}</div>}
+      <p className={styles.disclaimer}>
         Showing Singapore Aquatics&ndash;sanctioned meets only. Club-only, non-sanctioned meets aren&apos;t included yet.
       </p>
 
-      <div className="eventList">
+      <div className={styles.eventList}>
         {data.events.map(({ eventName, pb }) => (
-          <div key={eventName} className="eventRow">
-            <div className="eventName">{eventName}</div>
+          <div key={eventName} className={styles.eventRow}>
+            <div className={styles.eventName}>{eventName}</div>
             {pb ? (
-              <div className="eventTime">
-                <span className="time">{pb.finals_time_text}</span>
-                <span className="meta">
+              <div className={styles.eventTime}>
+                <span className={styles.time}>{pb.finals_time_text}</span>
+                <span className={styles.meta}>
                   {pb.meet_name}
                   {formatDate(pb.session_date) && ` · ${formatDate(pb.session_date)}`}
                 </span>
               </div>
             ) : (
-              <div className="eventMeta">No time on record</div>
+              <div className={styles.eventMeta}>No time on record</div>
             )}
           </div>
         ))}
       </div>
 
-      <div className="ctaCard">
-        <p className="ctaTitle">Track {data.swimmerName.split(' ')[0]} with Natrix</p>
-        <p className="ctaSub">Full race history, PB progression and automatic new-result tracking.</p>
-        <Link href="/signup" className="ctaButton">
+      <div className={styles.ctaCard}>
+        <p className={styles.ctaTitle}>Track {data.swimmerName.split(' ')[0]} with Natrix</p>
+        <p className={styles.ctaSub}>Full race history, PB progression and automatic new-result tracking.</p>
+        <Link href="/signup" className={styles.ctaButton}>
           Track {data.swimmerName.split(' ')[0]} →
         </Link>
       </div>
-
-      <style jsx>{`
-        .wrap {
-          max-width: 640px;
-          margin: 0 auto;
-          padding: 32px 20px 80px;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-          color: #0f172a;
-        }
-        .backLink {
-          font-size: 13px;
-          color: #64748b;
-          text-decoration: none;
-        }
-        h1 {
-          font-size: 26px;
-          font-weight: 700;
-          margin: 16px 0 2px;
-          letter-spacing: -0.02em;
-        }
-        .team {
-          color: #64748b;
-          font-size: 14px;
-          margin-bottom: 4px;
-        }
-        .disclaimer {
-          color: #94a3b8;
-          font-size: 11px;
-          margin: 0 0 24px;
-        }
-        .eventList {
-          border: 1px solid #e2e8f0;
-          border-radius: 16px;
-          overflow: hidden;
-        }
-        .eventRow {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 14px 18px;
-          border-bottom: 1px solid #f1f5f9;
-          gap: 12px;
-        }
-        .eventRow:last-child {
-          border-bottom: none;
-        }
-        .eventName {
-          font-size: 14px;
-          font-weight: 500;
-          color: #334155;
-        }
-        .eventTime {
-          text-align: right;
-        }
-        .time {
-          display: block;
-          font-size: 16px;
-          font-weight: 700;
-          font-variant-numeric: tabular-nums;
-        }
-        .meta {
-          display: block;
-          font-size: 11px;
-          color: #94a3b8;
-        }
-        .ctaCard {
-          margin-top: 28px;
-          text-align: center;
-          background: linear-gradient(180deg, #f0f9ff 0%, #ffffff 100%);
-          border: 1px solid #bae6fd;
-          border-radius: 18px;
-          padding: 24px;
-        }
-        .ctaTitle {
-          font-weight: 700;
-          font-size: 16px;
-          margin: 0 0 6px;
-        }
-        .ctaSub {
-          font-size: 13px;
-          color: #64748b;
-          margin: 0 0 16px;
-        }
-        .ctaButton {
-          display: inline-block;
-          background: #0f172a;
-          color: white;
-          font-weight: 600;
-          font-size: 15px;
-          padding: 12px 28px;
-          border-radius: 12px;
-          text-decoration: none;
-        }
-      `}</style>
     </div>
   );
 }
