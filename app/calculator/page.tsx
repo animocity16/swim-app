@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { supabase } from "@/lib/supabaseClient";
 
 // A public, no-login split/pace calculator — same "give real value before
 // asking for anything" idea as the search page. Two modes:
@@ -51,6 +52,14 @@ function formatMs(ms: number): string {
 type Mode = "splits" | "project";
 
 export default function CalculatorPage() {
+  const [loggedIn, setLoggedIn] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setLoggedIn(!!data.session);
+    });
+  }, []);
+
   const [mode, setMode] = useState<Mode>("splits");
   const [distance, setDistance] = useState(100);
   const [course, setCourse] = useState(50);
@@ -90,8 +99,8 @@ export default function CalculatorPage() {
   return (
     <div className="shell">
       <div className="container-app">
-        <Link href="/search" className="text-xs text-white/40">
-          ← Back to search
+        <Link href={loggedIn ? "/dashboard" : "/search"} className="text-xs text-white/40">
+          ← Back to {loggedIn ? "Home" : "search"}
         </Link>
 
         <div className="mt-4 mb-6 text-center">
@@ -220,10 +229,21 @@ export default function CalculatorPage() {
         )}
 
         <div className="card-soft mt-5 text-center">
-          <p className="text-sm text-white/60">Want to see how these compare to real race history?</p>
-          <Link href="/search" className="mt-2 inline-block text-xs font-semibold" style={{ color: "#FDE68A" }}>
-            Search a swimmer →
-          </Link>
+          {loggedIn ? (
+            <>
+              <p className="text-sm text-white/60">Want to see how these compare to real race history?</p>
+              <Link href="/swimmers" className="mt-2 inline-block text-xs font-semibold" style={{ color: "#FDE68A" }}>
+                View swim times →
+              </Link>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-white/60">Want to see how these compare to real race history?</p>
+              <Link href="/search" className="mt-2 inline-block text-xs font-semibold" style={{ color: "#FDE68A" }}>
+                Search a swimmer →
+              </Link>
+            </>
+          )}
         </div>
       </div>
     </div>
