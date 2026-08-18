@@ -69,11 +69,22 @@ const SCAN_ICON = (active: boolean) => (
   </svg>
 );
 
+const LOCK_BADGE = (
+  <span style={{ fontSize: "8px", position: "absolute", top: "-2px", right: "-2px" }}>🔒</span>
+);
+
 const HIDDEN_ON = ["/login", "/signup", "/forgot-password", "/reset-password", "/invite", "/auth", "/onboarding"];
 
 // Nav items that don't make sense in the read-only demo (nothing to scan,
 // nothing to configure) get swapped out or hidden when browsing /demo/*.
 const DEMO_HIDDEN_HREFS = ["/settings"];
+
+// Pages a logged-out parent can browse before creating an account. Anything
+// in the nav other than Home (which points at /search here) shows locked —
+// same "blurred + redirect to signup" pattern already used for Scan in
+// demo mode, just applied to the whole nav instead of just one tab.
+const PUBLIC_PATHS = ["/", "/search"];
+const PUBLIC_HIDDEN_HREFS = ["/settings"];
 
 export default function BottomNav() {
   const pathname = usePathname();
@@ -98,10 +109,17 @@ export default function BottomNav() {
   if (HIDDEN_ON.some((p) => pathname.startsWith(p))) return null;
 
   const isDemo = pathname.startsWith("/demo");
+  const isPublic = !isDemo && (PUBLIC_PATHS.includes(pathname) || pathname.startsWith("/swimmer/"));
   const prefix = isDemo ? "/demo" : "";
-  const items = isDemo ? NAV_ITEMS.filter((item) => !DEMO_HIDDEN_HREFS.includes(item.href)) : NAV_ITEMS;
 
-  const scanActive = !isDemo && pathname.startsWith("/scan");
+  let items = isDemo ? NAV_ITEMS.filter((item) => !DEMO_HIDDEN_HREFS.includes(item.href)) : NAV_ITEMS;
+  if (isPublic) {
+    items = items
+      .filter((item) => !PUBLIC_HIDDEN_HREFS.includes(item.href))
+      .map((item) => (item.href === "/dashboard" ? { ...item, href: "/search" } : item));
+  }
+
+  const scanActive = !isDemo && !isPublic && pathname.startsWith("/scan");
 
   function handleMeetMobile() {
     setScanMenuOpen(false);
@@ -111,6 +129,55 @@ export default function BottomNav() {
   function handleSwimCloud() {
     setScanMenuOpen(false);
     router.push("/scan/swimcloud");
+  }
+
+  function renderNavItem(item: (typeof NAV_ITEMS)[number]) {
+    const href = `${prefix}${item.href}`;
+    const active = item.href === "/dashboard" || item.href === "/search" ? pathname === href : pathname.startsWith(href);
+    const locked = isPublic && item.href !== "/search";
+
+    const content = (
+      <>
+        <div style={{ position: "relative" }}>{item.icon(active)}{locked && LOCK_BADGE}</div>
+        <span style={{
+          fontSize: "9px",
+          fontWeight: active ? 600 : 400,
+          letterSpacing: "0.02em",
+          color: active ? "#FDE68A" : "rgba(255,255,255,0.45)",
+          transition: "color 0.15s ease",
+        }}>
+          {item.label}
+        </span>
+      </>
+    );
+
+    const style: React.CSSProperties = {
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      gap: "3px",
+      padding: "6px 8px",
+      borderRadius: "20px",
+      transition: "background 0.15s ease",
+      background: active ? "rgba(217,119,6,0.2)" : "transparent",
+      border: active ? "1px solid rgba(253,230,138,0.25)" : "1px solid transparent",
+      minWidth: "44px",
+      opacity: locked ? 0.55 : 1,
+    };
+
+    if (locked) {
+      return (
+        <button key={item.href} type="button" onClick={() => router.push("/signup")} style={style}>
+          {content}
+        </button>
+      );
+    }
+
+    return (
+      <Link key={item.href} href={href} data-tutorial={item.tutorial} style={style}>
+        {content}
+      </Link>
+    );
   }
 
   return (
@@ -132,45 +199,12 @@ export default function BottomNav() {
           boxShadow: "0 8px 32px rgba(0,20,50,0.45), inset 0 1px 0 rgba(255,255,255,0.12)",
         }}
       >
-        {items.slice(0, 2).map((item) => {
-          const href = `${prefix}${item.href}`;
-          const active = item.href === "/dashboard" ? pathname === href : pathname.startsWith(href);
-          return (
-            <Link
-              key={item.href}
-              href={href}
-              data-tutorial={item.tutorial}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: "3px",
-                padding: "6px 8px",
-                borderRadius: "20px",
-                transition: "background 0.15s ease",
-                background: active ? "rgba(217,119,6,0.2)" : "transparent",
-                border: active ? "1px solid rgba(253,230,138,0.25)" : "1px solid transparent",
-                minWidth: "44px",
-              }}
-            >
-              {item.icon(active)}
-              <span style={{
-                fontSize: "9px",
-                fontWeight: active ? 600 : 400,
-                letterSpacing: "0.02em",
-                color: active ? "#FDE68A" : "rgba(255,255,255,0.45)",
-                transition: "color 0.15s ease",
-              }}>
-                {item.label}
-              </span>
-            </Link>
-          );
-        })}
+        {items.slice(0, 2).map(renderNavItem)}
 
-        {/* Scan — dropdown trigger. In demo mode this is disabled since the
-            demo is read-only (nothing to save a scan into). */}
+        {/* Scan — dropdown trigger. Disabled (redirects to signup) in demo
+            mode and public/logged-out mode alike — nothing to save into. */}
         <div ref={scanWrapRef} style={{ position: "relative" }}>
-          {scanMenuOpen && !isDemo && (
+          {scanMenuOpen && !isDemo && !isPublic && (
             <div
               className="absolute left-1/2"
               style={{
@@ -211,7 +245,7 @@ export default function BottomNav() {
             type="button"
             data-tutorial="scan"
             onClick={() => {
-              if (isDemo) { router.push("/signup"); return; }
+              if (isDemo || isPublic) { router.push("/signup"); return; }
               setScanMenuOpen((v) => !v);
             }}
             style={{
@@ -225,10 +259,13 @@ export default function BottomNav() {
               background: scanActive || scanMenuOpen ? "rgba(217,119,6,0.2)" : "transparent",
               border: scanActive || scanMenuOpen ? "1px solid rgba(253,230,138,0.25)" : "1px solid transparent",
               minWidth: "44px",
-              opacity: isDemo ? 0.5 : 1,
+              opacity: isDemo || isPublic ? 0.55 : 1,
             }}
           >
-            {SCAN_ICON(scanActive || scanMenuOpen)}
+            <div style={{ position: "relative" }}>
+              {SCAN_ICON(scanActive || scanMenuOpen)}
+              {isPublic && LOCK_BADGE}
+            </div>
             <span style={{
               fontSize: "9px",
               fontWeight: scanActive ? 600 : 400,
@@ -241,40 +278,7 @@ export default function BottomNav() {
           </button>
         </div>
 
-        {items.slice(2).map((item) => {
-          const href = `${prefix}${item.href}`;
-          const active = pathname.startsWith(href);
-          return (
-            <Link
-              key={item.href}
-              href={href}
-              data-tutorial={item.tutorial}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: "3px",
-                padding: "6px 8px",
-                borderRadius: "20px",
-                transition: "background 0.15s ease",
-                background: active ? "rgba(217,119,6,0.2)" : "transparent",
-                border: active ? "1px solid rgba(253,230,138,0.25)" : "1px solid transparent",
-                minWidth: "44px",
-              }}
-            >
-              {item.icon(active)}
-              <span style={{
-                fontSize: "9px",
-                fontWeight: active ? 600 : 400,
-                letterSpacing: "0.02em",
-                color: active ? "#FDE68A" : "rgba(255,255,255,0.45)",
-                transition: "color 0.15s ease",
-              }}>
-                {item.label}
-              </span>
-            </Link>
-          );
-        })}
+        {items.slice(2).map(renderNavItem)}
       </div>
     </nav>
   );

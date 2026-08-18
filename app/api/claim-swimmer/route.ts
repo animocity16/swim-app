@@ -67,6 +67,14 @@ export async function POST(req: NextRequest) {
       if (claimedSwimmer) {
         primarySwimmerId = claimedSwimmer.id;
         claimed = true;
+
+        // Claiming re-parents an EXISTING swimmer row (an UPDATE), which
+        // never fires the AFTER INSERT trigger that normally checks a
+        // brand-new swimmer against the scraped meet_results dataset. Run
+        // that same check manually so claimed swimmers get suggestions too.
+        await supabaseAdmin.rpc("populate_meet_result_suggestions", {
+          p_swimmer_id: claimedSwimmer.id,
+        });
       }
     }
   }
@@ -94,6 +102,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: insertError?.message ?? "Failed to create swimmer" }, { status: 500 });
     }
     primarySwimmerId = newSwimmer.id;
+    // No manual call needed here — this is a plain INSERT, so the existing
+    // trg_suggest_matches_for_new_swimmer trigger already runs automatically.
   }
 
   // ── 4. Auto-follow seed competitors + copy their times ──────────────────────

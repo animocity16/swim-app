@@ -4,8 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-
-const BETA_INVITE_CODE = "NATRIX2026";
+import SwimmerContextBanner from "@/app/components/swimmer-context-banner";
 
 function EyeIcon({ show }: { show: boolean }) {
   return show ? (
@@ -61,7 +60,6 @@ export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [inviteCode, setInviteCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
   const [isError, setIsError] = useState(false);
@@ -74,12 +72,6 @@ export default function SignupPage() {
     if (!password) { setStatus("Please enter a password."); setIsError(true); return; }
     if (password.length < 8) { setStatus("Password must be at least 8 characters."); setIsError(true); return; }
     if (password !== confirmPassword) { setStatus("Passwords don't match."); setIsError(true); return; }
-
-    if (inviteCode.trim().toUpperCase() !== BETA_INVITE_CODE) {
-      setStatus("Invalid invite code. Please check your invite and try again.");
-      setIsError(true);
-      return;
-    }
 
     setLoading(true);
     setStatus("");
@@ -133,6 +125,10 @@ export default function SignupPage() {
         <p className="mt-1 text-sm text-white/40">Swim meet results for parents</p>
       </div>
 
+      <div className="w-full max-w-sm">
+        <SwimmerContextBanner />
+      </div>
+
       {/* Glass card */}
       <div
         className="w-full max-w-sm rounded-3xl p-6 space-y-5"
@@ -144,14 +140,8 @@ export default function SignupPage() {
         }}
       >
         <div>
-          <div
-            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold mb-3"
-            style={{ background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.25)", color: "#FDE68A" }}
-          >
-            🎉 Beta access
-          </div>
           <h2 className="text-2xl font-bold text-white">Create account</h2>
-          <p className="mt-1 text-sm text-white/45">You&apos;ll need your invite code to join.</p>
+          <p className="mt-1 text-sm text-white/45">Free to join — takes about a minute.</p>
         </div>
 
         <form onSubmit={handleSignup} className="space-y-3">
@@ -188,25 +178,6 @@ export default function SignupPage() {
             onChange={setConfirmPassword}
             autoComplete="new-password"
           />
-
-          {/* Divider */}
-          <div style={{ height: 1, background: "rgba(255,255,255,0.1)", margin: "4px 0" }} />
-
-          <div>
-            <input
-              type="text"
-              placeholder="Invite code"
-              autoComplete="off"
-              autoCapitalize="characters"
-              value={inviteCode}
-              onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-              className="input"
-              style={{ letterSpacing: "0.1em", fontWeight: 600 }}
-            />
-            <p className="mt-1.5 text-xs text-white/30 px-1">
-              Ask J.O.D for your invite code if you don&apos;t have one.
-            </p>
-          </div>
 
           {status && (
             <p

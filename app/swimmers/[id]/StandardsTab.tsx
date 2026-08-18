@@ -44,6 +44,12 @@ function formatMs(ms: number): string {
     : seconds.toFixed(2);
 }
 
+// Always a plain "X.XXs" seconds value — used for the gap/away label so it
+// reads as a quick, mobile-friendly delta rather than a race-clock time.
+function formatGapSeconds(ms: number): string {
+  return (ms / 1000).toFixed(2);
+}
+
 function getStrokeColor(event: string): string {
   const e = event.toLowerCase();
   if (e.includes("breast")) return "#34D399";
@@ -311,10 +317,10 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
                         </div>
 
                         {/* PB / gap — text-base font-bold for hero time, matches dashboard */}
-                        <div className="text-right flex-shrink-0 w-16">
+                        <div className="text-right flex-shrink-0 w-20">
                           {hasQual ? (
                             <>
-                              <p className="text-[10px] mb-0.5" style={{ color: "#6EE7B7" }}>✓ PB</p>
+                              <p className="text-[10px] font-semibold mb-0.5" style={{ color: "#6EE7B7" }}>✓ Qualified</p>
                               <p className="text-base font-bold" style={{ color: "#6EE7B7" }}>
                                 {formatMs(pb!)}
                               </p>
@@ -325,7 +331,7 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
                               <p className="text-sm font-semibold text-white">{formatMs(pb!)}</p>
                               {gapMs !== null && (
                                 <p className="text-[10px] mt-0.5" style={{ color: "#D97706" }}>
-                                  +{formatMs(gapMs)}
+                                  {formatGapSeconds(gapMs)}s away
                                 </p>
                               )}
                             </>
