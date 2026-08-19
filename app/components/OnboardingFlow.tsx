@@ -24,6 +24,15 @@ const SSC_SQUADS = [
   { label: "Elite A", value: "Elite A" },
 ];
 
+type Candidate = {
+  id: number;
+  name: string;
+  age: number;
+  gender: string | null;
+  swim_club: string | null;
+  school: string | null;
+};
+
 // ─── Step indicator ───────────────────────────────────────────────────────────
 
 function StepDots({ total, current }: { total: number; current: number }) {
@@ -52,7 +61,7 @@ function raceAgeFromBirthYear(birthYear: number): number {
 export default function OnboardingFlow({ userName }: { userName: string }) {
   const router = useRouter();
   const [step, setStep] = useState(0);
-  const TOTAL_STEPS = 6;
+  const TOTAL_STEPS = 7;
 
   // Swimmer form
   const [swimmerName, setSwimmerName]     = useState("");
@@ -65,6 +74,12 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
   const [swimmerError, setSwimmerError]   = useState("");
   const [swimmerSaved, setSwimmerSaved]   = useState(false);
   const [savedSwimmerName, setSavedSwimmerName] = useState("");
+
+  // Follow picker
+  const [candidates, setCandidates]     = useState<Candidate[]>([]);
+  const [selectedIds, setSelectedIds]   = useState<Set<number>>(new Set());
+  const [followSubmitting, setFollowSubmitting] = useState(false);
+  const [followError, setFollowError]   = useState("");
 
   // Theme
   const [selectedTheme, setSelectedTheme] = useState("ocean");
@@ -130,11 +145,47 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
 
       setSwimmerSaved(true);
       setSavedSwimmerName(swimmerName.trim());
+      setCandidates(result.candidates ?? []);
       setSavingSwimmer(false);
       next();
     } catch {
       setSwimmerError("Network error. Please try again.");
       setSavingSwimmer(false);
+    }
+  }
+
+  function toggleCandidate(id: number) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleFollowSelected() {
+    if (selectedIds.size === 0) { next(); return; }
+    setFollowSubmitting(true);
+    setFollowError("");
+
+    try {
+      const res = await fetch("/api/follow-swimmers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ competitorIds: Array.from(selectedIds) }),
+      });
+      const result = await res.json();
+
+      if (!res.ok || !result.success) {
+        setFollowError(result.error ?? "Couldn't follow those swimmers. You can add them later.");
+        setFollowSubmitting(false);
+        return;
+      }
+
+      setFollowSubmitting(false);
+      next();
+    } catch {
+      setFollowError("Network error. You can follow swimmers later from your dashboard.");
+      setFollowSubmitting(false);
     }
   }
 
@@ -337,11 +388,79 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
     </div>
   );
 
-  // ── Step 3: Choose theme ─────────────────────────────────────────────────────
+  // ── Step 3: Who do you want to follow ────────────────────────────────────────
 
   if (step === 3) return (
     <div className="onb-screen">
       <StepDots total={TOTAL_STEPS} current={3} />
+      <div className="px-6 space-y-5">
+        <div className="text-center">
+          <p className="text-xs font-medium uppercase tracking-widest text-white/35 mb-2">Optional</p>
+          <h2 className="text-3xl font-bold text-white">Follow other<br />swimmers?</h2>
+          <p className="mt-2 text-sm text-white/45">
+            {candidates.length > 0
+              ? `${candidates.length} swimmer${candidates.length > 1 ? "s" : ""} in ${savedSwimmerName || "your swimmer"}'s age group. Pick who you want to follow — you can add more anytime.`
+              : "No other swimmers in this age group yet. You can follow swimmers anytime from your dashboard."}
+          </p>
+        </div>
+
+        {candidates.length > 0 && (
+          <div className="space-y-2 max-h-[360px] overflow-y-auto">
+            {candidates.map((c) => {
+              const isSelected = selectedIds.has(c.id);
+              return (
+                <div key={c.id}
+                  onClick={() => toggleCandidate(c.id)}
+                  className="flex items-center gap-3 rounded-2xl px-4 py-3 cursor-pointer transition"
+                  style={isSelected
+                    ? { background: "rgba(217,119,6,0.15)", border: "1px solid rgba(253,230,138,0.4)" }
+                    : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)" }}>
+                  <div className="flex-1 min-w-0 text-left">
+                    <p className="text-sm font-semibold text-white truncate">{c.name}</p>
+                    <p className="text-xs text-white/45 mt-0.5 truncate">
+                      {c.swim_club || "Unattached"}{c.school ? ` · ${c.school}` : ""}
+                    </p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => toggleCandidate(c.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-[18px] h-[18px] flex-shrink-0"
+                    aria-label={`Follow ${c.name}`}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {followError && (
+          <p className="text-sm text-red-300 text-center">{followError}</p>
+        )}
+
+        <div className="flex gap-3">
+          <button type="button" onClick={next} className="onb-btn-secondary flex-1">
+            Skip for now
+          </button>
+          <button type="button" onClick={handleFollowSelected} disabled={followSubmitting}
+            className="onb-btn-primary flex-1 disabled:opacity-50">
+            {followSubmitting
+              ? "Following…"
+              : selectedIds.size === 0
+              ? "Continue →"
+              : `Follow ${selectedIds.size} →`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── Step 4: Choose theme ─────────────────────────────────────────────────────
+
+  if (step === 4) return (
+    <div className="onb-screen">
+      <StepDots total={TOTAL_STEPS} current={4} />
       <div className="px-6 space-y-5">
         <div className="text-center">
           <p className="text-xs font-medium uppercase tracking-widest text-white/35 mb-2">Make it yours</p>
@@ -386,11 +505,11 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
     </div>
   );
 
-  // ── Step 4: Install on your phone ────────────────────────────────────────────
+  // ── Step 5: Install on your phone ────────────────────────────────────────────
 
-  if (step === 4) return (
+  if (step === 5) return (
     <div className="onb-screen">
-      <StepDots total={TOTAL_STEPS} current={4} />
+      <StepDots total={TOTAL_STEPS} current={5} />
       <div className="px-6 space-y-5">
         <div className="text-center">
           <p className="text-xs font-medium uppercase tracking-widest text-white/35 mb-2">One last thing</p>
@@ -474,11 +593,11 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
     </div>
   );
 
-  // ── Step 5: All set ──────────────────────────────────────────────────────────
+  // ── Step 6: All set ──────────────────────────────────────────────────────────
 
-  if (step === 5) return (
+  if (step === 6) return (
     <div className="onb-screen">
-      <StepDots total={TOTAL_STEPS} current={5} />
+      <StepDots total={TOTAL_STEPS} current={6} />
       <div className="text-center px-6 space-y-6">
         <div className="text-6xl">🎉</div>
         <div>

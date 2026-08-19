@@ -67,14 +67,6 @@ export async function POST(req: NextRequest) {
       if (claimedSwimmer) {
         primarySwimmerId = claimedSwimmer.id;
         claimed = true;
-
-        // Claiming re-parents an EXISTING swimmer row (an UPDATE), which
-        // never fires the AFTER INSERT trigger that normally checks a
-        // brand-new swimmer against the scraped meet_results dataset. Run
-        // that same check manually so claimed swimmers get suggestions too.
-        await supabaseAdmin.rpc("populate_meet_result_suggestions", {
-          p_swimmer_id: claimedSwimmer.id,
-        });
       }
     }
   }
@@ -102,16 +94,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: insertError?.message ?? "Failed to create swimmer" }, { status: 500 });
     }
     primarySwimmerId = newSwimmer.id;
-    // No manual call needed here — this is a plain INSERT, so the existing
-    // trg_suggest_matches_for_new_swimmer trigger already runs automatically.
   }
 
-  // ── 4. Auto-follow seed competitors + copy their times ──────────────────────
-  let competitorsAdded = 0;
+  // ── 4. Find candidate competitors (same age + gender) ───────────────────────
+  // Previously this block auto-created a "following" swimmer + copied swim
+  // times for every single match -- sometimes 40+ swimmers at once with no
+  // way to opt out. Now it just returns candidates; the parent picks who to
+  // follow on the next onboarding step, and /api/follow-swimmers does the
+  // actual creating for only the ones they chose.
+  let candidates: Array<{
+    id: number;
+    name: string;
+    age: number;
+    gender: string | null;
+    swim_club: string | null;
+    school: string | null;
+  }> = [];
+
   if (SEED_USER_ID) {
     let query = supabaseAdmin
       .from("swimmers")
-      .select("id, name, age, gender, swim_club, school, country")
+      .select("id, name, age, gender, swim_club, school")
       .eq("user_id", SEED_USER_ID)
       .eq("age", ageNum);
 
@@ -119,82 +122,10 @@ export async function POST(req: NextRequest) {
 
     const { data: competitors } = await query;
 
-    if (competitors && competitors.length > 0) {
-      for (const c of competitors) {
-        if (c.name.toLowerCase() === name.trim().toLowerCase()) continue;
-
-        const { data: existing } = await supabaseAdmin
-          .from("swimmers")
-          .select("id")
-          .eq("user_id", parentId)
-          .eq("name", c.name)
-          .eq("age", c.age)
-          .maybeSingle();
-
-        let newSwimmerId: number;
-
-        if (existing) {
-          newSwimmerId = existing.id;
-        } else {
-          const { data: inserted } = await supabaseAdmin
-            .from("swimmers")
-            .insert({
-              user_id: parentId,
-              name: c.name,
-              age: c.age,
-              gender: c.gender,
-              swim_club: c.swim_club,
-              school: c.school,
-              country: c.country ?? "Singapore",
-              group_type: "following",
-              status: "Active",
-            })
-            .select("id")
-            .single();
-
-          if (!inserted) continue;
-          newSwimmerId = inserted.id;
-          competitorsAdded++;
-        }
-
-        // Copy swim times from seed swimmer to new following swimmer
-        const { data: seedTimes } = await supabaseAdmin
-          .from("swim_times")
-          .select("event, course, time_ms, meet_name, meet_date, swam_at, place, meet_type, notes")
-          .eq("swimmer_id", c.id);
-
-        if (seedTimes && seedTimes.length > 0) {
-          const { data: existingTimes } = await supabaseAdmin
-            .from("swim_times")
-            .select("event, swam_at")
-            .eq("swimmer_id", newSwimmerId);
-
-          const existingKeys = new Set(
-            (existingTimes ?? []).map((t) => `${t.event}|${t.swam_at}`)
-          );
-
-          const timesToInsert = seedTimes
-            .filter((t) => !existingKeys.has(`${t.event}|${t.swam_at}`))
-            .map((t) => ({
-              swimmer_id: newSwimmerId,
-              event: t.event,
-              course: t.course,
-              time_ms: t.time_ms,
-              meet_name: t.meet_name,
-              meet_date: t.meet_date,
-              swam_at: t.swam_at,
-              place: t.place,
-              meet_type: t.meet_type ?? "CLUB",
-              notes: t.notes ?? null,
-            }));
-
-          if (timesToInsert.length > 0) {
-            await supabaseAdmin.from("swim_times").insert(timesToInsert);
-          }
-        }
-      }
-    }
+    candidates = (competitors ?? []).filter(
+      (c) => c.name.toLowerCase() !== name.trim().toLowerCase()
+    );
   }
 
-  return NextResponse.json({ success: true, claimed, primarySwimmerId, competitorsAdded });
+  return NextResponse.json({ success: true, claimed, primarySwimmerId, candidates });
 }
