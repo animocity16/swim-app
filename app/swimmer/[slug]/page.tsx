@@ -26,7 +26,11 @@ type ResultRow = {
   event_result_count: number;
 };
 
-function slugToQuery(slug: string): string {
+// FIX: guards against undefined/empty slug instead of crashing on
+// `.replace()` — this is what was throwing "Cannot read properties of
+// undefined (reading 'replace')" intermittently.
+function slugToQuery(slug: string | undefined | null): string | null {
+  if (!slug) return null;
   return slug.replace(/-/g, ' ');
 }
 
@@ -45,9 +49,12 @@ function formatDate(d: string | null) {
   });
 }
 
-async function getSwimmerData(slug: string) {
+async function getSwimmerData(slug: string | undefined | null) {
+  const query = slugToQuery(slug);
+  if (!query) return null;
+
   const { data, error } = await supabase.rpc('search_public_swimmer', {
-    p_query: slugToQuery(slug),
+    p_query: query,
   });
 
   if (error || !data || data.length === 0) return null;
@@ -69,8 +76,15 @@ async function getSwimmerData(slug: string) {
   };
 }
 
-export async function generateMetadata({ params }: { params: { slug: string } }) {
-  const data = await getSwimmerData(params.slug);
+// FIX: params is a Promise in Next.js 15 (App Router). Reading params.slug
+// synchronously (the old Next 14 pattern) is what caused the intermittent
+// crash — it worked on some render paths and threw on others depending on
+// how Next resolved the backward-compat shim for that specific request.
+type PageParams = { params: Promise<{ slug: string }> };
+
+export async function generateMetadata({ params }: PageParams) {
+  const { slug } = await params;
+  const data = await getSwimmerData(slug);
   if (!data) return { title: 'Swimmer not found — Natrix' };
 
   const title = `${data.swimmerName}'s Swim Results — Natrix`;
@@ -85,8 +99,9 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   };
 }
 
-export default async function SwimmerPublicPage({ params }: { params: { slug: string } }) {
-  const data = await getSwimmerData(params.slug);
+export default async function SwimmerPublicPage({ params }: PageParams) {
+  const { slug } = await params;
+  const data = await getSwimmerData(slug);
   if (!data) return notFound();
 
   return (
