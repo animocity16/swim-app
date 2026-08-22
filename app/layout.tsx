@@ -4,6 +4,7 @@ import BottomNav from "@/app/components/BottomNav";
 import TutorialOverlay from "@/app/components/TutorialOverlay";
 import SplashScreen from "@/app/components/SplashScreen";
 import ThemeProvider from "@/app/components/ThemeProvider";
+import { Analytics } from "@vercel/analytics/next";
 
 export const metadata: Metadata = {
   title: "Natrix — Swim Tracker",
@@ -84,6 +85,9 @@ export default function RootLayout({
 
         {/* Tutorial — shows on first login, replay from Settings */}
         <TutorialOverlay />
+
+        {/* Vercel Web Analytics */}
+        <Analytics />
       </body>
     </html>
   );
