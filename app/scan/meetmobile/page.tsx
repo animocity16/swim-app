@@ -1,3 +1,4 @@
+<file path="app/scan/meetmobile/page.tsx">
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -372,6 +373,12 @@ export default function ScanPage() {
   const [timeError, setTimeError] = useState<string | null>(null);
   const [autoMatchedSwimmer, setAutoMatchedSwimmer] = useState<Swimmer | null>(null);
   const [showPicker, setShowPicker] = useState(false);
+  // Tracks WHY the picker is showing, so the UI can warn instead of silently
+  // presenting a swimmer list that looks like a confident suggestion when it
+  // isn't one. 'matched' = name OCR'd and matched a saved swimmer (safe to
+  // auto-suggest). 'no_name' = OCR found no name at all on this screenshot.
+  // 'no_match' = a name was OCR'd but it didn't match anyone saved.
+  const [singleNameStatus, setSingleNameStatus] = useState<"matched" | "no_name" | "no_match" | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [savedSwimmer, setSavedSwimmer] = useState<Swimmer | null>(null);
   const [savedTimeId, setSavedTimeId] = useState<number | null>(null);
@@ -392,6 +399,8 @@ export default function ScanPage() {
   const [selectedScheduleRows, setSelectedScheduleRows] = useState<Set<number>>(new Set());
   const [scheduleMatchedSwimmer, setScheduleMatchedSwimmer] = useState<Swimmer | null>(null);
   const [showSchedulePicker, setShowSchedulePicker] = useState(false);
+  // Same reasoning as singleNameStatus above, for the schedule-scan flow.
+  const [scheduleNameStatus, setScheduleNameStatus] = useState<"matched" | "no_name" | "no_match" | null>(null);
   const [savingSchedule, setSavingSchedule] = useState(false);
 
   // ── New swimmer creation ──────────────────────────────────────────────────
@@ -472,7 +481,7 @@ export default function ScanPage() {
     setScanMode(null);
     setParsedResult(null); setDetectedEvent(null);
     setEditedTime(""); setEditedCourse(meetCourse); setTimeError(null);
-    setAutoMatchedSwimmer(null); setShowPicker(false);
+    setAutoMatchedSwimmer(null); setShowPicker(false); setSingleNameStatus(null);
     setIsSaving(false); setSavedSwimmer(null); setSavedTimeId(null); setSavedCourse(null);
     setEventRows([]); setSelectedRows(new Set());
     setSavingSelected(false); setSavedNames([]); setRowTypes({});
@@ -795,10 +804,10 @@ export default function ScanPage() {
     setStep("scanning");
     setProgress(0); setMessage(""); setRawText(""); setScanMode(null);
     setParsedResult(null); setDetectedEvent(null); setEditedTime(""); setTimeError(null);
-    setAutoMatchedSwimmer(null); setShowPicker(false); setSavedSwimmer(null); setSavedTimeId(null); setSavedCourse(null);
+    setAutoMatchedSwimmer(null); setShowPicker(false); setSavedSwimmer(null); setSavedTimeId(null); setSavedCourse(null); setSingleNameStatus(null);
     setEventRows([]); setSelectedRows(new Set()); setSavedNames([]); setRowTypes({});
     setScheduleResults([]); setScheduleSwimmerName(null); setScheduleMeetName(null);
-    setSelectedScheduleRows(new Set()); setScheduleMatchedSwimmer(null); setShowSchedulePicker(false);
+    setSelectedScheduleRows(new Set()); setScheduleMatchedSwimmer(null); setShowSchedulePicker(false); setScheduleNameStatus(null);
     setManualMeetName(""); setManualMeetDate(""); setEventMeetDate("");
     setCreatingNewSwimmer(false); setNewSwimmerName(""); setNewSwimmerAge("");
     setNewSwimmerClub(""); setShowCreateForm(false);
@@ -853,13 +862,15 @@ export default function ScanPage() {
               setScheduleMatchedSwimmer(matched);
               setShowSchedulePicker(false);
               setShowCreateForm(false);
+              setScheduleNameStatus("matched");
             } else {
               setNewSwimmerName(cleanedName);
               setNewSwimmerAge(""); setNewSwimmerClub("");
               setShowSchedulePicker(true); setShowCreateForm(false);
+              setScheduleNameStatus("no_match");
             }
-          } else { setShowSchedulePicker(true); }
-        } else { setShowSchedulePicker(true); }
+          } else { setShowSchedulePicker(true); setScheduleNameStatus("no_name"); }
+        } else { setShowSchedulePicker(true); setScheduleNameStatus("no_name"); }
         setMessage(correctedResults.length === 0 ? "⚠️ No individual events detected." : "");
 
       } else if (isEventResultsPage(combined)) {
@@ -895,12 +906,14 @@ export default function ScanPage() {
             const matched = fuzzyMatchSwimmer(cleanedName, swimmers);
             if (matched) {
               setAutoMatchedSwimmer(matched); setShowPicker(false); setShowCreateForm(false);
+              setSingleNameStatus("matched");
             } else {
               setAutoMatchedSwimmer(null);
               setNewSwimmerName(cleanedName); setNewSwimmerAge(""); setNewSwimmerClub("");
               setShowPicker(true); setShowCreateForm(false);
+              setSingleNameStatus("no_match");
             }
-          } else { setAutoMatchedSwimmer(null); setShowPicker(true); }
+          } else { setAutoMatchedSwimmer(null); setShowPicker(true); setSingleNameStatus("no_name"); }
         }
       }
 
@@ -1167,6 +1180,15 @@ export default function ScanPage() {
 
                     {showPicker && !showCreateForm && (
                       <div className="space-y-3">
+                        {singleNameStatus === "no_name" && (
+                          <div className="rounded-2xl p-3 flex items-start gap-2"
+                            style={{ background: "rgba(226,75,74,0.1)", border: "1px solid rgba(226,75,74,0.25)" }}>
+                            <span className="mt-0.5 text-base">⚠️</span>
+                            <p className="text-xs text-red-100/80">
+                              We couldn&apos;t read a swimmer name off this screenshot. Double-check you&apos;re picking the right swimmer below before saving — this is not an automatic match.
+                            </p>
+                          </div>
+                        )}
                         {newSwimmerName.trim().length > 0 && (
                           <div className="rounded-2xl p-4 space-y-3"
                             style={{ background: "rgba(186,117,23,0.08)", border: "1px solid rgba(186,117,23,0.25)" }}>
@@ -1413,6 +1435,15 @@ export default function ScanPage() {
 
                     {showSchedulePicker && selectedScheduleRows.size > 0 && !showCreateForm && (
                       <div className="space-y-3">
+                        {scheduleNameStatus === "no_name" && (
+                          <div className="rounded-2xl p-3 flex items-start gap-2"
+                            style={{ background: "rgba(226,75,74,0.1)", border: "1px solid rgba(226,75,74,0.25)" }}>
+                            <span className="mt-0.5 text-base">⚠️</span>
+                            <p className="text-xs text-red-100/80">
+                              We couldn&apos;t read a swimmer name off this screenshot. Double-check you&apos;re picking the right swimmer below before saving — this is not an automatic match.
+                            </p>
+                          </div>
+                        )}
                         {newSwimmerName.trim().length > 0 && (
                           <div className="rounded-2xl p-4 space-y-3"
                             style={{ background: "rgba(186,117,23,0.08)", border: "1px solid rgba(186,117,23,0.25)" }}>
@@ -1653,3 +1684,6 @@ export default function ScanPage() {
     </div>
   );
 }
+</file>
+
+<file path="app/swimmers/[id]/page.tsx"></file>
