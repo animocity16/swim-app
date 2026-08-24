@@ -196,8 +196,14 @@ function extractMeetDate(rawText: string): string | null {
 // data problem, not a parsing problem, and the scan UI should be warning the
 // user in that case rather than guessing.
 
+// A real name fragment is Title Case ("Jiahui", "Too") — it has at least one
+// lowercase letter. Interface chrome near the name header (POINTS, SWIMMER,
+// stat labels) reads as ALL CAPS and must not be swept up into the name.
 function isNameFragment(cleaned: string): boolean {
-  return cleaned.length > 0 && !/\d/.test(cleaned) && /^[A-Z]/.test(cleaned);
+  if (cleaned.length === 0 || /\d/.test(cleaned)) return false;
+  if (!/^[A-Z]/.test(cleaned)) return false;
+  if (!/[a-z]/.test(cleaned)) return false; // reject ALL-CAPS UI labels
+  return true;
 }
 
 function looksLikeFullName(combined: string): boolean {
