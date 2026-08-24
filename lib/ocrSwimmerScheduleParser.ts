@@ -177,25 +177,74 @@ function extractMeetDate(rawText: string): string | null {
 // ─── Swimmer name extraction ──────────────────────────────────────────────────
 // Name appears just above "Full schedule" line
 // OCR adds noise prefix like "NEI ", "< ", etc.
+//
+// Long names wrap onto two lines on the swimmer header (e.g. "Jiahui Shanyce"
+// on one line, "Too" on the next), so we can't just check a single line —
+// we walk upward from the anchor collecting contiguous name-shaped lines and
+// join them, stopping as soon as we hit a line that isn't part of a name
+// (has a digit, or doesn't start with a capital letter).
+//
+// Two passes:
+//   1. Anchor off "Full schedule" (most reliable — original approach).
+//   2. Fallback: look for the "CLUB | age" line (e.g. "SDAS | 10") that sits
+//      directly under the name on the swimmer header, and take the name-shaped
+//      line(s) just above it. This recovers screenshots that are cropped to
+//      skip "Full schedule" but still include the header itself.
+//
+// Neither pass can recover a name that was never captured in the screenshot
+// at all (e.g. a screenshot scrolled straight to the events list) — that's a
+// data problem, not a parsing problem, and the scan UI should be warning the
+// user in that case rather than guessing.
+
+function isNameFragment(cleaned: string): boolean {
+  return cleaned.length > 0 && !/\d/.test(cleaned) && /^[A-Z]/.test(cleaned);
+}
+
+function looksLikeFullName(combined: string): boolean {
+  const words = combined.split(/\s+/);
+  return words.length >= 2 && words.length <= 7 && words.every((w) => /^[A-Z]/.test(w));
+}
+
+// Walks upward from just above `anchorIdx`, collecting consecutive
+// name-shaped lines (up to maxLinesUp of them) and joining them in reading
+// order. Stops the moment a line doesn't look like part of a name.
+function collectNameAbove(lines: string[], anchorIdx: number, maxLinesUp = 3): string | null {
+  const fragments: string[] = [];
+  for (let i = anchorIdx - 1; i >= Math.max(0, anchorIdx - maxLinesUp); i--) {
+    const line = lines[i].trim();
+    const cleaned = line.replace(/^[^A-Z]+/, "").trim();
+    if (!isNameFragment(cleaned)) break;
+    fragments.unshift(cleaned);
+    const combined = fragments.join(" ");
+    if (looksLikeFullName(combined)) return combined;
+  }
+  return null;
+}
 
 function extractSwimmerHeader(lines: string[]): {
   name: string | null; club: string | null; age: number | null;
 } {
   const scheduleIdx = lines.findIndex((l) => /full.?schedule/i.test(l));
   if (scheduleIdx >= 1) {
-    for (let i = scheduleIdx - 1; i >= Math.max(0, scheduleIdx - 3); i--) {
-      const line = lines[i].trim();
-      const cleaned = line.replace(/^[^A-Z]+/, "").trim();
-      const words = cleaned.split(/\s+/);
-      if (
-        words.length >= 2 && words.length <= 7 &&
-        !/\d/.test(cleaned) &&
-        words.every((w) => /^[A-Z]/.test(w))
-      ) {
-        return { name: cleaned, club: null, age: null };
-      }
+    const name = collectNameAbove(lines, scheduleIdx);
+    if (name) return { name, club: null, age: null };
+  }
+
+  // Fallback: find a "CLUB | age" style line (club code, pipe, 1-2 digit age)
+  // and take the name-shaped line(s) directly above it.
+  const clubAgeIdx = lines.findIndex((l) => /^[A-Z]{2,6}\s*\|\s*\d{1,2}$/.test(l.trim()));
+  if (clubAgeIdx >= 1) {
+    const clubAgeMatch = lines[clubAgeIdx].trim().match(/^([A-Z]{2,6})\s*\|\s*(\d{1,2})$/);
+    const name = collectNameAbove(lines, clubAgeIdx);
+    if (name) {
+      return {
+        name,
+        club: clubAgeMatch?.[1] ?? null,
+        age: clubAgeMatch?.[2] ? Number(clubAgeMatch[2]) : null,
+      };
     }
   }
+
   return { name: null, club: null, age: null };
 }
 
