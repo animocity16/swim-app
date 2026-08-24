@@ -1,4 +1,3 @@
-<file path="app/scan/meetmobile/page.tsx">
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -1684,6 +1683,3 @@ export default function ScanPage() {
     </div>
   );
 }
-</file>
-
-<file path="app/swimmers/[id]/page.tsx"></file>
