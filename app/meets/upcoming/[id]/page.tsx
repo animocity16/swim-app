@@ -213,15 +213,16 @@ function parsePDF(text: string, swimmerNames: string[]): ParsedEvent[] {
 
 async function getPdfjs() {
   const pdfjsLib = await import("pdfjs-dist");
-  // Load the worker file straight out of the installed pdfjs-dist package
-  // instead of fetching it from an external CDN at runtime. This guarantees
-  // the worker always matches the exact version bundled with the app (no
-  // version-mismatch or CORS/network surprises in production), and is the
-  // pattern pdfjs-dist itself recommends for bundlers like Next.js.
-  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-    "pdfjs-dist/build/pdf.worker.min.mjs",
-    import.meta.url
-  ).toString();
+  // Point the worker at a plain static file in /public instead of relying
+  // on the bundler to auto-detect `new URL("pdfjs-dist/...", import.meta.url)`
+  // and package the worker for us. That auto-detection is built for literal
+  // `new Worker(new URL(...))` calls; pdf.js constructs its worker
+  // differently internally, so Next.js was never actually bundling the real
+  // worker file - the browser silently loaded a broken/missing script, and
+  // pdf.js only surfaced that later as a cryptic "undefined is not a
+  // function" the first time something tried to actually use the worker.
+  // A static file at a known path sidesteps bundler detection entirely.
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
   return pdfjsLib;
 }
 
