@@ -375,7 +375,21 @@ async function extractTextViaOcr(
       pageCanvas.width = viewport.width;
       pageCanvas.height = viewport.height;
       const pageCtx = pageCanvas.getContext("2d")!;
-      await page.render({ canvasContext: pageCtx, viewport, canvas: pageCanvas }).promise;
+      // annotationMode: DISABLE skips rendering highlight/comment overlays
+      // onto this image. Meets often send start lists with a swimmer's row
+      // highlighted so parents can find their kid at a glance - great for a
+      // human eye, but the colored overlay lowers the contrast OCR needs
+      // and can make exactly the highlighted row unreadable while every
+      // plain white row around it reads fine. Skipping annotations here
+      // renders the page as if it were never highlighted, which is what we
+      // want for OCR - this only affects the internal image OCR reads, not
+      // anything shown to the user.
+      await page.render({
+        canvasContext: pageCtx,
+        viewport,
+        canvas: pageCanvas,
+        annotationMode: 0, // AnnotationMode.DISABLE
+      }).promise;
 
       const halfWidth = Math.floor(pageCanvas.width / 2);
       const halves: [number, number][] = [
