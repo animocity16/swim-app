@@ -921,6 +921,14 @@ export default function UpcomingMeetDetailPage() {
   const [debugData, setDebugData] = useState<{ swimmerNames: string[]; totalLines: number; rawTextSample: string; first80Lines: string[]; usedOcr: boolean; textLayerError: string | null; textLayerChars: number } | null>(null);
   const [debugSearchTerm, setDebugSearchTerm] = useState("");
   const [lastFile, setLastFile] = useState<File | null>(null);
+  // Cache of the fully-extracted text from the last upload, so re-searching
+  // within it (the debug "Find" box) is instant instead of re-running the
+  // whole extraction - including a full OCR pass over every page - from
+  // scratch on every search. Re-running OCR repeatedly is slow and heavy
+  // enough on a phone that mobile Safari can kill and reload the tab
+  // partway through, which looks like the app randomly "resetting."
+  const [lastExtractedText, setLastExtractedText] = useState<string | null>(null);
+  const [lastExtractedMeta, setLastExtractedMeta] = useState<{ usedOcr: boolean; textLayerError: string | null; textLayerChars: number } | null>(null);
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -1025,8 +1033,17 @@ export default function UpcomingMeetDetailPage() {
   }
 
   async function runDebugSearch() {
+    // Reuse the cached text from the last extraction instead of running
+    // the whole (potentially slow, OCR-heavy) extraction again just to
+    // search within it.
+    if (lastExtractedText !== null && lastExtractedMeta !== null) {
+      setDebugData(buildDebugInfo(lastExtractedText, lastExtractedMeta));
+      return;
+    }
     if (!lastFile) return;
     const { text, usedOcr, textLayerError, textLayerChars } = await extractStartListText(lastFile);
+    setLastExtractedText(text);
+    setLastExtractedMeta({ usedOcr, textLayerError, textLayerChars });
     setDebugData(buildDebugInfo(text, { usedOcr, textLayerError, textLayerChars }));
   }
 
@@ -1050,6 +1067,8 @@ export default function UpcomingMeetDetailPage() {
       // Nothing is uploaded to a server for this step.
       const { text, usedOcr, textLayerError, textLayerChars } = await extractStartListText(file, (msg) => setUploadStatus(msg));
 
+      setLastExtractedText(text);
+      setLastExtractedMeta({ usedOcr, textLayerError, textLayerChars });
       setDebugData(buildDebugInfo(text, { usedOcr, textLayerError, textLayerChars }));
 
       const parsed: ParsedEvent[] = parsePDF(text, selectedSwimmers);
