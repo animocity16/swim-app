@@ -103,15 +103,17 @@ function parsePDF(text: string, swimmerNames: string[]): ParsedEvent[] {
   const heatStartRe = /^Heat\s+(\d+?)\s*[o0]*f\s*\d+.*?Starts\s*at\s+(\d+:\d+\s*[AP]M)/i;
   const heatOfRe = /^Heat\s+(\d+?)\s*[o0]*f\s*\d+/i;
   const heatRe = /^Heat\s+(\d+)/i;
-  // Lane row: "4 Taguchi, Maxwell Shouki 12 SSC 34.31"
-  // Two things loosened here versus a real PDF text layer:
+  // Lane row: "4 Taguchi, Maxwell Shouki 12 SSC 34.31" (SSC-style meets)
+  //        or "6 Loh, Mikaela W10 SSC 5:51.09 G" (SwimFaster/SAQSFA-style
+  //        meets, which write age as a gender letter + number combined, and
+  //        tack a Gold/Silver/Bronze tier letter on the end)
+  // - Age accepts an optional leading M/W before the digits.
   // - Team code is matched case-insensitively (/i) - OCR often reads
   //   printed team codes like "SSC" back as lowercase "ssc".
-  // - No longer anchored to end-of-line after the time - the blank line
-  //   printed for a scorer to pencil in the actual result often gets read
-  //   by OCR as a trailing underscore or two, which would otherwise stop
-  //   the whole line from matching at all.
-  const laneRe = /^(\d)\s+(.+?)\s+\d+\s+[A-Z0-9\-]+\s+([\d:]+\.?\d*|NT)/i;
+  // - No longer anchored to end-of-line after the time - trailing junk
+  //   (an OCR underscore, or a real G/S/B tier letter) no longer stops the
+  //   whole line from matching.
+  const laneRe = /^(\d)\s+(.+?)\s+[MW]?\d+\s+[A-Z0-9\-]+\s+([\d:]+\.?\d*|NT)/i;
 
   for (const line of lines) {
     // Event header
