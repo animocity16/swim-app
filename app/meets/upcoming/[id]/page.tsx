@@ -404,17 +404,24 @@ async function extractTextViaOcr(
 async function extractStartListText(
   file: File,
   onProgress?: (message: string) => void
-): Promise<{ text: string; usedOcr: boolean }> {
+): Promise<{ text: string; usedOcr: boolean; textLayerError: string | null; textLayerChars: number }> {
   onProgress?.("Reading PDF text...");
 
   // The text-layer attempt is wrapped so that ANY failure here (not just
   // "no text found") falls through to OCR rather than failing the whole
   // upload - text-layer reading is a nice-to-have fast path, OCR is the
   // path that actually has to work for image-only PDFs like this one.
+  // The error (if any) and character count are captured and surfaced in
+  // the debug panel - without them there's no way to tell, from the app
+  // alone, WHY a PDF with a perfectly good text layer still fell back to
+  // OCR (which is otherwise invisible - OCR output can look plausible
+  // while quietly getting individual characters wrong).
   let textLayerResult = "";
+  let textLayerError: string | null = null;
   try {
     textLayerResult = await extractTextFromTextLayer(file);
   } catch (err) {
+    textLayerError = err instanceof Error ? `${err.message}\n${err.stack ?? ""}` : String(err);
     console.error("Text-layer extraction failed, falling back to OCR:", err);
   }
 
@@ -423,12 +430,12 @@ async function extractStartListText(
   // the PDF is image-only - so fall back to OCR.
   const looksLikeRealTextLayer = /Event\s+\d+/i.test(textLayerResult);
   if (looksLikeRealTextLayer) {
-    return { text: textLayerResult, usedOcr: false };
+    return { text: textLayerResult, usedOcr: false, textLayerError: null, textLayerChars: textLayerResult.length };
   }
 
   onProgress?.("No readable text found - running OCR instead...");
   const ocrResult = await extractTextViaOcr(file, onProgress);
-  return { text: ocrResult, usedOcr: true };
+  return { text: ocrResult, usedOcr: true, textLayerError, textLayerChars: textLayerResult.length };
 }
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
@@ -910,7 +917,7 @@ export default function UpcomingMeetDetailPage() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [debugData, setDebugData] = useState<{ swimmerNames: string[]; totalLines: number; rawTextSample: string; first80Lines: string[] } | null>(null);
+  const [debugData, setDebugData] = useState<{ swimmerNames: string[]; totalLines: number; rawTextSample: string; first80Lines: string[]; usedOcr: boolean; textLayerError: string | null; textLayerChars: number } | null>(null);
   const [debugSearchTerm, setDebugSearchTerm] = useState("");
   const [lastFile, setLastFile] = useState<File | null>(null);
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
@@ -985,7 +992,10 @@ export default function UpcomingMeetDetailPage() {
     );
   }
 
-  function buildDebugInfo(text: string) {
+  function buildDebugInfo(
+    text: string,
+    extra: { usedOcr: boolean; textLayerError: string | null; textLayerChars: number }
+  ) {
     const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
     let windowLines = lines.slice(0, 80);
 
@@ -1007,13 +1017,16 @@ export default function UpcomingMeetDetailPage() {
       totalLines: lines.length,
       rawTextSample: text.slice(0, 3000),
       first80Lines: windowLines,
+      usedOcr: extra.usedOcr,
+      textLayerError: extra.textLayerError,
+      textLayerChars: extra.textLayerChars,
     };
   }
 
   async function runDebugSearch() {
     if (!lastFile) return;
-    const { text } = await extractStartListText(lastFile);
-    setDebugData(buildDebugInfo(text));
+    const { text, usedOcr, textLayerError, textLayerChars } = await extractStartListText(lastFile);
+    setDebugData(buildDebugInfo(text, { usedOcr, textLayerError, textLayerChars }));
   }
 
   async function handlePDFUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -1034,9 +1047,9 @@ export default function UpcomingMeetDetailPage() {
       // Runs entirely in the browser — text extraction first, and OCR (also
       // in-browser) only if the PDF turns out to have no real text layer.
       // Nothing is uploaded to a server for this step.
-      const { text } = await extractStartListText(file, (msg) => setUploadStatus(msg));
+      const { text, usedOcr, textLayerError, textLayerChars } = await extractStartListText(file, (msg) => setUploadStatus(msg));
 
-      setDebugData(buildDebugInfo(text));
+      setDebugData(buildDebugInfo(text, { usedOcr, textLayerError, textLayerChars }));
 
       const parsed: ParsedEvent[] = parsePDF(text, selectedSwimmers);
 
@@ -1232,6 +1245,19 @@ export default function UpcomingMeetDetailPage() {
                 Find
               </button>
             </div>
+            <p style={{ color: debugData.usedOcr ? "#FCA5A5" : "#86EFAC", fontWeight: 700, marginBottom: "6px" }}>
+              Source: {debugData.usedOcr ? "OCR (no usable text layer found)" : "Real PDF text layer"}
+            </p>
+            {debugData.usedOcr && (
+              <p style={{ color: "rgba(255,255,255,0.5)", marginBottom: "6px" }}>
+                Text-layer attempt got {debugData.textLayerChars} character(s) before giving up.
+              </p>
+            )}
+            {debugData.textLayerError && (
+              <p style={{ color: "#FCA5A5", marginBottom: "6px" }}>
+                Text-layer error: {debugData.textLayerError}
+              </p>
+            )}
             <p style={{ color: "#FDE68A", fontWeight: 700, marginBottom: "6px" }}>
               DEBUG — swimmer names in DB: {JSON.stringify(debugData.swimmerNames)}
             </p>
