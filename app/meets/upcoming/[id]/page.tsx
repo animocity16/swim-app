@@ -263,6 +263,33 @@ async function extractTextFromTextLayer(file: File): Promise<string> {
       }
     }
 
+    // Guard against false-positive column detection: a single WIDE TABLE
+    // (Lane | Name | Age | Team | Seed Time spread across the page width)
+    // creates the same kind of big horizontal gap a genuine two-column
+    // page does. But unlike a real two-column layout - where the left and
+    // right blocks are two completely independent, unrelated flows of
+    // content that never line up vertically - a wide table has left-side
+    // and right-side content sitting at the EXACT SAME height, row after
+    // row (the "Seed Time" for a row is printed level with that row's
+    // "Name"). Check how many left-side rows have a right-side item at
+    // the same y-coordinate; if most do, this isn't two columns, it's one
+    // table, and splitting it would tear every row in half and scramble
+    // the reading order.
+    if (splitX !== null) {
+      const leftYs = new Set(
+        items.filter((it) => it.x < (splitX as number)).map((it) => Math.round(it.y / 3) * 3)
+      );
+      const rightYs = new Set(
+        items.filter((it) => it.x >= (splitX as number)).map((it) => Math.round(it.y / 3) * 3)
+      );
+      let sharedY = 0;
+      for (const y of leftYs) if (rightYs.has(y)) sharedY++;
+      const overlapRatio = leftYs.size > 0 ? sharedY / leftYs.size : 0;
+      if (overlapRatio > 0.4) {
+        splitX = null; // false alarm - single wide table, not two columns
+      }
+    }
+
     const columns: Item[][] =
       splitX === null
         ? [items]
