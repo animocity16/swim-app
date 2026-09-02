@@ -40,13 +40,9 @@ type RecentResult = {
   is_pb?: boolean;
 };
 
-type StandardsSummary = {
-  swimmerId: number;
-  swimmerName: string;
+type StandardsProgress = {
   qualified: number;
-  inProgress: number;
   total: number;
-  meetName: string;
 };
 
 type StandardSetRow = {
@@ -241,23 +237,6 @@ function NatrixMark({ size = 34 }: { size?: number }) {
   );
 }
 
-function QualifiedArc({ qualified, total }: { qualified: number; total: number }) {
-  const pct = total > 0 ? qualified / total : 0;
-  const R = 30, cx = 36, cy = 36;
-  const circumference = 2 * Math.PI * R;
-  const dash = pct * circumference;
-  return (
-    <svg width="72" height="72" viewBox="0 0 72 72">
-      <circle cx={cx} cy={cy} r={R} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="6" />
-      <circle cx={cx} cy={cy} r={R} fill="none" stroke="#6EE7B7" strokeWidth="6"
-        strokeDasharray={`${dash} ${circumference}`} strokeLinecap="round"
-        transform={`rotate(-90 ${cx} ${cy})`} />
-      <text x={cx} y={cy - 3} textAnchor="middle" fill="#6EE7B7" fontSize="15" fontWeight="700">{qualified}</text>
-      <text x={cx} y={cy + 10} textAnchor="middle" fill="rgba(255,255,255,0.35)" fontSize="8" fontWeight="500">of {total}</text>
-    </svg>
-  );
-}
-
 // ─── Collapsed square tile (Recent activity / Upcoming meets) ─────────────────
 
 function ChevronIcon({ dir = "right" }: { dir?: "right" | "left" }) {
@@ -333,7 +312,7 @@ export default function DashboardPage() {
   // Phase 2 — times + standards (background)
   const [phase2Done, setPhase2Done]             = useState(false);
   const [recentResults, setRecentResults]       = useState<RecentResult[]>([]);
-  const [standardsSummaries, setStandardsSummaries] = useState<StandardsSummary[]>([]);
+  const [standardsProgress, setStandardsProgress] = useState<StandardsProgress | null>(null);
   const [closestStandards, setClosestStandards] = useState<ClosestStandard[]>([]);
 
   // Which square tile (if any) is expanded
@@ -515,23 +494,19 @@ export default function DashboardPage() {
         ...meetSets,
       ];
 
-      // Per-set qualified/in-progress summary cards — only for visible sets
-      const summaries: StandardsSummary[] = [];
+      // Aggregate qualified/total across visible sets — used only to show a
+      // "fully qualified" celebration when there's nothing left to chase.
+      let qualifiedTotal = 0, itemsTotal = 0;
       for (const set of visibleSets) {
-        const { qualified, inProgress, total } = computeStats(set.id);
-        if (total === 0) continue;
-        summaries.push({
-          swimmerId: relevantSwimmer.id,
-          swimmerName: relevantSwimmer.name,
-          qualified, inProgress, total,
-          meetName: set.name,
-        });
+        const { qualified, total } = computeStats(set.id);
+        qualifiedTotal += qualified;
+        itemsTotal += total;
       }
-      setStandardsSummaries(summaries);
+      setStandardsProgress(itemsTotal > 0 ? { qualified: qualifiedTotal, total: itemsTotal } : null);
 
-      // Closest-to-qualifying individual events — fallback so Home never
-      // shows a flat "no standards" card when there's actually progress to
-      // show. Only drawn from the visible sets, same restriction as above.
+      // Closest-to-qualifying individual events — this is what Home actually
+      // shows: the 2 events nearest to a PB matching the standard. Only
+      // drawn from the visible sets (next squad rung + meet standards).
       const candidates: ClosestStandard[] = [];
       for (const set of visibleSets) {
         for (const item of relevantItems(set.id)) {
@@ -674,43 +649,6 @@ export default function DashboardPage() {
             <div className="h-3 w-20 rounded-full bg-white/10 animate-pulse" />
             <div className="h-20 rounded-3xl bg-white/5 border border-white/8 animate-pulse" />
           </div>
-        ) : standardsSummaries.length > 0 ? (
-          <div className="space-y-3">
-            <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">Standards</p>
-            {standardsSummaries.map((summary) => (
-              <Link key={summary.meetName}
-                href={`/swimmers/${summary.swimmerId}?tab=standards`}
-                className="flex items-center gap-4 rounded-3xl p-4 transition"
-                style={{
-                  background: summary.qualified === summary.total && summary.total > 0
-                    ? "linear-gradient(135deg, rgba(16,185,129,0.15) 0%, rgba(6,40,65,0.4) 100%)"
-                    : "linear-gradient(135deg, rgba(6,40,65,0.5) 0%, rgba(6,40,65,0.3) 100%)",
-                  border: summary.qualified === summary.total && summary.total > 0
-                    ? "1px solid rgba(110,231,183,0.3)"
-                    : "1px solid rgba(255,255,255,0.08)",
-                }}>
-                <div className="flex-shrink-0">
-                  <QualifiedArc qualified={summary.qualified} total={summary.total} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-medium uppercase tracking-widest text-white/35 mb-1 truncate">
-                    {summary.meetName}
-                  </p>
-                  {summary.qualified === summary.total && summary.total > 0 ? (
-                    <p className="text-base font-bold" style={{ color: "#6EE7B7" }}>All standards met! 🎉</p>
-                  ) : summary.qualified > 0 ? (
-                    <p className="text-base font-bold text-white">{summary.qualified} qualified</p>
-                  ) : (
-                    <p className="text-base font-bold text-white">{summary.inProgress} in progress</p>
-                  )}
-                  <p className="text-xs text-white/40 mt-0.5">{summary.swimmerName}</p>
-                </div>
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-white/20 flex-shrink-0">
-                  <path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </Link>
-            ))}
-          </div>
         ) : closestStandards.length > 0 ? (
           <div className="space-y-3">
             <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">Standards</p>
@@ -722,9 +660,8 @@ export default function DashboardPage() {
               {closestStandards.map((c, i) => {
                 const strokeColor = getStrokeColor(c.event);
                 return (
-                  <Link key={`${c.event}-${c.course}`}
-                    href={swimmerStats[0] ? `/swimmers/${swimmerStats[0].swimmer.id}?tab=standards` : "/standards"}
-                    className="flex items-center gap-3 px-4 py-3 transition hover:bg-white/5"
+                  <div key={`${c.event}-${c.course}`}
+                    className="flex items-center gap-3 px-4 py-3"
                     style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
                     <div className="w-1 h-8 rounded-full flex-shrink-0" style={{ background: strokeColor }} />
                     <div className="flex-1 min-w-0">
@@ -737,9 +674,18 @@ export default function DashboardPage() {
                         {(c.gapMs / 1000).toFixed(2)}s to go
                       </p>
                     </div>
-                  </Link>
+                  </div>
                 );
               })}
+            </div>
+          </div>
+        ) : standardsProgress && standardsProgress.total > 0 && standardsProgress.qualified === standardsProgress.total ? (
+          <div className="space-y-3">
+            <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">Standards</p>
+            <div className="rounded-3xl p-4 text-center"
+              style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.15) 0%, rgba(6,40,65,0.4) 100%)", border: "1px solid rgba(110,231,183,0.3)" }}>
+              <p className="text-base font-bold" style={{ color: "#6EE7B7" }}>All standards met! 🎉</p>
+              <p className="text-xs text-white/40 mt-1">{standardsProgress.qualified} of {standardsProgress.total} events qualified</p>
             </div>
           </div>
         ) : (
