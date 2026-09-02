@@ -14,6 +14,7 @@ type Swimmer = {
   swim_club?: string | null;
   group_type?: string | null;
   gender?: string | null;
+  squad?: string | null;
 };
 
 type SwimmerStat = {
@@ -46,6 +47,13 @@ type StandardsSummary = {
   inProgress: number;
   total: number;
   meetName: string;
+};
+
+type StandardSetRow = {
+  id: number;
+  name: string;
+  user_id: string | null;
+  type: "UPGRADING" | "IMPORTANT_MEET" | null;
 };
 
 type StandardItemRow = {
@@ -338,7 +346,7 @@ export default function DashboardPage() {
     const sessionPromise = supabase.auth.getSession();
     const swimmersPromise = supabase
       .from("swimmers")
-      .select("id, name, age, swim_club, group_type, gender")
+      .select("id, name, age, swim_club, group_type, gender, squad")
       .eq("group_type", "primary")
       .order("name", { ascending: true });
 
@@ -386,14 +394,13 @@ export default function DashboardPage() {
         .order("created_at", { ascending: false }),
       supabase
         .from("standard_sets")
-        .select("id, name, user_id")
+        .select("id, name, user_id, type")
         .or(`user_id.eq.${userId},user_id.is.null`)
-        .order("created_at", { ascending: false })
-        .limit(5),
+        .order("created_at", { ascending: true }),
     ]);
 
     const allTimes = (timesResult.data ?? []) as (RecentResult & { created_at: string })[];
-    const setsData = (setsResult.data ?? []) as { id: number; name: string; user_id: string }[];
+    const setsData = (setsResult.data ?? []) as StandardSetRow[];
 
     // Update swimmer cards with real stats now we have times
     const stats: SwimmerStat[] = mySwimmers.map((swimmer) => {
@@ -450,50 +457,97 @@ export default function DashboardPage() {
         if (!ex || t.time_ms < ex) pbMapForStd.set(key, t.time_ms);
       }
 
-      // Per-set qualified/in-progress summary cards (unchanged behaviour)
-      const summaries: StandardsSummary[] = [];
-      for (const set of setsData) {
-        const items = allItems.filter((item) => item.standard_set_id === set.id);
-        if (!items.length) continue;
+      // Only items that actually apply to this swimmer (age/gender match) —
+      // same filter the Standards tab uses.
+      function relevantItems(setId: number): StandardItemRow[] {
+        return allItems.filter((item) => {
+          if (item.standard_set_id !== setId) return false;
+          if (item.gender && relevantSwimmer.gender &&
+              item.gender.toLowerCase() !== relevantSwimmer.gender.toLowerCase()) return false;
+          if (item.min_age != null && relevantSwimmer.age < item.min_age) return false;
+          if (item.max_age != null && relevantSwimmer.age > item.max_age) return false;
+          return true;
+        });
+      }
+
+      function computeStats(setId: number) {
+        const relevant = relevantItems(setId);
+        const allForSet = allItems.filter((i) => i.standard_set_id === setId);
+        const displayItems = relevant.length > 0 ? relevant : allForSet;
         let qualified = 0, inProgress = 0;
-        for (const item of items) {
+        for (const item of displayItems) {
           const pb = pbMapForStd.get(`${item.event}|${item.course}`);
-          if (!pb) continue;
+          if (pb === undefined) continue;
           if (pb <= item.qualifying_time_ms) qualified++;
           else inProgress++;
         }
+        return { displayItems, qualified, inProgress, total: displayItems.length };
+      }
+
+      // Only show the ONE upgrading level the swimmer is actually working
+      // towards next — not every rung already passed, and not rungs further
+      // up the ladder she hasn't reached yet. Meet-qualifying standards
+      // (not part of the squad ladder) always show alongside it.
+      const upgradingSets = setsData.filter((s) => s.type === "UPGRADING");
+      const meetSets = setsData.filter((s) => s.type !== "UPGRADING");
+
+      let nextUpgradingSet: StandardSetRow | undefined;
+      if (relevantSwimmer.squad) {
+        const squadLower = relevantSwimmer.squad.toLowerCase();
+        const currentLevelIdx = upgradingSets.findIndex((s) => s.name.toLowerCase().includes(squadLower));
+        if (currentLevelIdx !== -1 && currentLevelIdx + 1 < upgradingSets.length) {
+          nextUpgradingSet = upgradingSets[currentLevelIdx + 1];
+        } else if (currentLevelIdx === -1) {
+          nextUpgradingSet = upgradingSets.find((set) => {
+            const { qualified, total } = computeStats(set.id);
+            return total === 0 || qualified < total;
+          });
+        }
+      } else {
+        nextUpgradingSet = upgradingSets.find((set) => {
+          const { qualified, total } = computeStats(set.id);
+          return total === 0 || qualified < total;
+        });
+      }
+
+      const visibleSets: StandardSetRow[] = [
+        ...(nextUpgradingSet ? [nextUpgradingSet] : []),
+        ...meetSets,
+      ];
+
+      // Per-set qualified/in-progress summary cards — only for visible sets
+      const summaries: StandardsSummary[] = [];
+      for (const set of visibleSets) {
+        const { qualified, inProgress, total } = computeStats(set.id);
+        if (total === 0) continue;
         summaries.push({
           swimmerId: relevantSwimmer.id,
           swimmerName: relevantSwimmer.name,
-          qualified, inProgress,
-          total: items.length,
+          qualified, inProgress, total,
           meetName: set.name,
         });
       }
       setStandardsSummaries(summaries);
 
-      // Closest-to-qualifying individual events — used as a fallback so Home
-      // never shows a flat "no standards" card when there's actually
-      // progress to show, just nothing qualified yet.
+      // Closest-to-qualifying individual events — fallback so Home never
+      // shows a flat "no standards" card when there's actually progress to
+      // show. Only drawn from the visible sets, same restriction as above.
       const candidates: ClosestStandard[] = [];
-      for (const item of allItems) {
-        if (item.gender && relevantSwimmer.gender &&
-            item.gender.toLowerCase() !== relevantSwimmer.gender.toLowerCase()) continue;
-        if (item.min_age != null && relevantSwimmer.age < item.min_age) continue;
-        if (item.max_age != null && relevantSwimmer.age > item.max_age) continue;
+      for (const set of visibleSets) {
+        for (const item of relevantItems(set.id)) {
+          const pb = pbMapForStd.get(`${item.event}|${item.course}`);
+          if (pb === undefined) continue;              // hasn't swum this event yet
+          if (pb <= item.qualifying_time_ms) continue;  // already qualified
 
-        const pb = pbMapForStd.get(`${item.event}|${item.course}`);
-        if (pb === undefined) continue;              // hasn't swum this event yet
-        if (pb <= item.qualifying_time_ms) continue;  // already qualified
-
-        candidates.push({
-          event: item.event,
-          course: item.course,
-          standardName: setNameById.get(item.standard_set_id) ?? "Standard",
-          qualifyingMs: item.qualifying_time_ms,
-          pbMs: pb,
-          gapMs: pb - item.qualifying_time_ms,
-        });
+          candidates.push({
+            event: item.event,
+            course: item.course,
+            standardName: setNameById.get(item.standard_set_id) ?? "Standard",
+            qualifyingMs: item.qualifying_time_ms,
+            pbMs: pb,
+            gapMs: pb - item.qualifying_time_ms,
+          });
+        }
       }
       candidates.sort((a, b) => a.gapMs - b.gapMs);
       setClosestStandards(candidates.slice(0, 2));
