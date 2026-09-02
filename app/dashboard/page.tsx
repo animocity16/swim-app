@@ -48,6 +48,29 @@ type StandardsSummary = {
   meetName: string;
 };
 
+type StandardItemRow = {
+  id: number;
+  standard_set_id: number;
+  event: string;
+  course: string;
+  qualifying_time_ms: number;
+  gender?: string | null;
+  min_age?: number | null;
+  max_age?: number | null;
+};
+
+// A single event the swimmer hasn't qualified for yet, ranked by how close
+// their current PB is to the qualifying time — shown on Home when there's
+// nothing to summarise into a full "X qualified" card yet.
+type ClosestStandard = {
+  event: string;
+  course: string;
+  standardName: string;
+  qualifyingMs: number;
+  pbMs: number;
+  gapMs: number;
+};
+
 type Meet = {
   id: string;
   name: string;
@@ -303,6 +326,7 @@ export default function DashboardPage() {
   const [phase2Done, setPhase2Done]             = useState(false);
   const [recentResults, setRecentResults]       = useState<RecentResult[]>([]);
   const [standardsSummaries, setStandardsSummaries] = useState<StandardsSummary[]>([]);
+  const [closestStandards, setClosestStandards] = useState<ClosestStandard[]>([]);
 
   // Which square tile (if any) is expanded
   const [expandedSection, setExpandedSection] = useState<"activity" | "meets" | null>(null);
@@ -363,9 +387,9 @@ export default function DashboardPage() {
       supabase
         .from("standard_sets")
         .select("id, name, user_id")
-        .eq("user_id", userId)
+        .or(`user_id.eq.${userId},user_id.is.null`)
         .order("created_at", { ascending: false })
-        .limit(3),
+        .limit(5),
     ]);
 
     const allTimes = (timesResult.data ?? []) as (RecentResult & { created_at: string })[];
@@ -414,23 +438,23 @@ export default function DashboardPage() {
         .select("id, standard_set_id, event, course, qualifying_time_ms, gender, min_age, max_age")
         .in("standard_set_id", setIds);
 
-      const allItems = (allItemsRaw ?? []) as {
-        id: number; standard_set_id: number; event: string; course: string;
-        qualifying_time_ms: number; gender?: string | null; min_age?: number | null; max_age?: number | null;
-      }[];
+      const allItems = (allItemsRaw ?? []) as StandardItemRow[];
+      const setNameById = new Map(setsData.map((s) => [s.id, s.name]));
 
+      const relevantSwimmer = mySwimmers[0];
+      const swimmerTimes = allTimes.filter((t) => t.swimmer_id === relevantSwimmer.id);
+      const pbMapForStd = new Map<string, number>();
+      for (const t of swimmerTimes) {
+        const key = `${t.event}|${t.course}`;
+        const ex = pbMapForStd.get(key);
+        if (!ex || t.time_ms < ex) pbMapForStd.set(key, t.time_ms);
+      }
+
+      // Per-set qualified/in-progress summary cards (unchanged behaviour)
       const summaries: StandardsSummary[] = [];
       for (const set of setsData) {
         const items = allItems.filter((item) => item.standard_set_id === set.id);
         if (!items.length) continue;
-        const relevantSwimmer = mySwimmers[0];
-        const swimmerTimes = allTimes.filter((t) => t.swimmer_id === relevantSwimmer.id);
-        const pbMapForStd = new Map<string, number>();
-        for (const t of swimmerTimes) {
-          const key = `${t.event}|${t.course}`;
-          const ex = pbMapForStd.get(key);
-          if (!ex || t.time_ms < ex) pbMapForStd.set(key, t.time_ms);
-        }
         let qualified = 0, inProgress = 0;
         for (const item of items) {
           const pb = pbMapForStd.get(`${item.event}|${item.course}`);
@@ -447,6 +471,32 @@ export default function DashboardPage() {
         });
       }
       setStandardsSummaries(summaries);
+
+      // Closest-to-qualifying individual events — used as a fallback so Home
+      // never shows a flat "no standards" card when there's actually
+      // progress to show, just nothing qualified yet.
+      const candidates: ClosestStandard[] = [];
+      for (const item of allItems) {
+        if (item.gender && relevantSwimmer.gender &&
+            item.gender.toLowerCase() !== relevantSwimmer.gender.toLowerCase()) continue;
+        if (item.min_age != null && relevantSwimmer.age < item.min_age) continue;
+        if (item.max_age != null && relevantSwimmer.age > item.max_age) continue;
+
+        const pb = pbMapForStd.get(`${item.event}|${item.course}`);
+        if (pb === undefined) continue;              // hasn't swum this event yet
+        if (pb <= item.qualifying_time_ms) continue;  // already qualified
+
+        candidates.push({
+          event: item.event,
+          course: item.course,
+          standardName: setNameById.get(item.standard_set_id) ?? "Standard",
+          qualifyingMs: item.qualifying_time_ms,
+          pbMs: pb,
+          gapMs: pb - item.qualifying_time_ms,
+        });
+      }
+      candidates.sort((a, b) => a.gapMs - b.gapMs);
+      setClosestStandards(candidates.slice(0, 2));
     }
 
     setPhase2Done(true);
@@ -606,6 +656,37 @@ export default function DashboardPage() {
                 </svg>
               </Link>
             ))}
+          </div>
+        ) : closestStandards.length > 0 ? (
+          <div className="space-y-3">
+            <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">Standards</p>
+            <div className="rounded-3xl overflow-hidden"
+              style={{ border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)" }}>
+              <div className="px-4 pt-3 pb-2">
+                <p className="text-xs font-semibold text-white/60">🎯 So close! Nearest to qualifying</p>
+              </div>
+              {closestStandards.map((c, i) => {
+                const strokeColor = getStrokeColor(c.event);
+                return (
+                  <Link key={`${c.event}-${c.course}`}
+                    href={swimmerStats[0] ? `/swimmers/${swimmerStats[0].swimmer.id}?tab=standards` : "/standards"}
+                    className="flex items-center gap-3 px-4 py-3 transition hover:bg-white/5"
+                    style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                    <div className="w-1 h-8 rounded-full flex-shrink-0" style={{ background: strokeColor }} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-white truncate">{shortEvent(c.event)}</p>
+                      <p className="text-xs text-white/35 mt-0.5 truncate">{c.standardName} · {c.course}</p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-base font-bold text-white">{formatMs(c.pbMs)}</p>
+                      <p className="text-[10px] font-semibold mt-0.5" style={{ color: "#D97706" }}>
+                        {(c.gapMs / 1000).toFixed(2)}s to go
+                      </p>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
           </div>
         ) : (
           <div className="space-y-3">
