@@ -330,6 +330,12 @@ export function parseSwimmerScheduleOCR(rawText: string): ParsedSwimmerSchedule 
     if (line.length < 5 || line.length > 100) continue;
     if (/^\d/.test(line)) continue;
     if (/place|heat|finals|schedule|swimmer/i.test(line)) continue;
+    // FIX: the swimmer page's own tab bar ("Next event" / "Swim details" /
+    // "Full schedule") is always present in the OCR text regardless of which
+    // tab is open, and "Swim details" alone matches the generic /swim/
+    // keyword above — wrongly picked as the meet name on every schedule
+    // screenshot. Exclude the tab labels explicitly.
+    if (/^(next event|swim details?)$/i.test(line.trim())) continue;
     if (meetKeywords.test(line)) { meetName = line.trim(); break; }
   }
 
@@ -400,17 +406,25 @@ export function parseSwimmerScheduleOCR(rawText: string): ParsedSwimmerSchedule 
 // - "Full schedule" — unique to this screen
 // - Multiple "Place:" with colon — unique to swimmer schedule format
 //
-// FIX: made "FULL SCHEDULE" detection fuzzier to handle OCR garbles
-// (e.g. "FULL SCHEDUL", "FULL SCHED"), and "PLACE:" check ignores spaces
-// between PLACE and the colon.
-
+// FIX (round 2): the swimmer page's own tab bar always renders THREE tab
+// labels together — "Next event" / "Swim details" / "Full schedule" — no
+// matter which tab is actually open. So a photo of the "Full schedule" tab
+// (showing several race results) still contains the literal text "Swim
+// details" from that tab bar, and the old hard-exclusion
+// `flat.includes("SWIM DETAIL")` (a substring match, so it also matches the
+// plural "SWIM DETAILS") was rejecting it outright before the schedule
+// checks below ever ran. That silently dumped multi-event schedule
+// screenshots into single-result mode, which only surfaces ONE event
+// (whichever sorts first) and drops the rest — e.g. a 5-event schedule
+// screenshot showing up as just "50 Backstroke".
+//
+// Fix: check for schedule-page evidence FIRST. Only fall back to the
+// single-detail-screen exclusions — using markers that are actually unique
+// to that screen (its PLACE/FINALS/ENTRY grid, SPLITS table, EVENT SUMMARY
+// button) rather than the ambiguous tab-bar label — when that evidence
+// isn't there.
 export function isSwimmerSchedulePage(rawText: string): boolean {
   const flat = rawText.replace(/\s+/g, " ").toUpperCase();
-
-  // Hard exclusions — these are definitely NOT a schedule page
-  if (flat.includes("SWIM DETAIL")) return false;
-  if (flat.includes("EVENT SUMMARY")) return false;
-  if (flat.includes("EVENT DETAILS")) return false;
 
   // "FULL SCHEDULE" is the strongest unique signal.
   // Accept common OCR garbles: "FULL SCHEDUL", "FULL SCHED", "FULL SCH"
@@ -418,11 +432,36 @@ export function isSwimmerSchedulePage(rawText: string): boolean {
     flat.includes("FULL SCHEDULE") ||
     flat.includes("FULL SCHEDUL") ||
     /FULL\s+SCH[A-Z]{0,5}/.test(flat);
-  if (!hasFullSchedule) return false;
 
   // Multiple "PLACE:" entries (accept optional space before colon, OCR noise)
   const placeColonCount = (flat.match(/PLACE\s*:/g) ?? []).length;
-  if (placeColonCount < 2) return false;
+
+  // A photo can also crop out the "Full schedule" header itself (or OCR can
+  // simply miss it — it's small text at the top of a long, scrollable page)
+  // while still clearly showing several separate race results underneath.
+  // Recognize that shape directly: multiple distinct "<distance> Meter
+  // <stroke>" event headers, each with its own "Place:" line.
+  const eventHeaderCount = (
+    flat.match(
+      /\b(50|100|200|400|800|1500)\s*METER\s*(FREE|FREESTYLE|BACK|BACKSTROKE|BREAST|BREASTSTROKE|FLY|BUTTERFLY|MEDLEY|IM)\b/g
+    ) ?? []
+  ).length;
+
+  const looksLikeSchedule =
+    (hasFullSchedule && placeColonCount >= 2) ||
+    (placeColonCount >= 2 && eventHeaderCount >= 2);
+
+  if (!looksLikeSchedule) return false;
+
+  // Hard exclusions for the genuinely single-event detail screen — checked
+  // AFTER the schedule evidence above, and using markers specific to that
+  // screen's own layout (its results grid, splits table, summary button)
+  // rather than the tab-bar label every swimmer-page screenshot carries.
+  if (flat.includes("EVENT SUMMARY")) return false;
+  if (flat.includes("EVENT DETAILS")) return false;
+  if (flat.includes("PLACE FINALS ENTRY")) return false;
+  if (flat.includes("STATUS") && flat.includes("DROPPED")) return false;
+  if (flat.includes("SPLITS") && eventHeaderCount < 2) return false;
 
   return true;
 }

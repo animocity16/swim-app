@@ -478,7 +478,7 @@ export default function ScanPage() {
     setFile1(null); setFile2(null); setFile3(null); setFile4(null); setFile5(null);
     setPreview1(null); setPreview2(null); setPreview3(null); setPreview4(null); setPreview5(null);
     setStep("idle"); setProgress(0); setMessage(""); setRawText("");
-    setScanMode(null);
+    setScanMode(null); setShowDebug(false);
     setParsedResult(null); setDetectedEvent(null);
     setEditedTime(""); setEditedCourse(meetCourse); setTimeError(null);
     setAutoMatchedSwimmer(null); setShowPicker(false); setSingleNameStatus(null);
@@ -802,7 +802,7 @@ export default function ScanPage() {
   async function handleScan() {
     if (!file1) return;
     setStep("scanning");
-    setProgress(0); setMessage(""); setRawText(""); setScanMode(null);
+    setProgress(0); setMessage(""); setRawText(""); setScanMode(null); setShowDebug(false);
     setParsedResult(null); setDetectedEvent(null); setEditedTime(""); setTimeError(null);
     setAutoMatchedSwimmer(null); setShowPicker(false); setSavedSwimmer(null); setSavedTimeId(null); setSavedCourse(null); setSingleNameStatus(null);
     setEventRows([]); setSelectedRows(new Set()); setSavedNames([]); setRowTypes({});
@@ -1075,9 +1075,10 @@ export default function ScanPage() {
                     <button
                       type="button"
                       onClick={() => setShowDebug((v) => !v)}
-                      className="text-[10px] font-medium uppercase tracking-wide text-white/25 transition hover:text-white/40"
+                      className="flex items-center gap-1 rounded-full px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide underline decoration-dotted underline-offset-2 transition"
+                      style={{ color: "#FDE68A", background: "rgba(217,119,6,0.12)" }}
                     >
-                      {showDebug ? "Hide scan details" : "Scan details"}
+                      {showDebug ? "▲ Hide scan details" : "▼ Scan details (tap to view)"}
                     </button>
                   </div>
                 )}
