@@ -211,13 +211,26 @@ function looksLikeFullName(combined: string): boolean {
   return words.length >= 2 && words.length <= 7 && words.every((w) => /^[A-Z]/.test(w));
 }
 
+// The swimmer page's tab bar ("Next event" / "Swim details" / "Full
+// schedule") always sits directly between the swimmer's name and the events
+// list, no matter which tab is open — and "Swim details"/"Next event" both
+// happen to satisfy isNameFragment (Title-Case-looking, has a lowercase
+// letter), so the old walk-upward loop treated them as part of the name,
+// broke on the word-count/capitalization check, and gave up right before it
+// would have reached the real name one line further up.
+const UI_LABEL_LINE = /^(next event|swim details?|full schedule|swimmer)$/i;
+
 // Walks upward from just above `anchorIdx`, collecting consecutive
-// name-shaped lines (up to maxLinesUp of them) and joining them in reading
-// order. Stops the moment a line doesn't look like part of a name.
-function collectNameAbove(lines: string[], anchorIdx: number, maxLinesUp = 3): string | null {
+// name-shaped lines (up to maxLinesUp of them, not counting skipped tab/nav
+// labels) and joining them in reading order. Stops the moment a line isn't
+// a UI label and doesn't look like part of a name either.
+function collectNameAbove(lines: string[], anchorIdx: number, maxLinesUp = 6): string | null {
   const fragments: string[] = [];
-  for (let i = anchorIdx - 1; i >= Math.max(0, anchorIdx - maxLinesUp); i--) {
+  let checked = 0;
+  for (let i = anchorIdx - 1; i >= 0 && checked < maxLinesUp; i--) {
     const line = lines[i].trim();
+    if (UI_LABEL_LINE.test(line)) continue; // skip tab-bar chrome, keep climbing
+    checked++;
     const cleaned = line.replace(/^[^A-Z]+/, "").trim();
     if (!isNameFragment(cleaned)) break;
     fragments.unshift(cleaned);
