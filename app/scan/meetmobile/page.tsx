@@ -353,6 +353,7 @@ export default function ScanPage() {
   const [rawText, setRawText] = useState("");
   const [copyLabel, setCopyLabel] = useState("Copy");
   const [routeDebug, setRouteDebug] = useState("");
+  const [showDebug, setShowDebug] = useState(false);
   const [scanMode, setScanMode] = useState<ScanMode>(null);
   const [showInfo, setShowInfo] = useState(false);
 
@@ -1067,13 +1068,25 @@ export default function ScanPage() {
             {step === "done" && (
               <div className="space-y-4">
 
-                {/* Debug OCR box */}
+                {/* Scan diagnostics — hidden by default, never shown to parents.
+                    Tap to reveal only when you're troubleshooting a bad scan. */}
                 {rawText && (
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setShowDebug((v) => !v)}
+                      className="text-[10px] font-medium uppercase tracking-wide text-white/25 transition hover:text-white/40"
+                    >
+                      {showDebug ? "Hide scan details" : "Scan details"}
+                    </button>
+                  </div>
+                )}
+                {rawText && showDebug && (
                   <div className="rounded-2xl p-3"
                     style={{ background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.15)" }}>
                     <div className="mb-2 flex items-center justify-between">
                       <p className="text-[10px] uppercase tracking-widest" style={{ color: "#FDE68A" }}>
-                        🐛 Debug — raw OCR
+                        Raw OCR text
                       </p>
                       <button
                         type="button"
@@ -1094,8 +1107,18 @@ export default function ScanPage() {
                     </div>
                     {routeDebug && (
                       <p className="text-[10px] text-emerald-300/80 mb-2 break-all">
-                        🧭 route: {routeDebug}
+                        route: {routeDebug}
                       </p>
+                    )}
+                    {parsedResult && (
+                      <>
+                        <p className="text-[10px] text-amber-300/70 mb-1 break-all">
+                          splits: {parsedResult.splits && parsedResult.splits.length > 0 ? JSON.stringify(parsedResult.splits) : "none detected"}
+                        </p>
+                        <p className="text-[10px] text-amber-300/50 mb-2 break-all">
+                          trace: {parsedResult.splitDebug || "none"}
+                        </p>
+                      </>
                     )}
                     <pre className="overflow-auto whitespace-pre-wrap text-[10px] leading-tight text-white/70" style={{ maxHeight: "300px", fontFamily: "monospace" }}>
                       {rawText}
@@ -1120,12 +1143,6 @@ export default function ScanPage() {
                         <p className="text-xs uppercase tracking-widest text-white/40">Detected result</p>
                         <p className="mt-1 text-base font-semibold text-white">{detectedEvent}</p>
                         {parsedResult.meetName && <p className="text-xs text-white/35 mt-0.5">{parsedResult.meetName}</p>}
-                        <p className="text-[10px] text-amber-300/70 mt-1 break-all">
-                          🐛 splits: {parsedResult.splits ? JSON.stringify(parsedResult.splits) : "undefined"}
-                        </p>
-                        <p className="text-[10px] text-amber-300/50 mt-1 break-all">
-                          🐛 trace: {parsedResult.splitDebug ?? "(none)"}
-                        </p>
                       </div>
                       <div>
                         <p className="text-xs text-white/40 mb-1.5">Time — tap to edit if incorrect</p>
