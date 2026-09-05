@@ -33,6 +33,26 @@ type Candidate = {
   school: string | null;
 };
 
+// Shape returned by the get_pending_swimmer_matches RPC — real scraped
+// SGAquatics results that look like they belong to the swimmer just added,
+// not the seed-based age/gender competitor list above (that's a different,
+// pre-existing system for "follow other swimmers").
+type MatchCandidate = {
+  matched_name: string;
+  team_name: string | null;
+  best_similarity: number;
+  club_match: boolean | null;
+  result_count: number;
+};
+
+// Hy-Tek stores names as "Last, First Middle" — flip to "First Middle Last"
+// for display. Same helper used on the public swimmer page.
+function toDisplayName(hyTekName: string): string {
+  const [last, rest] = hyTekName.split(",").map((s) => s.trim());
+  if (!rest) return hyTekName;
+  return `${rest} ${last}`;
+}
+
 // ─── Step indicator ───────────────────────────────────────────────────────────
 
 function StepDots({ total, current }: { total: number; current: number }) {
@@ -61,7 +81,7 @@ function raceAgeFromBirthYear(birthYear: number): number {
 export default function OnboardingFlow({ userName }: { userName: string }) {
   const router = useRouter();
   const [step, setStep] = useState(0);
-  const TOTAL_STEPS = 7;
+  const TOTAL_STEPS = 8;
 
   // Swimmer form
   const [swimmerName, setSwimmerName]     = useState("");
@@ -74,6 +94,14 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
   const [swimmerError, setSwimmerError]   = useState("");
   const [swimmerSaved, setSwimmerSaved]   = useState(false);
   const [savedSwimmerName, setSavedSwimmerName] = useState("");
+
+  // Real SGAquatics match check (new) — the swimmer's own historical
+  // results, found automatically instead of relying on a Meet Mobile scan.
+  const [primarySwimmerId, setPrimarySwimmerId] = useState<number | null>(null);
+  const [matchCandidates, setMatchCandidates]   = useState<MatchCandidate[]>([]);
+  const [matchActingOn, setMatchActingOn]       = useState<string | null>(null);
+  const [matchError, setMatchError]             = useState("");
+  const [confirmedMatch, setConfirmedMatch]     = useState<MatchCandidate | null>(null);
 
   // Follow picker
   const [candidates, setCandidates]     = useState<Candidate[]>([]);
@@ -146,11 +174,58 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
       setSwimmerSaved(true);
       setSavedSwimmerName(swimmerName.trim());
       setCandidates(result.candidates ?? []);
+      setPrimarySwimmerId(result.primarySwimmerId ?? null);
+
+      // Check for real, already-scraped SGAquatics results for this exact
+      // swimmer before falling back to "scan a Meet Mobile screenshot" —
+      // if the automation already has their history, load it automatically
+      // instead of asking the parent to do manual work.
+      if (result.primarySwimmerId) {
+        const { data: matches, error: matchErr } = await supabase.rpc(
+          "get_pending_swimmer_matches",
+          { p_swimmer_id: result.primarySwimmerId }
+        );
+        if (!matchErr) {
+          setMatchCandidates((matches ?? []) as MatchCandidate[]);
+        }
+        // A failed match check isn't fatal — the new step below just shows
+        // its own "no matches yet" state, same as zero real matches would.
+      }
+
       setSavingSwimmer(false);
       next();
     } catch {
       setSwimmerError("Network error. Please try again.");
       setSavingSwimmer(false);
+    }
+  }
+
+  async function handleMatchAction(candidate: MatchCandidate, action: "confirm" | "reject") {
+    if (!primarySwimmerId) return;
+    setMatchActingOn(candidate.matched_name);
+    setMatchError("");
+
+    const { error } = await supabase.rpc("confirm_swimmer_match", {
+      p_swimmer_id: primarySwimmerId,
+      p_matched_name: candidate.matched_name,
+      p_action: action,
+    });
+
+    setMatchActingOn(null);
+
+    if (error) {
+      setMatchError("Something went wrong saving that. You can try again from your dashboard later.");
+      return;
+    }
+
+    if (action === "confirm") {
+      // Confirming one match clears out the rest automatically on the
+      // backend (a swimmer only has one real identity), so just show the
+      // confirmed result and move on rather than re-fetch remaining cards.
+      setConfirmedMatch(candidate);
+      setMatchCandidates([]);
+    } else {
+      setMatchCandidates((prev) => prev.filter((c) => c.matched_name !== candidate.matched_name));
     }
   }
 
@@ -388,11 +463,94 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
     </div>
   );
 
-  // ── Step 3: Who do you want to follow ────────────────────────────────────────
+  // ── Step 3: Existing results found (NEW) ─────────────────────────────────────
+  // Checks the real, automatically-scraped SGAquatics database for this exact
+  // swimmer instead of relying on a Meet Mobile screenshot scan. Uses the
+  // same get_pending_swimmer_matches / confirm_swimmer_match functions that
+  // power the standalone /confirm-swimmer page.
 
-  if (step === 3) return (
+  if (step === 3) {
+    if (confirmedMatch) return (
+      <div className="onb-screen">
+        <StepDots total={TOTAL_STEPS} current={3} />
+        <div className="text-center px-6 space-y-5">
+          <div className="text-5xl">🎉</div>
+          <h2 className="text-3xl font-bold text-white">Found it!</h2>
+          <p className="text-sm text-white/45">
+            {confirmedMatch.result_count} result{confirmedMatch.result_count === 1 ? "" : "s"} for{" "}
+            {toDisplayName(confirmedMatch.matched_name)} {confirmedMatch.result_count === 1 ? "is" : "are"} already
+            loaded into {savedSwimmerName || "your swimmer"}&apos;s account — no scanning needed.
+          </p>
+          <button type="button" onClick={next} className="onb-btn-primary w-full">
+            Continue →
+          </button>
+        </div>
+      </div>
+    );
+
+    return (
+      <div className="onb-screen">
+        <StepDots total={TOTAL_STEPS} current={3} />
+        <div className="px-6 space-y-5">
+          <div className="text-center">
+            <p className="text-xs font-medium uppercase tracking-widest text-white/35 mb-2">Existing results</p>
+            <h2 className="text-3xl font-bold text-white">
+              {matchCandidates.length > 0 ? "Is this you?" : "Nothing found yet"}
+            </h2>
+            <p className="mt-2 text-sm text-white/45">
+              {matchCandidates.length > 0
+                ? `We found ${matchCandidates.length === 1 ? "a swimmer" : "swimmers"} in our meet records that might be ${savedSwimmerName || "your swimmer"}. Confirm to load their full history automatically.`
+                : `We haven't found ${savedSwimmerName || "your swimmer"} in our meet records yet. That's fine — you can scan a Meet Mobile screenshot instead, and we'll keep checking automatically as new results come in.`}
+            </p>
+          </div>
+
+          {matchCandidates.length > 0 && (
+            <div className="space-y-2 max-h-[360px] overflow-y-auto">
+              {matchCandidates.map((c) => (
+                <div key={c.matched_name} className="rounded-2xl px-4 py-3"
+                  style={{ background: "rgba(217,119,6,0.1)", border: "1px solid rgba(253,230,138,0.3)" }}>
+                  <p className="text-sm font-semibold text-white">{toDisplayName(c.matched_name)}</p>
+                  {c.team_name && <p className="text-xs text-white/45 mt-0.5">{c.team_name}</p>}
+                  <p className="text-xs mt-1 font-medium" style={{ color: "#FDE68A" }}>
+                    {c.result_count} result{c.result_count === 1 ? "" : "s"} found
+                    {c.club_match ? " · club matches" : ""}
+                  </p>
+                  <div className="flex gap-2 mt-3">
+                    <button type="button"
+                      disabled={matchActingOn === c.matched_name}
+                      onClick={() => handleMatchAction(c, "reject")}
+                      className="onb-btn-secondary flex-1 disabled:opacity-50">
+                      Not them
+                    </button>
+                    <button type="button"
+                      disabled={matchActingOn === c.matched_name}
+                      onClick={() => handleMatchAction(c, "confirm")}
+                      className="onb-btn-primary flex-1 disabled:opacity-50">
+                      {matchActingOn === c.matched_name ? "Saving…" : "Yes, that's them"}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {matchError && (
+            <p className="text-sm text-red-300 text-center">{matchError}</p>
+          )}
+
+          <button type="button" onClick={next} className="onb-btn-secondary w-full">
+            {matchCandidates.length > 0 ? "Skip for now" : "Continue →"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Step 4: Who do you want to follow ────────────────────────────────────────
+
+  if (step === 4) return (
     <div className="onb-screen">
-      <StepDots total={TOTAL_STEPS} current={3} />
+      <StepDots total={TOTAL_STEPS} current={4} />
       <div className="px-6 space-y-5">
         <div className="text-center">
           <p className="text-xs font-medium uppercase tracking-widest text-white/35 mb-2">Optional</p>
@@ -456,11 +614,11 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
     </div>
   );
 
-  // ── Step 4: Choose theme ─────────────────────────────────────────────────────
+  // ── Step 5: Choose theme ─────────────────────────────────────────────────────
 
-  if (step === 4) return (
+  if (step === 5) return (
     <div className="onb-screen">
-      <StepDots total={TOTAL_STEPS} current={4} />
+      <StepDots total={TOTAL_STEPS} current={5} />
       <div className="px-6 space-y-5">
         <div className="text-center">
           <p className="text-xs font-medium uppercase tracking-widest text-white/35 mb-2">Make it yours</p>
@@ -505,11 +663,11 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
     </div>
   );
 
-  // ── Step 5: Install on your phone ────────────────────────────────────────────
+  // ── Step 6: Install on your phone ────────────────────────────────────────────
 
-  if (step === 5) return (
+  if (step === 6) return (
     <div className="onb-screen">
-      <StepDots total={TOTAL_STEPS} current={5} />
+      <StepDots total={TOTAL_STEPS} current={6} />
       <div className="px-6 space-y-5">
         <div className="text-center">
           <p className="text-xs font-medium uppercase tracking-widest text-white/35 mb-2">One last thing</p>
@@ -593,38 +751,46 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
     </div>
   );
 
-  // ── Step 6: All set ──────────────────────────────────────────────────────────
+  // ── Step 7: All set ──────────────────────────────────────────────────────────
 
-  if (step === 6) return (
+  if (step === 7) return (
     <div className="onb-screen">
-      <StepDots total={TOTAL_STEPS} current={6} />
+      <StepDots total={TOTAL_STEPS} current={7} />
       <div className="text-center px-6 space-y-6">
         <div className="text-6xl">🎉</div>
         <div>
           <h2 className="text-4xl font-bold text-white tracking-tight">You're all set!</h2>
           <p className="mt-3 text-white/55 text-base leading-relaxed">
-            {swimmerSaved
+            {confirmedMatch
+              ? `${savedSwimmerName}'s results are already loaded — ${confirmedMatch.result_count} race${confirmedMatch.result_count === 1 ? "" : "s"} and counting.`
+              : swimmerSaved
               ? `${savedSwimmerName} has been added. Start scanning their results!`
               : "Your account is ready. Add your swimmer and start tracking results."}
           </p>
         </div>
 
         <div className="space-y-3">
-          {[
-            { icon: "📷", label: "Scan your child's latest result", desc: "Take a screenshot from Meet Mobile and scan it", primary: true },
-          ].map((item) => (
-            <div key={item.label} className="flex items-center gap-3 rounded-2xl px-4 py-3"
-              style={{
-                background: item.primary ? "rgba(217,119,6,0.12)" : "rgba(255,255,255,0.05)",
-                border: item.primary ? "1px solid rgba(253,230,138,0.25)" : "1px solid rgba(255,255,255,0.09)",
-              }}>
-              <span style={{ fontSize: 22 }}>{item.icon}</span>
+          {confirmedMatch ? (
+            <div className="flex items-center gap-3 rounded-2xl px-4 py-3"
+              style={{ background: "rgba(217,119,6,0.12)", border: "1px solid rgba(253,230,138,0.25)" }}>
+              <span style={{ fontSize: 22 }}>📊</span>
               <div className="text-left">
-                <p className="text-sm font-semibold text-white">{item.label}</p>
-                <p className="text-xs text-white/40 mt-0.5">{item.desc}</p>
+                <p className="text-sm font-semibold text-white">View {savedSwimmerName}&apos;s results</p>
+                <p className="text-xs text-white/40 mt-0.5">Already loaded — new results get added automatically</p>
               </div>
             </div>
-          ))}
+          ) : (
+            <div className="flex items-center gap-3 rounded-2xl px-4 py-3"
+              style={{ background: "rgba(217,119,6,0.12)", border: "1px solid rgba(253,230,138,0.25)" }}>
+              <span style={{ fontSize: 22 }}>📷</span>
+              <div className="text-left">
+                <p className="text-sm font-semibold text-white">Scan your child&apos;s latest result</p>
+                <p className="text-xs text-white/40 mt-0.5">
+                  We&apos;ll also keep checking automatically — this is just for meets we haven&apos;t found yet.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         <button type="button" onClick={finish} disabled={saving}

@@ -120,6 +120,36 @@ export async function POST(req: NextRequest) {
         await supabaseAdmin.from("swim_times").insert(timesToInsert);
       }
     }
+
+    // Also check the real, automatically-scraped SGAquatics results
+    // (meet_results) for this exact competitor and link/copy them into
+    // swim_times too -- reuses confirm_swimmer_match (already built and
+    // tested for the "add my own swimmer" flow) rather than duplicating
+    // its matching/canonicalization logic here.
+    //
+    // No "is this you?" confirmation is needed for a followed swimmer --
+    // unlike a parent's own child, this is a specific, already-identified
+    // person the parent deliberately picked from a list, not an ambiguous
+    // name match. confirm_swimmer_match's normalize_swimmer_name() call
+    // handles the "First Last" (Natrix) vs "Last, First" (Hy-Tek) format
+    // difference on both sides, so passing the plain seed name through
+    // works correctly without any reformatting here.
+    //
+    // Must run through the user-session `supabase` client, not
+    // `supabaseAdmin` -- confirm_swimmer_match is SECURITY DEFINER and
+    // checks auth.uid() against swimmers.user_id internally; calling it
+    // with the service-role client would have no JWT for auth.uid() to
+    // read, and the ownership check would fail.
+    await supabase.rpc("confirm_swimmer_match", {
+      p_swimmer_id: newSwimmerId,
+      p_matched_name: c.name,
+      p_action: "confirm",
+    });
+    // Deliberately not checking this call's error -- a followed competitor
+    // with zero SGAquatics results yet is a normal, non-error case (the
+    // RPC's updates simply match zero rows), and a transient failure here
+    // shouldn't block the follow action itself, which already succeeded
+    // above via the swim_times copy.
   }
 
   return NextResponse.json({ success: true, followed: followedCount });
