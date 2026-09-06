@@ -240,9 +240,47 @@ function collectNameAbove(lines: string[], anchorIdx: number, maxLinesUp = 6): s
   return null;
 }
 
+// A line that's pure OCR noise — brackets, dashes, ampersands picked up from
+// the phone's status-bar icons ("[1]", "&", "—", "=") — has no letters at
+// all. Skip these without counting them against the search window.
+function isPunctuationNoise(line: string): boolean {
+  return line.length > 0 && !/[A-Za-z]/.test(line);
+}
+
+// Walks downward from just below `anchorIdx`, collecting consecutive
+// name-shaped lines. Mirrors collectNameAbove but reads forward, for anchors
+// where the name comes AFTER the anchor line in reading order.
+function collectNameBelow(lines: string[], anchorIdx: number, maxLinesDown = 6): string | null {
+  const fragments: string[] = [];
+  let checked = 0;
+  for (let i = anchorIdx + 1; i < lines.length && checked < maxLinesDown; i++) {
+    const line = lines[i].trim();
+    if (UI_LABEL_LINE.test(line) || isPunctuationNoise(line)) continue; // skip chrome/noise, keep going
+    checked++;
+    const cleaned = line.replace(/^[^A-Z]+/, "").trim();
+    if (!isNameFragment(cleaned)) break;
+    fragments.push(cleaned);
+    const combined = fragments.join(" ");
+    if (looksLikeFullName(combined)) return combined;
+  }
+  return null;
+}
+
 function extractSwimmerHeader(lines: string[]): {
   name: string | null; club: string | null; age: number | null;
 } {
+  // PRIMARY: anchor on the "SWIMMER" screen title and read the name from the
+  // line(s) right below it. This is a short, plain, all-caps word with no
+  // punctuation, so it survives noisy scans far more reliably than "Full
+  // schedule" — which real scans have come back as mangled fragments like
+  // "Ful sched", never matching the old schedule-line anchor at all and
+  // leaving the name unread even though it's sitting right there in the text.
+  const swimmerTitleIdx = lines.findIndex((l) => /^swimmer$/i.test(l.trim()));
+  if (swimmerTitleIdx >= 0) {
+    const name = collectNameBelow(lines, swimmerTitleIdx);
+    if (name) return { name, club: null, age: null };
+  }
+
   const scheduleIdx = lines.findIndex((l) => /full.?schedule/i.test(l));
   if (scheduleIdx >= 1) {
     const name = collectNameAbove(lines, scheduleIdx);
@@ -354,6 +392,56 @@ export function parseSwimmerScheduleOCR(rawText: string): ParsedSwimmerSchedule 
 
   const results: ScheduleResultRow[] = [];
   const seen = new Set<string>();
+  const claimedTimeLines = new Set<number>();
+
+  // FIX: Meet Mobile's OCR reading order for each event block is NOT
+  // consistent between scans — sometimes the description line ("Mixed 10-12
+  // 50 Meter Back") comes BEFORE its own "<time> | Place: <n>" line, other
+  // times it comes AFTER it (Tesseract's sparse-text mode doesn't guarantee
+  // visual top-to-bottom order). The old code only ever looked FORWARD from
+  // the description line for a time+place, stopping at the next description
+  // line. Whenever a scan came back in "time-before-description" order, that
+  // forward search walked straight past this event's own (already-passed)
+  // time and grabbed the NEXT event's time+place instead — silently
+  // assigning every event the following event's result (e.g. "50 Backstroke"
+  // showing the 400 Free's time). A literal "EVENT" label line, when present,
+  // marks each block's start, so searching in BOTH directions but never
+  // crossing another description line OR an "EVENT" marker keeps each event
+  // matched to its own time, whichever order the OCR happened to read it in.
+  function findTimePlaceNear(descIdx: number): { timeStr: string; timeMs: number; place: number | null; lineIdx: number; eventNumber: number | null } | null {
+    const maxWindow = 6;
+
+    // Look backward first — most real-world scans have the time above the
+    // description in this app's current layout.
+    for (let j = descIdx - 1; j >= Math.max(0, descIdx - maxWindow); j--) {
+      const prev = lines[j];
+      if (isEventDescriptionLine(prev)) break; // ran into the previous event's own description
+      if (/^event$/i.test(prev.trim())) break; // ran past this block's own start
+      if (claimedTimeLines.has(j)) continue;
+      const extracted = extractTimePlaceFromLine(prev);
+      if (extracted) {
+        const numMatch = prev.match(/^(\d{2,3})\s+/) ?? lines[j - 1]?.match(/^(\d{2,3})\s+/);
+        return { ...extracted, lineIdx: j, eventNumber: numMatch ? Number(numMatch[1]) : null };
+      }
+    }
+
+    // Then look forward, for scans that read in the older description-first order.
+    for (let j = descIdx + 1; j < Math.min(descIdx + maxWindow, lines.length); j++) {
+      const next = lines[j];
+      if (isEventDescriptionLine(next)) break; // ran into the next event's description
+      if (/^event$/i.test(next.trim())) break; // ran past this block into the next one
+      if (/time improvement/i.test(next)) continue;
+      if (/full.?schedule/i.test(next)) continue;
+      if (claimedTimeLines.has(j)) continue;
+      const extracted = extractTimePlaceFromLine(next);
+      if (extracted) {
+        const numMatch = next.match(/^(\d{2,3})\s+/);
+        return { ...extracted, lineIdx: j, eventNumber: numMatch ? Number(numMatch[1]) : null };
+      }
+    }
+
+    return null;
+  }
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -364,26 +452,10 @@ export function parseSwimmerScheduleOCR(rawText: string): ParsedSwimmerSchedule 
     const stroke = parseStroke(line);
     if (!distance || !stroke) continue;
 
-    // Look ahead up to 5 lines for time + place
-    let found: { timeStr: string; timeMs: number; place: number | null } | null = null;
-    let eventNumber: number | null = null;
-
-    for (let j = i + 1; j < Math.min(i + 6, lines.length); j++) {
-      const next = lines[j];
-      if (isEventDescriptionLine(next)) break;
-      if (/time improvement/i.test(next)) continue;
-      if (/full.?schedule/i.test(next)) continue;
-
-      const extracted = extractTimePlaceFromLine(next);
-      if (extracted) {
-        found = extracted;
-        const numMatch = next.match(/^(\d{2,3})\s+/);
-        if (numMatch) eventNumber = Number(numMatch[1]);
-        break;
-      }
-    }
-
+    const found = findTimePlaceNear(i);
     if (!found) continue;
+    claimedTimeLines.add(found.lineIdx); // don't let another event reuse this same time+place
+    const eventNumber = found.eventNumber;
 
     // Sanity checks
     if (distance === 50 && found.timeMs < 20_000) continue;
