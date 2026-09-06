@@ -394,52 +394,34 @@ export function parseSwimmerScheduleOCR(rawText: string): ParsedSwimmerSchedule 
   const seen = new Set<string>();
   const claimedTimeLines = new Set<number>();
 
-  // FIX: Meet Mobile's OCR reading order for each event block is NOT
-  // consistent between scans — sometimes the description line ("Mixed 10-12
-  // 50 Meter Back") comes BEFORE its own "<time> | Place: <n>" line, other
-  // times it comes AFTER it (Tesseract's sparse-text mode doesn't guarantee
-  // visual top-to-bottom order). The old code only ever looked FORWARD from
-  // the description line for a time+place, stopping at the next description
-  // line. Whenever a scan came back in "time-before-description" order, that
-  // forward search walked straight past this event's own (already-passed)
-  // time and grabbed the NEXT event's time+place instead — silently
-  // assigning every event the following event's result (e.g. "50 Backstroke"
-  // showing the 400 Free's time). A literal "EVENT" label line, when present,
-  // marks each block's start, so searching in BOTH directions but never
-  // crossing another description line OR an "EVENT" marker keeps each event
-  // matched to its own time, whichever order the OCR happened to read it in.
+  // Meet Mobile's schedule screen lays out each event as: [title line]
+  // [EVENT] [number + Finals + Completed] [time | Place: n] [optional Time
+  // improvement], repeating. So the title always precedes its OWN time —
+  // just with an "EVENT" marker and a Finals/status line in between, not
+  // immediately above it. Looking forward from the title, past those two
+  // lines, to the next time+place is correct and must NOT stop early just
+  // because it passes an "EVENT" marker along the way — that marker belongs
+  // to this same event, not a different one. (An earlier version of this
+  // function tried searching backward too, on the theory that some scans
+  // read time-before-title; that turned out to be a misreading of a
+  // scrolled/truncated debug snippet, not a real second layout — and it
+  // caused real events to grab a neighboring event's time instead. Simple
+  // forward search, stopping only at the next title line, is what actually
+  // matches every real scan seen so far.)
   function findTimePlaceNear(descIdx: number): { timeStr: string; timeMs: number; place: number | null; lineIdx: number; eventNumber: number | null } | null {
     const maxWindow = 6;
-
-    // Look backward first — most real-world scans have the time above the
-    // description in this app's current layout.
-    for (let j = descIdx - 1; j >= Math.max(0, descIdx - maxWindow); j--) {
-      const prev = lines[j];
-      if (isEventDescriptionLine(prev)) break; // ran into the previous event's own description
-      if (/^event$/i.test(prev.trim())) break; // ran past this block's own start
-      if (claimedTimeLines.has(j)) continue;
-      const extracted = extractTimePlaceFromLine(prev);
-      if (extracted) {
-        const numMatch = prev.match(/^(\d{2,3})\s+/) ?? lines[j - 1]?.match(/^(\d{2,3})\s+/);
-        return { ...extracted, lineIdx: j, eventNumber: numMatch ? Number(numMatch[1]) : null };
-      }
-    }
-
-    // Then look forward, for scans that read in the older description-first order.
     for (let j = descIdx + 1; j < Math.min(descIdx + maxWindow, lines.length); j++) {
       const next = lines[j];
-      if (isEventDescriptionLine(next)) break; // ran into the next event's description
-      if (/^event$/i.test(next.trim())) break; // ran past this block into the next one
+      if (isEventDescriptionLine(next)) break; // ran into the next event's own title
       if (/time improvement/i.test(next)) continue;
       if (/full.?schedule/i.test(next)) continue;
-      if (claimedTimeLines.has(j)) continue;
+      if (claimedTimeLines.has(j)) continue; // already used by an earlier event
       const extracted = extractTimePlaceFromLine(next);
       if (extracted) {
         const numMatch = next.match(/^(\d{2,3})\s+/);
         return { ...extracted, lineIdx: j, eventNumber: numMatch ? Number(numMatch[1]) : null };
       }
     }
-
     return null;
   }
 
