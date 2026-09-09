@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { replayTutorial } from "@/app/components/TutorialOverlay";
 import SplashMediaUpload from "@/app/components/SplashMediaUpload";
 import { applyTheme, applyFontSize, FONT_SIZES, type FontSizeId } from "@/app/components/ThemeProvider";
+import { LANGUAGES, applyLanguage, type LanguageId } from "@/lib/i18n";
 import Link from "next/link";
 
 const APP_VERSION = "1.0.0";
@@ -105,6 +106,10 @@ export default function SettingsPage() {
   const [savingFontSize, setSavingFontSize] = useState(false);
   const [fontSizeSaved, setFontSizeSaved]   = useState(false);
 
+  const [activeLanguage, setActiveLanguage] = useState<LanguageId>("en");
+  const [savingLanguage, setSavingLanguage] = useState(false);
+  const [languageSaved, setLanguageSaved]   = useState(false);
+
   // Background
   const [bgHue, setBgHue]       = useState(210);
   const [customBgOn, setCustomBgOn] = useState(false);
@@ -154,6 +159,7 @@ export default function SettingsPage() {
     const meta=session.user.user_metadata;
     setDisplayName(meta?.full_name??meta?.name??"");
     setActiveFontSize((meta?.app_font_size as FontSizeId)??"default");
+    setActiveLanguage((meta?.app_language as LanguageId)??"en");
     const savedBg=meta?.custom_bg_hue;
     if(savedBg!=null&&savedBg>=0){setBgHue(Number(savedBg));setCustomBgOn(true);}
     const savedFc=meta?.font_colour as FontColourId|undefined;
@@ -199,6 +205,14 @@ export default function SettingsPage() {
     await supabase.auth.updateUser({data:{app_font_size:sizeId}});
     setSavingFontSize(false); setFontSizeSaved(true);
     setTimeout(()=>setFontSizeSaved(false),2000);
+  }
+
+  async function handleSelectLanguage(langId: LanguageId) {
+    setActiveLanguage(langId); applyLanguage(langId);
+    setSavingLanguage(true); setLanguageSaved(false);
+    await supabase.auth.updateUser({data:{app_language:langId}});
+    setSavingLanguage(false); setLanguageSaved(true);
+    setTimeout(()=>setLanguageSaved(false),2000);
   }
 
   function handleBgHueDrag(hue: number){setBgHue(hue);setCustomBgOn(true);applyCustomBgInline(hue);}
@@ -479,6 +493,29 @@ export default function SettingsPage() {
           </div>
           {fontSizeSaved&&<p className="text-center text-xs" style={{color:"#6EE7B7"}}>✓ Text size saved</p>}
           {savingFontSize&&<p className="text-center text-xs text-white/30">Saving...</p>}
+        </div>
+
+        {/* ── Language ─────────────────────────────────────────────────────── */}
+        <div className="card space-y-4">
+          <div>
+            <p className="label">Language</p>
+            <p className="mt-1 text-xs text-white/40">Changes the app&apos;s menus and labels.</p>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {LANGUAGES.map(lang=>{
+              const isActive=activeLanguage===lang.id;
+              return(
+                <button key={lang.id} type="button" onClick={()=>void handleSelectLanguage(lang.id)} disabled={savingLanguage}
+                  className="flex flex-col items-center justify-center gap-1.5 rounded-2xl py-3 transition disabled:opacity-60"
+                  style={isActive?{background:"rgba(217,119,6,0.2)",border:"2px solid #D97706"}:{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.12)"}}>
+                  <span style={{fontSize:18}}>{lang.flag}</span>
+                  <span className="text-[9px] font-medium text-center leading-tight" style={{color:isActive?"#FDE68A":"rgba(255,255,255,0.4)"}}>{lang.label}</span>
+                </button>
+              );
+            })}
+          </div>
+          {languageSaved&&<p className="text-center text-xs" style={{color:"#6EE7B7"}}>✓ Language saved</p>}
+          {savingLanguage&&<p className="text-center text-xs text-white/30">Saving...</p>}
         </div>
 
         {/* ── Splash screen ───────────────────────────────────────────────── */}

@@ -246,7 +246,7 @@ function extractClubAge(line: string): { club: string | null; age: number | null
 }
 
 function startsWithPlace(line: string): boolean {
-  return /^(?:PLACE|PACE)\s+[A-Za-z]/i.test(line);
+  return /^(?:PLACE|PACE)\s+[\p{L}]/iu.test(line);
 }
 
 export function parseEventResultsOCR(rawText: string): ParsedEventResults {
@@ -285,7 +285,7 @@ export function parseEventResultsOCR(rawText: string): ParsedEventResults {
   // Last resort: name on its own line, time on the next line, no "PLACE"
   // word and no time combined on the name's own line either. Observed on
   // Meet Mobile screens where OCR fails to read the place-rank label/icon.
-  const nameOnlyLineRe = /^[A-Za-z][A-Za-z'.\- ]{4,40}$/;
+  const nameOnlyLineRe = /^[\p{L}][\p{L}'.\- ]{4,40}$/u;
   const standaloneTimeLineRe = /^(?:\d{1,2}:\d{2}\.\d{2}|\d{2}\.\d{2})$/;
   let separateLinePairs = 0;
   for (let i = 0; i < lines.length - 1; i++) {
@@ -312,7 +312,7 @@ function parseNameThenTimeFormat(rawText: string): ParsedEventResults {
   const event = extractEventName(lines);
   const results: EventResultRow[] = [];
 
-  const nameOnlyLineRe = /^[A-Za-z][A-Za-z'.\- ]{4,40}$/;
+  const nameOnlyLineRe = /^[\p{L}][\p{L}'.\- ]{4,40}$/u;
   const standaloneTimeLineRe = /^(\d{1,2}:\d{2}\.\d{2}|\d{2}\.\d{2})$/;
   const skipWordsRe = /finals|results|completed|heats|swimmers|unofficial|compare|^event$|details|^home$|^meet$/i;
 
@@ -373,10 +373,21 @@ function parseInlineEventResultsOCR(rawText: string): ParsedEventResults {
     const timeMatch = afterPlace.match(timeAtEndRe);
     if (!timeMatch) continue;
 
-    const timeStr = repairTime(timeMatch[1]);
+    const rawTimeToken = timeMatch[1];
+    // Bare 4-digit fallback (missing-dot time, e.g. "4350" → "43.50") is also how a
+    // stray bib/ID number after the name gets misread as a time. A 4-digit token that
+    // looks like a calendar year (1900-2099) is almost certainly not a swim time.
+    if (/^\d{4}$/.test(rawTimeToken)) {
+      const asYear = Number(rawTimeToken);
+      if (asYear >= 1900 && asYear <= 2099) continue;
+    }
+
+    const timeStr = repairTime(rawTimeToken);
     if (!timeStr) continue;
     const timeMs = timeToMs(timeStr);
-    if (timeMs <= 0 || timeMs > 1_800_000) continue;
+    // Floor of 3s guards against the bare-digit fallback fabricating an implausibly
+    // short "time" out of noise (mirrors the same floor used in the SwimCloud parsers).
+    if (timeMs < 3000 || timeMs > 1_800_000) continue;
 
     const nameRaw = afterPlace.slice(0, afterPlace.search(timeAtEndRe)).trim();
     const name = nameRaw.replace(/[\s|]+$/, "").trim();
@@ -420,41 +431,18 @@ function parseInlineEventResultsOCR(rawText: string): ParsedEventResults {
   return { event, course, swamAt, meetName, results: deduped };
 }
 
-// ✅ Detect whether OCR text is a multi-swimmer event results page.
-//
-// CRITICAL: The Meet Mobile single-swimmer "Swim Detail" screen contains
-// column labels (FINALS, ENTRY, STATUS, DROPPED, SPLITS, EVENT SUMMARY)
-// that can fool the PLACE-counting heuristics into thinking it's a results list.
-//
-// We collapse ALL whitespace before matching because Tesseract often splits
-// a single UI label across multiple lines — e.g. "SWIM DETAIL" → "SWIM\nDETAIL"
-// which makes a plain .includes("SWIM DETAIL") check silently fail.
 export function isEventResultsPage(rawText: string): boolean {
-  // Collapse all whitespace into single spaces for reliable multi-word matching
   const flat = rawText.replace(/\s+/g, " ").toUpperCase();
 
-  // ── Guard 1: "SWIM DETAIL" — the screen title, strongest single signal ──
   if (flat.includes("SWIM DETAIL")) return false;
-
-  // ── Guard 2: "EVENT SUMMARY" — button at bottom of every detail screen ──
   if (flat.includes("EVENT SUMMARY")) return false;
-
-  // ── Guard 3: "Completed" status + SPLITS — only on detail screens ──
   if (flat.includes("COMPLETED") && flat.includes("SPLITS")) return false;
 
-  // ── Guard 4: Detail-screen column header combo ──
-  // "PLACE FINALS ENTRY" and "STATUS DROPPED" never appear on results lists
   const hasFinalsEntry = flat.includes("FINALS") && flat.includes("ENTRY");
   const hasStatusDropped = flat.includes("STATUS") && flat.includes("DROPPED");
   if (hasFinalsEntry && hasStatusDropped) return false;
-
-  // ── Guard 5: FINALS + ENTRY + SPLITS ──
   if (hasFinalsEntry && flat.includes("SPLITS")) return false;
-
-  // ── Guard 6: HEAT PLACE + LANE + SPLITS — detail screen grid labels ──
   if (flat.includes("HEAT PLACE") && flat.includes("LANE") && flat.includes("SPLITS")) return false;
-
-  // ── Guard 7: Looser fallback — HEAT + LANE + SPLITS + TOTAL ──
   if (
     flat.includes("HEAT") &&
     flat.includes("LANE") &&
@@ -462,9 +450,8 @@ export function isEventResultsPage(rawText: string): boolean {
     flat.includes("TOTAL")
   ) return false;
 
-  // ── Multi-swimmer detection (unchanged) ──
   const lines = rawText.split("\n").map((l) => l.trim()).filter(Boolean);
-  if (lines.filter((l) => /^(?:PLACE|PACE)\s+[A-Za-z]/i.test(l)).length >= 2) return true;
+  if (lines.filter((l) => /^(?:PLACE|PACE)\s+[\p{L}]/iu.test(l)).length >= 2) return true;
   if (lines.filter((l) => /^(?:PLACE|PACE)$/i.test(l)).length >= 2) return true;
   if (lines.filter((l) => /^(?:PLACE|PACE)\s+\d{1,3}$/i.test(l)).length >= 2) return true;
 
@@ -476,11 +463,7 @@ export function isEventResultsPage(rawText: string): boolean {
   }
   if (pairs >= 2) return true;
 
-  // ── Multi-swimmer detection, layout variant: name, time, and club each on
-  // their own separate line (rather than "Name ... Time" combined on one
-  // line). Some Meet Mobile screens — observed on a 200 IM results table —
-  // render this way, and the pairing heuristic above never fires for it.
-  const nameOnlyLineRe = /^[A-Za-z][A-Za-z'.\- ]{4,40}$/;
+  const nameOnlyLineRe = /^[\p{L}][\p{L}'.\- ]{4,40}$/u;
   const standaloneTimeLineRe = /^(\d{1,2}:\d{2}\.\d{2}|\d{2}\.\d{2})$/;
   let namePlusTimePairs = 0;
   for (let i = 0; i < lines.length - 1; i++) {
@@ -577,13 +560,15 @@ function parseNSGCardFormat(rawText: string): ParsedEventResults {
 
       const timeMatch = l.match(/^(\d{1,2}:\d{2}\.\d{2}|\d{2}\.\d{2}|\d{1}\.\d{4}|\d{3,5})$/);
       if (timeMatch && !timeStr) {
-        const repaired = repairTime(timeMatch[1]);
-        if (repaired) { timeStr = repaired; timeMs = timeToMs(repaired); }
+        const rawToken = timeMatch[1];
+        const looksLikeYear = /^\d{4}$/.test(rawToken) && Number(rawToken) >= 1900 && Number(rawToken) <= 2099;
+        if (!looksLikeYear) {
+          const repaired = repairTime(rawToken);
+          if (repaired) { timeStr = repaired; timeMs = timeToMs(repaired); }
+        }
         continue;
       }
 
-      // Pre-clean garbled separators before club/age matching
-      // "X|[10" → "X | 10", "APSC [10" → "APSC | 10"
       const lClean = l
         .replace(/\|\s*\[/g, " | ")
         .replace(/\[(\d)/g, "| $1")
@@ -594,9 +579,6 @@ function parseNSGCardFormat(rawText: string): ParsedEventResults {
         age = parseInt(clubAgeMatch[2], 10);
         continue;
       }
-      // Fallback: no separator at all, just "CSC 10" — only trust this when
-      // the trailing number is a sane swimmer age, to avoid misreading
-      // unrelated short numeric lines as club+age.
       const clubAgePlainMatch = lClean.match(/^([A-Za-z]{2,6})\s+(\d{1,2})$/);
       if (clubAgePlainMatch) {
         const plainAge = parseInt(clubAgePlainMatch[2], 10);
@@ -607,12 +589,12 @@ function parseNSGCardFormat(rawText: string): ParsedEventResults {
         }
       }
 
-      if (!name && l.length >= 3 && /[A-Za-z]/.test(l) && !/^\d+$/.test(l)) {
+      if (!name && l.length >= 3 && /\p{L}/u.test(l) && !/^\d+$/.test(l)) {
         name = l.trim();
       }
     }
 
-    if (name && timeStr && timeMs > 0 && timeMs < 1_800_000) {
+    if (name && timeStr && timeMs >= 3000 && timeMs < 1_800_000) {
       results.push({ place: place ?? results.length + 1, name, club, age, timeStr, timeMs, event, course, swamAt, meetName });
     }
 

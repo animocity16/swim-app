@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import PendingMatchesBanner from "@/app/components/PendingMatchesBanner";
 
 type Swimmer = {
   id: number | string;
@@ -263,6 +264,8 @@ export default function SwimmersPage() {
             {showAddForm ? "×" : "+"}
           </button>
         </div>
+
+        <PendingMatchesBanner />
 
         {/* Add swimmer form */}
         {showAddForm && (

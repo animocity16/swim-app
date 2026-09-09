@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "@/lib/i18n";
 
 const NAV_ITEMS = [
   {
     href: "/dashboard",
-    label: "Home",
+    labelKey: "nav.home",
     tutorial: "home",
     icon: (active: boolean) => (
       <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
@@ -17,7 +18,7 @@ const NAV_ITEMS = [
   },
   {
     href: "/swimmers",
-    label: "Brood",
+    labelKey: "nav.brood",
     tutorial: "brood",
     icon: (active: boolean) => (
       <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
@@ -28,7 +29,7 @@ const NAV_ITEMS = [
   },
   {
     href: "/meets",
-    label: "Meets",
+    labelKey: "nav.meets",
     tutorial: "meets",
     icon: (active: boolean) => (
       <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
@@ -39,7 +40,7 @@ const NAV_ITEMS = [
   },
   {
     href: "/compare",
-    label: "Compare",
+    labelKey: "nav.compare",
     tutorial: "compare",
     icon: (active: boolean) => (
       <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
@@ -51,7 +52,7 @@ const NAV_ITEMS = [
   },
   {
     href: "/settings",
-    label: "Settings",
+    labelKey: "nav.settings",
     tutorial: "settings",
     icon: (active: boolean) => (
       <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
@@ -87,6 +88,7 @@ const PUBLIC_PATHS = ["/", "/search"];
 const PUBLIC_HIDDEN_HREFS = ["/settings"];
 
 export default function BottomNav() {
+  const { t } = useTranslation();
   const pathname = usePathname();
   const router = useRouter();
   const [scanMenuOpen, setScanMenuOpen] = useState(false);
@@ -146,7 +148,7 @@ export default function BottomNav() {
           color: active ? "#FDE68A" : "rgba(255,255,255,0.45)",
           transition: "color 0.15s ease",
         }}>
-          {item.label}
+          {t(item.labelKey)}
         </span>
       </>
     );
@@ -226,7 +228,7 @@ export default function BottomNav() {
                 className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-xs font-semibold transition hover:bg-white/5"
                 style={{ color: "rgba(255,255,255,0.85)" }}
               >
-                Meet Mobile
+                {t("scan.meetMobile")}
                 <span style={{ fontSize: "14px" }}>📷</span>
               </button>
               <button
@@ -235,7 +237,7 @@ export default function BottomNav() {
                 className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-xs font-semibold transition hover:bg-white/5"
                 style={{ color: "rgba(255,255,255,0.85)" }}
               >
-                SwimCloud
+                {t("scan.swimCloud")}
                 <span style={{ fontSize: "14px" }}>☁️</span>
               </button>
             </div>
@@ -273,7 +275,7 @@ export default function BottomNav() {
               color: scanActive || scanMenuOpen ? "#FDE68A" : "rgba(255,255,255,0.45)",
               transition: "color 0.15s ease",
             }}>
-              Scan
+              {t("nav.scan")}
             </span>
           </button>
         </div>

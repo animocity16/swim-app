@@ -1,18 +1,3 @@
-// ✅ ocrSwimCloudRankingsParser.ts — v2, rebuilt against real device OCR text
-//
-// Real SwimCloud OCR does NOT put rank on its own line and time on its own
-// line the way a first-pass guess would assume. It actually reads:
-//
-//   Tessa Ng
-//   1 Aquatic Performance Swim Club 2:43.76
-//
-// Name on its own line, then rank + club + time all squashed together on
-// the line right after it. Rank digits sometimes misread (e.g. "5" → ">"),
-// so place is assigned by row order on the page instead of trusting the
-// OCR'd digit. When a floating UI element (like the "Events" button)
-// overlaps a row in the screenshot, the name can fracture into 2-3 broken
-// fragments — this looks back up to 2 lines and skips junk to recover it.
-
 export type SwimCloudRankingRow = {
   place: number;
   name: string;
@@ -38,7 +23,7 @@ export type ParsedSwimCloudRankings = {
 
 const TIME_TAIL_RE = /(\d{1,2}:\d{2}\.\d{2}|\d{2}\.\d{2})\s*$/;
 const RANK_PREFIX_RE = /^(\d{1,3}|[>=~]{1,2})\s+/;
-const NAME_LINE_RE = /^[A-Za-z][A-Za-z'.\- ]{2,40}$/;
+const NAME_LINE_RE = /^[\p{L}][\p{L}'.\- ]{2,40}$/u;
 
 const NOISE_LINES = new Set([
   "search", "events", "ask", "name", "time", "www.swimcloud.com",
@@ -88,9 +73,6 @@ function normalizeEventFromMatch(m: RegExpMatchArray): string {
   return `${dist} ${stroke}`;
 }
 
-// Strip trailing junk symbols OCR sometimes glues onto a name when a UI
-// element (like the floating "Events" button) overlaps that row.
-// "Rachelle Wong =" → "Rachelle Wong"
 function cleanLine(l: string): string {
   return l.replace(/[=.,;:\-\s]+$/, "").trim();
 }
@@ -133,8 +115,6 @@ function extractHeader(rawText: string, lines: string[]): {
     if (ROUND_RE.test(line)) { round = line; break; }
   }
 
-  // Meet name sits on the back-link line, e.g. "< Pesta Sukan" — OCR keeps
-  // the "<" as a literal character, so strip leading non-letter junk first.
   let meetName: string | null = null;
   for (const line of lines.slice(0, 6)) {
     const stripped = line.replace(/^[^A-Za-z]+/, "").trim();
@@ -178,8 +158,6 @@ export function parseSwimCloudRankingsOCR(rawText: string): ParsedSwimCloudRanki
     prefix = prefix.replace(RANK_PREFIX_RE, "").trim();
     const club = prefix.length > 0 ? prefix : null;
 
-    // Find the swimmer's name on a nearby preceding line, skipping short
-    // junk fragments (like "E ." left behind by an overlapping UI button).
     let name: string | null = null;
     for (let k = 1; k <= 2; k++) {
       const idx = i - k;
@@ -188,7 +166,30 @@ export function parseSwimCloudRankingsOCR(rawText: string): ParsedSwimCloudRanki
       const cleaned = cleanLine(lines[idx]);
       if (cleaned.length < 3) continue;
       if (isNoiseLine(cleaned)) break;
-      if (NAME_LINE_RE.test(cleaned)) { name = cleaned; consumedNameIdx.add(idx); break; }
+      if (!NAME_LINE_RE.test(cleaned)) continue;
+
+      // Latin names starting lowercase are almost never real — far more likely the
+      // back half of a name fractured across two lines by an overlapping UI element
+      // (e.g. "Rach" / "elle Wong"). Try to glue it to the line right before it
+      // rather than accepting the truncated fragment as the whole name.
+      const startsLower = /^[a-z]/.test(cleaned);
+      if (!startsLower) { name = cleaned; consumedNameIdx.add(idx); break; }
+
+      const fragIdx = idx - 1;
+      if (fragIdx >= 0 && !consumedNameIdx.has(fragIdx)) {
+        const fragment = cleanLine(lines[fragIdx]);
+        if (fragment.length >= 1 && fragment.length <= 12 && /^[A-Za-z]+$/.test(fragment) && !isNoiseLine(fragment)) {
+          const glued = fragment + cleaned;
+          if (/^[A-Z]/.test(glued) && NAME_LINE_RE.test(glued)) {
+            name = glued;
+            consumedNameIdx.add(idx);
+            consumedNameIdx.add(fragIdx);
+            break;
+          }
+        }
+      }
+      // Couldn't recover a full name — don't return the truncated fragment.
+      break;
     }
     if (!name) continue;
 

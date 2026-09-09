@@ -10,7 +10,6 @@ import {
 } from "@/lib/ocrSwimCloudRankingsParser";
 import {
   parseSwimCloudProfileOCR,
-  isSwimCloudProfilePage,
   type SwimCloudProfileRow,
   type UnresolvedProfileRow,
 } from "@/lib/ocrSwimCloudProfileParser";

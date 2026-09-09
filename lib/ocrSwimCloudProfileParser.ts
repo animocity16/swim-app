@@ -63,7 +63,10 @@ function timeToMs(timeStr: string): number {
 }
 
 const CLUB_KEYWORD_RE = /\b(Club|Swimming|Swim|Academy|Aquatic|Aquatics|Team|Institute|Squad|Lab)\b/i;
-const PERSON_NAME_RE = /^[A-Z][a-z]+(\s+[A-Z][a-z]+){1,3}$/;
+// Latin names: require Title Case word boundaries (rules out club/stroke text).
+// Non-Latin scripts (Chinese, Thai, etc.) have no case, so accept 2+ letter
+// "words" of \p{L} characters instead — still rules out pure club-keyword lines.
+const PERSON_NAME_RE = /^(?:[A-Z][a-z]+(\s+[A-Z][a-z]+){1,3}|[\p{L}]{2,}(\s+[\p{L}]{2,}){0,3})$/u;
 
 function extractInitialsNameClub(lines: string[]): { initials: string | null; name: string | null; club: string | null } {
   for (let i = 0; i < Math.min(8, lines.length); i++) {

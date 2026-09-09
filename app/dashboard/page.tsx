@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import PendingMatchesBanner from "@/app/components/PendingMatchesBanner";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -610,6 +611,8 @@ export default function DashboardPage() {
           </div>
           <NatrixMark />
         </div>
+
+        <PendingMatchesBanner />
 
         {/* ── Lap calculator — quick access from Home ────────────────────────── */}
         <Link
