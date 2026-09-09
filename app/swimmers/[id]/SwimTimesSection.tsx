@@ -352,9 +352,11 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
 
     const eventGroups: EventGroup[] = Array.from(grouped.entries()).map(([key, times]) => {
       const pb = [...times].sort((a, b) => a.time_ms - b.time_ms)[0];
-      const byDate = [...times].sort((a, b) =>
-        new Date(b.swam_at || "").getTime() - new Date(a.swam_at || "").getTime()
-      );
+      const byDate = [...times].sort((a, b) => {
+        const aTime = a.swam_at ? new Date(a.swam_at).getTime() : -Infinity;
+        const bTime = b.swam_at ? new Date(b.swam_at).getTime() : -Infinity;
+        return bTime - aTime;
+      });
       return {
         key,
         event: canonicalEventName(times[0].event),
@@ -682,7 +684,7 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
                                     </div>
                                     <p className="text-[11px] text-white/35 mt-0.5">
                                       {time.meet_name || "—"}
-                                      {time.swam_at ? ` · ${formatDate(time.swam_at)}` : ""}
+                                      {" · "}{time.swam_at ? formatDate(time.swam_at) : "Date unknown"}
                                     </p>
                                     {splits.length > 0 && (
                                       <button type="button"
