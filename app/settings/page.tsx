@@ -551,7 +551,7 @@ export default function SettingsPage() {
           <div className="mt-4 space-y-2">
             <p className="mb-2 text-[9px] uppercase tracking-wider text-white/30">Quick reference</p>
             {[
-              {emoji:"👥",title:"Add a swimmer",desc:"Tap Brood → + button → fill in profile"},
+              {emoji:"👥",title:"Add a swimmer",desc:"Tap Swimmers → + button → fill in profile"},
               {emoji:"📷",title:"Scan a result",desc:"Tap Scan → upload Meet Mobile screenshot"},
               {emoji:"📈",title:"View progress",desc:"Swimmer profile → Progress tab"},
               {emoji:"⭐",title:"Check standards",desc:"Swimmer profile → Standards tab"},

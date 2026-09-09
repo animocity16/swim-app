@@ -56,7 +56,7 @@ export default function DemoSwimmerProfilePage() {
       <div className="shell">
         <div className="container-app space-y-5">
           <Link href="/demo/swimmers" className="flex items-center gap-2 text-white/50 text-sm pt-2">
-            ← Brood
+            ← Swimmers
           </Link>
           <div className="rounded-3xl border border-white/10 bg-white/5 p-8 text-center">
             <p className="text-lg font-semibold text-white">Swimmer not found</p>
@@ -78,7 +78,7 @@ export default function DemoSwimmerProfilePage() {
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M10 3L5 8L10 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            Brood
+            Swimmers
           </Link>
         </div>
 

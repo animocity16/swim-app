@@ -233,7 +233,7 @@ export default function SwimmersPage() {
           <div className="flex items-center justify-between pt-2">
             <div>
               <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">Swimmers</p>
-              <h1 className="mt-1 text-3xl font-bold tracking-tight text-white">Brood</h1>
+              <h1 className="mt-1 text-3xl font-bold tracking-tight text-white">Swimmers</h1>
             </div>
             <div className="h-10 w-10 rounded-2xl border border-white/10 bg-white/5" />
           </div>
@@ -257,7 +257,7 @@ export default function SwimmersPage() {
         <div className="flex items-center justify-between pt-2">
           <div>
             <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">Swimmers</p>
-            <h1 className="mt-1 text-3xl font-bold tracking-tight text-white">Brood</h1>
+            <h1 className="mt-1 text-3xl font-bold tracking-tight text-white">Swimmers</h1>
           </div>
           <button type="button" onClick={() => setShowAddForm((prev) => !prev)}
             className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-xl text-white transition hover:bg-white/10">

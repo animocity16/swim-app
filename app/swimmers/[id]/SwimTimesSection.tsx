@@ -242,6 +242,7 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
   const [loading, setLoading] = useState(true);
 
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showCourseInfo, setShowCourseInfo] = useState(false);
   const [newEvent, setNewEvent] = useState("");
   const [newCourse, setNewCourse] = useState("LCM");
   const [newTime, setNewTime] = useState("");
@@ -389,9 +390,23 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
 
         {/* Header */}
         <div className="flex items-center justify-between">
-          <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">
-            {rows.length} result{rows.length === 1 ? "" : "s"} · {strokeGroups.reduce((n, g) => n + g.events.length, 0)} events
-          </p>
+          <div className="flex items-center gap-1.5">
+            <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">
+              {rows.length} result{rows.length === 1 ? "" : "s"} · {strokeGroups.reduce((n, g) => n + g.events.length, 0)} events
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowCourseInfo((v) => !v)}
+              aria-label="What do LCM and SCM mean?"
+              className="flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold transition"
+              style={{
+                background: showCourseInfo ? "rgba(253,230,138,0.25)" : "rgba(255,255,255,0.08)",
+                color: showCourseInfo ? "#FDE68A" : "rgba(255,255,255,0.4)",
+              }}
+            >
+              i
+            </button>
+          </div>
           <button
             type="button"
             onClick={() => setShowAddForm((v) => !v)}
@@ -405,6 +420,18 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
             {showAddForm ? "Cancel" : "+ Add time"}
           </button>
         </div>
+
+        {/* Course-code explainer -- LCM/SCM/SCY mean nothing to a parent
+            who hasn't seen a heat sheet before, so spell it out on demand
+            instead of assuming everyone already knows pool-length jargon. */}
+        {showCourseInfo && (
+          <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs leading-relaxed text-white/60">
+            <p><span className="font-semibold text-white/80">LCM</span> — Long Course (50m pool)</p>
+            <p><span className="font-semibold text-white/80">SCM</span> — Short Course Meters (25m pool)</p>
+            <p><span className="font-semibold text-white/80">SCY</span> — Short Course Yards (25yd pool, mostly overseas)</p>
+            <p className="mt-1.5 text-white/40">Times in different pool lengths aren't directly comparable, so we keep them separate.</p>
+          </div>
+        )}
 
         {/* Add time form */}
         {showAddForm && (

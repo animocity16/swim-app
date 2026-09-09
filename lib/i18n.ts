@@ -25,7 +25,7 @@ type Dict = Record<string, string>;
 export const TRANSLATIONS: Record<LanguageId, Dict> = {
   en: {
     "nav.home": "Home",
-    "nav.brood": "Brood",
+    "nav.brood": "Swimmers",
     "nav.meets": "Meets",
     "nav.compare": "Compare",
     "nav.settings": "Settings",
@@ -39,7 +39,7 @@ export const TRANSLATIONS: Record<LanguageId, Dict> = {
   },
   ms: {
     "nav.home": "Utama",
-    "nav.brood": "Kumpulan",
+    "nav.brood": "Perenang",
     "nav.meets": "Perlawanan",
     "nav.compare": "Banding",
     "nav.settings": "Tetapan",
@@ -53,7 +53,7 @@ export const TRANSLATIONS: Record<LanguageId, Dict> = {
   },
   id: {
     "nav.home": "Beranda",
-    "nav.brood": "Grup",
+    "nav.brood": "Perenang",
     "nav.meets": "Kejuaraan",
     "nav.compare": "Bandingkan",
     "nav.settings": "Pengaturan",
@@ -67,7 +67,7 @@ export const TRANSLATIONS: Record<LanguageId, Dict> = {
   },
   th: {
     "nav.home": "หน้าแรก",
-    "nav.brood": "กลุ่ม",
+    "nav.brood": "นักว่ายน้ำ",
     "nav.meets": "การแข่งขัน",
     "nav.compare": "เปรียบเทียบ",
     "nav.settings": "ตั้งค่า",
@@ -81,7 +81,7 @@ export const TRANSLATIONS: Record<LanguageId, Dict> = {
   },
   vi: {
     "nav.home": "Trang chủ",
-    "nav.brood": "Nhóm",
+    "nav.brood": "Vận động viên",
     "nav.meets": "Giải đấu",
     "nav.compare": "So sánh",
     "nav.settings": "Cài đặt",
@@ -95,7 +95,7 @@ export const TRANSLATIONS: Record<LanguageId, Dict> = {
   },
   tl: {
     "nav.home": "Home",
-    "nav.brood": "Grupo",
+    "nav.brood": "Mga Manlalangoy",
     "nav.meets": "Paligsahan",
     "nav.compare": "Ihambing",
     "nav.settings": "Setting",

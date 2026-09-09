@@ -91,10 +91,15 @@ export default function PendingMatchesBanner() {
           className="rounded-3xl overflow-hidden"
           style={{ border: "1px solid rgba(253,230,138,0.25)", background: "rgba(217,119,6,0.1)" }}
         >
-          <div className="px-4 pt-3.5 pb-2 flex items-center gap-2">
-            <span className="text-lg">🔎</span>
-            <p className="text-sm font-semibold" style={{ color: "#FDE68A" }}>
-              {totalPending} new result{totalPending === 1 ? "" : "s"} waiting to be confirmed
+          <div className="px-4 pt-3.5 pb-2">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">🔎</span>
+              <p className="text-sm font-semibold" style={{ color: "#FDE68A" }}>
+                {totalPending} new result{totalPending === 1 ? "" : "s"} waiting to be confirmed
+              </p>
+            </div>
+            <p className="mt-1 text-xs leading-relaxed" style={{ color: "rgba(253,230,138,0.7)" }}>
+              We spotted meet results that look like they belong to your swimmer. Tap one to confirm it&apos;s really them before we add it to their times.
             </p>
           </div>
           <div className="divide-y" style={{ borderColor: "rgba(255,255,255,0.06)" }}>

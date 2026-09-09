@@ -23,7 +23,7 @@ const STEPS: Step[] = [
   {
     id: "brood",
     title: "Your ssswimmers live here!",
-    body: "Tap Brood to see your child's profile, their times, and where they rank in their age group.",
+    body: "Tap Swimmers to see your child's profile, their times, and where they rank in their age group.",
     targetAttr: "brood",
     route: "/swimmers",
   },

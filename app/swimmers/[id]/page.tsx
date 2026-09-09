@@ -173,7 +173,7 @@ function SwimmerProfilePageInner() {
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M10 3L5 8L10 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            Brood
+            Swimmers
           </Link>
           <div className="rounded-3xl border border-white/10 bg-white/5 p-8 text-center">
             <p className="text-lg font-semibold text-white">Swimmer not found</p>
@@ -264,7 +264,7 @@ function SwimmerProfilePageInner() {
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M10 3L5 8L10 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            Brood
+            Swimmers
           </Link>
           <button type="button" onClick={startEdit}
             className="flex items-center gap-1.5 rounded-2xl border border-white/12 bg-white/5 px-3 py-1.5 text-xs font-medium text-white/60 transition hover:bg-white/10">
@@ -324,7 +324,7 @@ function SwimmerProfilePageInner() {
             const active = activeTab === tab;
             return (
               <button key={tab} type="button" onClick={() => setActiveTab(tab)}
-                className="flex-1 min-w-0 rounded-xl px-1 py-2.5 text-center text-[10px] font-semibold uppercase tracking-normal leading-tight transition truncate"
+                className="flex-1 min-w-0 rounded-xl px-0.5 py-2.5 text-center text-[11px] font-semibold tracking-tight leading-tight transition"
                 style={active
                   ? { background: "rgba(217,119,6,0.2)", color: "#FDE68A", border: "1px solid rgba(253,230,138,0.35)" }
                   : { color: "rgba(255,255,255,0.4)", border: "1px solid transparent" }}>

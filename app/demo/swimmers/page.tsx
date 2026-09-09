@@ -55,7 +55,7 @@ export default function DemoSwimmersPage() {
     <div className="shell">
       <div className="container-app space-y-5">
         <div className="pt-2">
-          <h1 className="text-2xl font-bold text-white">Brood</h1>
+          <h1 className="text-2xl font-bold text-white">Swimmers</h1>
           <p className="text-sm text-white/40 mt-0.5">Everyone you&apos;re tracking</p>
         </div>
 
