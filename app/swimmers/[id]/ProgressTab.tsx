@@ -70,10 +70,9 @@ function formatDate(value?: string | null): string {
 }
 
 function rowDate(row: TimeRow): number {
-  const raw = row.swam_at ?? row.created_at;
-  if (!raw) return 0;
+  if (!row.swam_at) return 0;
 
-  const time = new Date(raw).getTime();
+  const time = new Date(row.swam_at).getTime();
   return Number.isNaN(time) ? 0 : time;
 }
 
@@ -293,7 +292,7 @@ function ProgressChart({
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="text-sm font-semibold text-white">
-                {formatDate(selectedRow.swam_at ?? selectedRow.created_at)}
+                {formatDate(selectedRow.swam_at)}
               </p>
               <p className="mt-0.5 truncate text-xs text-white/40">
                 {selectedRow.meet_name || "Meet not recorded"}
