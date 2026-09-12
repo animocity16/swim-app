@@ -15,14 +15,14 @@ export default function DemoBanner() {
       }}
     >
       <p className="text-xs font-semibold text-white truncate">
-        🏊 You&apos;re viewing a demo — sample swimmers, not real data
+        🏊 Interactive demo — sample swimmers, no real data
       </p>
       <Link
-        href="/signup"
+        href="/demo/scan"
         className="flex-shrink-0 rounded-full px-3 py-1.5 text-[11px] font-bold text-white whitespace-nowrap"
         style={{ background: "#D97706" }}
       >
-        Sign up
+        Try scan
       </Link>
     </div>
   );

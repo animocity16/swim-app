@@ -76,14 +76,12 @@ const LOCK_BADGE = (
 
 const HIDDEN_ON = ["/login", "/signup", "/forgot-password", "/reset-password", "/invite", "/auth", "/onboarding"];
 
-// Nav items that don't make sense in the read-only demo (nothing to scan,
-// nothing to configure) get swapped out or hidden when browsing /demo/*.
+// Settings isn't part of the public read-only demo, but the rest of the
+// navigation mirrors the real app so visitors can explore the product.
 const DEMO_HIDDEN_HREFS = ["/settings"];
 
 // Pages a logged-out parent can browse before creating an account. Anything
-// in the nav other than Home (which points at /search here) shows locked —
-// same "blurred + redirect to signup" pattern already used for Scan in
-// demo mode, just applied to the whole nav instead of just one tab.
+// in the nav other than Home (which points at /search here) shows locked.
 const PUBLIC_PATHS = ["/", "/search"];
 const PUBLIC_HIDDEN_HREFS = ["/settings"];
 
@@ -121,7 +119,9 @@ export default function BottomNav() {
       .map((item) => (item.href === "/dashboard" ? { ...item, href: "/search" } : item));
   }
 
-  const scanActive = !isDemo && !isPublic && pathname.startsWith("/scan");
+  const scanActive = isDemo
+    ? pathname.startsWith("/demo/scan")
+    : !isPublic && pathname.startsWith("/scan");
 
   function handleMeetMobile() {
     setScanMenuOpen(false);
@@ -203,8 +203,6 @@ export default function BottomNav() {
       >
         {items.slice(0, 2).map(renderNavItem)}
 
-        {/* Scan — dropdown trigger. Disabled (redirects to signup) in demo
-            mode and public/logged-out mode alike — nothing to save into. */}
         <div ref={scanWrapRef} style={{ position: "relative" }}>
           {scanMenuOpen && !isDemo && !isPublic && (
             <div
@@ -247,7 +245,14 @@ export default function BottomNav() {
             type="button"
             data-tutorial="scan"
             onClick={() => {
-              if (isDemo || isPublic) { router.push("/signup"); return; }
+              if (isDemo) {
+                router.push("/demo/scan");
+                return;
+              }
+              if (isPublic) {
+                router.push("/signup");
+                return;
+              }
               setScanMenuOpen((v) => !v);
             }}
             style={{
@@ -261,7 +266,7 @@ export default function BottomNav() {
               background: scanActive || scanMenuOpen ? "rgba(217,119,6,0.2)" : "transparent",
               border: scanActive || scanMenuOpen ? "1px solid rgba(253,230,138,0.25)" : "1px solid transparent",
               minWidth: "44px",
-              opacity: isDemo || isPublic ? 0.55 : 1,
+              opacity: isPublic ? 0.55 : 1,
             }}
           >
             <div style={{ position: "relative" }}>
