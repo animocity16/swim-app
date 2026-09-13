@@ -365,6 +365,22 @@ export default function SettingsPage() {
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke="rgba(253,230,138,0.5)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </Link>
 
+        {/* ── Real usage dashboard (admin only) ─────────────────────────── */}
+        {isAdmin && (
+          <Link href="/admin/usage"
+            className="flex items-center justify-between rounded-2xl px-4 py-3.5 transition"
+            style={{background:"rgba(217,119,6,0.12)",border:"1px solid rgba(253,230,138,0.25)"}}>
+            <div className="flex items-center gap-3">
+              <span style={{fontSize:18}}>📊</span>
+              <div>
+                <p className="text-sm font-semibold" style={{color:"#FDE68A"}}>Real usage</p>
+                <p className="mt-0.5 text-xs text-white/40">Admin · who's actually logging swim times</p>
+              </div>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke="rgba(253,230,138,0.5)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </Link>
+        )}
+
         {/* ── Appearance ──────────────────────────────────────────────────── */}
         <div className="card space-y-6">
           <p className="label">Appearance</p>
