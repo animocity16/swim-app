@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { Fragment, useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { canonicalEventName, canonicalCourse, eventKey } from "@/lib/events";
+import TrendOverlayChart, { TrendSeries } from "@/components/compare/TrendOverlayChart";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -22,6 +23,8 @@ type SwimTimeRow = {
   event: string;
   course: string;
   time_ms: number;
+  swam_at?: string | null;
+  meet_name?: string | null;
 };
 
 type EventKey = string;
@@ -111,6 +114,38 @@ const RANK_STYLES: Record<number, { bg: string; border: string; numColor: string
   5: { bg: "rgba(255,255,255,0.03)", border: "rgba(255,255,255,0.08)", numColor: "rgba(255,255,255,0.3)" },
 };
 
+const STROKE_ABBR: Record<string, string> = {
+  Freestyle: "Fr",
+  Backstroke: "Bk",
+  Breaststroke: "Br",
+  Butterfly: "Fl",
+  IM: "IM",
+  Other: "",
+};
+
+function gridEventLabel(event: string): string {
+  return `${getEventDistance(event)}${STROKE_ABBR[getStrokeName(event)] ?? ""}`;
+}
+
+// Gap-to-leader, as a fraction of the leader's time, capped at 6% — swim
+// gaps rarely run wider than that within one age group, so anything past
+// the cap just reads as the faintest cell rather than going illegibly pale.
+const GRID_GAP_CAP = 0.06;
+
+function gridCellStyle(ms: number | null, bestMs: number | null): { background: string; color: string } {
+  if (ms == null || bestMs == null) {
+    return { background: "rgba(217,119,6,0.05)", color: "rgba(255,255,255,0.22)" };
+  }
+  const gapFraction = Math.min((ms - bestMs) / bestMs, GRID_GAP_CAP) / GRID_GAP_CAP;
+  const alpha = 0.45 - gapFraction * 0.4;
+  const color =
+    gapFraction < 0.02 ? "#FDE68A" :
+    gapFraction < 0.35 ? "rgba(255,255,255,0.8)" :
+    gapFraction < 0.7 ? "rgba(255,255,255,0.5)" :
+    "rgba(255,255,255,0.3)";
+  return { background: `rgba(217,119,6,${alpha.toFixed(2)})`, color };
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ComparePage() {
@@ -138,6 +173,15 @@ export default function ComparePage() {
 
   // Results: gated behind a stroke choice
   const [activeStroke, setActiveStroke] = useState<string | null>(null);
+
+  // Trend overlay: which event's row currently shows the progression chart
+  // instead of the ranked snapshot. Only offered when exactly one other
+  // swimmer is selected, since a two-line overlay is what stays readable.
+  const [trendEventKey, setTrendEventKey] = useState<string | null>(null);
+
+  // Results view: "list" is the existing per-stroke ranked view; "grid"
+  // shows every shared event at once as a heat map, swimmers as rows.
+  const [resultsView, setResultsView] = useState<"list" | "grid">("list");
 
   useEffect(() => { void init(); }, []);
 
@@ -169,7 +213,7 @@ export default function ComparePage() {
 
     const { data } = await supabase
       .from("swim_times")
-      .select("swimmer_id, event, course, time_ms")
+      .select("swimmer_id, event, course, time_ms, swam_at, meet_name")
       .in("swimmer_id", missing);
 
     const grouped = new Map<number, SwimTimeRow[]>();
@@ -229,6 +273,8 @@ export default function ComparePage() {
       return next;
     });
   }
+
+  useEffect(() => { setTrendEventKey(null); }, [activeStroke, selectedIds]);
 
   // ─── Derived data ──────────────────────────────────────────────────────────
 
@@ -396,6 +442,27 @@ export default function ComparePage() {
       })),
     ];
   }, [mySwimmerId, mySwimmer, myPBMap, selectedSwimmers, selectedPBMaps, primarySwimmers.length]);
+
+  // Grid columns follow stroke order, then distance within each stroke —
+  // reads left-to-right the same way the stroke tabs are ordered in list view.
+  const gridEvents = useMemo(() => {
+    return [...sharedEvents].sort((a, b) => {
+      const strokeDiff = STROKE_ORDER.indexOf(getStrokeName(a.event)) - STROKE_ORDER.indexOf(getStrokeName(b.event));
+      if (strokeDiff !== 0) return strokeDiff;
+      return getEventDistance(a.event) - getEventDistance(b.event);
+    });
+  }, [sharedEvents]);
+
+  const bestByEvent = useMemo(() => {
+    const map = new Map<EventKey, number>();
+    for (const entry of allCompared) {
+      for (const [key, ms] of entry.pbMap.entries()) {
+        const current = map.get(key);
+        if (current == null || ms < current) map.set(key, ms);
+      }
+    }
+    return map;
+  }, [allCompared]);
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
@@ -603,6 +670,19 @@ export default function ComparePage() {
           </div>
         ) : (
           <div className="space-y-4">
+            {sharedEvents.length > 0 && (
+              <div className="flex gap-2">
+                {(["list", "grid"] as const).map((v) => (
+                  <button key={v} type="button" onClick={() => setResultsView(v)}
+                    className="flex-1 rounded-2xl py-2 text-xs font-semibold capitalize transition"
+                    style={scopeBtnStyle(resultsView === v)}>
+                    {v}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {resultsView === "list" && (
             <div>
               <p className="text-[9px] font-medium uppercase tracking-widest text-white/25 mb-2">Stroke</p>
               {strokesWithData.length === 0 ? (
@@ -620,8 +700,9 @@ export default function ComparePage() {
                 </div>
               )}
             </div>
+            )}
 
-            {!activeStroke ? (
+            {resultsView === "list" && (!activeStroke ? (
               strokesWithData.length > 0 && (
                 <p className="text-sm text-white/35 text-center py-6">Choose a stroke above to see the ranking.</p>
               )
@@ -645,13 +726,35 @@ export default function ComparePage() {
                     <div key={ev.key}
                       style={{ borderBottom: isLastEvent ? "none" : "1px solid rgba(255,255,255,0.05)", padding: "12px 16px" }}>
 
-                      <p className="text-xs font-medium text-white/45 mb-3">
-                        {canonicalEventName(ev.event)
-                          .replace("Freestyle", "Free").replace("Backstroke", "Back")
-                          .replace("Breaststroke", "Breast").replace("Butterfly", "Fly")}
-                        <span className="ml-1 text-white/25">{canonicalCourse(ev.course)}</span>
-                      </p>
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-xs font-medium text-white/45">
+                          {canonicalEventName(ev.event)
+                            .replace("Freestyle", "Free").replace("Backstroke", "Back")
+                            .replace("Breaststroke", "Breast").replace("Butterfly", "Fly")}
+                          <span className="ml-1 text-white/25">{canonicalCourse(ev.course)}</span>
+                        </p>
+                        {selectedIds.size === 1 && (
+                          <button type="button"
+                            onClick={() => setTrendEventKey((prev) => prev === ev.key ? null : ev.key)}
+                            className="flex items-center gap-1 text-[11px] font-medium"
+                            style={{ color: trendEventKey === ev.key ? "#FDE68A" : "#D97706" }}>
+                            Trend
+                          </button>
+                        )}
+                      </div>
 
+                      {trendEventKey === ev.key ? (
+                        <TrendOverlayChart
+                          series={allCompared.map((entry): TrendSeries => ({
+                            id: entry.swimmer.id,
+                            label: entry.isMine ? "You" : shortName(entry.swimmer.name),
+                            color: entry.isMine ? "#D97706" : avatarColor(entry.colorIndex).text,
+                            points: (timesMap.get(entry.swimmer.id) ?? [])
+                              .filter((row) => keyOf(row.event, row.course) === ev.key)
+                              .map((row) => ({ ms: row.time_ms, swam_at: row.swam_at ?? null })),
+                          }))}
+                        />
+                      ) : (
                       <div className="space-y-2">
                         {rankedWithPos.map((entry) => {
                           const style = RANK_STYLES[entry.rank] ?? RANK_STYLES[5];
@@ -688,10 +791,69 @@ export default function ComparePage() {
                           );
                         })}
                       </div>
+                      )}
                     </div>
                   );
                 })}
               </div>
+            ))}
+
+            {resultsView === "grid" && (
+              gridEvents.length === 0 ? (
+                <p className="text-sm text-white/40">No shared events yet — everyone needs a PB in the same event and course as your swimmer.</p>
+              ) : (
+                <div className="rounded-3xl p-4 overflow-x-auto"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", WebkitOverflowScrolling: "touch" }}>
+                  <div style={{
+                    display: "grid",
+                    gridTemplateColumns: `84px repeat(${gridEvents.length}, 46px)`,
+                    gap: "4px",
+                    minWidth: `${84 + gridEvents.length * 50}px`,
+                  }}>
+                    <div />
+                    {gridEvents.map((ev) => (
+                      <div key={ev.key} className="text-center"
+                        style={{ fontSize: "9px", color: "rgba(255,255,255,0.35)", paddingBottom: "4px" }}>
+                        {gridEventLabel(ev.event)}
+                      </div>
+                    ))}
+
+                    {allCompared.map((entry) => {
+                      const colors = avatarColor(entry.colorIndex);
+                      return (
+                        <Fragment key={entry.swimmer.id}>
+                          <div className="flex items-center gap-1.5 truncate"
+                            style={{ fontSize: "10px", color: entry.isMine ? "#FDE68A" : "rgba(255,255,255,0.7)", fontWeight: 500 }}>
+                            <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded"
+                              style={{
+                                background: entry.isMine ? "#78350F" : colors.bg,
+                                color: entry.isMine ? "#FCD34D" : colors.text,
+                                fontSize: "8px",
+                                fontWeight: 700,
+                              }}>
+                              {getInitials(entry.swimmer.name)}
+                            </span>
+                            <span className="truncate">{entry.isMine ? "You" : shortName(entry.swimmer.name)}</span>
+                          </div>
+                          {gridEvents.map((ev) => {
+                            const ms = entry.pbMap.get(ev.key) ?? null;
+                            const best = bestByEvent.get(ev.key) ?? null;
+                            const cellStyle = gridCellStyle(ms, best);
+                            return (
+                              <div key={`${entry.swimmer.id}-${ev.key}`}
+                                className="flex items-center justify-center rounded-lg"
+                                style={{ ...cellStyle, fontSize: "10px", padding: "6px 0" }}>
+                                {ms != null ? formatMs(ms) : "—"}
+                              </div>
+                            );
+                          })}
+                        </Fragment>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-3 text-[10px] text-white/30">Brighter cell = closer to the fastest time in that event.</p>
+                </div>
+              )
             )}
           </div>
         )}
