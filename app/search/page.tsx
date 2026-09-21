@@ -324,78 +324,219 @@ export default function SwimmerSearchPage() {
 
   return (
     <div className="shell">
-      <div className="container-app md:max-w-2xl md:px-10">
-        <div className="mb-8 text-center">
-          <div
-            className="mx-auto mb-4 flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl"
-            style={{ background: "rgba(217,119,6,0.25)", border: "1px solid rgba(253,230,138,0.3)" }}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/icon-192.png" alt="Natrix" className="h-full w-full object-cover" />
+      <div className="container-app md:max-w-4xl md:px-8">
+        {/* Header */}
+        <header className="flex items-center justify-between gap-4 pb-5">
+          <Link href="/search" className="flex items-center gap-3">
+            <img
+              src="/natrix-favicon.svg"
+              alt="Natrix"
+              className="h-10 w-10 object-contain"
+            />
+            <div>
+              <div className="text-xl font-bold tracking-tight text-white">Natrix</div>
+              <div className="text-[10px] text-white/40">Swim Smarter Together</div>
+            </div>
+          </Link>
+
+          <div className="flex items-center gap-2">
+            <Link
+              href="/login"
+              className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-semibold text-white/80"
+            >
+              Log in
+            </Link>
+            <Link
+              href="/signup"
+              className="rounded-full px-4 py-2 text-xs font-bold text-white"
+              style={{ background: "#1688E8" }}
+            >
+              Sign up
+            </Link>
           </div>
-          <h1 className="text-3xl font-bold tracking-tight text-white">Find your swimmer&apos;s results</h1>
-          <p className="mt-2 text-sm text-white/50">
-            Search any competitive swimmer in Singapore. Real results, no account needed.
-          </p>
-          <p className="mt-2 text-xs text-white/30">
-            Currently showing Singapore Aquatics&ndash;sanctioned meets only. Club-only, non-sanctioned meets aren&apos;t
-            included yet.
-          </p>
-        </div>
+        </header>
 
-        <form onSubmit={handleSearch} className="flex gap-2">
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="e.g. Sara Wong"
-            className="input"
-            autoFocus
-          />
-          <button type="submit" disabled={loading || query.trim().length < 2} className="btn-block" style={{ width: "auto", paddingInline: "22px" }}>
-            {loading ? "…" : "Search"}
-          </button>
-        </form>
+        {/* Hero */}
+        <section className="relative overflow-hidden pb-6 pt-2 md:grid md:grid-cols-[0.9fr_1.1fr] md:items-center md:gap-8 md:pb-8">
+          <div className="relative mx-auto mb-2 flex h-[190px] max-w-[300px] items-end justify-center md:mb-0 md:h-[300px]">
+            <img
+              src="/natrix-mascot-search.png"
+              alt="Natrix swim mascot"
+              className="relative z-10 h-full w-full object-contain object-bottom"
+              onError={(event) => {
+                event.currentTarget.src = "/natrix-favicon.svg";
+                event.currentTarget.className =
+                  "relative z-10 h-28 w-28 self-center object-contain opacity-90";
+              }}
+            />
+            <div
+              aria-hidden="true"
+              className="absolute bottom-3 left-1/2 h-12 w-[80%] -translate-x-1/2 rounded-[50%] blur-2xl"
+              style={{ background: "rgba(103,214,255,0.22)" }}
+            />
+          </div>
 
-        {loading && <p className="mt-6 text-center text-sm text-white/50">Digging through meet records…</p>}
+          <div className="text-center md:text-left">
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.2em] text-sky-200/80">
+              Singapore swim results
+            </p>
+
+            <h1 className="text-[36px] font-bold leading-[1.02] tracking-[-0.04em] text-white md:text-5xl">
+              Find your swimmer
+            </h1>
+
+            <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-white/65 md:mx-0 md:text-base">
+              Search real meet results, personal bests and race context. No account needed.
+            </p>
+
+            <form
+              onSubmit={handleSearch}
+              className="mx-auto mt-5 flex max-w-xl gap-2 rounded-[22px] p-2 md:mx-0"
+              style={{
+                background: "rgba(255,255,255,0.96)",
+                border: "1px solid rgba(255,255,255,0.9)",
+                boxShadow: "0 16px 36px rgba(0,25,50,0.22)",
+              }}
+            >
+              <div className="flex min-w-0 flex-1 items-center gap-3 px-2">
+                <svg width="21" height="21" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <circle cx="11" cy="11" r="6.5" stroke="#12385F" strokeWidth="2" />
+                  <path d="M16 16L21 21" stroke="#12385F" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+                <input
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Enter swimmer name..."
+                  autoFocus
+                  className="min-w-0 flex-1 bg-transparent py-3 text-[15px] outline-none"
+                  style={{ color: "#0C2C50" }}
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading || query.trim().length < 2}
+                className="rounded-[17px] px-5 py-3 text-sm font-bold text-white transition active:scale-[0.98] disabled:opacity-40"
+                style={{ background: "linear-gradient(135deg,#2B9CF3,#0871D8)" }}
+              >
+                {loading ? "…" : "Search"}
+              </button>
+            </form>
+
+            <p className="mt-3 text-[11px] leading-relaxed text-white/35">
+              Singapore Aquatics-sanctioned meets currently supported. Club-only and non-sanctioned meets are not included yet.
+            </p>
+          </div>
+        </section>
+
+        {/* Guest value */}
+        {!state && !loading && (
+          <section
+            className="grid grid-cols-3 gap-2 rounded-[26px] p-3 md:gap-4 md:p-4"
+            style={{
+              background: "rgba(255,255,255,0.93)",
+              border: "1px solid rgba(255,255,255,0.84)",
+              boxShadow: "0 14px 34px rgba(0,30,60,0.14)",
+            }}
+          >
+            {[
+              { icon: "▤", title: "Real Results", text: "Official times and PBs" },
+              { icon: "▥", title: "Race Context", text: "Placing and nearby swimmers" },
+              { icon: "✦", title: "Natrix Insight", text: "A simple read on the swim" },
+            ].map((item) => (
+              <div key={item.title} className="px-1 py-3 text-center md:px-4">
+                <div
+                  className="mx-auto flex h-10 w-10 items-center justify-center rounded-full text-base font-bold"
+                  style={{ background: "#E8F6FF", color: "#0B79D8" }}
+                >
+                  {item.icon}
+                </div>
+                <div className="mt-2 text-[11px] font-bold md:text-sm" style={{ color: "#0A2D5D" }}>
+                  {item.title}
+                </div>
+                <div className="mt-1 text-[9px] leading-snug md:text-[11px]" style={{ color: "#697E93" }}>
+                  {item.text}
+                </div>
+              </div>
+            ))}
+          </section>
+        )}
+
+        {loading && (
+          <div
+            className="mt-6 rounded-[26px] px-5 py-8 text-center"
+            style={{
+              background: "rgba(255,255,255,0.94)",
+              border: "1px solid rgba(255,255,255,0.84)",
+              boxShadow: "0 14px 34px rgba(0,30,60,0.14)",
+            }}
+          >
+            <div className="mx-auto mb-3 h-7 w-7 animate-spin rounded-full border-2 border-sky-100 border-t-sky-600" />
+            <p className="text-sm font-semibold" style={{ color: "#0B2A54" }}>
+              Searching meet records…
+            </p>
+          </div>
+        )}
 
         {!loading && state?.kind === "notFound" && (
-          <div className="card mt-6 text-center">
-            <p className="text-white/80">
-              No results for <strong>&ldquo;{searchedFor}&rdquo;</strong> yet.
-            </p>
-            <p className="mt-2 text-xs text-white/40">
-              We currently track SNAG, Singapore Swim Series, SNSC, SAQ ETP, and Short-Course Invitational meets from
-              2026 onward.
+          <div
+            className="mt-6 rounded-[26px] p-6 text-center"
+            style={{
+              background: "rgba(255,255,255,0.95)",
+              border: "1px solid rgba(255,255,255,0.85)",
+              boxShadow: "0 14px 34px rgba(0,30,60,0.14)",
+            }}
+          >
+            <div className="text-3xl">🔎</div>
+            <h2 className="mt-2 text-lg font-bold" style={{ color: "#0B2A54" }}>
+              No results for &ldquo;{searchedFor}&rdquo;
+            </h2>
+            <p className="mx-auto mt-2 max-w-sm text-xs leading-relaxed" style={{ color: "#6A7E94" }}>
+              Try the swimmer&apos;s full name. We currently track selected Singapore Aquatics meets from 2026 onward.
             </p>
           </div>
         )}
 
         {!loading && state?.kind === "picking" && (
-          <div className="card mt-6">
-            <p className="mb-1 text-sm font-semibold text-white">
-              A few swimmers match &ldquo;{searchedFor}&rdquo;
-            </p>
-            <p className="mb-4 text-xs text-white/40">
+          <div
+            className="mt-6 rounded-[26px] p-5 md:p-6"
+            style={{
+              background: "rgba(255,255,255,0.95)",
+              border: "1px solid rgba(255,255,255,0.85)",
+              boxShadow: "0 14px 34px rgba(0,30,60,0.14)",
+            }}
+          >
+            <h2 className="text-lg font-bold" style={{ color: "#0B2A54" }}>
+              Which swimmer did you mean?
+            </h2>
+            <p className="mb-4 mt-1 text-xs" style={{ color: "#6A7E94" }}>
               {state.totalMatches > state.candidates.length
-                ? `Showing ${state.candidates.length} of ${state.totalMatches} — try adding a first name to narrow it down.`
-                : "Tap the right one to see their results."}
+                ? `Showing ${state.candidates.length} of ${state.totalMatches} matches. Add a first name to narrow it down.`
+                : "Tap the right swimmer to see their results."}
             </p>
+
             <div className="flex flex-col gap-2">
               {state.candidates.map((c) => (
                 <button
                   key={c.swimmer_name}
                   type="button"
                   onClick={() => handlePickCandidate(c.swimmer_name)}
-                  className="card-soft flex items-center justify-between text-left"
-                  style={{ width: "100%" }}
+                  className="flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left transition active:scale-[0.99]"
+                  style={{ background: "#F3F9FD", border: "1px solid #DCECF5" }}
                 >
-                  <div>
-                    <div className="text-sm font-semibold text-white">{toDisplayName(c.swimmer_name)}</div>
-                    {c.team_name && <div className="text-xs text-white/40">{c.team_name}</div>}
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-bold" style={{ color: "#0B2A54" }}>
+                      {toDisplayName(c.swimmer_name)}
+                    </div>
+                    {c.team_name && (
+                      <div className="truncate text-xs" style={{ color: "#71849A" }}>
+                        {c.team_name}
+                      </div>
+                    )}
                   </div>
-                  <span className="text-xs" style={{ color: "#FDE68A" }}>
-                    Select →
+                  <span className="ml-3 text-xs font-bold" style={{ color: "#0876DC" }}>
+                    View →
                   </span>
                 </button>
               ))}
@@ -405,168 +546,283 @@ export default function SwimmerSearchPage() {
 
         {!loading && state?.kind === "found" && (
           <>
-            <div className="card mt-6">
-              <div
-                className="mb-1 inline-block rounded-full px-3 py-1 text-xs font-semibold"
-                style={{ background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.25)", color: "#FDE68A" }}
-              >
-                Match found
-              </div>
-              <h2 className="mt-2 text-xl font-bold text-white">{state.result.swimmerName}</h2>
-              {state.result.team && <div className="text-sm text-white/50">{state.result.team}</div>}
+            <section
+              className="mt-6 overflow-hidden rounded-[28px]"
+              style={{
+                background: "rgba(250,253,255,0.97)",
+                border: "1px solid rgba(255,255,255,0.88)",
+                boxShadow: "0 18px 44px rgba(0,30,60,0.18)",
+              }}
+            >
+              <div className="p-5 md:p-6">
+                <div
+                  className="inline-flex rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wide"
+                  style={{ background: "#E8F8F0", color: "#11835B" }}
+                >
+                  ✓ Match found
+                </div>
 
-              <div className="mt-4 border-t border-white/10 pt-3 text-sm font-semibold text-white/70">
-                {state.result.headline.event}
-              </div>
+                <h2 className="mt-3 text-2xl font-bold tracking-tight" style={{ color: "#0B2A54" }}>
+                  {state.result.swimmerName}
+                </h2>
 
-              <div className="mt-3 flex flex-wrap gap-3">
-                {state.result.headline.personalBest && (
-                  <div className="card-soft flex-1" style={{ minWidth: "150px" }}>
-                    <div className="text-[11px] font-bold uppercase tracking-wide text-white/40">Personal Best</div>
-                    <div className="text-2xl font-bold text-white" style={{ fontVariantNumeric: "tabular-nums" }}>
-                      {state.result.headline.personalBest.time}
-                    </div>
-                    <div className="text-[11px] text-white/40">
+                {state.result.team && (
+                  <p className="mt-0.5 text-sm" style={{ color: "#65788D" }}>
+                    {state.result.team}
+                  </p>
+                )}
+
+                <div
+                  className="mt-4 rounded-2xl px-4 py-3"
+                  style={{ background: "#EDF8FE", border: "1px solid #D8ECF7" }}
+                >
+                  <div className="text-sm font-bold" style={{ color: "#143B67" }}>
+                    {state.result.headline.event}
+                  </div>
+                  {state.result.headline.personalBest && (
+                    <div className="mt-1 text-[11px]" style={{ color: "#73869A" }}>
                       {state.result.headline.personalBest.meet}
                       {formatDate(state.result.headline.personalBest.date) &&
                         ` · ${formatDate(state.result.headline.personalBest.date)}`}
                     </div>
-                    {(() => {
-                      const distance = parseDistanceMeters(state.result.headline.event);
-                      const ms = state.result.headline.personalBest?.ms;
-                      if (!distance || !ms) return null;
-                      const speed = (distance / (ms / 1000)).toFixed(2);
-                      const first = state.result.leaderboard?.find((r) => r.is_first);
-                      const gapToFirst = first && !first.is_target ? formatGap(ms - first.finals_time_ms) : null;
-                      return (
-                        <div className="mt-2 flex flex-col gap-0.5 border-t border-white/10 pt-2 text-[11px] text-white/50">
-                          <span>Avg speed: {speed} m/s</span>
-                          {gapToFirst && <span>{gapToFirst}s behind 1st place</span>}
-                        </div>
-                      );
-                    })()}
-                  </div>
-                )}
-                {state.result.leaderboard && state.result.leaderboard.some((r) => r.is_target) && (
-                  <div className="card-soft flex-1" style={{ minWidth: "150px" }}>
-                    <div className="text-[11px] font-bold uppercase tracking-wide text-white/40">Placing</div>
-                    <div className="text-2xl font-bold text-white" style={{ fontVariantNumeric: "tabular-nums" }}>
-                      {ordinal(state.result.leaderboard.find((r) => r.is_target)!.place)}
+                  )}
+                </div>
+
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  {state.result.headline.personalBest && (
+                    <div
+                      className="rounded-2xl p-4"
+                      style={{ background: "#F5FAFD", border: "1px solid #E0ECF3" }}
+                    >
+                      <div className="text-[10px] font-bold uppercase tracking-wide" style={{ color: "#71849A" }}>
+                        Personal Best
+                      </div>
+                      <div
+                        className="mt-1 text-3xl font-bold"
+                        style={{ color: "#0B2A54", fontVariantNumeric: "tabular-nums" }}
+                      >
+                        {state.result.headline.personalBest.time}
+                      </div>
+
+                      {(() => {
+                        const distance = parseDistanceMeters(state.result.headline.event);
+                        const ms = state.result.headline.personalBest?.ms;
+                        if (!distance || !ms) return null;
+                        const speed = (distance / (ms / 1000)).toFixed(2);
+                        const first = state.result.leaderboard?.find((r) => r.is_first);
+                        const gapToFirst =
+                          first && !first.is_target ? formatGap(ms - first.finals_time_ms) : null;
+
+                        return (
+                          <div className="mt-2 text-[11px] leading-relaxed" style={{ color: "#6C8095" }}>
+                            <div>Avg speed {speed} m/s</div>
+                            {gapToFirst && <div>{gapToFirst}s behind 1st place</div>}
+                          </div>
+                        );
+                      })()}
                     </div>
-                    <div className="text-[11px] text-white/40">
-                      of {state.result.leaderboard[0].total_entrants} swimmers
+                  )}
+
+                  {state.result.leaderboard && state.result.leaderboard.some((r) => r.is_target) && (
+                    <div
+                      className="rounded-2xl p-4"
+                      style={{ background: "#F5FAFD", border: "1px solid #E0ECF3" }}
+                    >
+                      <div className="text-[10px] font-bold uppercase tracking-wide" style={{ color: "#71849A" }}>
+                        Placing
+                      </div>
+                      <div
+                        className="mt-1 text-3xl font-bold"
+                        style={{ color: "#0B2A54", fontVariantNumeric: "tabular-nums" }}
+                      >
+                        {ordinal(state.result.leaderboard.find((r) => r.is_target)!.place)}
+                      </div>
+                      <div className="mt-2 text-[11px]" style={{ color: "#6C8095" }}>
+                        of {state.result.leaderboard[0].total_entrants} swimmers
+                      </div>
                     </div>
-                  </div>
-                )}
-                {!state.result.headline.isSameSwim && state.result.headline.mostRecent && (
-                  <div className="card-soft flex-1" style={{ minWidth: "150px" }}>
-                    <div className="text-[11px] font-bold uppercase tracking-wide text-white/40">Most Recent</div>
-                    <div className="text-2xl font-bold text-white" style={{ fontVariantNumeric: "tabular-nums" }}>
-                      {state.result.headline.mostRecent.time}
+                  )}
+
+                  {!state.result.headline.isSameSwim && state.result.headline.mostRecent && (
+                    <div
+                      className="col-span-2 rounded-2xl p-4"
+                      style={{ background: "#F5FAFD", border: "1px solid #E0ECF3" }}
+                    >
+                      <div className="text-[10px] font-bold uppercase tracking-wide" style={{ color: "#71849A" }}>
+                        Most Recent
+                      </div>
+                      <div
+                        className="mt-1 text-2xl font-bold"
+                        style={{ color: "#0B2A54", fontVariantNumeric: "tabular-nums" }}
+                      >
+                        {state.result.headline.mostRecent.time}
+                      </div>
+                      <div className="text-[11px]" style={{ color: "#6C8095" }}>
+                        {state.result.headline.mostRecent.meet}
+                        {formatDate(state.result.headline.mostRecent.date) &&
+                          ` · ${formatDate(state.result.headline.mostRecent.date)}`}
+                      </div>
                     </div>
-                    <div className="text-[11px] text-white/40">
-                      {state.result.headline.mostRecent.meet}
-                      {formatDate(state.result.headline.mostRecent.date) &&
-                        ` · ${formatDate(state.result.headline.mostRecent.date)}`}
+                  )}
+                </div>
+
+                {state.result.insight && (
+                  <div
+                    className="mt-4 rounded-2xl px-4 py-3"
+                    style={{ background: "#FFF4D6", border: "1px solid #F0D57D" }}
+                  >
+                    <div className="text-[10px] font-bold uppercase tracking-wide" style={{ color: "#976500" }}>
+                      Natrix noticed 👀
                     </div>
+                    <p className="mt-1 text-sm font-semibold leading-relaxed" style={{ color: "#493500" }}>
+                      {state.result.insight}
+                    </p>
                   </div>
                 )}
               </div>
 
-              {state.result.insight && (
-                <div
-                  className="mt-4 rounded-xl px-4 py-3"
-                  style={{ background: "rgba(217,119,6,0.14)", border: "1px solid rgba(253,230,138,0.3)" }}
-                >
-                  <div className="text-[11px] font-bold uppercase tracking-wide" style={{ color: "#FDE68A" }}>
-                    Natrix noticed 👀
-                  </div>
-                  <p className="mt-1 text-sm font-medium text-white">{state.result.insight}</p>
-                </div>
-              )}
-
               {state.result.leaderboard && (
-                <div className="mt-4 border-t border-white/10 pt-4">
-                  {(() => {
-                    const rows = state.result.leaderboard!;
-                    return (
-                      <>
-                        <div className="mb-3 text-sm font-semibold text-white">How they stacked up</div>
-                        <div className="flex flex-col gap-1">
-                          {rows.map((r, i) => (
-                            <div key={`${r.swimmer_name}-${r.place}`}>
-                              {i > 0 && r.place - rows[i - 1].place > 1 && (
-                                <div className="py-0 text-center text-xs text-white/30">···</div>
-                              )}
+                <div className="border-t px-5 py-5 md:px-6" style={{ borderColor: "#DDEAF2" }}>
+                  <div className="mb-3 flex items-center justify-between">
+                    <div className="text-sm font-bold" style={{ color: "#0B2A54" }}>
+                      How they stacked up
+                    </div>
+                    <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "#92A0AF" }}>
+                      Race context
+                    </span>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    {state.result.leaderboard.map((r, i) => (
+                      <div key={`${r.swimmer_name}-${r.place}`}>
+                        {i > 0 && r.place - state.result.leaderboard![i - 1].place > 1 && (
+                          <div className="py-0.5 text-center text-xs" style={{ color: "#A5B1BC" }}>
+                            ···
+                          </div>
+                        )}
+
+                        <div
+                          className="flex items-center justify-between rounded-xl px-3 py-2"
+                          style={
+                            r.is_target
+                              ? { background: "#FFF5D8", border: "1px solid #F0D267" }
+                              : { background: "#F6FAFC", border: "1px solid #E7EEF3" }
+                          }
+                        >
+                          <div className="flex min-w-0 items-center gap-3">
+                            <span className="w-6 flex-shrink-0 text-xs font-bold" style={{ color: "#74869A" }}>
+                              #{r.place}
+                            </span>
+                            <div className="min-w-0">
                               <div
-                                className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-sm"
-                                style={
-                                  r.is_target
-                                    ? {
-                                        background: "rgba(217,119,6,0.22)",
-                                        border: "1px solid rgba(253,230,138,0.4)",
-                                      }
-                                    : { background: "rgba(255,255,255,0.04)" }
-                                }
+                                className="truncate text-sm font-semibold"
+                                style={{ color: r.is_target ? "#493500" : "#173D66" }}
                               >
-                                <div className="flex items-center gap-3">
-                                  <span className="w-5 text-xs font-bold text-white/40">#{r.place}</span>
-                                  <div>
-                                    <div className={r.is_target ? "font-semibold text-white" : "text-white/80"}>
-                                      {toDisplayName(r.swimmer_name)}
-                                      {r.is_target && (
-                                        <span className="ml-2 text-[10px] font-bold" style={{ color: "#FDE68A" }}>
-                                          THEM
-                                        </span>
-                                      )}
-                                    </div>
-                                    {r.team_name && <div className="text-[11px] text-white/40">{r.team_name}</div>}
-                                  </div>
-                                </div>
-                                <span
-                                  className="text-sm font-bold"
-                                  style={{
-                                    fontVariantNumeric: "tabular-nums",
-                                    color: r.is_target ? "#FDE68A" : undefined,
-                                  }}
-                                >
-                                  {r.finals_time_text}
-                                </span>
+                                {toDisplayName(r.swimmer_name)}
+                                {r.is_target && (
+                                  <span className="ml-2 text-[9px] font-bold uppercase" style={{ color: "#9A6900" }}>
+                                    Your swimmer
+                                  </span>
+                                )}
                               </div>
+                              {r.team_name && (
+                                <div className="truncate text-[10px]" style={{ color: "#8A98A7" }}>
+                                  {r.team_name}
+                                </div>
+                              )}
                             </div>
-                          ))}
+                          </div>
+
+                          <span
+                            className="ml-3 text-sm font-bold"
+                            style={{
+                              color: r.is_target ? "#9A6900" : "#173D66",
+                              fontVariantNumeric: "tabular-nums",
+                            }}
+                          >
+                            {r.finals_time_text}
+                          </span>
                         </div>
-                      </>
-                    );
-                  })()}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
-              <div className="mt-5 text-center">
-                <p className="mb-3 text-xs text-white/50">
+              <div
+                className="border-t px-5 py-5 text-center md:px-6"
+                style={{
+                  borderColor: "#DDEAF2",
+                  background: "linear-gradient(135deg,#EAF7FF,#FAFDFF)",
+                }}
+              >
+                <p className="text-xs" style={{ color: "#647A91" }}>
                   We found {state.result.totalEventsFound} event{state.result.totalEventsFound === 1 ? "" : "s"} and{" "}
                   {state.result.totalResultsFound} result{state.result.totalResultsFound === 1 ? "" : "s"} for{" "}
                   {state.result.swimmerName.split(" ")[0]}.
                 </p>
-                <button type="button" onClick={handleSeeFullHistory} className="btn-block">
+
+                <button
+                  type="button"
+                  onClick={handleSeeFullHistory}
+                  className="mt-3 w-full rounded-2xl py-3.5 text-sm font-bold text-white transition active:scale-[0.99]"
+                  style={{
+                    background: "linear-gradient(135deg,#2B9CF3,#0871D8)",
+                    boxShadow: "0 8px 20px rgba(0,106,220,0.2)",
+                  }}
+                >
                   Track {state.result.swimmerName.split(" ")[0]} with Natrix →
                 </button>
-                <p className="mt-2 text-[11px] text-white/40">
-                  Unlock her complete swimming history, progress and automatic result tracking.
+
+                <p className="mx-auto mt-2 max-w-sm text-[11px] leading-relaxed" style={{ color: "#73869A" }}>
+                  Create a free account for saved swimmers, progress, comparisons and automatic result updates.
                 </p>
+
                 <Link
                   href={`/swimmer/${slugify(state.result.swimmerName)}`}
-                  className="mt-3 inline-block text-xs font-semibold"
-                  style={{ color: "#FDE68A" }}
+                  className="mt-3 inline-block text-xs font-bold"
+                  style={{ color: "#0876DC" }}
                 >
                   View shareable page →
                 </Link>
               </div>
-            </div>
+            </section>
 
             <AddToHomeScreenPrompt show={true} />
           </>
         )}
+
+        {!state && !loading && (
+          <section
+            className="mt-6 overflow-hidden rounded-[28px] px-5 py-5 md:flex md:items-center md:justify-between md:gap-6 md:px-7"
+            style={{
+              background: "linear-gradient(135deg,rgba(225,247,255,0.96),rgba(245,252,255,0.98))",
+              border: "1px solid rgba(255,255,255,0.88)",
+              boxShadow: "0 14px 34px rgba(0,30,60,0.13)",
+            }}
+          >
+            <div>
+              <div className="text-lg font-bold" style={{ color: "#0B2A54" }}>
+                Track your swimmer with Natrix
+              </div>
+              <p className="mt-1 max-w-lg text-xs leading-relaxed" style={{ color: "#61788F" }}>
+                Search first. Sign up when you want saved swimmers, progress, comparisons and automatic result alerts.
+              </p>
+            </div>
+
+            <Link
+              href="/signup"
+              className="mt-4 inline-flex rounded-full px-5 py-3 text-sm font-bold text-white md:mt-0 md:flex-shrink-0"
+              style={{ background: "linear-gradient(135deg,#2B9CF3,#0871D8)" }}
+            >
+              Sign up free →
+            </Link>
+          </section>
+        )}
+
+        <footer className="pb-2 pt-7 text-center text-[10px] leading-relaxed text-white/30">
+          Natrix · Singapore · Built for swim families
+        </footer>
       </div>
     </div>
   );
