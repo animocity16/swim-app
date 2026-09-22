@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
@@ -231,6 +231,18 @@ function parseDistanceMeters(eventName: string): number | null {
 
 export default function SwimmerSearchPage() {
   const router = useRouter();
+
+  // Public Search only: hide the signed-in bottom nav without changing BottomNav.tsx.
+  useEffect(() => {
+    const style = document.createElement("style");
+    style.id = "natrix-search-hide-bottom-nav";
+    style.textContent = "nav.fixed { display: none !important; }";
+    document.head.appendChild(style);
+
+    return () => {
+      style.remove();
+    };
+  }, []);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [state, setState] = useState<SearchState | null>(null);
