@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, type CSSProperties } from "react";
+import { useEffect, useState, useCallback, useMemo, type CSSProperties } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { createWorker } from "tesseract.js";
@@ -453,6 +453,540 @@ async function extractStartListText(
   return { text: ocrResult, usedOcr: true, textLayerError, textLayerChars: textLayerResult.length };
 }
 
+// ─── Fuel Plan (nutrition timing) ──────────────────────────────────────────
+// A deterministic, rule-based fueling timeline built from the warm-up and
+// race times already saved on each event — no external AI call, no per-use
+// cost, works offline. Built once per SWIMMER, chaining every event they
+// have that day into one timeline, instead of resetting to a fresh
+// "pre-race" plan for each individual event — a later race needs to know
+// an earlier one already happened (recovery + refuel), not restart the day.
+
+type PlanItem = {
+  t: number; // minutes from midnight
+  label: string;
+  detail: string;
+  race?: boolean;
+};
+
+type PlanInputEvent = {
+  name: string;
+  warmup: string | null;
+  start: string | null;
+};
+
+function parseTimeToMinutes(str: string | null | undefined): number | null {
+  if (!str) return null;
+  const s = str.trim();
+
+  // "7:30 AM" / "7:30am" / "7:30 a.m." — 12-hour, AM/PM required
+  let m = s.match(/^(\d{1,2}):(\d{2})\s*([AaPp])\.?[Mm]?\.?$/);
+  if (m) {
+    let h = parseInt(m[1], 10);
+    const min = parseInt(m[2], 10);
+    if (h < 1 || h > 12 || min > 59) return null;
+    const isPM = m[3].toUpperCase() === "P";
+    if (isPM && h !== 12) h += 12;
+    if (!isPM && h === 12) h = 0;
+    return h * 60 + min;
+  }
+
+  // "10:15" / "14:30" — bare 24-hour clock, no AM/PM typed. Common when
+  // someone's in a hurry poolside and just types the number they see.
+  m = s.match(/^(\d{1,2}):(\d{2})$/);
+  if (m) {
+    const h = parseInt(m[1], 10);
+    const min = parseInt(m[2], 10);
+    if (h > 23 || min > 59) return null;
+    return h * 60 + min;
+  }
+
+  return null;
+}
+
+function formatMinutesToTime(mins: number): string {
+  const wrapped = ((mins % 1440) + 1440) % 1440;
+  let h = Math.floor(wrapped / 60);
+  const m = wrapped % 60;
+  const ap = h >= 12 ? "PM" : "AM";
+  h = h % 12;
+  if (h === 0) h = 12;
+  return `${h}:${String(m).padStart(2, "0")} ${ap}`;
+}
+
+function buildDayPlan(events: PlanInputEvent[]): PlanItem[] {
+  const withTimes = events.map((e) => ({
+    name: e.name,
+    w: e.warmup ? parseTimeToMinutes(e.warmup) : null,
+    s: parseTimeToMinutes(e.start),
+  }));
+
+  const sorted = withTimes
+    .filter((e) => e.s !== null)
+    .sort((a, b) => (a.s as number) - (b.s as number)) as {
+    name: string;
+    w: number | null;
+    s: number;
+  }[];
+
+  if (sorted.length === 0) return [];
+
+  const out: PlanItem[] = [];
+  let lastWarmup: number | null = null;
+
+  sorted.forEach((ev, i) => {
+    // New warm-up block (first event, or a later distinct warm-up time —
+    // e.g. a second session that afternoon) gets the full pre-race lead-up.
+    // Skipped entirely if this event has no warm-up time saved at all.
+    if (ev.w !== null && ev.w !== lastWarmup) {
+      // Guard against a meal/fluids step landing before whatever was
+      // already scheduled (e.g. a second warm-up added too soon after the
+      // last race to fit a full 90-minute lead-up) — skip a step rather
+      // than show it before something that's already happened.
+      let cursor = out.length ? out[out.length - 1].t : -Infinity;
+
+      const leadMealT = ev.w - 90;
+      if (leadMealT > cursor + 5) {
+        // Before ~10am this IS breakfast, not a snack — call it what it
+        // is. A later session (afternoon warm-up) gets the lighter framing
+        // since they'll have already had a real breakfast earlier.
+        const isBreakfastHour = leadMealT < 600; // before 10:00 AM
+        out.push(
+          isBreakfastHour
+            ? {
+                t: leadMealT,
+                label: "Breakfast",
+                detail:
+                  "A proper breakfast, not just a nibble — rice porridge with a bit of egg, oats, or bread with a boiled egg. Keep it low in fat and fibre so it's settled by warm-up.",
+              }
+            : {
+                t: leadMealT,
+                label: "Light meal",
+                detail:
+                  "A small bowl of rice or noodles, a sandwich, or fruit with a few crackers. Keep it light and low-fat this close to warm-up.",
+              }
+        );
+        cursor = leadMealT;
+      }
+
+      if (ev.w - 20 > cursor + 5) {
+        out.push({
+          t: ev.w - 20,
+          label: "Top up fluids",
+          detail: "A few sips of water, or diluted 100Plus / Pocari Sweat.",
+        });
+        cursor = ev.w - 20;
+      }
+
+      out.push({ t: ev.w, label: "Warm-up", detail: "Water only from here — sip, don't gulp." });
+      lastWarmup = ev.w;
+
+      // The stretch between warm-up finishing and the FIRST race of this
+      // block — worth a small top-up if there's real time to kill, just a
+      // sip if it's a short wait.
+      const leadGap = ev.s - ev.w;
+      if (leadGap >= 40) {
+        out.push({
+          t: ev.w + Math.round(leadGap / 2),
+          label: "Quick energy top-up",
+          detail:
+            "A couple of kurma (dates), a Glucolin tablet, or a small handful of raisins, plus a sip of 100Plus. Keep it small.",
+        });
+      } else if (leadGap >= 15) {
+        out.push({
+          t: ev.w + Math.round(leadGap / 2),
+          label: "Sip only",
+          detail: "Small sips of water — not much of a wait, no need for food.",
+        });
+      }
+    }
+
+    // A "kitchen closed" reminder before every race, not just the first —
+    // only shown if it doesn't sit right on top of the checkpoint before it.
+    const lastT = out.length ? out[out.length - 1].t : ev.s - 60;
+    if (ev.s - 10 > lastT + 5) {
+      out.push({
+        t: ev.s - 10,
+        label: "Final sips",
+        detail: "Last small sip of water. No new food from here — settle in and get ready.",
+      });
+    }
+
+    out.push({ t: ev.s, label: `Race — ${ev.name}`, detail: "Good luck!", race: true });
+
+    const next = sorted[i + 1];
+    if (next) {
+      const gap = next.s - ev.s;
+      if (next.w !== ev.w) {
+        // Next event has its own later warm-up (new session) — treat this
+        // as a real recovery window, sized to however long they've got.
+        const detail =
+          gap > 120
+            ? "Proper recovery meal — a small bowl of rice or noodles with some protein (chicken, egg, fish), or a sandwich. You've got time before the next warm-up."
+            : "A Milo packet or soy milk (Yeo's/Vitasoy) plus a banana or small bun, to recover before the next warm-up.";
+        out.push({ t: ev.s + 15, label: "Recovery", detail });
+      } else if (gap >= 40) {
+        out.push({
+          t: ev.s + Math.round(gap / 2),
+          label: "Recovery + refuel",
+          detail:
+            "You just raced — a couple of kurma (dates), a Glucolin tablet, or a small handful of raisins, plus a sip of 100Plus before the next one.",
+        });
+      } else if (gap >= 15) {
+        out.push({
+          t: ev.s + Math.round(gap / 2),
+          label: "Sip only",
+          detail: "Next race is close behind — small sips of water, nothing solid.",
+        });
+      } else {
+        out.push({
+          t: ev.s + 3,
+          label: "Straight into the next one",
+          detail: "Barely any gap — just a sip of water if there's time.",
+        });
+      }
+    } else {
+      // Last event of the day
+      out.push({
+        t: ev.s + 30,
+        label: "Recovery",
+        detail: "A Milo packet or soy milk (Yeo's/Vitasoy), plus a banana or small bun. Day's done — nice work.",
+      });
+    }
+  });
+
+  // Belt-and-braces: always hand back a chronologically sorted list, so the
+  // display can never end up out of order no matter how entries were built.
+  return out.sort((a, b) => a.t - b.t);
+}
+
+function FuelPlanTimeline({ items }: { items: PlanItem[] }) {
+  if (items.length === 0) {
+    return (
+      <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.35)" }}>
+        Add a warm-up and at least one event with a time to see a fuel plan.
+      </p>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column" }}>
+      {items.map((item, i) => (
+        <div key={i} style={{ display: "flex", gap: "10px", padding: "6px 0" }}>
+          <div
+            style={{
+              flexShrink: 0,
+              width: "62px",
+              fontSize: "11px",
+              fontWeight: 700,
+              color: item.race ? "rgba(100,180,255,0.9)" : "#FDE68A",
+              paddingTop: "1px",
+            }}
+          >
+            {formatMinutesToTime(item.t)}
+          </div>
+          <div style={{ flexShrink: 0, width: "14px", display: "flex", flexDirection: "column", alignItems: "center" }}>
+            <div
+              style={{
+                width: item.race ? "10px" : "8px",
+                height: item.race ? "10px" : "8px",
+                borderRadius: "50%",
+                background: item.race ? "rgba(100,180,255,0.9)" : "#D97706",
+                marginTop: "3px",
+              }}
+            />
+            {i < items.length - 1 && (
+              <div style={{ flex: 1, width: "1px", background: "rgba(255,255,255,0.15)", marginTop: "3px" }} />
+            )}
+          </div>
+          <div style={{ flex: 1, paddingBottom: "2px" }}>
+            <p
+              style={{
+                fontSize: "12.5px",
+                fontWeight: 700,
+                margin: "0 0 2px",
+                color: item.race ? "rgba(100,180,255,0.9)" : "#fff",
+              }}
+            >
+              {item.race ? "🏁 " : ""}
+              {item.label}
+            </p>
+            <p style={{ fontSize: "11.5px", color: "rgba(255,255,255,0.55)", lineHeight: 1.4, margin: 0 }}>
+              {item.detail}
+            </p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Quick Fuel Planner (manual, no events required) ───────────────────────
+// A free-form, ordered list of warm-ups + events typed in by hand — for
+// planning ahead before a start list is uploaded, or a meet not tracked in
+// the app at all. Runs through the exact same buildDayPlan logic as the
+// automatic per-swimmer version, so the two can never disagree with each
+// other. Collapsed by default so it stays out of the way for anyone who
+// doesn't need it.
+
+type QuickPlannerRow = { type: "warmup" | "event"; time: string; name?: string };
+
+function QuickFuelPlanner() {
+  const [open, setOpen] = useState(false);
+  const [rows, setRows] = useState<QuickPlannerRow[]>([
+    { type: "warmup", time: "" },
+    { type: "event", time: "", name: "" },
+  ]);
+  const [items, setItems] = useState<PlanItem[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  function updateRow(i: number, field: "time" | "name", value: string) {
+    setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, [field]: value } : r)));
+  }
+
+  function removeRow(i: number) {
+    setRows((prev) => prev.filter((_, idx) => idx !== i));
+  }
+
+  function addRow(type: "warmup" | "event") {
+    setRows((prev) => [
+      ...prev,
+      type === "warmup" ? { type: "warmup", time: "" } : { type: "event", time: "", name: "" },
+    ]);
+  }
+
+  function compute() {
+    const parsed = rows.map((row, i) => ({ ...row, rowNum: i + 1, t: parseTimeToMinutes(row.time) }));
+    const unreadable = parsed.filter((r) => r.t === null && (r.time ?? "").trim() !== "");
+
+    if (unreadable.length > 0) {
+      setError(
+        `Couldn't read the time on row ${unreadable.map((r) => r.rowNum).join(", ")} — try a format like 7:30 AM or 19:30.`
+      );
+      setItems(null);
+      return;
+    }
+
+    // Sort chronologically rather than trusting the order rows were added
+    // in — so a warm-up tapped in via "+ Warm-up" (which always adds to the
+    // bottom of the list) still lands in the right place in the timeline.
+    const usable = parsed
+      .filter((r) => r.t !== null)
+      .sort((a, b) => (a.t as number) - (b.t as number));
+
+    let currentWarmup: string | null = null;
+    const events: PlanInputEvent[] = [];
+    usable.forEach((row) => {
+      if (row.type === "warmup") {
+        currentWarmup = row.time;
+      } else {
+        events.push({
+          name: row.name?.trim() || `Event ${events.length + 1}`,
+          warmup: currentWarmup,
+          start: row.time,
+        });
+      }
+    });
+
+    const built = buildDayPlan(events);
+    if (built.length === 0) {
+      setError("Add at least one event with a valid time (e.g. 9:15 AM) to see a plan.");
+      setItems(null);
+      return;
+    }
+    setError(null);
+    setItems(built);
+  }
+
+  const rowTagStyle: CSSProperties = {
+    flexShrink: 0,
+    width: "66px",
+    fontSize: "9.5px",
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: "0.04em",
+    textAlign: "center",
+    padding: "8px 4px",
+    borderRadius: "10px",
+  };
+
+  const rowInputStyle: CSSProperties = {
+    background: "rgba(0,0,0,0.25)",
+    border: "1px solid rgba(255,255,255,0.18)",
+    borderRadius: "10px",
+    padding: "8px 10px",
+    color: "#fff",
+    fontSize: "12px",
+    outline: "none",
+  };
+
+  return (
+    <div
+      style={{
+        background: "rgba(255,255,255,0.05)",
+        border: "1px solid rgba(255,255,255,0.1)",
+        borderRadius: "16px",
+        overflow: "hidden",
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "13px 14px",
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+        }}
+      >
+        <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <span>🍌</span>
+          <span style={{ fontSize: "13.5px", fontWeight: 700, color: "#fff" }}>Quick fuel plan</span>
+        </span>
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 16 16"
+          fill="none"
+          style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}
+        >
+          <path d="M4 6L8 10L12 6" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+
+      {open && (
+        <div style={{ padding: "0 14px 16px" }}>
+          <p style={{ fontSize: "11.5px", color: "rgba(255,255,255,0.4)", margin: "0 0 12px" }}>
+            No start list yet? Type in warm-up and event times by hand to get a plan early.
+          </p>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "10px" }}>
+            {rows.map((row, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <div
+                  style={{
+                    ...rowTagStyle,
+                    background: row.type === "warmup" ? "rgba(100,180,255,0.15)" : "rgba(217,119,6,0.2)",
+                    color: row.type === "warmup" ? "rgba(100,180,255,0.9)" : "#FDE68A",
+                  }}
+                >
+                  {row.type === "warmup" ? "Warm-up" : "Event"}
+                </div>
+
+                <input
+                  type="text"
+                  placeholder="7:30 AM"
+                  value={row.time}
+                  onChange={(e) => updateRow(i, "time", e.target.value)}
+                  style={{ ...rowInputStyle, flexShrink: 0, width: "88px" }}
+                />
+
+                {row.type === "event" ? (
+                  <input
+                    type="text"
+                    placeholder="e.g. 200m Freestyle"
+                    value={row.name ?? ""}
+                    onChange={(e) => updateRow(i, "name", e.target.value)}
+                    style={{ ...rowInputStyle, flex: 1, minWidth: 0 }}
+                  />
+                ) : (
+                  <div style={{ flex: 1, minWidth: 0, padding: "8px 10px", color: "rgba(255,255,255,0.3)", fontSize: "12px" }}>
+                    — swimmer&apos;s own warm-up —
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => removeRow(i)}
+                  title="Remove"
+                  style={{
+                    flexShrink: 0,
+                    background: "none",
+                    border: "none",
+                    color: "rgba(255,255,255,0.35)",
+                    fontSize: "15px",
+                    cursor: "pointer",
+                    padding: "2px 4px",
+                    lineHeight: 1,
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", marginBottom: "10px" }}>
+            <button
+              type="button"
+              onClick={() => addRow("warmup")}
+              style={{
+                flex: 1,
+                textAlign: "center",
+                background: "rgba(255,255,255,0.06)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                borderRadius: "8px",
+                padding: "8px",
+                color: "rgba(255,255,255,0.6)",
+                fontSize: "11px",
+                cursor: "pointer",
+              }}
+            >
+              + Warm-up
+            </button>
+            <button
+              type="button"
+              onClick={() => addRow("event")}
+              style={{
+                flex: 1,
+                textAlign: "center",
+                background: "rgba(255,255,255,0.06)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                borderRadius: "8px",
+                padding: "8px",
+                color: "rgba(255,255,255,0.6)",
+                fontSize: "11px",
+                cursor: "pointer",
+              }}
+            >
+              + Event
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={compute}
+            style={{
+              width: "100%",
+              background: "rgba(217,119,6,0.28)",
+              border: "1px solid rgba(253,230,138,0.4)",
+              color: "#FDE68A",
+              fontSize: "12.5px",
+              fontWeight: 700,
+              borderRadius: "12px",
+              padding: "10px",
+              cursor: "pointer",
+            }}
+          >
+            ✨ Get fuel plan
+          </button>
+
+          {error && <p style={{ fontSize: "12px", color: "#FCA5A5", marginTop: "12px" }}>{error}</p>}
+
+          {items && (
+            <div style={{ marginTop: "14px", paddingTop: "14px", borderTop: "1px dashed rgba(255,255,255,0.15)" }}>
+              <FuelPlanTimeline items={items} />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 
 function SkeletonCard() {
@@ -754,36 +1288,106 @@ function SwimmerGroup({
   onUpdated: (eventId: string, updates: Partial<MeetEvent>) => void;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  const [fuelPlanOpen, setFuelPlanOpen] = useState(false);
+
+  // Chains every event this swimmer has at this meet into ONE fueling
+  // timeline, using the warm-up/race times already saved on each event —
+  // nothing new to type in here.
+  const fuelPlanItems = useMemo(
+    () =>
+      buildDayPlan(
+        events.map((e) => ({ name: e.event_name, warmup: e.warmup_time, start: e.start_time }))
+      ),
+    [events]
+  );
+
   return (
     <div>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
+      <div
         style={{
-          width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "8px",
           padding: "12px 14px",
           background: "rgba(255,255,255,0.05)",
           border: "1px solid rgba(255,255,255,0.1)",
           borderRadius: "14px",
-          cursor: "pointer",
         }}
       >
-        <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <span style={{ fontSize: "14px", fontWeight: 700, color: "#fff" }}>{name}</span>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            background: "none",
+            border: "none",
+            padding: 0,
+            cursor: "pointer",
+            textAlign: "left",
+          }}
+        >
+          <span style={{ fontSize: "14px", fontWeight: 700, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {name}
+          </span>
           <span style={{
             fontSize: "10px", fontWeight: 700, color: "rgba(100,180,255,0.8)",
             background: "rgba(100,180,255,0.12)", borderRadius: "20px", padding: "2px 8px",
+            flexShrink: 0,
           }}>
             {events.length}
           </span>
-        </span>
-        <svg
-          width="16" height="16" viewBox="0 0 16 16" fill="none"
-          style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setFuelPlanOpen((v) => !v)}
+          style={{
+            flexShrink: 0,
+            background: fuelPlanOpen ? "#D97706" : "rgba(217,119,6,0.28)",
+            border: "1px solid rgba(253,230,138,0.4)",
+            color: fuelPlanOpen ? "#1a1200" : "#FDE68A",
+            fontSize: "11.5px",
+            fontWeight: 700,
+            borderRadius: "10px",
+            padding: "6px 10px",
+            cursor: "pointer",
+            whiteSpace: "nowrap",
+          }}
         >
-          <path d="M4 6L8 10L12 6" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </button>
+          🍌 Day fuel plan
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          style={{ flexShrink: 0, background: "none", border: "none", cursor: "pointer", padding: "4px", display: "flex" }}
+        >
+          <svg
+            width="16" height="16" viewBox="0 0 16 16" fill="none"
+            style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}
+          >
+            <path d="M4 6L8 10L12 6" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      </div>
+
+      {fuelPlanOpen && (
+        <div style={{
+          marginTop: "8px",
+          padding: "14px",
+          background: "rgba(255,255,255,0.03)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          borderRadius: "14px",
+        }}>
+          <FuelPlanTimeline items={fuelPlanItems} />
+        </div>
+      )}
+
       {open && (
         <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px", paddingLeft: "4px" }}>
           {events.map((ev) => (
@@ -1246,6 +1850,10 @@ export default function UpcomingMeetDetailPage() {
             </pre>
           )}
         </div>
+
+        {/* Quick Fuel Planner — collapsed by default, useful even before a
+            start list is uploaded */}
+        <QuickFuelPlanner />
 
         {debugData && (
           <div style={{

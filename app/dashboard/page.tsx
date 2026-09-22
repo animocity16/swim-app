@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import PendingMatchesBanner from "@/app/components/PendingMatchesBanner";
+import { canonicalEventName } from "@/lib/events";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -223,18 +224,13 @@ function SkeletonActivity() {
   );
 }
 
-function NatrixMark({ size = 34 }: { size?: number }) {
+function NatrixMark({ size = 56 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 40 40" style={{ opacity: 0.9, flexShrink: 0 }}>
-      <circle cx="20" cy="20" r="19" fill="none" stroke="#D97706" strokeWidth="2" />
-      <path
-        d="M20 12 a8 8 0 1 1 -8 8 a5 5 0 1 1 5 5"
-        fill="none"
-        stroke="#D97706"
-        strokeWidth="2.2"
-        strokeLinecap="round"
-      />
-    </svg>
+    <img
+      src="/natrix-mascot-search.png"
+      alt="Natrix mascot"
+      style={{ width: size, height: size, objectFit: "contain", flexShrink: 0 }}
+    />
   );
 }
 
@@ -299,6 +295,184 @@ function SquareTile({
   );
 }
 
+
+function StrokeBadge({ event }: { event: string }) {
+  const e = event.toLowerCase();
+
+  const type =
+    e.includes("breast") ? "BREAST" :
+    e.includes("back") ? "BACK" :
+    e.includes("butterfly") || e.includes("fly") ? "FLY" :
+    e.includes("im") ? "IM" : "FREE";
+
+  const iconSrc: Record<string, string> = {
+    FREE: "/icons/strokes/free.png",
+    BACK: "/icons/strokes/back.png",
+    FLY: "/icons/strokes/fly.png",
+    BREAST: "/icons/strokes/breast.png",
+    IM: "/icons/strokes/im.png",
+  };
+
+  return (
+    <div
+      className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl"
+      aria-label={`${type} stroke`}
+      title={type}
+    >
+      <img
+        src={iconSrc[type]}
+        alt={`${type} stroke`}
+        className="h-full w-full object-cover"
+      />
+    </div>
+  );
+}
+
+function ResultTrendChart({
+  points,
+  strokeColor,
+}: {
+  points: { time_ms: number; swam_at?: string | null; is_pb?: boolean }[];
+  strokeColor: string;
+}) {
+  const [selectedPoint, setSelectedPoint] = useState<number | null>(null);
+
+  const clean = points
+    .filter((p) => Number.isFinite(p.time_ms))
+    .slice()
+    .sort((a, b) => {
+      const da = a.swam_at ? new Date(a.swam_at).getTime() : 0;
+      const db = b.swam_at ? new Date(b.swam_at).getTime() : 0;
+      return da - db;
+    })
+    .slice(-6);
+
+  if (clean.length < 2) {
+    return (
+      <div className="flex h-28 items-center justify-center rounded-2xl"
+        style={{ background: "#F7FBFE", border: "1px solid #E0ECF3" }}>
+        <span className="text-xs" style={{ color: "#71859A" }}>More swims will build the trend</span>
+      </div>
+    );
+  }
+
+  const width = 360;
+  const height = 150;
+  const left = 38;
+  const right = 12;
+  const top = 16;
+  const bottom = 34;
+
+  const values = clean.map((p) => p.time_ms);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const extra = Math.max((max - min) * 0.18, 1500);
+  const chartMin = Math.max(0, min - extra);
+  const chartMax = max + extra;
+  const span = Math.max(chartMax - chartMin, 1);
+
+  const coords = clean.map((p, i) => {
+    const x = left + (i * (width - left - right)) / Math.max(clean.length - 1, 1);
+    // Faster time = higher on screen.
+    const y = top + ((p.time_ms - chartMin) / span) * (height - top - bottom);
+    return { x, y };
+  });
+
+  const pointsAttr = coords.map((p) => `${p.x},${p.y}`).join(" ");
+  const selected = selectedPoint != null ? clean[selectedPoint] : null;
+  const selectedCoord = selectedPoint != null ? coords[selectedPoint] : null;
+
+  const yTicks = [0, 1, 2, 3].map((i) => {
+    const ms = chartMin + (span * i) / 3;
+    const y = top + ((ms - chartMin) / span) * (height - top - bottom);
+    return { ms, y };
+  });
+
+  return (
+    <div className="relative rounded-2xl px-2 py-2"
+      style={{ background: "#F8FCFF", border: "1px solid #DCEAF3" }}>
+      <svg viewBox={`0 0 ${width} ${height}`} className="h-[150px] w-full">
+        {yTicks.map((t, i) => (
+          <g key={i}>
+            <line x1={left} y1={t.y} x2={width - right} y2={t.y} stroke="#DDE8F0" strokeWidth="1" />
+            <text x={left - 8} y={t.y + 3} textAnchor="end" fontSize="8" fill="#8EA1B2">
+              {formatMs(Math.round(t.ms))}
+            </text>
+          </g>
+        ))}
+
+        <polyline
+          points={pointsAttr}
+          fill="none"
+          stroke={strokeColor}
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+
+        {coords.map((p, i) => (
+          <g key={i}>
+            <circle
+              cx={p.x}
+              cy={p.y}
+              r="11"
+              fill="transparent"
+              style={{ cursor: "pointer" }}
+              onClick={() => setSelectedPoint(i)}
+            />
+            <circle
+              cx={p.x}
+              cy={p.y}
+              r={selectedPoint === i ? 5.5 : 4}
+              fill={selectedPoint === i ? strokeColor : "white"}
+              stroke={strokeColor}
+              strokeWidth="2.5"
+              pointerEvents="none"
+            />
+            <text x={p.x} y={height - 14} textAnchor="middle" fontSize="8" fill="#8EA1B2">
+              {clean[i].swam_at
+                ? new Date(clean[i].swam_at as string).toLocaleDateString("en-GB", { day: "numeric", month: "short" })
+                : ""}
+            </text>
+          </g>
+        ))}
+
+        {selected && selectedCoord && (
+          <g pointerEvents="none">
+            <rect
+              x={Math.min(width - 104, Math.max(8, selectedCoord.x - 48))}
+              y={Math.max(5, selectedCoord.y - 58)}
+              width="96"
+              height="46"
+              rx="7"
+              fill="#0B2A54"
+            />
+            <text
+              x={Math.min(width - 56, Math.max(56, selectedCoord.x))}
+              y={Math.max(20, selectedCoord.y - 42)}
+              textAnchor="middle"
+              fontSize="8"
+              fill="#C9D8E7"
+            >
+              {selected.swam_at ? formatDate(selected.swam_at) : ""}
+            </text>
+            <text
+              x={Math.min(width - 56, Math.max(56, selectedCoord.x))}
+              y={Math.max(34, selectedCoord.y - 28)}
+              textAnchor="middle"
+              fontSize="11"
+              fontWeight="700"
+              fill="white"
+            >
+              {formatMs(selected.time_ms)}
+            </text>
+          </g>
+        )}
+      </svg>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -313,6 +487,9 @@ export default function DashboardPage() {
   // Phase 2 — times + standards (background)
   const [phase2Done, setPhase2Done]             = useState(false);
   const [recentResults, setRecentResults]       = useState<RecentResult[]>([]);
+  const [allResults, setAllResults]             = useState<RecentResult[]>([]);
+  const [selectedResultIndex, setSelectedResultIndex] = useState(0);
+  const [touchStartX, setTouchStartX]           = useState<number | null>(null);
   const [standardsProgress, setStandardsProgress] = useState<StandardsProgress | null>(null);
   const [closestStandards, setClosestStandards] = useState<ClosestStandard[]>([]);
 
@@ -387,7 +564,7 @@ export default function DashboardPage() {
       const swimmerTimes = allTimes.filter((t) => t.swimmer_id === swimmer.id);
       const pbMap = new Map<string, number>();
       for (const t of [...swimmerTimes].sort((a, b) => a.time_ms - b.time_ms)) {
-        const key = `${t.event}|${t.course}`;
+        const key = `${canonicalEventName(t.event)}|${t.course}`;
         if (!pbMap.has(key)) pbMap.set(key, t.time_ms);
       }
       const latest = swimmerTimes[0] ?? null;
@@ -417,6 +594,12 @@ export default function DashboardPage() {
     });
     setRecentResults(recent);
 
+    const allResultsWithNames = allTimes.map((row) => {
+      const swimmer = mySwimmers.find((s) => s.id === row.swimmer_id);
+      return { ...row, swimmer_name: swimmer?.name ?? "Unknown" };
+    });
+    setAllResults(allResultsWithNames);
+
     // Standards — 1 batched query
     if (setsData.length > 0 && allTimes.length > 0) {
       const setIds = setsData.map((s) => s.id);
@@ -432,7 +615,7 @@ export default function DashboardPage() {
       const swimmerTimes = allTimes.filter((t) => t.swimmer_id === relevantSwimmer.id);
       const pbMapForStd = new Map<string, number>();
       for (const t of swimmerTimes) {
-        const key = `${t.event}|${t.course}`;
+        const key = `${canonicalEventName(t.event)}|${t.course}`;
         const ex = pbMapForStd.get(key);
         if (!ex || t.time_ms < ex) pbMapForStd.set(key, t.time_ms);
       }
@@ -456,7 +639,7 @@ export default function DashboardPage() {
         const displayItems = relevant.length > 0 ? relevant : allForSet;
         let qualified = 0, inProgress = 0;
         for (const item of displayItems) {
-          const pb = pbMapForStd.get(`${item.event}|${item.course}`);
+          const pb = pbMapForStd.get(`${canonicalEventName(item.event)}|${item.course}`);
           if (pb === undefined) continue;
           if (pb <= item.qualifying_time_ms) qualified++;
           else inProgress++;
@@ -474,10 +657,18 @@ export default function DashboardPage() {
       let nextUpgradingSet: StandardSetRow | undefined;
       if (relevantSwimmer.squad) {
         const squadLower = relevantSwimmer.squad.toLowerCase();
-        const currentLevelIdx = upgradingSets.findIndex((s) => s.name.toLowerCase().includes(squadLower));
-        if (currentLevelIdx !== -1 && currentLevelIdx + 1 < upgradingSets.length) {
-          nextUpgradingSet = upgradingSets[currentLevelIdx + 1];
-        } else if (currentLevelIdx === -1) {
+
+        // The swimmer's current upgrading standard is the set whose name
+        // matches their squad. Do NOT advance to the following set here.
+        // The Standards page shows this matched set as the swimmer's active
+        // target, so Home must use the same set for its qualified count.
+        nextUpgradingSet = upgradingSets.find((set) =>
+          set.name.toLowerCase().includes(squadLower)
+        );
+
+        // If the squad name does not match a standard-set name, fall back
+        // to the first upgrading set that is not fully qualified.
+        if (!nextUpgradingSet) {
           nextUpgradingSet = upgradingSets.find((set) => {
             const { qualified, total } = computeStats(set.id);
             return total === 0 || qualified < total;
@@ -511,7 +702,7 @@ export default function DashboardPage() {
       const candidates: ClosestStandard[] = [];
       for (const set of visibleSets) {
         for (const item of relevantItems(set.id)) {
-          const pb = pbMapForStd.get(`${item.event}|${item.course}`);
+          const pb = pbMapForStd.get(`${canonicalEventName(item.event)}|${item.course}`);
           if (pb === undefined) continue;              // hasn't swum this event yet
           if (pb <= item.qualifying_time_ms) continue;  // already qualified
 
@@ -599,241 +790,436 @@ export default function DashboardPage() {
 
   // ─── Main dashboard ───────────────────────────────────────────────────────────
 
+  const primaryStat = swimmerStats[0];
+  const primary = primaryStat?.swimmer ?? null;
+  const firstName = primary?.name?.split(" ")[0] ?? "your swimmer";
+  const nextTarget = closestStandards[0] ?? null;
+  const nextMeet = upcomingMeets[0] ?? null;
+
   return (
     <div className="shell">
-      <div className="container-app space-y-6">
+      <div className="container-app space-y-5 md:max-w-2xl">
 
-        {/* Header */}
-        <div className="pt-2 flex items-start justify-between">
+        {/* Branded top bar */}
+        <div className="pt-2 flex items-center justify-between gap-4">
           <div>
-            <p className="text-xs font-medium uppercase tracking-widest text-white/30">{greeting}</p>
-            <h1 className="mt-0.5 text-3xl font-bold tracking-tight text-white">{userName ?? "Home"}</h1>
+            <div className="text-[28px] font-black tracking-[0.08em] text-white">
+              NATRIX
+            </div>
+            <div className="mt-0.5 text-[8px] font-semibold uppercase tracking-[0.24em] text-sky-200/50">
+              Track · Improve · Belong
+            </div>
           </div>
-          <NatrixMark />
+
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:block text-right">
+              <div className="text-sm font-semibold text-white">{primary?.name ?? userName ?? "Home"}</div>
+              <div className="text-[10px] text-white/35">{greeting}</div>
+            </div>
+            <NatrixMark size={58} />
+          </div>
         </div>
 
         <PendingMatchesBanner />
 
-        {/* ── Lap calculator — quick access from Home ────────────────────────── */}
-        <Link
-          href="/calculator"
-          className="flex items-center gap-4 rounded-3xl p-4 transition active:scale-[0.98]"
-          style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
-        >
-          <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl text-2xl"
-            style={{ background: "rgba(56,189,248,0.12)" }}>🧮</div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-white">Lap Calculator</p>
-            <p className="text-xs text-white/40 mt-0.5">Work out splits and target times</p>
-          </div>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-white/20 flex-shrink-0">
-            <path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </Link>
+        {/* Swimmer identity banner */}
+        {primaryStat && primary && (
+          <section
+            className="overflow-hidden rounded-[28px]"
+            style={{
+              background: "linear-gradient(135deg, rgba(255,255,255,0.99) 0%, rgba(226,243,255,0.98) 100%)",
+              border: "1px solid rgba(255,255,255,0.90)",
+              boxShadow: "0 18px 42px rgba(0,25,55,0.16)",
+            }}
+          >
+            <div className="relative p-5">
+              <div className="absolute -right-8 -top-8 h-36 w-36 rounded-full"
+                style={{ background: "rgba(48,158,246,0.08)" }} />
+              <div className="absolute right-16 top-10 h-20 w-40 rotate-[-8deg] rounded-full"
+                style={{ background: "rgba(48,158,246,0.05)" }} />
 
-        {/* ── Swimmer cards — visible as soon as phase 1 done ───────────────── */}
-        <div>
-          <p className="mb-3 text-[10px] font-medium uppercase tracking-widest text-white/30">
-            My Swimmers · {swimmerStats.length}
-          </p>
-          {swimmerStats.length === 1 && <SwimmerCard stat={swimmerStats[0]} index={0} />}
-          {swimmerStats.length > 1 && (
-            <div className="space-y-3">
-              {swimmerStats.map((stat, i) => (
-                <SwimmerCard key={stat.swimmer.id} stat={stat} index={i} />
-              ))}
-            </div>
-          )}
-        </div>
+              <div className="relative flex items-center gap-4">
+                <div
+                  className="flex h-20 w-20 flex-shrink-0 items-center justify-center rounded-full text-xl font-bold"
+                  style={{
+                    background: "linear-gradient(135deg,#185FA5,#2D8BD8)",
+                    color: "#D8ECFF",
+                    border: "4px solid rgba(255,255,255,0.85)",
+                  }}
+                >
+                  {getInitials(primary.name)}
+                </div>
 
-        {/* ── Standards — skeleton until phase 2 done ───────────────────────── */}
-        {!phase2Done ? (
-          <div className="space-y-3">
-            <div className="h-3 w-20 rounded-full bg-white/10 animate-pulse" />
-            <div className="h-20 rounded-3xl bg-white/5 border border-white/8 animate-pulse" />
-          </div>
-        ) : closestStandards.length > 0 ? (
-          <div className="space-y-3">
-            <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">Standards</p>
-            <div className="rounded-3xl overflow-hidden"
-              style={{ border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)" }}>
-              <div className="px-4 pt-3 pb-2">
-                <p className="text-xs font-semibold text-white/60">🎯 So close! Nearest to qualifying</p>
+                <div className="min-w-0 flex-1">
+                  <h1 className="truncate text-2xl font-bold tracking-tight" style={{ color: "#0B2A54" }}>
+                    {primary.name}
+                  </h1>
+                  <p className="mt-1 text-sm" style={{ color: "#60758B" }}>
+                    Age {primary.age}
+                    {primary.swim_club ? ` · ${primary.swim_club}` : ""}
+                  </p>
+                  <p className="mt-3 text-sm italic" style={{ color: "#617A98" }}>
+                    Small improvements make big swimmers.
+                  </p>
+                </div>
               </div>
-              {closestStandards.map((c, i) => {
-                const strokeColor = getStrokeColor(c.event);
-                return (
-                  <div key={`${c.event}-${c.course}`}
-                    className="flex items-center gap-3 px-4 py-3"
-                    style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                    <div className="w-1 h-8 rounded-full flex-shrink-0" style={{ background: strokeColor }} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-white truncate">{shortEvent(c.event)}</p>
-                      <p className="text-xs text-white/35 mt-0.5 truncate">{c.standardName} · {c.course}</p>
-                    </div>
-                    <div className="text-right flex-shrink-0">
-                      <p className="text-base font-bold text-white">{formatMs(c.pbMs)}</p>
-                      <p className="text-[10px] font-semibold mt-0.5" style={{ color: "#D97706" }}>
-                        {(c.gapMs / 1000).toFixed(2)}s to go
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
             </div>
-          </div>
-        ) : standardsProgress && standardsProgress.total > 0 && standardsProgress.qualified === standardsProgress.total ? (
-          <div className="space-y-3">
-            <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">Standards</p>
-            <div className="rounded-3xl p-4 text-center"
-              style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.15) 0%, rgba(6,40,65,0.4) 100%)", border: "1px solid rgba(110,231,183,0.3)" }}>
-              <p className="text-base font-bold" style={{ color: "#6EE7B7" }}>All standards met! 🎉</p>
-              <p className="text-xs text-white/40 mt-1">{standardsProgress.qualified} of {standardsProgress.total} events qualified</p>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">Standards</p>
-            <Link
-              href={swimmerStats[0] ? `/swimmers/${swimmerStats[0].swimmer.id}?tab=standards` : "/standards"}
-              className="flex items-center gap-4 rounded-3xl p-4 transition"
-              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
-            >
-              <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl text-2xl"
-                style={{ background: "rgba(217,119,6,0.12)" }}>🎯</div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-white">No standards set yet</p>
-                <p className="text-xs text-white/40 mt-0.5">Add a standard set to track qualifying times</p>
-              </div>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-white/20 flex-shrink-0">
-                <path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </Link>
-          </div>
+          </section>
         )}
 
-        {/* ── Activity & Meets — collapsed squares, tap to expand ────────────── */}
-        <div>
-          {expandedSection === null ? (
-            <div className="grid grid-cols-2 gap-3">
-              <SquareTile
-                emoji="⏱️"
-                label="Recent activity"
-                bigValue={recentResults.length}
-                subline={
-                  phase2Done && recentResults[0]
-                    ? `${shortEvent(recentResults[0].event)} · ${formatMs(recentResults[0].time_ms)}`
-                    : phase2Done
-                      ? "No results yet"
-                      : null
-                }
-                tint="linear-gradient(135deg, rgba(6,40,65,0.55) 0%, rgba(6,40,65,0.3) 100%)"
-                loading={!phase2Done}
-                onClick={() => setExpandedSection("activity")}
-              />
-              <SquareTile
-                emoji={upcomingMeets[0] ? meetEmoji(upcomingMeets[0].meetType) : "🏊"}
-                label="Upcoming meets"
-                bigValue={upcomingMeets.length}
-                subline={upcomingMeets[0]?.name ?? "None scheduled"}
-                tint="linear-gradient(135deg, rgba(217,119,6,0.16) 0%, rgba(6,40,65,0.3) 100%)"
-                disabled={upcomingMeets.length === 0}
-                onClick={() => setExpandedSection("meets")}
-              />
+        {/* Latest result carousel — the only results section on Home */}
+        <section className="space-y-3">
+          <div className="flex items-center justify-between px-1">
+            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">
+              Latest result
             </div>
-          ) : (
-            <div>
-              <button
-                type="button"
-                onClick={() => setExpandedSection(null)}
-                className="mb-3 flex items-center gap-1 text-[10px] font-medium uppercase tracking-widest text-white/40 transition hover:text-white/60"
+            {primary && (
+              <Link
+                href={`/swimmers/${primary.id}`}
+                className="text-[10px] font-bold uppercase tracking-wide text-sky-200/80"
               >
-                <ChevronIcon dir="left" />
-                {expandedSection === "activity" ? "Recent activity" : "Upcoming meets"}
-              </button>
+                View all
+              </Link>
+            )}
+          </div>
 
-              {/* ── Recent activity (expanded) ──────────────────────────────── */}
-              {expandedSection === "activity" && (
-                recentResults.length > 0 ? (
-                  <div className="rounded-3xl overflow-hidden"
-                    style={{ border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)" }}>
-                    {recentResults.map((result, i) => {
-                      const strokeColor = getStrokeColor(result.event);
-                      return (
-                        <Link key={result.id} href={`/swimmers/${result.swimmer_id}`}
-                          className="flex items-center gap-3 px-4 py-3 transition hover:bg-white/5"
-                          style={{ borderBottom: i < recentResults.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none" }}>
-                          <div className="w-1 h-8 rounded-full flex-shrink-0" style={{ background: strokeColor }} />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-white truncate">{shortEvent(result.event)}</p>
-                            <p className="text-xs text-white/35 mt-0.5">
-                              {result.swimmer_name.split(" ")[0]}
-                              {result.swam_at ? ` · ${formatDate(result.swam_at)}` : ""}
-                              {result.meet_name ? ` · ${result.meet_name}` : ""}
-                            </p>
-                          </div>
-                          <div className="text-right flex-shrink-0">
-                            <p className="text-base font-bold text-white">{formatMs(result.time_ms)}</p>
-                            <p className="text-[10px] text-white/30">{result.course}</p>
-                          </div>
-                        </Link>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="rounded-3xl border border-white/10 bg-white/5 p-6 space-y-4">
-                    <div className="text-center">
-                      <p className="text-base font-semibold text-white">No results yet</p>
-                      <p className="mt-1 text-sm text-white/40">Import existing times or scan a Meet Mobile result.</p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <Link href="/scan"
-                        className="flex items-center justify-center gap-2 rounded-2xl py-3 text-sm font-semibold text-white/70 transition"
-                        style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)" }}>
-                        Import
-                      </Link>
-                      <Link href="/scan"
-                        className="flex items-center justify-center gap-2 rounded-2xl py-3 text-sm font-semibold text-white transition"
-                        style={{ background: "#D97706" }}>
-                        Scan result
-                      </Link>
-                    </div>
-                  </div>
-                )
-              )}
+          {allResults.length > 0 ? (() => {
+            const uniqueEvents = Array.from(
+              allResults.reduce((map, result) => {
+                const key = `${result.swimmer_id}|${result.event}|${result.course}`;
+                if (!map.has(key)) map.set(key, result);
+                return map;
+              }, new Map<string, RecentResult>()).values()
+            ).slice(0, 8);
 
-              {/* ── Upcoming meets (expanded) ───────────────────────────────── */}
-              {expandedSection === "meets" && (
-                <div className="space-y-2">
-                  {upcomingMeets.map((meet) => {
-                    const now = isHappeningNow(meet);
-                    return (
-                      <Link key={meet.id} href={`/meets/upcoming/${meet.id}`}
-                        className="flex items-center gap-3 rounded-2xl px-4 py-3 transition active:scale-[0.98]"
-                        style={{
-                          background: now ? "rgba(110,231,183,0.08)" : "rgba(255,255,255,0.04)",
-                          border: now ? "1px solid rgba(110,231,183,0.25)" : "1px solid rgba(255,255,255,0.08)",
-                        }}>
-                        <span style={{ fontSize: 20 }}>{meetEmoji(meet.meetType)}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-white truncate">{meet.name}</p>
-                          <p className="text-[10px] text-white/35 mt-0.5">
-                            {formatMeetMonth(meet)}{meet.location ? ` · ${meet.location}` : ""}
-                          </p>
+            const maxIndex = uniqueEvents.length - 1;
+            const safeIndex = Math.min(selectedResultIndex, Math.max(maxIndex, 0));
+            const selected = uniqueEvents[safeIndex];
+            const strokeColor = getStrokeColor(selected.event);
+
+            const eventHistory = allResults.filter(
+              (r) =>
+                r.swimmer_id === selected.swimmer_id &&
+                r.event === selected.event &&
+                r.course === selected.course
+            );
+
+            const label = selected.event.toLowerCase().includes("breast")
+              ? "BREAST"
+              : selected.event.toLowerCase().includes("back")
+                ? "BACK"
+                : selected.event.toLowerCase().includes("butterfly") || selected.event.toLowerCase().includes("fly")
+                  ? "FLY"
+                  : selected.event.toLowerCase().includes("im")
+                    ? "IM"
+                    : "FREE";
+
+            function goToResult(nextIndex: number) {
+              const count = uniqueEvents.length;
+              if (count === 0) return;
+              setSelectedResultIndex((nextIndex + count) % count);
+            }
+
+            function handleTouchEnd(endX: number) {
+              if (touchStartX == null) return;
+              const delta = endX - touchStartX;
+              if (Math.abs(delta) > 45) {
+                goToResult(safeIndex + (delta < 0 ? 1 : -1));
+              }
+              setTouchStartX(null);
+            }
+
+            return (
+              <div
+                className="overflow-hidden rounded-[28px]"
+                onTouchStart={(e) => setTouchStartX(e.touches[0]?.clientX ?? null)}
+                onTouchEnd={(e) => handleTouchEnd(e.changedTouches[0]?.clientX ?? 0)}
+                style={{
+                  background: "linear-gradient(135deg, rgba(255,255,255,0.99) 0%, rgba(234,247,255,0.99) 100%)",
+                  border: "1px solid rgba(255,255,255,0.92)",
+                  boxShadow: "0 18px 42px rgba(0,25,55,0.16)",
+                }}
+              >
+                <div className="p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <div className="flex flex-col items-center gap-1">
+                        <StrokeBadge event={selected.event} />
+                        <span className="text-[8px] font-black tracking-wide" style={{ color: strokeColor }}>
+                          {label}
+                        </span>
+                      </div>
+
+                      <div className="min-w-0">
+                        <div className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: strokeColor }}>
+                          Event {safeIndex + 1} of {uniqueEvents.length}
                         </div>
-                        {now && (
-                          <span className="text-xs font-bold flex-shrink-0" style={{ color: "#6EE7B7" }}>Now!</span>
-                        )}
-                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className="flex-shrink-0 text-white/20">
-                          <path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </Link>
-                    );
-                  })}
+                        <div className="mt-1 text-xl font-bold" style={{ color: "#0B2A54" }}>
+                          {shortEvent(selected.event)}
+                        </div>
+                        <div className="mt-1 truncate text-xs" style={{ color: "#71859A" }}>
+                          {selected.swam_at ? formatDate(selected.swam_at) : "Recent result"}
+                          {selected.meet_name ? ` · ${selected.meet_name}` : ""}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="text-right flex-shrink-0">
+                      <div className="text-3xl font-bold tracking-tight" style={{ color: "#0B2A54" }}>
+                        {formatMs(selected.time_ms)}
+                      </div>
+                      <div className="mt-1 text-[10px] font-semibold uppercase tracking-wide" style={{ color: "#71859A" }}>
+                        {selected.course}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4">
+                    <ResultTrendChart points={eventHistory} strokeColor={strokeColor} />
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between gap-3">
+                    <button
+                      type="button"
+                      onClick={() => goToResult(safeIndex - 1)}
+                      aria-label="Previous event"
+                      className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-lg font-bold"
+                      style={{ background: "rgba(255,255,255,0.86)", color: "#52708D", border: "1px solid #DCEAF3" }}
+                    >
+                      ‹
+                    </button>
+
+                    <div className="flex items-center justify-center gap-1.5">
+                      {uniqueEvents.map((_, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          aria-label={`Show event ${i + 1}`}
+                          onClick={() => setSelectedResultIndex(i)}
+                          className="h-2 rounded-full transition-all"
+                          style={{
+                            width: i === safeIndex ? 18 : 8,
+                            background: i === safeIndex ? "#168AE8" : "#C9D7E3",
+                          }}
+                        />
+                      ))}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => goToResult(safeIndex + 1)}
+                      aria-label="Next event"
+                      className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-lg font-bold"
+                      style={{ background: "#168AE8", color: "white" }}
+                    >
+                      ›
+                    </button>
+                  </div>
+
+                  <Link
+                    href={`/swimmers/${selected.swimmer_id}`}
+                    className="mt-4 flex items-center justify-between border-t pt-4"
+                    style={{ borderColor: "#DCEAF3" }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-xl text-sm"
+                        style={{ background: "#E8F4FD", color: "#168AE8" }}>
+                        ▣
+                      </div>
+                      <span className="text-sm font-semibold" style={{ color: "#0B2A54" }}>
+                        View full results & progress
+                      </span>
+                    </div>
+                    <span className="text-xl font-bold" style={{ color: "#168AE8" }}>›</span>
+                  </Link>
                 </div>
-              )}
+              </div>
+            );
+          })() : (
+            <div
+              className="rounded-[28px] p-5 text-center"
+              style={{ background: "rgba(255,255,255,0.96)", border: "1px solid rgba(255,255,255,0.88)" }}
+            >
+              <div className="text-sm font-semibold" style={{ color: "#0B2A54" }}>No results yet</div>
+              <div className="mt-1 text-xs" style={{ color: "#71859A" }}>
+                New swims will appear here automatically.
+              </div>
             </div>
           )}
+        </section>
+
+        {/* Recent events */}
+        {allResults.length > 0 && (
+          <section className="space-y-2">
+            <div className="flex items-center justify-between px-1">
+              <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">
+                Recent events
+              </div>
+              {primary && (
+                <Link
+                  href={`/swimmers/${primary.id}`}
+                  className="text-[10px] font-bold uppercase tracking-wide text-white/80"
+                >
+                  View all
+                </Link>
+              )}
+            </div>
+
+            <div className="grid grid-cols-4 gap-2">
+              {Array.from(
+                allResults.reduce((map, result) => {
+                  const key = `${result.swimmer_id}|${result.event}|${result.course}`;
+                  if (!map.has(key)) map.set(key, result);
+                  return map;
+                }, new Map<string, RecentResult>()).values()
+              )
+                .slice(0, 4)
+                .map((result) => (
+                  <Link
+                    key={`${result.swimmer_id}-${result.event}-${result.course}`}
+                    href={`/swimmers/${result.swimmer_id}`}
+                    className="min-w-0 rounded-[18px] p-2.5 transition active:scale-[0.98]"
+                    style={{
+                      background: "rgba(255,255,255,0.96)",
+                      border: "1px solid rgba(255,255,255,0.90)",
+                      boxShadow: "0 8px 18px rgba(0,20,55,0.08)",
+                    }}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <StrokeBadge event={result.event} />
+                    </div>
+                    <div className="mt-2 truncate text-[10px] font-bold" style={{ color: "#0B2A54" }}>
+                      {shortEvent(result.event)}
+                    </div>
+                    <div className="mt-0.5 truncate text-sm font-bold" style={{ color: "#0B2A54" }}>
+                      {formatMs(result.time_ms)}
+                    </div>
+                    <div className="mt-1 flex items-center justify-between gap-1">
+                      <span className="truncate text-[8px]" style={{ color: "#71859A" }}>
+                        {result.swam_at ? formatDate(result.swam_at) : ""}
+                      </span>
+                      <span className="rounded-full px-1.5 py-0.5 text-[7px] font-bold"
+                        style={{ background: "#E9F2FA", color: "#5A7690" }}>
+                        {result.course}
+                      </span>
+                    </div>
+                  </Link>
+                ))}
+            </div>
+          </section>
+        )}
+
+        {/* Bottom dashboard row: standards + one secondary tool */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Link
+            href={primary ? `/swimmers/${primary.id}?tab=standards` : "/standards"}
+            className="relative overflow-hidden rounded-[26px] p-5 transition active:scale-[0.99]"
+            style={{
+              background: "linear-gradient(145deg,#0E3B6C 0%,#082A50 100%)",
+              border: "1px solid rgba(125,194,255,0.18)",
+              boxShadow: "0 16px 34px rgba(0,18,46,0.24)",
+            }}
+          >
+            <div className="relative z-10">
+              <div className="text-2xl">🎯</div>
+              <div className="mt-3 text-[10px] font-bold uppercase tracking-[0.16em] text-sky-100/75">
+                Standards progress
+              </div>
+
+              {standardsProgress && standardsProgress.total > 0 ? (
+                <>
+                  <div className="mt-2 text-sm text-white/65">
+                    {standardsProgress.qualified} of {standardsProgress.total} standards qualified
+                  </div>
+                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${Math.max(6, Math.min(100, (standardsProgress.qualified / standardsProgress.total) * 100))}%`,
+                        background: "linear-gradient(90deg,#31D2FF,#168AE8)",
+                      }}
+                    />
+                  </div>
+                </>
+              ) : nextTarget ? (
+                <>
+                  <div className="mt-2 text-lg font-bold text-white">
+                    {shortEvent(nextTarget.event)}
+                  </div>
+                  <div className="mt-1 text-xs text-white/55">
+                    {(nextTarget.gapMs / 1000).toFixed(2)}s from {nextTarget.standardName}
+                  </div>
+                </>
+              ) : (
+                <div className="mt-2 text-sm text-white/60">
+                  Add standards to see the next target.
+                </div>
+              )}
+
+              <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-white/20 px-4 py-2 text-xs font-semibold text-white">
+                View standards <span>→</span>
+              </div>
+            </div>
+
+            <div className="absolute -bottom-2 right-5 flex items-end gap-1 opacity-20">
+              {[28, 44, 62, 80].map((h) => (
+                <div key={h} className="w-3 rounded-t" style={{ height: h, background: "#5EB5FF" }} />
+              ))}
+            </div>
+          </Link>
+
+          <div
+            className="rounded-[26px] p-5"
+            style={{
+              background: "linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(239,248,255,0.98) 100%)",
+              border: "1px solid rgba(255,255,255,0.90)",
+              boxShadow: "0 14px 30px rgba(0,20,55,0.10)",
+            }}
+          >
+            <div className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: "#59718A" }}>
+              Quick tools
+            </div>
+
+            <Link
+              href={nextMeet ? `/meets/upcoming/${nextMeet.id}` : "/meets"}
+              className="mt-3 flex items-center gap-3 rounded-2xl px-3 py-3"
+              style={{ background: "white", border: "1px solid #E0ECF3" }}
+            >
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl text-lg"
+                style={{ background: "#E8F4FD" }}>
+                {nextMeet ? meetEmoji(nextMeet.meetType) : "🏊"}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-semibold" style={{ color: "#0B2A54" }}>
+                  Upcoming meet
+                </div>
+                <div className="mt-0.5 truncate text-[10px]" style={{ color: "#71859A" }}>
+                  {nextMeet?.name ?? "View meets"}
+                </div>
+              </div>
+              <span style={{ color: "#7A8EA2" }}>›</span>
+            </Link>
+
+            <Link
+              href="/calculator"
+              className="mt-2 flex items-center gap-3 rounded-2xl px-3 py-3"
+              style={{ background: "white", border: "1px solid #E0ECF3" }}
+            >
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl text-lg"
+                style={{ background: "#EEF4FF" }}>
+                🧮
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-semibold" style={{ color: "#0B2A54" }}>
+                  Lap calculator
+                </div>
+                <div className="mt-0.5 text-[10px]" style={{ color: "#71859A" }}>
+                  Splits & target times
+                </div>
+              </div>
+              <span style={{ color: "#7A8EA2" }}>›</span>
+            </Link>
+          </div>
         </div>
 
         <div className="h-6" />
@@ -847,52 +1233,59 @@ export default function DashboardPage() {
 function SwimmerCard({ stat, index }: { stat: SwimmerStat; index: number }) {
   const { swimmer, totalEvents, totalTimes, latestEvent, latestTimeMs, latestSwamAt, latestIsPB } = stat;
   const colors = avatarColor(index);
-  const strokeColor = latestEvent ? getStrokeColor(latestEvent) : "#FDE68A";
+  const strokeColor = latestEvent ? getStrokeColor(latestEvent) : "#38BDF8";
 
-  // Use custom avatar colour CSS variable for primary swimmer (index 0)
-  const avatarBg   = index === 0 ? "var(--natrix-avatar-colour, " + colors.bg + ")" : colors.bg;
-  const avatarText = index === 0 ? "var(--natrix-avatar-text, " + colors.text + ")" : colors.text;
+  const avatarBg = index === 0
+    ? "var(--natrix-avatar-colour, " + colors.bg + ")"
+    : colors.bg;
+  const avatarText = index === 0
+    ? "var(--natrix-avatar-text, " + colors.text + ")"
+    : colors.text;
 
   return (
-    <Link href={`/swimmers/${swimmer.id}`}
-      className="flex items-center gap-4 rounded-3xl p-4 transition"
-      style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}>
-      <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl text-base font-bold"
-        style={{ background: avatarBg, color: avatarText }}>
+    <Link
+      href={`/swimmers/${swimmer.id}`}
+      className="flex items-center gap-3 rounded-[24px] p-4 transition active:scale-[0.99]"
+      style={{
+        background: "rgba(255,255,255,0.94)",
+        border: "1px solid rgba(255,255,255,0.86)",
+        boxShadow: "0 10px 26px rgba(0,25,55,0.10)",
+      }}
+    >
+      <div
+        className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl text-sm font-bold"
+        style={{ background: avatarBg, color: avatarText }}
+      >
         {getInitials(swimmer.name)}
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-base font-bold text-white truncate">{swimmer.name}</p>
-        <p className="text-xs text-white/40 mt-0.5">
+
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-bold" style={{ color: "#0B2A54" }}>
+          {swimmer.name}
+        </div>
+        <div className="mt-0.5 truncate text-[10px]" style={{ color: "#71859A" }}>
           Age {swimmer.age}
           {swimmer.swim_club ? ` · ${swimmer.swim_club}` : ""}
-        </p>
-        <div className="flex items-center gap-3 mt-2">
-          <div className="flex items-center gap-1">
-            <span className="text-sm font-bold" style={{ color: "#FDE68A" }}>{totalEvents}</span>
-            <span className="text-[10px] text-white/30 uppercase tracking-wider">events</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="text-sm font-bold text-white/60">{totalTimes}</span>
-            <span className="text-[10px] text-white/30 uppercase tracking-wider">results</span>
-          </div>
         </div>
+
+        <div className="mt-2 flex items-center gap-3 text-[10px]" style={{ color: "#71859A" }}>
+          <span><strong style={{ color: "#0B2A54" }}>{totalEvents}</strong> events</span>
+          <span><strong style={{ color: "#0B2A54" }}>{totalTimes}</strong> results</span>
+        </div>
+
         {latestEvent && latestTimeMs != null && (
-          <div className="flex items-center gap-2 mt-2">
-            <div className="w-1 h-3.5 rounded-full flex-shrink-0" style={{ background: strokeColor }} />
-            <p className="text-xs text-white/50 truncate">
-              <span className="font-semibold text-white/80">{shortEvent(latestEvent)}</span>
-              {" · "}
-              <span style={{ color: strokeColor }}>{formatMs(latestTimeMs)}</span>
-              {latestIsPB && <span className="ml-1 text-[9px] font-bold" style={{ color: "#FDE68A" }}>PB</span>}
+          <div className="mt-2 flex items-center gap-2">
+            <div className="h-3 w-1 rounded-full" style={{ background: strokeColor }} />
+            <div className="truncate text-[10px]" style={{ color: "#71859A" }}>
+              {shortEvent(latestEvent)} · {formatMs(latestTimeMs)}
+              {latestIsPB ? " · PB" : ""}
               {latestSwamAt ? ` · ${formatDate(latestSwamAt)}` : ""}
-            </p>
+            </div>
           </div>
         )}
       </div>
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="flex-shrink-0 text-white/20">
-        <path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
+
+      <ChevronIcon />
     </Link>
   );
 }
