@@ -9,12 +9,12 @@ import SwimmerContextBanner from "@/app/components/swimmer-context-banner";
 function EyeIcon({ show }: { show: boolean }) {
   return show ? (
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-      <path d="M1 9C1 9 4 3 9 3s8 6 8 6-3 6-8 6-8-6-8-6Z" stroke="rgba(255,255,255,0.4)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-      <circle cx="9" cy="9" r="2.5" stroke="rgba(255,255,255,0.4)" strokeWidth="1.4"/>
+      <path d="M1 9C1 9 4 3 9 3s8 6 8 6-3 6-8 6-8-6-8-6Z" stroke="#7A8EA3" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+      <circle cx="9" cy="9" r="2.5" stroke="#7A8EA3" strokeWidth="1.4"/>
     </svg>
   ) : (
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-      <path d="M1 1l16 16M7.5 7.6A2.5 2.5 0 0 0 11.4 11M5.2 5.3C3.3 6.5 2 8 2 9c0 0 3 5.5 7 5.5a7 7 0 0 0 3.5-1M9 3.5C13 3.5 16 9 16 9a13 13 0 0 1-1.5 2" stroke="rgba(255,255,255,0.4)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M1 1l16 16M7.5 7.6A2.5 2.5 0 0 0 11.4 11M5.2 5.3C3.3 6.5 2 8 2 9c0 0 3 5.5 7 5.5a7 7 0 0 0 3.5-1M9 3.5C13 3.5 16 9 16 9a13 13 0 0 1-1.5 2" stroke="#7A8EA3" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   );
 }
@@ -39,7 +39,12 @@ function PasswordInput({
         autoComplete={autoComplete}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="input pr-12"
+        className="w-full rounded-2xl border px-4 py-3.5 pr-12 text-sm outline-none"
+        style={{
+          background: "#F7FAFD",
+          borderColor: "#DCE8F0",
+          color: "#0B2A54",
+        }}
       />
       <button
         type="button"
@@ -111,111 +116,145 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-6 py-12">
+    <div className="min-h-screen px-5 py-7 md:py-10">
+      <div className="mx-auto w-full max-w-md">
+        {/* Match the public Search page branding */}
+        <div className="mb-5 flex items-center justify-between">
+          <Link href="/search" className="flex items-center gap-3">
+            <img src="/natrix-favicon.svg" alt="Natrix" className="h-10 w-10 object-contain" />
+            <div>
+              <div className="text-xl font-bold tracking-tight text-white">Natrix</div>
+              <div className="text-[10px] text-white/40">Swim Smarter Together</div>
+            </div>
+          </Link>
 
-      {/* Logo */}
-      <div className="mb-10 text-center">
-        <div
-          className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl text-3xl"
-          style={{ background: "rgba(217,119,6,0.25)", border: "1px solid rgba(253,230,138,0.3)" }}
-        >
-          🏊
-        </div>
-        <h1 className="text-4xl font-bold tracking-tight text-white">Natrix</h1>
-        <p className="mt-1 text-sm text-white/40">Swim meet results for parents</p>
-      </div>
-
-      <div className="w-full max-w-sm">
-        <SwimmerContextBanner />
-      </div>
-
-      {/* Glass card */}
-      <div
-        className="w-full max-w-sm rounded-3xl p-6 space-y-5"
-        style={{
-          background: "rgba(255,255,255,0.13)",
-          backdropFilter: "blur(24px) saturate(1.3)",
-          WebkitBackdropFilter: "blur(24px) saturate(1.3)",
-          border: "1px solid rgba(255,255,255,0.24)",
-        }}
-      >
-        <div>
-          <h2 className="text-2xl font-bold text-white">Create account</h2>
-          <p className="mt-1 text-sm text-white/45">Free to join — takes about a minute.</p>
-        </div>
-
-        <form onSubmit={handleSignup} className="space-y-3">
-          {/* First name — used in onboarding greeting */}
-          <input
-            type="text"
-            placeholder="Your first name"
-            autoComplete="given-name"
-            autoCapitalize="words"
-            value={firstName}
-            onChange={(e) => setFirstName(e.target.value)}
-            className="input"
-          />
-
-          <input
-            type="email"
-            placeholder="Email address"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="input"
-          />
-
-          <PasswordInput
-            placeholder="Password (min 8 characters)"
-            value={password}
-            onChange={setPassword}
-            autoComplete="new-password"
-          />
-
-          <PasswordInput
-            placeholder="Confirm password"
-            value={confirmPassword}
-            onChange={setConfirmPassword}
-            autoComplete="new-password"
-          />
-
-          {status && (
-            <p
-              className="rounded-2xl px-3 py-2 text-sm"
-              style={
-                isError
-                  ? { background: "rgba(226,75,74,0.1)", border: "1px solid rgba(226,75,74,0.2)", color: "#F09595" }
-                  : { background: "rgba(110,231,183,0.1)", border: "1px solid rgba(110,231,183,0.2)", color: "#6EE7B7" }
-              }
-            >
-              {status}
-            </p>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-2xl py-3.5 text-base font-bold text-white transition disabled:opacity-50"
-            style={{ background: "#D97706" }}
+          <Link
+            href="/login"
+            className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-semibold text-white/80"
           >
-            {loading ? "Creating account..." : "Join Natrix 🏊"}
-          </button>
-        </form>
-
-        <div className="text-center pt-1">
-          <p className="text-sm text-white/40">
-            Already have an account?{" "}
-            <Link href="/login" className="font-semibold transition" style={{ color: "#FDE68A" }}>
-              Sign in
-            </Link>
-          </p>
+            Log in
+          </Link>
         </div>
-      </div>
 
-      {/* Footer */}
-      <p className="mt-8 text-xs text-white/20">
-        Made with 🏊 by J.O.D — Just an Ordinary Dad
-      </p>
+        {/* Continuation from Search */}
+        <div className="mb-5 grid grid-cols-[92px_1fr] items-center gap-4">
+          <img
+            src="/natrix-mascot-search.png"
+            alt="Natrix mascot"
+            className="h-[92px] w-[92px] object-contain"
+          />
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-sky-200/80">
+              You found your swimmer
+            </p>
+            <h1 className="mt-1 text-3xl font-bold leading-tight tracking-tight text-white">
+              Keep tracking them
+            </h1>
+            <p className="mt-2 text-sm leading-relaxed text-white/55">
+              Create your account to save results, follow PBs and get new-result updates.
+            </p>
+          </div>
+        </div>
+
+        {/* Existing search handoff context */}
+        <div className="mb-4">
+          <SwimmerContextBanner />
+        </div>
+
+        {/* Main signup card */}
+        <div
+          className="rounded-[28px] p-5 md:p-6"
+          style={{
+            background: "rgba(255,255,255,0.96)",
+            border: "1px solid rgba(255,255,255,0.90)",
+            boxShadow: "0 18px 42px rgba(0,25,55,0.20)",
+          }}
+        >
+          <div className="mb-5">
+            <h2 className="text-2xl font-bold" style={{ color: "#0B2A54" }}>
+              Create your account
+            </h2>
+            <p className="mt-1 text-xs" style={{ color: "#71859A" }}>
+              Free to join. Takes less than a minute.
+            </p>
+          </div>
+
+          <form onSubmit={handleSignup} className="space-y-3">
+            <input
+              type="text"
+              placeholder="Your first name"
+              autoComplete="given-name"
+              autoCapitalize="words"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              className="w-full rounded-2xl border px-4 py-3.5 text-sm outline-none"
+              style={{ background: "#F7FAFD", borderColor: "#DCE8F0", color: "#0B2A54" }}
+            />
+
+            <input
+              type="email"
+              placeholder="Email address"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full rounded-2xl border px-4 py-3.5 text-sm outline-none"
+              style={{ background: "#F7FAFD", borderColor: "#DCE8F0", color: "#0B2A54" }}
+            />
+
+            <PasswordInput
+              placeholder="Password (min 8 characters)"
+              value={password}
+              onChange={setPassword}
+              autoComplete="new-password"
+            />
+
+            <PasswordInput
+              placeholder="Confirm password"
+              value={confirmPassword}
+              onChange={setConfirmPassword}
+              autoComplete="new-password"
+            />
+
+            {status && (
+              <p
+                className="rounded-2xl px-3 py-2 text-sm"
+                style={
+                  isError
+                    ? { background: "#FFF0F0", border: "1px solid #F4CACA", color: "#B33A3A" }
+                    : { background: "#ECFBF2", border: "1px solid #C9EED8", color: "#167A4F" }
+                }
+              >
+                {status}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full rounded-2xl py-3.5 text-base font-bold text-white transition disabled:opacity-50"
+              style={{
+                background: "linear-gradient(135deg,#2B9CF3,#0871D8)",
+                boxShadow: "0 10px 22px rgba(0,106,220,0.22)",
+              }}
+            >
+              {loading ? "Creating account..." : "Track my swimmer →"}
+            </button>
+          </form>
+
+          <div className="pt-4 text-center">
+            <p className="text-xs" style={{ color: "#768A9E" }}>
+              Already have an account?{" "}
+              <Link href="/login" className="font-bold" style={{ color: "#0876DC" }}>
+                Sign in
+              </Link>
+            </p>
+          </div>
+        </div>
+
+        <p className="mt-5 text-center text-[10px] text-white/30">
+          Natrix · Singapore · Built for swim families
+        </p>
+      </div>
     </div>
   );
 }
