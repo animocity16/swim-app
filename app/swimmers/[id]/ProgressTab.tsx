@@ -31,6 +31,29 @@ type EventSeries = {
   improvementPct: number;
 };
 
+type StrokeKey = "free" | "back" | "breast" | "fly" | "im";
+
+const STROKES: {
+  key: StrokeKey;
+  label: string;
+  icon: string;
+}[] = [
+  { key: "free", label: "Freestyle", icon: "/icons/strokes/free.png" },
+  { key: "back", label: "Backstroke", icon: "/icons/strokes/back.png" },
+  { key: "breast", label: "Breaststroke", icon: "/icons/strokes/breast.png" },
+  { key: "fly", label: "Butterfly", icon: "/icons/strokes/fly.png" },
+  { key: "im", label: "IM", icon: "/icons/strokes/im.png" },
+];
+
+function getStrokeKey(event: string): StrokeKey {
+  const e = canonicalEventName(event).toLowerCase();
+  if (e.includes("breaststroke") || e.includes("breast")) return "breast";
+  if (e.includes("backstroke") || e.includes("back")) return "back";
+  if (e.includes("butterfly") || e.includes("fly")) return "fly";
+  if (e.includes("medley") || e.includes(" im") || e.endsWith("im")) return "im";
+  return "free";
+}
+
 function getStrokeColor(event: string): string {
   const e = event.toLowerCase();
   if (e.includes("breaststroke") || e.includes("breast")) return "#34D399";
@@ -315,6 +338,7 @@ function ProgressChart({
 export default function ProgressTab({ swimmerId, swimmerName }: Props) {
   const [rows, setRows] = useState<TimeRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expandedStroke, setExpandedStroke] = useState<StrokeKey | null>(null);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [selectedRows, setSelectedRows] = useState<Record<string, TimeRow | null>>({});
 
@@ -401,6 +425,29 @@ export default function ProgressTab({ swimmerId, swimmerName }: Props) {
       .filter((s) => s.rows.length >= 2 && s.improvementPct > 0)
       .sort((a, b) => b.improvementPct - a.improvementPct)[0] ?? null;
   }, [allSeries]);
+
+  const strokeGroups = useMemo(() => {
+    return STROKES.map((stroke) => {
+      const series = allSeries.filter((item) => getStrokeKey(item.shortLabel) === stroke.key);
+      const races = series.reduce((sum, item) => sum + item.rows.length, 0);
+      const improved = series.filter((item) => item.deltaMs > 0).length;
+
+      return {
+        ...stroke,
+        series,
+        races,
+        improved,
+      };
+    }).filter((group) => group.series.length > 0);
+  }, [allSeries]);
+
+  function toggleStroke(key: StrokeKey) {
+    setExpandedStroke((current) => {
+      const next = current === key ? null : key;
+      if (next !== current) setExpandedKey(null);
+      return next;
+    });
+  }
 
   function toggleSeries(key: string) {
     setExpandedKey((current) => (current === key ? null : key));
@@ -500,177 +547,237 @@ export default function ProgressTab({ swimmerId, swimmerName }: Props) {
         )}
       </div>
 
-      {/* Event list */}
+      {/* Event progress grouped by stroke */}
       <div className="space-y-2">
         <p className="px-1 text-[10px] font-medium uppercase tracking-widest text-white/30">
           Event progress
         </p>
 
-        {allSeries.map((series) => {
-          const isOpen = expandedKey === series.key;
-          const hasProgress = series.rows.length >= 2;
-          const selectedRow = selectedRows[series.key] ?? null;
+        <div className="space-y-3">
+          {strokeGroups.map((group) => {
+            const strokeOpen = expandedStroke === group.key;
 
-          return (
-            <div
-              key={series.key}
-              className="overflow-hidden rounded-3xl"
-              style={{
-                background: isOpen
-                  ? "rgba(0,20,45,0.48)"
-                  : "rgba(255,255,255,0.045)",
-                border: isOpen
-                  ? `1px solid ${series.color}30`
-                  : "1px solid rgba(255,255,255,0.08)",
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => toggleSeries(series.key)}
-                className="w-full p-4 text-left"
+            return (
+              <div
+                key={group.key}
+                className="overflow-hidden rounded-3xl"
+                style={{
+                  background: strokeOpen
+                    ? "rgba(4,31,64,0.60)"
+                    : "rgba(255,255,255,0.045)",
+                  border: strokeOpen
+                    ? "1px solid rgba(125,211,252,0.20)"
+                    : "1px solid rgba(255,255,255,0.08)",
+                }}
               >
-                <div className="flex items-center gap-3">
-                  <div
-                    className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
-                    style={{ background: series.color }}
-                  />
-
-                  <div className="min-w-0 flex-1">
-                    <p
-                      className="truncate text-sm font-bold"
-                      style={{ color: series.color }}
-                    >
-                      {series.shortLabel}
-                    </p>
-                    <p className="mt-0.5 text-[10px] text-white/30">
-                      {series.course} · {series.rows.length} race
-                      {series.rows.length === 1 ? "" : "s"}
-                    </p>
-                  </div>
-
-                  <div className="flex-shrink-0 text-right">
-                    <p className="text-[10px] uppercase tracking-wide text-white/30">
-                      PB
-                    </p>
-                    <p className="text-lg font-bold text-white">
-                      {formatMs(series.pb)}
-                    </p>
-
-                    {hasProgress && series.deltaMs > 0 ? (
-                      <p
-                        className="mt-0.5 text-[10px] font-semibold"
-                        style={{ color: "#6EE7B7" }}
-                      >
-                        ↓ {formatDelta(series.deltaMs)} faster
-                      </p>
-                    ) : (
-                      <p className="mt-0.5 text-[10px] text-white/25">
-                        {hasProgress ? "No PB drop yet" : "First result"}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="ml-1 flex-shrink-0">
-                    <Chevron open={isOpen} />
-                  </div>
-                </div>
-              </button>
-
-              {isOpen && (
-                <div
-                  className="space-y-4 px-4 pb-4"
-                  style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
+                <button
+                  type="button"
+                  onClick={() => toggleStroke(group.key)}
+                  className="w-full p-4 text-left"
                 >
-                  <div className="grid grid-cols-3 gap-2 pt-4">
-                    <div
-                      className="rounded-2xl p-3"
-                      style={{ background: "rgba(255,255,255,0.04)" }}
-                    >
-                      <p className="text-[10px] uppercase tracking-wide text-white/25">
-                        First
-                      </p>
-                      <p className="mt-1 text-sm font-bold text-white/70">
-                        {formatMs(series.first)}
-                      </p>
-                    </div>
-
-                    <div
-                      className="rounded-2xl p-3"
-                      style={{ background: "rgba(255,255,255,0.04)" }}
-                    >
-                      <p className="text-[10px] uppercase tracking-wide text-white/25">
-                        PB
-                      </p>
-                      <p className="mt-1 text-sm font-bold text-white">
-                        {formatMs(series.pb)}
-                      </p>
-                    </div>
-
-                    <div
-                      className="rounded-2xl p-3"
-                      style={{ background: "rgba(255,255,255,0.04)" }}
-                    >
-                      <p className="text-[10px] uppercase tracking-wide text-white/25">
-                        Improved
-                      </p>
-                      <p
-                        className="mt-1 text-sm font-bold"
-                        style={{
-                          color:
-                            series.deltaMs > 0
-                              ? "#6EE7B7"
-                              : "rgba(255,255,255,0.45)",
-                        }}
-                      >
-                        {series.deltaMs > 0
-                          ? `${series.improvementPct.toFixed(1)}%`
-                          : "—"}
-                      </p>
-                    </div>
-                  </div>
-
-                  {hasProgress ? (
-                    <ProgressChart
-                      series={series}
-                      selectedRow={selectedRow}
-                      onSelect={(row) => setSelectedRow(series.key, row)}
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={group.icon}
+                      alt={`${group.label} stroke`}
+                      className="h-11 w-11 flex-shrink-0 rounded-2xl object-cover"
                     />
-                  ) : (
-                    <div
-                      className="rounded-2xl px-4 py-5 text-center"
-                      style={{
-                        background: "rgba(255,255,255,0.035)",
-                        border: "1px solid rgba(255,255,255,0.06)",
-                      }}
-                    >
-                      <p className="text-sm font-semibold text-white/65">
-                        One result recorded
+
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-bold text-white">
+                        {group.label}
                       </p>
-                      <p className="mt-1 text-xs text-white/35">
-                        Add another {series.shortLabel} result to start the progression chart.
+                      <p className="mt-0.5 text-[10px] text-white/35">
+                        {group.series.length} event{group.series.length === 1 ? "" : "s"} · {group.races} race{group.races === 1 ? "" : "s"}
                       </p>
                     </div>
-                  )}
 
-                  <div
-                    className="rounded-2xl px-4 py-3"
-                    style={{
-                      background: `${series.color}0B`,
-                      border: `1px solid ${series.color}18`,
-                    }}
-                  >
-                    <p className="text-[10px] font-semibold uppercase tracking-widest text-white/30">
-                      Natrix noticed
-                    </p>
-                    <p className="mt-1 text-xs leading-relaxed text-white/55">
-                      {makeInsight(series)}
-                    </p>
+                    {group.improved > 0 && (
+                      <div className="hidden flex-shrink-0 text-right sm:block">
+                        <p className="text-[10px] uppercase tracking-wide text-white/25">
+                          Improved
+                        </p>
+                        <p className="mt-0.5 text-xs font-semibold" style={{ color: "#6EE7B7" }}>
+                          {group.improved} event{group.improved === 1 ? "" : "s"}
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="ml-1 flex-shrink-0">
+                      <Chevron open={strokeOpen} />
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
+                </button>
+
+                {strokeOpen && (
+                  <div
+                    className="space-y-2 px-3 pb-3"
+                    style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
+                  >
+                    <div className="pt-3" />
+
+                    {group.series.map((series) => {
+                      const isOpen = expandedKey === series.key;
+                      const hasProgress = series.rows.length >= 2;
+                      const selectedRow = selectedRows[series.key] ?? null;
+
+                      return (
+                        <div
+                          key={series.key}
+                          className="overflow-hidden rounded-2xl"
+                          style={{
+                            background: isOpen
+                              ? "rgba(0,15,38,0.60)"
+                              : "rgba(255,255,255,0.035)",
+                            border: isOpen
+                              ? `1px solid ${series.color}28`
+                              : "1px solid rgba(255,255,255,0.065)",
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => toggleSeries(series.key)}
+                            className="w-full px-4 py-3 text-left"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-semibold text-white">
+                                  {series.shortLabel}
+                                </p>
+                                <p className="mt-0.5 text-[10px] text-white/30">
+                                  {series.course} · {series.rows.length} race
+                                  {series.rows.length === 1 ? "" : "s"}
+                                </p>
+                              </div>
+
+                              <div className="flex-shrink-0 text-right">
+                                <p className="text-[9px] uppercase tracking-wide text-white/25">
+                                  PB
+                                </p>
+                                <p className="text-base font-bold text-white">
+                                  {formatMs(series.pb)}
+                                </p>
+
+                                {hasProgress && series.deltaMs > 0 ? (
+                                  <p
+                                    className="mt-0.5 text-[10px] font-semibold"
+                                    style={{ color: "#6EE7B7" }}
+                                  >
+                                    ↓ {formatDelta(series.deltaMs)}
+                                  </p>
+                                ) : (
+                                  <p className="mt-0.5 text-[10px] text-white/25">
+                                    {hasProgress ? "No PB drop" : "First result"}
+                                  </p>
+                                )}
+                              </div>
+
+                              <div className="ml-1 flex-shrink-0">
+                                <Chevron open={isOpen} />
+                              </div>
+                            </div>
+                          </button>
+
+                          {isOpen && (
+                            <div
+                              className="space-y-4 px-4 pb-4"
+                              style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
+                            >
+                              <div className="grid grid-cols-3 gap-2 pt-4">
+                                <div
+                                  className="rounded-2xl p-3"
+                                  style={{ background: "rgba(255,255,255,0.04)" }}
+                                >
+                                  <p className="text-[10px] uppercase tracking-wide text-white/25">
+                                    First
+                                  </p>
+                                  <p className="mt-1 text-sm font-bold text-white/70">
+                                    {formatMs(series.first)}
+                                  </p>
+                                </div>
+
+                                <div
+                                  className="rounded-2xl p-3"
+                                  style={{ background: "rgba(255,255,255,0.04)" }}
+                                >
+                                  <p className="text-[10px] uppercase tracking-wide text-white/25">
+                                    PB
+                                  </p>
+                                  <p className="mt-1 text-sm font-bold text-white">
+                                    {formatMs(series.pb)}
+                                  </p>
+                                </div>
+
+                                <div
+                                  className="rounded-2xl p-3"
+                                  style={{ background: "rgba(255,255,255,0.04)" }}
+                                >
+                                  <p className="text-[10px] uppercase tracking-wide text-white/25">
+                                    Improved
+                                  </p>
+                                  <p
+                                    className="mt-1 text-sm font-bold"
+                                    style={{
+                                      color:
+                                        series.deltaMs > 0
+                                          ? "#6EE7B7"
+                                          : "rgba(255,255,255,0.45)",
+                                    }}
+                                  >
+                                    {series.deltaMs > 0
+                                      ? `${series.improvementPct.toFixed(1)}%`
+                                      : "—"}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {hasProgress ? (
+                                <ProgressChart
+                                  series={series}
+                                  selectedRow={selectedRow}
+                                  onSelect={(row) => setSelectedRow(series.key, row)}
+                                />
+                              ) : (
+                                <div
+                                  className="rounded-2xl px-4 py-5 text-center"
+                                  style={{
+                                    background: "rgba(255,255,255,0.035)",
+                                    border: "1px solid rgba(255,255,255,0.06)",
+                                  }}
+                                >
+                                  <p className="text-sm font-semibold text-white/65">
+                                    One result recorded
+                                  </p>
+                                  <p className="mt-1 text-xs text-white/35">
+                                    Add another {series.shortLabel} result to start the progression chart.
+                                  </p>
+                                </div>
+                              )}
+
+                              <div
+                                className="rounded-2xl px-4 py-3"
+                                style={{
+                                  background: `${series.color}0B`,
+                                  border: `1px solid ${series.color}18`,
+                                }}
+                              >
+                                <p className="text-[10px] font-semibold uppercase tracking-widest text-white/30">
+                                  Natrix noticed
+                                </p>
+                                <p className="mt-1 text-xs leading-relaxed text-white/55">
+                                  {makeInsight(series)}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -157,6 +156,17 @@ const STROKE_META: Record<string, { label: string; color: string; order: number 
   im:           { label: "IM",           color: "#F472B6", order: 4 },
   other:        { label: "Other",        color: "#94A3B8", order: 5 },
 };
+
+function getStrokeIconSrc(strokeKey: string) {
+  const icons: Record<string, string> = {
+    freestyle: "/icons/strokes/free.png",
+    backstroke: "/icons/strokes/back.png",
+    breaststroke: "/icons/strokes/breast.png",
+    butterfly: "/icons/strokes/fly.png",
+    im: "/icons/strokes/im.png",
+  };
+  return icons[strokeKey] ?? null;
+}
 
 function toShortEvent(event: string) {
   return canonicalEventName(event)
@@ -501,23 +511,44 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
               <button
                 type="button"
                 onClick={() => toggleStroke(sg.key)}
-                className="w-full px-4 pt-3 pb-3 flex items-center gap-2 transition hover:bg-white/5"
+                className="w-full px-4 py-3 flex items-center gap-3 text-left transition hover:bg-white/5"
               >
-                <div className="h-2 w-2 rounded-full flex-shrink-0" style={{ background: sg.color }} />
-               <p className="text-sm font-bold uppercase tracking-normal truncate min-w-0 flex-1" style={{ color: sg.color }}>
-                  {sg.label}
-                </p>
-                <p className="text-xs text-white/25 flex-shrink-0">
-                  {sg.events.length} event{sg.events.length === 1 ? "" : "s"}
-                </p>
+                {getStrokeIconSrc(sg.key) ? (
+                  <img
+                    src={getStrokeIconSrc(sg.key)!}
+                    alt={`${sg.label} icon`}
+                    className="h-11 w-11 flex-shrink-0 rounded-2xl object-cover"
+                  />
+                ) : (
+                  <div
+                    className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl text-xs font-bold"
+                    style={{ background: "rgba(255,255,255,0.06)", color: sg.color }}
+                  >
+                    {sg.label.slice(0, 2).toUpperCase()}
+                  </div>
+                )}
+
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-bold text-white">{sg.label}</p>
+                  <p className="mt-0.5 text-[11px] text-white/30">
+                    {sg.events.length} event{sg.events.length === 1 ? "" : "s"}
+                  </p>
+                </div>
+
                 {!isStrokeOpen && (
-                  <p className="ml-auto text-sm font-bold" style={{ color: "#FDE68A" }}>
+                  <p className="text-sm font-bold flex-shrink-0" style={{ color: "#FDE68A" }}>
                     {formatMs(sg.events[0]?.pb.time_ms)}
                   </p>
                 )}
-                <svg width="12" height="12" viewBox="0 0 14 14" fill="none"
-                  className="flex-shrink-0 text-white/20 transition-transform ml-1"
-                  style={{ transform: isStrokeOpen ? "rotate(90deg)" : "rotate(0deg)" }}>
+
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 14 14"
+                  fill="none"
+                  className="ml-1 flex-shrink-0 text-white/20 transition-transform"
+                  style={{ transform: isStrokeOpen ? "rotate(90deg)" : "rotate(0deg)" }}
+                >
                   <path d="M5 3L9 7L5 11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </button>
