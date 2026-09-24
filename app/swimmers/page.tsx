@@ -532,34 +532,95 @@ export default function SwimmersPage() {
             {followingOpen && (
               <>
                 {(clubs.length > 0 || schools.length > 0) && (
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => selectFilter("all", null)}
-                      className="rounded-full px-3 py-1.5 text-xs font-semibold"
-                      style={
-                        filterMode === "all"
-                          ? { background: "#168AE8", color: "white" }
-                          : { background: "rgba(255,255,255,0.10)", color: "rgba(255,255,255,0.6)" }
-                      }
+                  <div className="space-y-3">
+                    <div
+                      className="grid grid-cols-3 gap-1.5 rounded-2xl p-1.5"
+                      style={{
+                        background: "rgba(0,0,0,0.14)",
+                        border: "1px solid rgba(255,255,255,0.08)",
+                      }}
                     >
-                      All
-                    </button>
-                    {clubs.map((club) => (
                       <button
-                        key={club}
                         type="button"
-                        onClick={() => selectFilter("club", club)}
-                        className="rounded-full px-3 py-1.5 text-xs font-semibold"
+                        onClick={() => selectFilter("all", null)}
+                        className="rounded-xl px-3 py-2 text-xs font-semibold transition"
                         style={
-                          filterMode === "club" && filterValue === club
+                          filterMode === "all"
                             ? { background: "#168AE8", color: "white" }
-                            : { background: "rgba(255,255,255,0.10)", color: "rgba(255,255,255,0.6)" }
+                            : { background: "transparent", color: "rgba(255,255,255,0.55)" }
                         }
                       >
-                        {club}
+                        All
                       </button>
-                    ))}
+
+                      <button
+                        type="button"
+                        onClick={() => selectFilter("club", null)}
+                        disabled={clubs.length === 0}
+                        className="rounded-xl px-3 py-2 text-xs font-semibold transition disabled:opacity-30"
+                        style={
+                          filterMode === "club"
+                            ? { background: "#168AE8", color: "white" }
+                            : { background: "transparent", color: "rgba(255,255,255,0.55)" }
+                        }
+                      >
+                        Club
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => selectFilter("school", null)}
+                        disabled={schools.length === 0}
+                        className="rounded-xl px-3 py-2 text-xs font-semibold transition disabled:opacity-30"
+                        style={
+                          filterMode === "school"
+                            ? { background: "#168AE8", color: "white" }
+                            : { background: "transparent", color: "rgba(255,255,255,0.55)" }
+                        }
+                      >
+                        School
+                      </button>
+                    </div>
+
+                    {filterMode === "club" && (
+                      <div className="flex flex-wrap gap-2">
+                        {clubs.map((club) => (
+                          <button
+                            key={club}
+                            type="button"
+                            onClick={() => selectFilter("club", club)}
+                            className="rounded-full px-3 py-1.5 text-xs font-semibold"
+                            style={
+                              filterValue === club
+                                ? { background: "#168AE8", color: "white" }
+                                : { background: "rgba(255,255,255,0.10)", color: "rgba(255,255,255,0.6)" }
+                            }
+                          >
+                            {club}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {filterMode === "school" && (
+                      <div className="flex flex-wrap gap-2">
+                        {schools.map((schoolName) => (
+                          <button
+                            key={schoolName}
+                            type="button"
+                            onClick={() => selectFilter("school", schoolName)}
+                            className="rounded-full px-3 py-1.5 text-xs font-semibold"
+                            style={
+                              filterValue === schoolName
+                                ? { background: "#168AE8", color: "white" }
+                                : { background: "rgba(255,255,255,0.10)", color: "rgba(255,255,255,0.6)" }
+                            }
+                          >
+                            {schoolName}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
 
