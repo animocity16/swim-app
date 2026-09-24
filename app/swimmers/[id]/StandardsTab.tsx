@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import { canonicalEventName } from "@/lib/events";
@@ -60,6 +60,29 @@ function getStrokeColor(event: string): string {
   return "#FDE68A";
 }
 
+type StrokeKey = "free" | "back" | "breast" | "fly" | "im";
+
+const STROKES: Record<StrokeKey, { label: string; icon: string; color: string }> = {
+  free: { label: "Freestyle", icon: "/icons/strokes/free.png", color: "#38BDF8" },
+  back: { label: "Backstroke", icon: "/icons/strokes/back.png", color: "#A78BFA" },
+  breast: { label: "Breaststroke", icon: "/icons/strokes/breast.png", color: "#34D399" },
+  fly: { label: "Butterfly", icon: "/icons/strokes/fly.png", color: "#FB923C" },
+  im: { label: "IM", icon: "/icons/strokes/im.png", color: "#F472B6" },
+};
+
+function getStrokeKey(event: string): StrokeKey {
+  const e = event.toLowerCase();
+  if (e.includes("breast")) return "breast";
+  if (e.includes("back")) return "back";
+  if (e.includes("fly") || e.includes("butterfly")) return "fly";
+  if (e.includes("im") || e.includes("medley")) return "im";
+  return "free";
+}
+
+function eventDistance(event: string): number {
+  return Number(event.match(/\d+/)?.[0] ?? 0);
+}
+
 function QualProgressRing({ qualified, total }: { qualified: number; total: number }) {
   const r = 18;
   const circ = 2 * Math.PI * r;
@@ -92,7 +115,7 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
   const [pbMap, setPbMap] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
   const [expandedSet, setExpandedSet] = useState<number | null>(null);
-  const [expandedNoTime, setExpandedNoTime] = useState<Record<number, boolean>>({});
+  const [expandedStroke, setExpandedStroke] = useState<Record<string, boolean>>({});
 
   useEffect(() => { void load(); }, [swimmerId]);
 
@@ -220,18 +243,22 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
   return (
     <div className="space-y-3">
 
-      {/* Squad context hint */}
       {swimmerSquad && nextUpgradingSet && (
-        <p className="text-[10px] font-medium uppercase tracking-widest text-white/30 px-1">
+        <p className="px-1 text-[10px] font-medium uppercase tracking-widest text-white/30">
           Next target for <span className="text-white/50">{swimmerSquad} Squad</span>
         </p>
       )}
 
       {!nextUpgradingSet && upgradingSets.length > 0 && (
-        <div className="rounded-3xl p-4 text-center"
-          style={{ background: "rgba(110,231,183,0.05)", border: "1px solid rgba(110,231,183,0.15)" }}>
+        <div
+          className="rounded-3xl p-5 text-center"
+          style={{
+            background: "rgba(255,255,255,0.09)",
+            border: "1px solid rgba(110,231,183,0.22)",
+          }}
+        >
           <p className="text-sm font-semibold" style={{ color: "#6EE7B7" }}>🏆 Top of the ladder!</p>
-          <p className="text-xs text-white/40 mt-1">All upgrading standards completed.</p>
+          <p className="mt-1 text-xs text-white/45">All upgrading standards completed.</p>
         </div>
       )}
 
@@ -240,176 +267,259 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
         const isExpanded = expandedSet === set.id;
         const isComplete = qualified === total && total > 0;
 
-        // Split into events with a logged time vs. events never swum yet.
-        // Timed events are ranked by gap-to-standard (pb - qualifying_time_ms),
-        // ascending: already-qualified swims sit at the top (tightest margin
-        // first), then in-progress swims count down toward the ones furthest
-        // from upgrading. Never-swum events collapse into their own strip.
-        const timedItems = displayItems
-          .filter((item) => pbMap.get(`${canonicalEventName(item.event)}|${item.course}`) !== undefined)
-          .slice()
-          .sort((a, b) => {
-            const pbA = pbMap.get(`${canonicalEventName(a.event)}|${a.course}`)!;
-            const pbB = pbMap.get(`${canonicalEventName(b.event)}|${b.course}`)!;
-            const gapA = pbA - a.qualifying_time_ms;
-            const gapB = pbB - b.qualifying_time_ms;
-            return gapA - gapB;
-          });
+        const grouped = (Object.keys(STROKES) as StrokeKey[])
+          .map((key) => {
+            const strokeItems = displayItems
+              .filter((item) => getStrokeKey(item.event) === key)
+              .slice()
+              .sort((a, b) => {
+                const aPb = pbMap.get(`${canonicalEventName(a.event)}|${a.course}`);
+                const bPb = pbMap.get(`${canonicalEventName(b.event)}|${b.course}`);
 
-        const noTimeItems = displayItems
-          .filter((item) => pbMap.get(`${canonicalEventName(item.event)}|${item.course}`) === undefined)
-          .slice()
-          .sort((a, b) => a.event.localeCompare(b.event));
+                if (aPb !== undefined && bPb === undefined) return -1;
+                if (aPb === undefined && bPb !== undefined) return 1;
 
-        const isNoTimeExpanded = !!expandedNoTime[set.id];
+                if (aPb !== undefined && bPb !== undefined) {
+                  const aQualified = aPb <= a.qualifying_time_ms;
+                  const bQualified = bPb <= b.qualifying_time_ms;
+                  if (aQualified !== bQualified) return aQualified ? -1 : 1;
+                  const gapA = aPb - a.qualifying_time_ms;
+                  const gapB = bPb - b.qualifying_time_ms;
+                  if (gapA !== gapB) return gapA - gapB;
+                }
+
+                const dist = eventDistance(a.event) - eventDistance(b.event);
+                if (dist !== 0) return dist;
+                return a.course.localeCompare(b.course);
+              });
+
+            const strokeQualified = strokeItems.filter((item) => {
+              const pb = pbMap.get(`${canonicalEventName(item.event)}|${item.course}`);
+              return pb !== undefined && pb <= item.qualifying_time_ms;
+            }).length;
+
+            const strokeAttempted = strokeItems.filter((item) =>
+              pbMap.get(`${canonicalEventName(item.event)}|${item.course}`) !== undefined
+            ).length;
+
+            return {
+              key,
+              meta: STROKES[key],
+              items: strokeItems,
+              qualified: strokeQualified,
+              attempted: strokeAttempted,
+            };
+          })
+          .filter((group) => group.items.length > 0);
 
         return (
           <div key={set.id}>
             <button
               type="button"
               onClick={() => setExpandedSet(isExpanded ? null : set.id)}
-              className="w-full text-left rounded-3xl p-4 transition"
+              className="w-full rounded-3xl p-4 text-left transition"
               style={{
                 background: isComplete
-                  ? "linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(6,40,65,0.4) 100%)"
-                  : "linear-gradient(135deg, rgba(6,40,65,0.5) 0%, rgba(6,40,65,0.3) 100%)",
+                  ? "rgba(255,255,255,0.11)"
+                  : "rgba(255,255,255,0.085)",
                 border: isComplete
                   ? "1px solid rgba(110,231,183,0.25)"
-                  : "1px solid rgba(255,255,255,0.08)",
+                  : "1px solid rgba(255,255,255,0.14)",
+                boxShadow: isExpanded ? "0 18px 42px rgba(0,0,0,0.12)" : "none",
               }}
             >
               <div className="flex items-center gap-3">
                 <QualProgressRing qualified={qualified} total={total} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-medium uppercase tracking-widest text-white/35 mb-0.5 truncate">
+
+                <div className="min-w-0 flex-1">
+                  <p className="mb-0.5 truncate text-[10px] font-medium uppercase tracking-widest text-white/35">
                     {set.type === "UPGRADING" ? "Upgrading" : "Meet Standard"}
                   </p>
-                  <p className="text-sm font-bold text-white truncate">{set.name}</p>
+                  <p className="truncate text-base font-bold text-white">{set.name}</p>
+
                   {total === 0 ? (
-                    <p className="text-xs text-white/30 mt-0.5">No matching events</p>
+                    <p className="mt-0.5 text-xs text-white/30">No matching events</p>
                   ) : isComplete ? (
-                    <p className="text-xs mt-0.5" style={{ color: "#6EE7B7" }}>All {total} events qualified 🎉</p>
+                    <p className="mt-0.5 text-xs" style={{ color: "#6EE7B7" }}>
+                      All {total} events qualified 🎉
+                    </p>
                   ) : (
-                    <p className="text-xs text-white/40 mt-0.5">
+                    <p className="mt-0.5 text-xs text-white/45">
                       {qualified} qualified · {attempted - qualified} in progress · {total - attempted} not yet swum
                     </p>
                   )}
                 </div>
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="flex-shrink-0 transition-transform"
-                  style={{ color: "rgba(255,255,255,0.25)", transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)" }}>
+
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  className="flex-shrink-0 transition-transform"
+                  style={{
+                    color: "rgba(255,255,255,0.28)",
+                    transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)",
+                  }}
+                >
                   <path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </div>
             </button>
 
             {isExpanded && displayItems.length > 0 && (
-              <div className="mt-1 rounded-3xl overflow-hidden"
-                style={{ border: "1px solid rgba(255,255,255,0.07)", background: "rgba(0,10,30,0.4)" }}>
-
-                {timedItems.map((item, idx) => {
-                  const pb = pbMap.get(`${canonicalEventName(item.event)}|${item.course}`)!;
-                  const hasQual = pb <= item.qualifying_time_ms;
-                  const strokeColor = getStrokeColor(item.event);
-                  const gapMs = !hasQual ? pb - item.qualifying_time_ms : null;
+              <div className="mt-3 space-y-3">
+                {grouped.map((group) => {
+                  const strokeKey = `${set.id}:${group.key}`;
+                  const strokeOpen = !!expandedStroke[strokeKey];
 
                   return (
-                    <div key={item.id} className="flex items-center gap-3 px-4 py-3"
-                      style={{ borderTop: idx === 0 ? "none" : "1px solid rgba(255,255,255,0.05)" }}>
+                    <div
+                      key={group.key}
+                      className="overflow-hidden rounded-3xl"
+                      style={{
+                        background: strokeOpen
+                          ? "rgba(255,255,255,0.095)"
+                          : "rgba(255,255,255,0.055)",
+                        border: strokeOpen
+                          ? "1px solid rgba(255,255,255,0.16)"
+                          : "1px solid rgba(255,255,255,0.09)",
+                        boxShadow: strokeOpen ? "0 16px 38px rgba(0,0,0,0.10)" : "none",
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedStroke((prev) => ({
+                            ...prev,
+                            [strokeKey]: !prev[strokeKey],
+                          }))
+                        }
+                        className="flex w-full items-center gap-3 px-4 py-4 text-left"
+                      >
+                        <img
+                          src={group.meta.icon}
+                          alt=""
+                          className="h-11 w-11 flex-shrink-0 rounded-xl object-cover"
+                        />
 
-                      {/* Status dot */}
-                      <div className="flex-shrink-0 h-2 w-2 rounded-full" style={{
-                        background: hasQual ? "#6EE7B7" : "#D97706",
-                      }} />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-bold text-white">{group.meta.label}</p>
+                          <p className="mt-0.5 text-xs text-white/35">
+                            {group.items.length} event{group.items.length === 1 ? "" : "s"} · {group.attempted} swum
+                          </p>
+                        </div>
 
-                      {/* Event name — text-sm matches rest of app */}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold truncate" style={{ color: strokeColor }}>
-                          {item.event}
-                        </p>
-                        <p className="text-[10px] text-white/30">{item.course}</p>
-                      </div>
+                        <div className="text-right">
+                          <p className="text-[10px] uppercase tracking-wide text-white/25">Qualified</p>
+                          <p
+                            className="mt-0.5 text-sm font-bold"
+                            style={{ color: group.qualified > 0 ? "#6EE7B7" : "rgba(255,255,255,0.48)" }}
+                          >
+                            {group.qualified}/{group.items.length}
+                          </p>
+                        </div>
 
-                      {/* Standard time */}
-                      <div className="text-right flex-shrink-0">
-                        <p className="text-[10px] text-white/30 mb-0.5">Standard</p>
-                        <p className="text-sm font-semibold text-white/50">
-                          {formatMs(item.qualifying_time_ms)}
-                        </p>
-                      </div>
+                        <svg
+                          width="15"
+                          height="15"
+                          viewBox="0 0 16 16"
+                          fill="none"
+                          className="flex-shrink-0 transition-transform"
+                          style={{
+                            color: "rgba(255,255,255,0.28)",
+                            transform: strokeOpen ? "rotate(90deg)" : "rotate(0deg)",
+                          }}
+                        >
+                          <path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </button>
 
-                      {/* PB / gap — text-base font-bold for hero time, matches dashboard */}
-                      <div className="text-right flex-shrink-0 w-20">
-                        {hasQual ? (
-                          <>
-                            <p className="text-[10px] font-semibold mb-0.5" style={{ color: "#6EE7B7" }}>✓ Qualified</p>
-                            <p className="text-base font-bold" style={{ color: "#6EE7B7" }}>
-                              {formatMs(pb)}
-                            </p>
-                          </>
-                        ) : (
-                          <>
-                            <p className="text-[10px] text-white/30 mb-0.5">PB</p>
-                            <p className="text-sm font-semibold text-white">{formatMs(pb)}</p>
-                            {gapMs !== null && (
-                              <p className="text-[10px] mt-0.5" style={{ color: "#D97706" }}>
-                                {formatGapSeconds(gapMs)}s away
-                              </p>
-                            )}
-                          </>
-                        )}
-                      </div>
+                      {strokeOpen && (
+                        <div
+                          style={{
+                            borderTop: "1px solid rgba(255,255,255,0.08)",
+                            background: "rgba(255,255,255,0.025)",
+                          }}
+                        >
+                          {group.items.map((item, idx) => {
+                            const pb = pbMap.get(`${canonicalEventName(item.event)}|${item.course}`);
+                            const hasTime = pb !== undefined;
+                            const hasQual = hasTime && pb <= item.qualifying_time_ms;
+                            const gapMs = hasTime && !hasQual ? pb - item.qualifying_time_ms : null;
+                            const strokeColor = getStrokeColor(item.event);
+
+                            return (
+                              <div
+                                key={item.id}
+                                className="flex items-center gap-3 px-4 py-3.5"
+                                style={{
+                                  borderTop: idx === 0 ? "none" : "1px solid rgba(255,255,255,0.06)",
+                                }}
+                              >
+                                <div
+                                  className="h-2 w-2 flex-shrink-0 rounded-full"
+                                  style={{
+                                    background: hasQual
+                                      ? "#6EE7B7"
+                                      : hasTime
+                                        ? "#D97706"
+                                        : "rgba(255,255,255,0.16)",
+                                  }}
+                                />
+
+                                <div className="min-w-0 flex-1">
+                                  <p className="truncate text-sm font-semibold" style={{ color: strokeColor }}>
+                                    {item.event}
+                                  </p>
+                                  <p className="text-[10px] text-white/30">{item.course}</p>
+                                </div>
+
+                                <div className="flex-shrink-0 text-right">
+                                  <p className="mb-0.5 text-[10px] text-white/28">Standard</p>
+                                  <p className="text-sm font-semibold text-white/55">
+                                    {formatMs(item.qualifying_time_ms)}
+                                  </p>
+                                </div>
+
+                                <div className="w-20 flex-shrink-0 text-right">
+                                  {hasQual && pb !== undefined ? (
+                                    <>
+                                      <p className="mb-0.5 text-[10px] font-semibold" style={{ color: "#6EE7B7" }}>
+                                        ✓ Qualified
+                                      </p>
+                                      <p className="text-sm font-bold" style={{ color: "#6EE7B7" }}>
+                                        {formatMs(pb)}
+                                      </p>
+                                    </>
+                                  ) : hasTime && pb !== undefined ? (
+                                    <>
+                                      <p className="mb-0.5 text-[10px] text-white/28">PB</p>
+                                      <p className="text-sm font-bold text-white">{formatMs(pb)}</p>
+                                      {gapMs !== null && (
+                                        <p className="mt-0.5 text-[10px]" style={{ color: "#D97706" }}>
+                                          {formatGapSeconds(gapMs)}s away
+                                        </p>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <p className="text-[10px] text-white/25">Not swum</p>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
 
-                {noTimeItems.length > 0 && (
-                  <div style={{ borderTop: timedItems.length > 0 ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setExpandedNoTime((prev) => ({ ...prev, [set.id]: !prev[set.id] }))
-                      }
-                      className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
-                    >
-                      <p className="text-xs font-semibold text-white/40">
-                        {noTimeItems.length} event{noTimeItems.length === 1 ? "" : "s"} with no time yet
-                      </p>
-                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className="flex-shrink-0 transition-transform"
-                        style={{ color: "rgba(255,255,255,0.25)", transform: isNoTimeExpanded ? "rotate(90deg)" : "rotate(0deg)" }}>
-                        <path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    </button>
-
-                    {isNoTimeExpanded && noTimeItems.map((item, idx) => {
-                      const strokeColor = getStrokeColor(item.event);
-                      return (
-                        <div key={item.id} className="flex items-center gap-3 px-4 py-3"
-                          style={{ borderTop: idx === 0 ? "1px solid rgba(255,255,255,0.05)" : "1px solid rgba(255,255,255,0.05)" }}>
-                          <div className="flex-shrink-0 h-2 w-2 rounded-full" style={{ background: "rgba(255,255,255,0.15)" }} />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold truncate" style={{ color: strokeColor }}>
-                              {item.event}
-                            </p>
-                            <p className="text-[10px] text-white/30">{item.course}</p>
-                          </div>
-                          <div className="text-right flex-shrink-0">
-                            <p className="text-[10px] text-white/30 mb-0.5">Standard</p>
-                            <p className="text-sm font-semibold text-white/50">
-                              {formatMs(item.qualifying_time_ms)}
-                            </p>
-                          </div>
-                          <div className="text-right flex-shrink-0 w-20">
-                            <p className="text-[10px] text-white/20">Not swum</p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                <div className="px-4 py-3" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-                  <Link href={`/standards/${set.id}`} className="text-[10px] font-semibold"
-                    style={{ color: "rgba(253,230,138,0.5)" }}>
+                <div className="px-1 pt-1">
+                  <Link
+                    href={`/standards/${set.id}`}
+                    className="text-[10px] font-semibold"
+                    style={{ color: "rgba(253,230,138,0.58)" }}
+                  >
                     Edit this standard set →
                   </Link>
                 </div>
@@ -417,11 +527,21 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
             )}
 
             {isExpanded && displayItems.length === 0 && (
-              <div className="mt-1 rounded-3xl p-4 text-center"
-                style={{ border: "1px solid rgba(255,255,255,0.07)", background: "rgba(0,10,30,0.4)" }}>
-                <p className="text-xs text-white/30">No events in this standard set match this swimmer&apos;s age / gender.</p>
-                <Link href={`/standards/${set.id}`} className="text-[10px] font-semibold mt-2 block"
-                  style={{ color: "rgba(253,230,138,0.5)" }}>
+              <div
+                className="mt-3 rounded-3xl p-4 text-center"
+                style={{
+                  border: "1px solid rgba(255,255,255,0.09)",
+                  background: "rgba(255,255,255,0.055)",
+                }}
+              >
+                <p className="text-xs text-white/35">
+                  No events in this standard set match this swimmer&apos;s age / gender.
+                </p>
+                <Link
+                  href={`/standards/${set.id}`}
+                  className="mt-2 block text-[10px] font-semibold"
+                  style={{ color: "rgba(253,230,138,0.58)" }}
+                >
                   Edit standard set →
                 </Link>
               </div>
