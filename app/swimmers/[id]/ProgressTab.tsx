@@ -223,8 +223,8 @@ function ProgressChart({
       <div
         className="overflow-hidden rounded-2xl"
         style={{
-          background: "rgba(0,10,30,0.32)",
-          border: "1px solid rgba(255,255,255,0.07)",
+          background: "rgba(255,255,255,0.055)",
+          border: "1px solid rgba(255,255,255,0.09)",
         }}
       >
         <svg
@@ -500,8 +500,9 @@ export default function ProgressTab({ swimmerId, swimmerName }: Props) {
       <div
         className="rounded-3xl p-4"
         style={{
-          background: "rgba(255,255,255,0.055)",
-          border: "1px solid rgba(255,255,255,0.10)",
+          background: "rgba(255,255,255,0.085)",
+          border: "1px solid rgba(255,255,255,0.14)",
+          boxShadow: "0 18px 40px rgba(0,0,0,0.10)",
         }}
       >
         <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">
@@ -563,11 +564,14 @@ export default function ProgressTab({ swimmerId, swimmerName }: Props) {
                 className="overflow-hidden rounded-3xl"
                 style={{
                   background: strokeOpen
-                    ? "rgba(4,31,64,0.60)"
-                    : "rgba(255,255,255,0.045)",
+                    ? "rgba(255,255,255,0.095)"
+                    : "rgba(255,255,255,0.055)",
                   border: strokeOpen
-                    ? "1px solid rgba(125,211,252,0.20)"
-                    : "1px solid rgba(255,255,255,0.08)",
+                    ? "1px solid rgba(255,255,255,0.17)"
+                    : "1px solid rgba(255,255,255,0.09)",
+                  boxShadow: strokeOpen
+                    ? "0 18px 42px rgba(0,0,0,0.12)"
+                    : "none",
                 }}
               >
                 <button
@@ -610,8 +614,11 @@ export default function ProgressTab({ swimmerId, swimmerName }: Props) {
 
                 {strokeOpen && (
                   <div
-                    className="space-y-2 px-3 pb-3"
-                    style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
+                    className="space-y-2.5 px-3 pb-3"
+                    style={{
+                      borderTop: "1px solid rgba(255,255,255,0.08)",
+                      background: "rgba(255,255,255,0.025)",
+                    }}
                   >
                     <div className="pt-3" />
 
@@ -626,11 +633,14 @@ export default function ProgressTab({ swimmerId, swimmerName }: Props) {
                           className="overflow-hidden rounded-2xl"
                           style={{
                             background: isOpen
-                              ? "rgba(0,15,38,0.60)"
-                              : "rgba(255,255,255,0.035)",
+                              ? "rgba(255,255,255,0.095)"
+                              : "rgba(255,255,255,0.055)",
                             border: isOpen
-                              ? `1px solid ${series.color}28`
-                              : "1px solid rgba(255,255,255,0.065)",
+                              ? `1px solid ${series.color}38`
+                              : "1px solid rgba(255,255,255,0.09)",
+                            boxShadow: isOpen
+                              ? "0 14px 34px rgba(0,0,0,0.10)"
+                              : "none",
                           }}
                         >
                           <button
@@ -680,12 +690,18 @@ export default function ProgressTab({ swimmerId, swimmerName }: Props) {
                           {isOpen && (
                             <div
                               className="space-y-4 px-4 pb-4"
-                              style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
+                              style={{
+                                borderTop: "1px solid rgba(255,255,255,0.08)",
+                                background: "rgba(255,255,255,0.025)",
+                              }}
                             >
                               <div className="grid grid-cols-3 gap-2 pt-4">
                                 <div
                                   className="rounded-2xl p-3"
-                                  style={{ background: "rgba(255,255,255,0.04)" }}
+                                  style={{
+                                    background: "rgba(255,255,255,0.075)",
+                                    border: "1px solid rgba(255,255,255,0.07)",
+                                  }}
                                 >
                                   <p className="text-[10px] uppercase tracking-wide text-white/25">
                                     First
@@ -697,7 +713,10 @@ export default function ProgressTab({ swimmerId, swimmerName }: Props) {
 
                                 <div
                                   className="rounded-2xl p-3"
-                                  style={{ background: "rgba(255,255,255,0.04)" }}
+                                  style={{
+                                    background: "rgba(255,255,255,0.075)",
+                                    border: "1px solid rgba(255,255,255,0.07)",
+                                  }}
                                 >
                                   <p className="text-[10px] uppercase tracking-wide text-white/25">
                                     PB
@@ -709,7 +728,10 @@ export default function ProgressTab({ swimmerId, swimmerName }: Props) {
 
                                 <div
                                   className="rounded-2xl p-3"
-                                  style={{ background: "rgba(255,255,255,0.04)" }}
+                                  style={{
+                                    background: "rgba(255,255,255,0.075)",
+                                    border: "1px solid rgba(255,255,255,0.07)",
+                                  }}
                                 >
                                   <p className="text-[10px] uppercase tracking-wide text-white/25">
                                     Improved
@@ -756,8 +778,8 @@ export default function ProgressTab({ swimmerId, swimmerName }: Props) {
                               <div
                                 className="rounded-2xl px-4 py-3"
                                 style={{
-                                  background: `${series.color}0B`,
-                                  border: `1px solid ${series.color}18`,
+                                  background: "rgba(255,255,255,0.055)",
+                                  border: `1px solid ${series.color}24`,
                                 }}
                               >
                                 <p className="text-[10px] font-semibold uppercase tracking-widest text-white/30">
