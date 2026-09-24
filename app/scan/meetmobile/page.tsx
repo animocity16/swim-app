@@ -204,12 +204,16 @@ function SlotButton({
   return (
     <div
       onClick={() => inputRef.current?.click()}
-      className="relative flex min-h-[120px] cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-white/20 bg-black/30 p-2 text-center transition hover:border-amber-400/50 hover:bg-white/5"
+      className="relative flex min-h-[120px] cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed p-2 text-center transition"
+      style={{
+        background: preview ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.055)",
+        borderColor: required && !preview ? "rgba(22,138,232,0.38)" : "rgba(255,255,255,0.16)",
+      }}
     >
       <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={onChange} />
       {required && !preview && (
         <span className="absolute right-1.5 top-1.5 rounded-full px-1.5 py-0.5 text-[8px] uppercase tracking-wider"
-          style={{ background: "rgba(186,117,23,0.2)", color: "#EF9F27" }}>
+          style={{ background: "rgba(22,138,232,0.16)", color: "#7DD3FC" }}>
           Required
         </span>
       )}
@@ -236,7 +240,7 @@ function SourcePicker({ source, onChange }: { source: Source; onChange: (s: Sour
   return (
     <div
       className="grid grid-cols-2 gap-1.5 rounded-2xl p-1.5"
-      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+      style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)" }}
     >
       {options.map((opt) => {
         const active = source === opt.value;
@@ -247,7 +251,7 @@ function SourcePicker({ source, onChange }: { source: Source; onChange: (s: Sour
             onClick={() => onChange(opt.value)}
             className="flex flex-col items-center justify-center gap-0.5 rounded-xl py-2.5 text-xs font-semibold transition"
             style={active
-              ? { background: "#D97706", color: "#fff", boxShadow: "0 2px 8px rgba(217,119,6,0.3)" }
+              ? { background: "#168AE8", color: "#fff", boxShadow: "0 10px 24px rgba(22,138,232,0.20)" }
               : { background: "transparent", color: "rgba(255,255,255,0.45)" }}
           >
             <span className="flex items-center gap-1.5">
@@ -937,8 +941,9 @@ export default function ScanPage() {
         {/* Header */}
         <div className="flex items-start justify-between pt-2">
           <div>
-            <p className="text-[10px] font-medium uppercase tracking-widest" style={{ color: "#BA7517" }}>SwimScan</p>
-            <h1 className="mt-1 text-3xl font-bold tracking-tight text-white">Add results</h1>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-white/35">Natrix Scan</p>
+            <h1 className="mt-2 text-4xl font-bold tracking-tight text-white">Add results</h1>
+            <p className="mt-2 text-sm text-white/45">Import meet results without typing them in by hand.</p>
           </div>
           {source === "screenshot" && step === "idle" && primarySwimmers.length > 0 && (
             <button type="button" onClick={() => setShowInfo((v) => !v)}
@@ -971,7 +976,7 @@ export default function ScanPage() {
                 <p className="text-base font-semibold text-white">No swimmers added yet</p>
                 <p className="mt-1 text-sm text-white/40">Add a swimmer in My Kids first, or use the Spreadsheet tab to bulk-import.</p>
                 <button type="button" onClick={() => router.push("/swimmers")}
-                  className="mt-4 rounded-2xl px-5 py-2.5 text-sm font-semibold text-white" style={{ background: "#D97706" }}>
+                  className="mt-4 rounded-2xl px-5 py-2.5 text-sm font-semibold text-white" style={{ background: "#168AE8" }}>
                   Go to My Kids
                 </button>
               </div>
@@ -1005,8 +1010,8 @@ export default function ScanPage() {
                 )}
 
                 {/* ── Meet course toggle ──────────────────────────────── */}
-                <div className="rounded-2xl p-3"
-                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                <div className="rounded-3xl p-4"
+                  style={{ background: "rgba(255,255,255,0.075)", border: "1px solid rgba(255,255,255,0.12)" }}>
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-xs font-semibold text-white/70">Meet course</p>
@@ -1021,7 +1026,7 @@ export default function ScanPage() {
                           onClick={() => setMeetCourse(c)}
                           className="px-4 py-2 text-sm font-bold transition"
                           style={meetCourse === c
-                            ? { background: "#D97706", color: "#fff" }
+                            ? { background: "#168AE8", color: "#fff" }
                             : { background: "transparent", color: "rgba(255,255,255,0.4)" }}
                         >
                           {c}
@@ -1046,7 +1051,10 @@ export default function ScanPage() {
                 </div>
                 <button type="button" onClick={handleScan} disabled={!file1}
                   className="w-full rounded-2xl py-4 text-lg font-bold text-white transition disabled:opacity-40"
-                  style={{ background: file1 ? "#D97706" : "rgba(255,255,255,0.1)" }}>
+                  style={{
+                    background: file1 ? "#168AE8" : "rgba(255,255,255,0.08)",
+                    boxShadow: file1 ? "0 12px 28px rgba(22,138,232,0.20)" : "none",
+                  }}>
                   Scan
                 </button>
               </div>
@@ -1058,7 +1066,7 @@ export default function ScanPage() {
                 <p className="text-center text-lg font-semibold text-white">Scanning… {Math.round(progress)}%</p>
                 <div className="h-2 overflow-hidden rounded-full bg-white/10">
                   <div className="h-full rounded-full transition-all duration-200"
-                    style={{ width: `${progress}%`, background: "#D97706" }} />
+                    style={{ width: `${progress}%`, background: "#168AE8" }} />
                 </div>
                 <p className="text-center text-sm text-white/40">Reading screenshot</p>
               </div>

@@ -103,12 +103,16 @@ function SlotButton({
   return (
     <div
       onClick={() => inputRef.current?.click()}
-      className="relative flex min-h-[120px] cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-white/20 bg-black/30 p-2 text-center transition hover:border-amber-400/50 hover:bg-white/5"
+      className="relative flex min-h-[120px] cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed p-2 text-center transition"
+      style={{
+        background: preview ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.055)",
+        borderColor: required && !preview ? "rgba(22,138,232,0.38)" : "rgba(255,255,255,0.16)",
+      }}
     >
       <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={onChange} />
       {required && !preview && (
         <span className="absolute right-1.5 top-1.5 rounded-full px-1.5 py-0.5 text-[8px] uppercase tracking-wider"
-          style={{ background: "rgba(186,117,23,0.2)", color: "#EF9F27" }}>
+          style={{ background: "rgba(22,138,232,0.16)", color: "#7DD3FC" }}>
           Required
         </span>
       )}
@@ -489,11 +493,11 @@ export default function SwimCloudScanPage() {
     <div className="shell">
       <div className="container-app space-y-5 pb-28">
         <div className="pt-2">
-          <p className="text-[10px] font-medium uppercase tracking-widest" style={{ color: "#BA7517" }}>
-            SwimScan
+          <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-white/35">
+            Natrix Scan
           </p>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight text-white">SwimCloud</h1>
-          <p className="mt-1 text-xs text-white/40">
+          <h1 className="mt-2 text-4xl font-bold tracking-tight text-white">SwimCloud</h1>
+          <p className="mt-2 text-sm leading-relaxed text-white/45">
             {subMode === "rankings"
               ? "Screenshot an event rankings page and we'll pull out every swimmer's time."
               : "Screenshot a swimmer's profile page and we'll pull out every event."}
@@ -502,8 +506,11 @@ export default function SwimCloudScanPage() {
 
         {step !== "done" && (
           <>
-            <div className="space-y-1.5">
-              <p className="text-[11px] font-semibold text-white/50">Scan type</p>
+            <div
+              className="space-y-3 rounded-3xl p-4"
+              style={{ background: "rgba(255,255,255,0.075)", border: "1px solid rgba(255,255,255,0.12)" }}
+            >
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">Scan type</p>
               <div className="flex gap-2">
                 {([
                   { key: "rankings", label: "Multiple swimmers" },
@@ -515,8 +522,9 @@ export default function SwimCloudScanPage() {
                     onClick={() => setSubMode(opt.key)}
                     className="flex-1 rounded-xl py-2.5 text-sm font-semibold transition"
                     style={{
-                      background: subMode === opt.key ? "#D97706" : "rgba(255,255,255,0.06)",
-                      color: subMode === opt.key ? "#1C1204" : "rgba(255,255,255,0.5)",
+                      background: subMode === opt.key ? "#168AE8" : "rgba(255,255,255,0.055)",
+                      border: subMode === opt.key ? "1px solid rgba(125,211,252,0.28)" : "1px solid rgba(255,255,255,0.08)",
+                      color: subMode === opt.key ? "#fff" : "rgba(255,255,255,0.5)",
                     }}
                   >
                     {opt.label}
@@ -525,8 +533,11 @@ export default function SwimCloudScanPage() {
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <p className="text-[11px] font-semibold text-white/50">Course</p>
+            <div
+              className="space-y-3 rounded-3xl p-4"
+              style={{ background: "rgba(255,255,255,0.075)", border: "1px solid rgba(255,255,255,0.12)" }}
+            >
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">Course</p>
               <div className="flex gap-2">
                 {(["LCM", "SCM"] as MeetCourse[]).map((c) => (
                   <button
@@ -535,8 +546,9 @@ export default function SwimCloudScanPage() {
                     onClick={() => setMeetCourse(c)}
                     className="flex-1 rounded-xl py-2.5 text-sm font-semibold transition"
                     style={{
-                      background: meetCourse === c ? "#D97706" : "rgba(255,255,255,0.06)",
-                      color: meetCourse === c ? "#1C1204" : "rgba(255,255,255,0.5)",
+                      background: meetCourse === c ? "#168AE8" : "rgba(255,255,255,0.055)",
+                      border: meetCourse === c ? "1px solid rgba(125,211,252,0.28)" : "1px solid rgba(255,255,255,0.08)",
+                      color: meetCourse === c ? "#fff" : "rgba(255,255,255,0.5)",
                     }}
                   >
                     {c}
@@ -557,7 +569,10 @@ export default function SwimCloudScanPage() {
               Add more slots if the page scrolls past what fits in one screenshot.
             </p>
             {subMode === "profile" && (
-              <p className="rounded-xl border border-amber-400/20 bg-amber-400/5 px-3 py-2 text-[10px] text-amber-200/70">
+              <p
+                className="rounded-2xl px-4 py-3 text-[11px] leading-relaxed text-white/55"
+                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)" }}
+              >
                 💡 Tip: scroll down a touch before you screenshot, so the first event row isn't
                 sitting right against the swimmer's name and photo. A little space above it makes
                 that first row read much more reliably.
@@ -569,7 +584,11 @@ export default function SwimCloudScanPage() {
               disabled={!file1 || step === "scanning"}
               onClick={handleScan}
               className="w-full rounded-2xl py-4 text-base font-semibold transition disabled:opacity-40"
-              style={{ background: "#D97706", color: "#1C1204" }}
+              style={{
+                background: file1 ? "#168AE8" : "rgba(255,255,255,0.08)",
+                color: "#fff",
+                boxShadow: file1 ? "0 12px 28px rgba(22,138,232,0.20)" : "none",
+              }}
             >
               {step === "scanning" ? `Scanning… ${Math.round(progress)}%` : "Scan"}
             </button>
