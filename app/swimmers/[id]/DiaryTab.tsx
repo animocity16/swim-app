@@ -20,17 +20,21 @@ type TrainingRow = {
 };
 
 const STROKES = [
-  { key: "Free", label: "Free", color: "#38BDF8" },
-  { key: "Back", label: "Back", color: "#A78BFA" },
-  { key: "Breast", label: "Breast", color: "#34D399" },
-  { key: "Fly", label: "Fly", color: "#FB923C" },
-  { key: "IM", label: "IM", color: "#F472B6" },
+  { key: "Free", label: "Free", color: "#38BDF8", icon: "/icons/strokes/free.png" },
+  { key: "Back", label: "Back", color: "#A78BFA", icon: "/icons/strokes/back.png" },
+  { key: "Breast", label: "Breast", color: "#34D399", icon: "/icons/strokes/breast.png" },
+  { key: "Fly", label: "Fly", color: "#FB923C", icon: "/icons/strokes/fly.png" },
+  { key: "IM", label: "IM", color: "#F472B6", icon: "/icons/strokes/im.png" },
 ];
 
 const DISTANCES = [25, 50, 100, 200, 400, 800, 1500];
 
 function strokeColor(stroke: string) {
   return STROKES.find((s) => s.key === stroke)?.color ?? "#94A3B8";
+}
+
+function strokeIcon(stroke: string) {
+  return STROKES.find((s) => s.key === stroke)?.icon ?? "/icons/strokes/free.png";
 }
 
 function formatMs(ms?: number | null) {
@@ -198,108 +202,230 @@ export default function DiaryTab({ swimmerId, swimmerName = "Swimmer" }: Props) 
 
   const sorted = useMemo(() => rows, [rows]);
 
-  if (loading) return <div className="py-4 text-center text-sm text-white/40">Loading diary…</div>;
+  if (loading) {
+    return (
+      <div
+        className="rounded-3xl py-8 text-center text-sm text-white/45"
+        style={{
+          background: "rgba(255,255,255,0.07)",
+          border: "1px solid rgba(255,255,255,0.11)",
+        }}
+      >
+        Loading diary…
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">
-          {rows.length} entr{rows.length === 1 ? "y" : "ies"}
-        </p>
+      <div className="flex items-end justify-between gap-4 px-1">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-white/30">
+            Training diary
+          </p>
+          <p className="mt-1 text-sm text-white/45">
+            {rows.length} entr{rows.length === 1 ? "y" : "ies"} logged
+          </p>
+        </div>
+
         <button
           type="button"
           onClick={() => setShowAddForm((v) => !v)}
-          className="rounded-2xl border px-3 py-1.5 text-xs font-semibold transition"
+          className="rounded-2xl px-4 py-2.5 text-sm font-semibold transition"
           style={{
-            background: showAddForm ? "rgba(217,119,6,0.2)" : "rgba(255,255,255,0.05)",
-            border: "1px solid rgba(255,255,255,0.12)",
-            color: showAddForm ? "#FDE68A" : "rgba(255,255,255,0.5)",
+            background: showAddForm ? "rgba(255,255,255,0.10)" : "#168AE8",
+            border: showAddForm
+              ? "1px solid rgba(255,255,255,0.14)"
+              : "1px solid rgba(22,138,232,0.22)",
+            color: showAddForm ? "rgba(255,255,255,0.72)" : "#fff",
+            boxShadow: showAddForm ? "none" : "0 10px 24px rgba(22,138,232,0.18)",
           }}
         >
           {showAddForm ? "Cancel" : "+ Log time"}
         </button>
       </div>
 
-      <p className="text-[11px] text-white/35 leading-relaxed">
-        Practice times logged by you or {swimmerName}. Kept separate from meet results, PBs, and standards.
-      </p>
+      <div
+        className="rounded-3xl px-5 py-4"
+        style={{
+          background: "rgba(255,255,255,0.07)",
+          border: "1px solid rgba(255,255,255,0.11)",
+        }}
+      >
+        <p className="text-xs leading-relaxed text-white/45">
+          Practice times logged by you or {swimmerName}. They stay separate from meet results, PBs, and standards.
+        </p>
+      </div>
 
       {loadError && (
-        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3">
-          <p className="text-xs text-red-300">Couldn't load diary: {loadError}</p>
+        <div
+          className="rounded-3xl px-4 py-3"
+          style={{
+            background: "rgba(239,68,68,0.08)",
+            border: "1px solid rgba(239,68,68,0.18)",
+          }}
+        >
+          <p className="text-xs text-red-300">Couldn&apos;t load diary: {loadError}</p>
         </div>
       )}
 
       {/* Add form */}
       {showAddForm && (
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-3">
-          <div className="grid grid-cols-2 gap-2">
-            <select value={newDistance} onChange={(e) => setNewDistance(Number(e.target.value))} className="input">
-              {DISTANCES.map((d) => <option key={d} value={d}>{d}m</option>)}
-            </select>
-            <input value={newTime} onChange={(e) => setNewTime(e.target.value)}
-              placeholder="35.04 or 1:12.33" className="input" />
-          </div>
-
-          <div>
-            <p className="text-[10px] text-white/30 mb-2 uppercase tracking-wider">Stroke</p>
-            <div className="flex flex-wrap gap-1.5">
-              {STROKES.map((s) => (
-                <button
-                  key={s.key}
-                  type="button"
-                  onClick={() => setNewStroke(s.key)}
-                  className="rounded-full px-3 py-1.5 text-xs font-semibold transition"
-                  style={newStroke === s.key
-                    ? { background: "rgba(217,119,6,0.25)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
-                    : { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.45)" }}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} className="input" />
-
-          <div>
-            <p className="text-[10px] text-white/30 mb-2 uppercase tracking-wider">Logged by</p>
-            <div className="flex gap-1.5">
-              {["Parent", swimmerName].map((who) => (
-                <button
-                  key={who}
-                  type="button"
-                  onClick={() => setNewLoggedBy(who)}
-                  className="flex-1 rounded-xl py-2 text-xs font-bold transition"
-                  style={newLoggedBy === who
-                    ? { background: "#D97706", border: "1px solid #D97706", color: "#fff" }
-                    : { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}
-                >
-                  {who}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {addStatus && (
-            <p className={`text-xs font-semibold ${addStatusIsError ? "text-red-300" : "text-white/50"}`}>
-              {addStatus}
+        <div
+          className="rounded-[30px] p-5"
+          style={{
+            background: "linear-gradient(145deg, rgba(255,255,255,0.98), rgba(234,244,255,0.96))",
+            border: "1px solid rgba(255,255,255,0.80)",
+            boxShadow: "0 20px 44px rgba(0,0,0,0.12)",
+          }}
+        >
+          <div className="mb-5">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.22em]" style={{ color: "#168AE8" }}>
+              Practice time
             </p>
-          )}
-          <button type="button" onClick={handleAdd} disabled={saving}
-            className="w-full rounded-2xl py-3 text-sm font-semibold text-white transition disabled:opacity-50"
-            style={{ background: "#D97706" }}>
-            {saving ? "Saving…" : "Save entry"}
-          </button>
+            <h3 className="mt-1 text-xl font-bold" style={{ color: "#0C2E59" }}>
+              Log a new time
+            </h3>
+          </div>
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <select
+                value={newDistance}
+                onChange={(e) => setNewDistance(Number(e.target.value))}
+                className="h-14 w-full rounded-2xl px-4 outline-none"
+                style={{
+                  background: "rgba(12,46,89,0.055)",
+                  border: "1px solid rgba(12,46,89,0.10)",
+                  color: "#0C2E59",
+                }}
+              >
+                {DISTANCES.map((d) => <option key={d} value={d}>{d}m</option>)}
+              </select>
+
+              <input
+                value={newTime}
+                onChange={(e) => setNewTime(e.target.value)}
+                placeholder="35.04"
+                className="h-14 w-full rounded-2xl px-4 outline-none"
+                style={{
+                  background: "rgba(12,46,89,0.055)",
+                  border: "1px solid rgba(12,46,89,0.10)",
+                  color: "#0C2E59",
+                }}
+              />
+            </div>
+
+            <div>
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "#6B84A2" }}>
+                Stroke
+              </p>
+              <div className="grid grid-cols-5 gap-2">
+                {STROKES.map((stroke) => (
+                  <button
+                    key={stroke.key}
+                    type="button"
+                    onClick={() => setNewStroke(stroke.key)}
+                    className="flex flex-col items-center gap-1.5 rounded-2xl px-2 py-2.5 text-[10px] font-semibold transition"
+                    style={newStroke === stroke.key
+                      ? {
+                          background: "rgba(22,138,232,0.10)",
+                          border: "1px solid rgba(22,138,232,0.24)",
+                          color: "#168AE8",
+                        }
+                      : {
+                          background: "rgba(12,46,89,0.035)",
+                          border: "1px solid rgba(12,46,89,0.08)",
+                          color: "#6B84A2",
+                        }}
+                  >
+                    <img src={stroke.icon} alt="" className="h-8 w-8 rounded-lg object-cover" />
+                    {stroke.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <input
+              type="date"
+              value={newDate}
+              onChange={(e) => setNewDate(e.target.value)}
+              className="h-14 w-full rounded-2xl px-4 outline-none"
+              style={{
+                background: "rgba(12,46,89,0.055)",
+                border: "1px solid rgba(12,46,89,0.10)",
+                color: "#0C2E59",
+                colorScheme: "light",
+              }}
+            />
+
+            <div>
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "#6B84A2" }}>
+                Logged by
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {["Parent", swimmerName].map((who) => (
+                  <button
+                    key={who}
+                    type="button"
+                    onClick={() => setNewLoggedBy(who)}
+                    className="rounded-2xl py-3 text-xs font-bold transition"
+                    style={newLoggedBy === who
+                      ? { background: "#168AE8", border: "1px solid #168AE8", color: "#fff" }
+                      : { background: "rgba(12,46,89,0.045)", border: "1px solid rgba(12,46,89,0.09)", color: "#6B84A2" }}
+                  >
+                    {who}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {addStatus && (
+              <p
+                className="text-xs font-semibold"
+                style={{ color: addStatusIsError ? "#D65B5B" : "#6B84A2" }}
+              >
+                {addStatus}
+              </p>
+            )}
+
+            <button
+              type="button"
+              onClick={handleAdd}
+              disabled={saving}
+              className="w-full rounded-2xl py-4 text-base font-bold text-white transition disabled:opacity-50"
+              style={{ background: "#168AE8" }}
+            >
+              {saving ? "Saving…" : "Save entry"}
+            </button>
+          </div>
         </div>
       )}
 
       {/* Empty state */}
       {sorted.length === 0 && !loadError && (
-        <div className="rounded-2xl border border-white/10 bg-white/5 py-8 text-center">
-          <p className="text-sm text-white/40">No diary entries yet — log one above after practice.</p>
+        <div
+          className="rounded-[30px] px-6 py-9 text-center"
+          style={{
+            background: "rgba(255,255,255,0.08)",
+            border: "1px solid rgba(255,255,255,0.13)",
+          }}
+        >
+          <div
+            className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl text-2xl"
+            style={{
+              background: "rgba(22,138,232,0.14)",
+              border: "1px solid rgba(125,211,252,0.20)",
+            }}
+          >
+            📝
+          </div>
+          <p className="text-base font-bold text-white">No diary entries yet</p>
+          <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-white/40">
+            Log a practice time to start building a separate training history.
+          </p>
         </div>
       )}
 
@@ -307,60 +433,118 @@ export default function DiaryTab({ swimmerId, swimmerName = "Swimmer" }: Props) 
       {sorted.map((row) => {
         const isEditing = editingId === row.id;
         const color = strokeColor(row.stroke);
+        const icon = strokeIcon(row.stroke);
+
         return (
-          <div key={row.id} className="rounded-2xl overflow-hidden"
-            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)" }}>
+          <div
+            key={row.id}
+            className="overflow-hidden rounded-[28px]"
+            style={{
+              background: "rgba(255,255,255,0.085)",
+              border: "1px solid rgba(255,255,255,0.13)",
+              boxShadow: "0 14px 32px rgba(0,0,0,0.08)",
+            }}
+          >
             {isEditing ? (
-              <div className="p-4 space-y-2">
-                <p className="text-[10px] font-medium uppercase tracking-wider text-white/30">Date</p>
-                <input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} className="input" />
-                <p className="text-[10px] font-medium uppercase tracking-wider text-white/30">Logged by</p>
-                <div className="flex gap-1.5">
+              <div className="space-y-3 p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/30">
+                  Edit entry
+                </p>
+
+                <input
+                  type="date"
+                  value={editDate}
+                  onChange={(e) => setEditDate(e.target.value)}
+                  className="input"
+                />
+
+                <div className="grid grid-cols-2 gap-2">
                   {["Parent", swimmerName].map((who) => (
-                    <button key={who} type="button" onClick={() => setEditLoggedBy(who)}
-                      className="flex-1 rounded-xl py-2 text-xs font-bold transition"
+                    <button
+                      key={who}
+                      type="button"
+                      onClick={() => setEditLoggedBy(who)}
+                      className="rounded-2xl py-2.5 text-xs font-bold transition"
                       style={editLoggedBy === who
-                        ? { background: "#D97706", border: "1px solid #D97706", color: "#fff" }
-                        : { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}>
+                        ? { background: "#168AE8", border: "1px solid #168AE8", color: "#fff" }
+                        : { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)", color: "rgba(255,255,255,0.50)" }}
+                    >
                       {who}
                     </button>
                   ))}
                 </div>
-                <div className="flex gap-2 pt-1">
-                  <button type="button" onClick={handleSaveEdit} disabled={savingEdit}
-                    className="flex-1 rounded-xl py-2 text-xs font-semibold text-white disabled:opacity-50"
-                    style={{ background: "#D97706" }}>
-                    {savingEdit ? "Saving…" : "Save"}
+
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={handleSaveEdit}
+                    disabled={savingEdit}
+                    className="rounded-2xl py-3 text-xs font-bold text-white disabled:opacity-50"
+                    style={{ background: "#168AE8" }}
+                  >
+                    {savingEdit ? "Saving…" : "Save changes"}
                   </button>
-                  <button type="button" onClick={() => setEditingId(null)}
-                    className="flex-1 rounded-xl border border-white/10 bg-white/5 py-2 text-xs font-semibold text-white/50">
+
+                  <button
+                    type="button"
+                    onClick={() => setEditingId(null)}
+                    className="rounded-2xl py-3 text-xs font-semibold text-white/55"
+                    style={{
+                      background: "rgba(255,255,255,0.06)",
+                      border: "1px solid rgba(255,255,255,0.10)",
+                    }}
+                  >
                     Cancel
                   </button>
                 </div>
               </div>
             ) : (
-              <div className="flex items-center gap-3 px-4 py-3">
-                <div className="h-8 w-8 flex-shrink-0 rounded-lg flex items-center justify-center text-[10px] font-bold"
-                  style={{ background: `${color}26`, color }}>
-                  {row.stroke === "Free" ? "FR" : row.stroke === "Back" ? "BK" : row.stroke === "Breast" ? "BR" : row.stroke === "Fly" ? "FL" : "IM"}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-white">{row.distance}m {row.stroke}</p>
-                  <p className="text-[11px] text-white/35 mt-0.5">
+              <div className="flex items-center gap-3 px-4 py-4">
+                <img
+                  src={icon}
+                  alt=""
+                  className="h-12 w-12 flex-shrink-0 rounded-xl object-cover"
+                />
+
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-base font-bold text-white">
+                    {row.distance}m {row.stroke}
+                  </p>
+                  <p className="mt-1 text-xs text-white/38">
                     {row.swam_at ? formatDate(row.swam_at) : "No date"} · {row.logged_by || "Parent"}
                   </p>
                 </div>
-                <p className="text-sm font-bold flex-shrink-0" style={{ color: "#FDE68A" }}>
-                  {formatMs(row.time_ms)}
-                </p>
-                <div className="flex gap-1.5 flex-shrink-0">
-                  <button type="button" onClick={() => startEdit(row)}
-                    className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-[11px] text-white/50 transition hover:bg-white/10">
+
+                <div className="flex-shrink-0 text-right">
+                  <p className="text-[10px] uppercase tracking-wide text-white/25">Time</p>
+                  <p className="mt-0.5 text-xl font-bold" style={{ color: "#FDE68A" }}>
+                    {formatMs(row.time_ms)}
+                  </p>
+                </div>
+
+                <div className="ml-1 flex flex-col gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => startEdit(row)}
+                    className="rounded-xl px-2.5 py-1.5 text-[10px] font-semibold text-white/55 transition"
+                    style={{
+                      background: "rgba(255,255,255,0.06)",
+                      border: "1px solid rgba(255,255,255,0.10)",
+                    }}
+                  >
                     Edit
                   </button>
-                  <button type="button" onClick={() => void handleDelete(row.id)}
-                    className="rounded-lg border border-red-500/20 bg-red-500/10 px-2.5 py-1.5 text-[11px] text-red-300 transition hover:bg-red-500/20">
-                    Del
+
+                  <button
+                    type="button"
+                    onClick={() => void handleDelete(row.id)}
+                    className="rounded-xl px-2.5 py-1.5 text-[10px] font-semibold text-red-300 transition"
+                    style={{
+                      background: "rgba(239,68,68,0.07)",
+                      border: "1px solid rgba(239,68,68,0.14)",
+                    }}
+                  >
+                    Delete
                   </button>
                 </div>
               </div>
