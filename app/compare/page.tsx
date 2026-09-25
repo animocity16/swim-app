@@ -16,6 +16,7 @@ type Swimmer = {
   school?: string | null;
   group_type?: string | null;
   gender?: string | null;
+  photo_url?: string | null;
 };
 
 type SwimTimeRow = {
@@ -70,16 +71,56 @@ function shortName(name: string): string {
 }
 
 const AVATAR_COLORS = [
-  { bg: "#92400E", text: "#FDE68A" },
+  { bg: "#92400E", text: "#7DD3FC" },
   { bg: "#1E3A5F", text: "#93C5FD" },
   { bg: "#164E3A", text: "#6EE7B7" },
   { bg: "#3B0764", text: "#E9D5FF" },
-  { bg: "#78350F", text: "#FCD34D" },
+  { bg: "#0C4A6E", text: "#BAE6FD" },
   { bg: "#1E1B4B", text: "#A5B4FC" },
 ];
 
 function avatarColor(index: number) {
   return AVATAR_COLORS[index % AVATAR_COLORS.length];
+}
+
+function SwimmerAvatar({
+  swimmer,
+  index,
+  size = "md",
+  active = false,
+}: {
+  swimmer: Swimmer;
+  index: number;
+  size?: "sm" | "md" | "lg";
+  active?: boolean;
+}) {
+  const colors = avatarColor(index);
+  const sizeClass =
+    size === "lg" ? "h-11 w-11 text-xs" :
+    size === "sm" ? "h-7 w-7 text-[10px]" :
+    "h-9 w-9 text-[11px]";
+
+  if (swimmer.photo_url) {
+    return (
+      <img
+        src={swimmer.photo_url}
+        alt=""
+        className={`${sizeClass} flex-shrink-0 rounded-full object-cover`}
+      />
+    );
+  }
+
+  return (
+    <div
+      className={`${sizeClass} flex flex-shrink-0 items-center justify-center rounded-full font-bold`}
+      style={{
+        background: active ? "#168AE8" : colors.bg,
+        color: "#fff",
+      }}
+    >
+      {getInitials(swimmer.name)}
+    </div>
+  );
 }
 
 const STROKE_ORDER = ["Freestyle", "Backstroke", "Breaststroke", "Butterfly", "IM"];
@@ -107,11 +148,11 @@ function getEventDistance(event: string): number {
 }
 
 const RANK_STYLES: Record<number, { bg: string; border: string; numColor: string }> = {
-  1: { bg: "rgba(234,179,8,0.15)",   border: "rgba(234,179,8,0.4)",    numColor: "#FDE68A" },
-  2: { bg: "rgba(148,163,184,0.12)", border: "rgba(148,163,184,0.3)",  numColor: "#CBD5E1" },
-  3: { bg: "rgba(180,100,50,0.15)",  border: "rgba(180,100,50,0.35)",  numColor: "#FDBA74" },
-  4: { bg: "rgba(255,255,255,0.05)", border: "rgba(255,255,255,0.1)",  numColor: "rgba(255,255,255,0.4)" },
-  5: { bg: "rgba(255,255,255,0.03)", border: "rgba(255,255,255,0.08)", numColor: "rgba(255,255,255,0.3)" },
+  1: { bg: "rgba(22,138,232,0.14)",   border: "rgba(125,211,252,0.30)", numColor: "#BAE6FD" },
+  2: { bg: "rgba(255,255,255,0.075)", border: "rgba(255,255,255,0.13)", numColor: "#E2E8F0" },
+  3: { bg: "rgba(255,255,255,0.055)", border: "rgba(255,255,255,0.10)", numColor: "#CBD5E1" },
+  4: { bg: "rgba(255,255,255,0.045)", border: "rgba(255,255,255,0.09)", numColor: "rgba(255,255,255,0.48)" },
+  5: { bg: "rgba(255,255,255,0.035)", border: "rgba(255,255,255,0.08)", numColor: "rgba(255,255,255,0.38)" },
 };
 
 const STROKE_ABBR: Record<string, string> = {
@@ -134,16 +175,16 @@ const GRID_GAP_CAP = 0.06;
 
 function gridCellStyle(ms: number | null, bestMs: number | null): { background: string; color: string } {
   if (ms == null || bestMs == null) {
-    return { background: "rgba(217,119,6,0.05)", color: "rgba(255,255,255,0.22)" };
+    return { background: "rgba(255,255,255,0.035)", color: "rgba(255,255,255,0.22)" };
   }
   const gapFraction = Math.min((ms - bestMs) / bestMs, GRID_GAP_CAP) / GRID_GAP_CAP;
   const alpha = 0.45 - gapFraction * 0.4;
   const color =
-    gapFraction < 0.02 ? "#FDE68A" :
+    gapFraction < 0.02 ? "#7DD3FC" :
     gapFraction < 0.35 ? "rgba(255,255,255,0.8)" :
     gapFraction < 0.7 ? "rgba(255,255,255,0.5)" :
     "rgba(255,255,255,0.3)";
-  return { background: `rgba(217,119,6,${alpha.toFixed(2)})`, color };
+  return { background: `rgba(22,138,232,${alpha.toFixed(2)})`, color };
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -191,7 +232,7 @@ export default function ComparePage() {
 
     const { data } = await supabase
       .from("swimmers")
-      .select("id, name, age, swim_club, school, group_type, gender")
+      .select("id, name, age, swim_club, school, group_type, gender, photo_url")
       .order("group_type", { ascending: false })
       .order("name", { ascending: true });
 
@@ -471,11 +512,11 @@ export default function ComparePage() {
   }
 
   const chipBase = "rounded-2xl px-3 py-1.5 text-xs font-semibold transition";
-  const chipActive = { background: "rgba(217,119,6,0.15)", border: "1px solid rgba(253,230,138,0.35)", color: "#FDE68A" };
+  const chipActive = { background: "rgba(22,138,232,0.16)", border: "1px solid rgba(125,211,252,0.30)", color: "#7DD3FC" };
   const chipInactive = { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" };
 
   const scopeBtnStyle = (active: boolean) => active
-    ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
+    ? { background: "rgba(22,138,232,0.18)", border: "1px solid rgba(125,211,252,0.32)", color: "#7DD3FC" }
     : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" };
 
   return (
@@ -483,31 +524,66 @@ export default function ComparePage() {
       <div className="container-app space-y-5">
 
         {/* Header */}
-        <div className="pt-2">
-          <p className="text-[10px] font-medium uppercase tracking-widest" style={{ color: "#BA7517" }}>Natrix</p>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight text-white">Compare</h1>
-          <p className="mt-1 text-sm text-white/50">Tap a filter to open its list. Tap again to close it.</p>
+        <div className="flex items-start justify-between pt-1">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-white/35">Natrix</p>
+            <h1 className="mt-2 text-4xl font-bold tracking-tight text-white">Compare</h1>
+            <p className="mt-2 max-w-xs text-sm leading-relaxed text-white/45">
+              Compare PBs across swimmers, clubs, schools, or ranked groups.
+            </p>
+          </div>
+          <img
+            src="/natrix-mascot-search.png"
+            alt="Natrix mascot"
+            className="h-16 w-16 flex-shrink-0 object-contain"
+          />
         </div>
 
         {/* ── Picker ────────────────────────────────────────────────────── */}
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-5 space-y-4">
+        <div
+          className="rounded-[30px] p-5 space-y-5"
+          style={{
+            background: "rgba(255,255,255,0.085)",
+            border: "1px solid rgba(255,255,255,0.14)",
+            boxShadow: "0 18px 42px rgba(0,0,0,0.10)",
+          }}
+        >
 
           {/* My swimmer */}
           <div>
             <p className="text-[10px] font-medium uppercase tracking-widest text-white/30 mb-2">My swimmer</p>
             <div className="flex flex-wrap gap-2">
               {primarySwimmers.map((s, i) => {
-                const colors = avatarColor(i);
-                const active = s.id === mySwimmerId;
+                  const active = s.id === mySwimmerId;
                 return (
-                  <button key={s.id} type="button" onClick={() => void handleMySwimmerChange(s.id)}
-                    className="flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm font-medium transition"
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => void handleMySwimmerChange(s.id)}
+                    className="flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition"
                     style={active
-                      ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
-                      : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.6)" }}>
-                    <div className="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold flex-shrink-0"
-                      style={{ background: colors.bg, color: colors.text }}>{getInitials(s.name)}</div>
-                    {s.name.split(" ")[0]}
+                      ? {
+                          background: "linear-gradient(145deg, rgba(255,255,255,0.98), rgba(232,244,255,0.96))",
+                          border: "1px solid rgba(255,255,255,0.82)",
+                          color: "#0C2E59",
+                          boxShadow: "0 10px 24px rgba(0,0,0,0.08)",
+                        }
+                      : {
+                          background: "rgba(255,255,255,0.055)",
+                          border: "1px solid rgba(255,255,255,0.10)",
+                          color: "rgba(255,255,255,0.58)",
+                        }}
+                  >
+                    <SwimmerAvatar swimmer={s} index={i} active={active} />
+                    <div className="text-left">
+                      <p className="text-sm font-bold">{s.name.split(" ")[0]}</p>
+                      <p
+                        className="text-[10px] font-normal"
+                        style={{ color: active ? "#6B84A2" : "rgba(255,255,255,0.32)" }}
+                      >
+                        {s.swim_club || "My swimmer"}
+                      </p>
+                    </div>
                   </button>
                 );
               })}
@@ -517,18 +593,28 @@ export default function ComparePage() {
           {/* VS divider */}
           <div className="flex items-center gap-3">
             <div className="flex-1 h-px bg-white/10" />
-            <span className="text-xs font-bold text-white/25 uppercase tracking-widest">vs</span>
+            <span className="text-[10px] font-bold text-white/30 uppercase tracking-[0.22em]">vs</span>
             <div className="flex-1 h-px bg-white/10" />
           </div>
 
           {/* Scope */}
           <div>
             <p className="text-[9px] font-medium uppercase tracking-widest text-white/25 mb-2">Scope (optional)</p>
-            <div className="flex gap-2">
+            <div
+              className="grid grid-cols-3 gap-1.5 rounded-2xl p-1.5"
+              style={{
+                background: "rgba(0,0,0,0.15)",
+                border: "1px solid rgba(255,255,255,0.08)",
+              }}
+            >
               {(["all", "club", "school"] as Scope[]).map((s) => (
-                <button key={s} type="button" onClick={() => toggleScope(s)}
-                  className="flex-1 rounded-2xl py-2 text-xs font-semibold transition capitalize"
-                  style={scopeBtnStyle(scope === s && scopeOpen)}>
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => toggleScope(s)}
+                  className="rounded-xl py-2.5 text-xs font-semibold transition capitalize"
+                  style={scopeBtnStyle(scope === s && scopeOpen)}
+                >
                   {s}
                 </button>
               ))}
@@ -567,7 +653,7 @@ export default function ComparePage() {
             <button type="button" onClick={toggleRank}
               className="w-full rounded-2xl py-2 text-xs font-semibold transition"
               style={scopeBtnStyle(rankOn)}>
-              Rank by overall skill
+              {rankOn ? "Ranking enabled" : "Rank by overall skill"}
             </button>
 
             {rankOn && (
@@ -615,7 +701,7 @@ export default function ComparePage() {
             </p>
           ) : rankLoading ? (
             <div className="flex items-center justify-center gap-3 py-4">
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-amber-400" />
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-sky-400" />
               <p className="text-sm text-white/50">Ranking swimmers…</p>
             </div>
           ) : visibleList === null ? (
@@ -627,7 +713,10 @@ export default function ComparePage() {
           ) : visibleList.length === 0 ? (
             <p className="text-sm text-white/40 text-center py-2">No swimmers found here.</p>
           ) : (
-            <div className="max-h-[260px] overflow-y-auto rounded-2xl space-y-1.5 pr-1">
+            <div
+              className="max-h-[300px] overflow-y-auto rounded-2xl space-y-2 pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              style={{ msOverflowStyle: "none" }}
+            >
               {visibleList.map((s, i) => {
                 if (selectedIds.has(s.id)) return null;
                 const globalIdx = allSwimmers.findIndex((x) => x.id === s.id);
@@ -637,7 +726,11 @@ export default function ComparePage() {
                 return (
                   <button key={s.id} type="button" onClick={() => void toggleSelected(s.id)} disabled={disabled}
                     className="w-full flex items-center gap-3 rounded-2xl p-2.5 text-left transition"
-                    style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)", opacity: disabled ? 0.4 : 1 }}>
+                    style={{
+                      background: "rgba(255,255,255,0.055)",
+                      border: "1px solid rgba(255,255,255,0.09)",
+                      opacity: disabled ? 0.4 : 1,
+                    }}>
                     {rankNum && <span className="w-4 text-xs text-white/35 flex-shrink-0">#{rankNum}</span>}
                     <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
                       style={{ background: colors.bg, color: colors.text }}>
@@ -658,20 +751,32 @@ export default function ComparePage() {
 
         {/* ── Results ───────────────────────────────────────────────────── */}
         {selectedIds.size === 0 ? (
-          <div className="rounded-3xl p-8 text-center" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+          <div
+            className="rounded-[30px] px-6 py-10 text-center"
+            style={{
+              background: "rgba(255,255,255,0.075)",
+              border: "1px solid rgba(255,255,255,0.12)",
+            }}
+          >
             <p className="text-2xl mb-2">🏊</p>
             <p className="text-base font-semibold text-white">Select swimmers above</p>
             <p className="mt-1 text-sm text-white/40">Tap up to {MAX_COMPARE} swimmers to rank PBs.</p>
           </div>
         ) : loadingTimes ? (
           <div className="flex items-center justify-center gap-3 py-4">
-            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-amber-400" />
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-sky-400" />
             <p className="text-sm text-white/50">Loading times…</p>
           </div>
         ) : (
           <div className="space-y-4">
             {sharedEvents.length > 0 && (
-              <div className="flex gap-2">
+              <div
+              className="grid grid-cols-2 gap-1.5 rounded-2xl p-1.5"
+              style={{
+                background: "rgba(0,0,0,0.14)",
+                border: "1px solid rgba(255,255,255,0.08)",
+              }}
+            >
                 {(["list", "grid"] as const).map((v) => (
                   <button key={v} type="button" onClick={() => setResultsView(v)}
                     className="flex-1 rounded-2xl py-2 text-xs font-semibold capitalize transition"
@@ -707,7 +812,14 @@ export default function ComparePage() {
                 <p className="text-sm text-white/35 text-center py-6">Choose a stroke above to see the ranking.</p>
               )
             ) : (
-              <div className="rounded-3xl overflow-hidden" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)" }}>
+              <div
+                className="overflow-hidden rounded-[30px]"
+                style={{
+                  background: "rgba(255,255,255,0.075)",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  boxShadow: "0 16px 34px rgba(0,0,0,0.08)",
+                }}
+              >
                 {strokeEvents.map((ev, evIdx) => {
                   const ranked = allCompared
                     .map((entry) => ({
@@ -737,7 +849,7 @@ export default function ComparePage() {
                           <button type="button"
                             onClick={() => setTrendEventKey((prev) => prev === ev.key ? null : ev.key)}
                             className="flex items-center gap-1 text-[11px] font-medium"
-                            style={{ color: trendEventKey === ev.key ? "#FDE68A" : "#D97706" }}>
+                            style={{ color: trendEventKey === ev.key ? "#7DD3FC" : "#168AE8" }}>
                             Trend
                           </button>
                         )}
@@ -748,7 +860,7 @@ export default function ComparePage() {
                           series={allCompared.map((entry): TrendSeries => ({
                             id: entry.swimmer.id,
                             label: entry.isMine ? "You" : shortName(entry.swimmer.name),
-                            color: entry.isMine ? "#D97706" : avatarColor(entry.colorIndex).text,
+                            color: entry.isMine ? "#168AE8" : avatarColor(entry.colorIndex).text,
                             points: (timesMap.get(entry.swimmer.id) ?? [])
                               .filter((row) => keyOf(row.event, row.course) === ev.key)
                               .map((row) => ({ ms: row.time_ms, swam_at: row.swam_at ?? null })),
@@ -768,14 +880,14 @@ export default function ComparePage() {
                                 {entry.rank}
                               </div>
                               <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-[10px] font-bold"
-                                style={{ background: entry.isMine ? "#D97706" : colors.bg, color: entry.isMine ? "white" : colors.text }}>
+                                style={{ background: entry.isMine ? "#168AE8" : colors.bg, color: entry.isMine ? "white" : colors.text }}>
                                 {getInitials(entry.swimmer.name)}
                               </div>
                               <p className="flex-1 min-w-0 truncate text-sm font-medium"
                                 style={{ color: entry.rank === 1 ? "white" : "rgba(255,255,255,0.7)" }}>
                                 {shortName(entry.swimmer.name)}
                                 {entry.isMine && (
-                                  <span className="ml-1.5 text-[10px] font-normal" style={{ color: "#D97706" }}>you</span>
+                                  <span className="ml-1.5 text-[10px] font-normal" style={{ color: "#168AE8" }}>you</span>
                                 )}
                               </p>
                               <p className="text-sm font-bold flex-shrink-0"
@@ -802,8 +914,15 @@ export default function ComparePage() {
               gridEvents.length === 0 ? (
                 <p className="text-sm text-white/40">No shared events yet — everyone needs a PB in the same event and course as your swimmer.</p>
               ) : (
-                <div className="rounded-3xl p-4 overflow-x-auto"
-                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", WebkitOverflowScrolling: "touch" }}>
+                <div
+                  className="overflow-x-auto rounded-[30px] p-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                  style={{
+                    background: "rgba(255,255,255,0.075)",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    WebkitOverflowScrolling: "touch",
+                    msOverflowStyle: "none",
+                  }}
+                >
                   <div style={{
                     display: "grid",
                     gridTemplateColumns: `84px repeat(${gridEvents.length}, 46px)`,
@@ -823,11 +942,11 @@ export default function ComparePage() {
                       return (
                         <Fragment key={entry.swimmer.id}>
                           <div className="flex items-center gap-1.5 truncate"
-                            style={{ fontSize: "10px", color: entry.isMine ? "#FDE68A" : "rgba(255,255,255,0.7)", fontWeight: 500 }}>
+                            style={{ fontSize: "10px", color: entry.isMine ? "#7DD3FC" : "rgba(255,255,255,0.7)", fontWeight: 500 }}>
                             <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded"
                               style={{
-                                background: entry.isMine ? "#78350F" : colors.bg,
-                                color: entry.isMine ? "#FCD34D" : colors.text,
+                                background: entry.isMine ? "#0C4A6E" : colors.bg,
+                                color: entry.isMine ? "#BAE6FD" : colors.text,
                                 fontSize: "8px",
                                 fontWeight: 700,
                               }}>
