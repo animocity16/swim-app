@@ -842,8 +842,8 @@ export default function DashboardPage() {
                 <div
                   className="flex h-20 w-20 flex-shrink-0 items-center justify-center rounded-full text-xl font-bold"
                   style={{
-                    background: "linear-gradient(135deg,#185FA5,#2D8BD8)",
-                    color: "#D8ECFF",
+                    background: "var(--natrix-avatar-colour, #185FA5)",
+                    color: "var(--natrix-avatar-text, #D8ECFF)",
                     border: "4px solid rgba(255,255,255,0.85)",
                   }}
                 >

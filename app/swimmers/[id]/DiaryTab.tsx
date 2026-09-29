@@ -222,7 +222,7 @@ export default function DiaryTab({ swimmerId, swimmerName = "Swimmer" }: Props) 
       {/* Header */}
       <div className="flex items-end justify-between gap-4 px-1">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-white/30">
+          <p className="text-[0.625rem] font-semibold uppercase tracking-[0.24em] text-white/30">
             Training diary
           </p>
           <p className="mt-1 text-sm text-white/45">
@@ -235,7 +235,7 @@ export default function DiaryTab({ swimmerId, swimmerName = "Swimmer" }: Props) 
           onClick={() => setShowAddForm((v) => !v)}
           className="rounded-2xl px-4 py-2.5 text-sm font-semibold transition"
           style={{
-            background: showAddForm ? "rgba(255,255,255,0.10)" : "#168AE8",
+            background: showAddForm ? "rgba(255,255,255,0.10)" : "var(--natrix-font-colour, #168AE8)",
             border: showAddForm
               ? "1px solid rgba(255,255,255,0.14)"
               : "1px solid rgba(22,138,232,0.22)",
@@ -282,7 +282,7 @@ export default function DiaryTab({ swimmerId, swimmerName = "Swimmer" }: Props) 
           }}
         >
           <div className="mb-5">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.22em]" style={{ color: "#168AE8" }}>
+            <p className="text-[0.625rem] font-semibold uppercase tracking-[0.22em]" style={{ color: "var(--natrix-font-colour, #168AE8)" }}>
               Practice time
             </p>
             <h3 className="mt-1 text-xl font-bold" style={{ color: "#0C2E59" }}>
@@ -319,7 +319,7 @@ export default function DiaryTab({ swimmerId, swimmerName = "Swimmer" }: Props) 
             </div>
 
             <div>
-              <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "#6B84A2" }}>
+              <p className="mb-2 text-[0.625rem] font-semibold uppercase tracking-[0.18em]" style={{ color: "#6B84A2" }}>
                 Stroke
               </p>
               <div className="grid grid-cols-5 gap-2">
@@ -328,12 +328,12 @@ export default function DiaryTab({ swimmerId, swimmerName = "Swimmer" }: Props) 
                     key={stroke.key}
                     type="button"
                     onClick={() => setNewStroke(stroke.key)}
-                    className="flex flex-col items-center gap-1.5 rounded-2xl px-2 py-2.5 text-[10px] font-semibold transition"
+                    className="flex flex-col items-center gap-1.5 rounded-2xl px-2 py-2.5 text-[0.625rem] font-semibold transition"
                     style={newStroke === stroke.key
                       ? {
                           background: "rgba(22,138,232,0.10)",
                           border: "1px solid rgba(22,138,232,0.24)",
-                          color: "#168AE8",
+                          color: "var(--natrix-font-colour, #168AE8)",
                         }
                       : {
                           background: "rgba(12,46,89,0.035)",
@@ -362,7 +362,7 @@ export default function DiaryTab({ swimmerId, swimmerName = "Swimmer" }: Props) 
             />
 
             <div>
-              <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "#6B84A2" }}>
+              <p className="mb-2 text-[0.625rem] font-semibold uppercase tracking-[0.18em]" style={{ color: "#6B84A2" }}>
                 Logged by
               </p>
               <div className="grid grid-cols-2 gap-2">
@@ -373,7 +373,7 @@ export default function DiaryTab({ swimmerId, swimmerName = "Swimmer" }: Props) 
                     onClick={() => setNewLoggedBy(who)}
                     className="rounded-2xl py-3 text-xs font-bold transition"
                     style={newLoggedBy === who
-                      ? { background: "#168AE8", border: "1px solid #168AE8", color: "#fff" }
+                      ? { background: "var(--natrix-font-colour, #168AE8)", border: "1px solid #168AE8", color: "#fff" }
                       : { background: "rgba(12,46,89,0.045)", border: "1px solid rgba(12,46,89,0.09)", color: "#6B84A2" }}
                   >
                     {who}
@@ -396,7 +396,7 @@ export default function DiaryTab({ swimmerId, swimmerName = "Swimmer" }: Props) 
               onClick={handleAdd}
               disabled={saving}
               className="w-full rounded-2xl py-4 text-base font-bold text-white transition disabled:opacity-50"
-              style={{ background: "#168AE8" }}
+              style={{ background: "var(--natrix-font-colour, #168AE8)" }}
             >
               {saving ? "Saving…" : "Save entry"}
             </button>
@@ -447,7 +447,7 @@ export default function DiaryTab({ swimmerId, swimmerName = "Swimmer" }: Props) 
           >
             {isEditing ? (
               <div className="space-y-3 p-4">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/30">
+                <p className="text-[0.625rem] font-semibold uppercase tracking-[0.18em] text-white/30">
                   Edit entry
                 </p>
 
@@ -466,7 +466,7 @@ export default function DiaryTab({ swimmerId, swimmerName = "Swimmer" }: Props) 
                       onClick={() => setEditLoggedBy(who)}
                       className="rounded-2xl py-2.5 text-xs font-bold transition"
                       style={editLoggedBy === who
-                        ? { background: "#168AE8", border: "1px solid #168AE8", color: "#fff" }
+                        ? { background: "var(--natrix-font-colour, #168AE8)", border: "1px solid #168AE8", color: "#fff" }
                         : { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)", color: "rgba(255,255,255,0.50)" }}
                     >
                       {who}
@@ -480,7 +480,7 @@ export default function DiaryTab({ swimmerId, swimmerName = "Swimmer" }: Props) 
                     onClick={handleSaveEdit}
                     disabled={savingEdit}
                     className="rounded-2xl py-3 text-xs font-bold text-white disabled:opacity-50"
-                    style={{ background: "#168AE8" }}
+                    style={{ background: "var(--natrix-font-colour, #168AE8)" }}
                   >
                     {savingEdit ? "Saving…" : "Save changes"}
                   </button>
@@ -516,8 +516,8 @@ export default function DiaryTab({ swimmerId, swimmerName = "Swimmer" }: Props) 
                 </div>
 
                 <div className="flex-shrink-0 text-right">
-                  <p className="text-[10px] uppercase tracking-wide text-white/25">Time</p>
-                  <p className="mt-0.5 text-xl font-bold" style={{ color: "#FDE68A" }}>
+                  <p className="text-[0.625rem] uppercase tracking-wide text-white/25">Time</p>
+                  <p className="mt-0.5 text-xl font-bold" style={{ color: "var(--natrix-font-colour, #FDE68A)" }}>
                     {formatMs(row.time_ms)}
                   </p>
                 </div>
@@ -526,7 +526,7 @@ export default function DiaryTab({ swimmerId, swimmerName = "Swimmer" }: Props) 
                   <button
                     type="button"
                     onClick={() => startEdit(row)}
-                    className="rounded-xl px-2.5 py-1.5 text-[10px] font-semibold text-white/55 transition"
+                    className="rounded-xl px-2.5 py-1.5 text-[0.625rem] font-semibold text-white/55 transition"
                     style={{
                       background: "rgba(255,255,255,0.06)",
                       border: "1px solid rgba(255,255,255,0.10)",
@@ -538,7 +538,7 @@ export default function DiaryTab({ swimmerId, swimmerName = "Swimmer" }: Props) 
                   <button
                     type="button"
                     onClick={() => void handleDelete(row.id)}
-                    className="rounded-xl px-2.5 py-1.5 text-[10px] font-semibold text-red-300 transition"
+                    className="rounded-xl px-2.5 py-1.5 text-[0.625rem] font-semibold text-red-300 transition"
                     style={{
                       background: "rgba(239,68,68,0.07)",
                       border: "1px solid rgba(239,68,68,0.14)",

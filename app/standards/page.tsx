@@ -114,7 +114,7 @@ export default function StandardsPage() {
             Back
           </button>
 
-          <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-white/35">
+          <p className="text-[0.625rem] font-semibold uppercase tracking-[0.28em] text-white/35">
             Natrix
           </p>
           <h1 className="mt-2 text-4xl font-bold tracking-tight text-white">Standards</h1>
@@ -133,7 +133,7 @@ export default function StandardsPage() {
           }}
         >
           <div className="mb-5">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.22em]" style={{ color: "#168AE8" }}>
+            <p className="text-[0.625rem] font-semibold uppercase tracking-[0.22em]" style={{ color: "var(--natrix-font-colour, #168AE8)" }}>
               Add a target
             </p>
             <h2 className="mt-1 text-xl font-bold" style={{ color: "#0C2E59" }}>
@@ -182,7 +182,7 @@ export default function StandardsPage() {
               disabled={loading || !name.trim()}
               className="w-full rounded-2xl py-4 text-base font-bold text-white transition disabled:opacity-40"
               style={{
-                background: "#168AE8",
+                background: "var(--natrix-font-colour, #168AE8)",
                 boxShadow: "0 10px 24px rgba(22,138,232,0.22)",
               }}
             >
@@ -228,7 +228,7 @@ export default function StandardsPage() {
           <div className="space-y-3">
             <div className="flex items-end justify-between px-1">
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-white/30">
+                <p className="text-[0.625rem] font-semibold uppercase tracking-[0.24em] text-white/30">
                   Your standards
                 </p>
                 <p className="mt-1 text-sm text-white/45">
@@ -251,10 +251,10 @@ export default function StandardsPage() {
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0 flex-1">
                       <span
-                        className="inline-flex rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wide"
+                        className="inline-flex rounded-full px-3 py-1 text-[0.625rem] font-bold uppercase tracking-wide"
                         style={
                           setItem.type === "UPGRADING"
-                            ? { background: "rgba(22,138,232,0.10)", color: "#168AE8", border: "1px solid rgba(22,138,232,0.16)" }
+                            ? { background: "rgba(22,138,232,0.10)", color: "var(--natrix-font-colour, #168AE8)", border: "1px solid rgba(22,138,232,0.16)" }
                             : { background: "rgba(217,119,6,0.10)", color: "#B86C08", border: "1px solid rgba(217,119,6,0.16)" }
                         }
                       >
@@ -274,7 +274,7 @@ export default function StandardsPage() {
                       className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl text-xl font-semibold"
                       style={{
                         background: "rgba(22,138,232,0.10)",
-                        color: "#168AE8",
+                        color: "var(--natrix-font-colour, #168AE8)",
                         border: "1px solid rgba(22,138,232,0.14)",
                       }}
                     >
@@ -286,7 +286,7 @@ export default function StandardsPage() {
                     <Link
                       href={`/standards/${setItem.id}`}
                       className="flex items-center justify-center rounded-2xl py-3.5 text-sm font-bold text-white"
-                      style={{ background: "#168AE8" }}
+                      style={{ background: "var(--natrix-font-colour, #168AE8)" }}
                     >
                       Open standard
                     </Link>

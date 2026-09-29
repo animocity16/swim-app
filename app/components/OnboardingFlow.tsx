@@ -67,14 +67,14 @@ function Shell({
           />
           <div>
             <div className="text-xl font-bold tracking-tight text-white">Natrix</div>
-            <div className="text-[10px] text-white/40">Swim Smarter Together</div>
+            <div className="text-[0.625rem] text-white/40">Swim Smarter Together</div>
           </div>
         </div>
 
         <StepDots current={step} />
         {children}
 
-        <p className="mt-5 text-center text-[10px] text-white/30">
+        <p className="mt-5 text-center text-[0.625rem] text-white/30">
           Natrix · Singapore · Built for swim families
         </p>
       </div>
@@ -254,7 +254,7 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
           />
 
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-sky-200/80">
+            <p className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-sky-200/80">
               Welcome, {userName}
             </p>
 
@@ -278,7 +278,7 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
               border: "1px solid rgba(255,255,255,0.18)",
             }}
           >
-            <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-sky-200/75">
+            <div className="text-[0.625rem] font-bold uppercase tracking-[0.16em] text-sky-200/75">
               Ready to connect
             </div>
             <div className="mt-1 text-base font-bold text-white">
@@ -311,7 +311,7 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
     return (
       <Shell step={1}>
         <div className="mb-5">
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-sky-200/80">
+          <p className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-sky-200/80">
             Swimmer details
           </p>
           <h1 className="mt-1 text-3xl font-bold tracking-tight text-white">
@@ -427,7 +427,7 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
             className="h-24 w-24 flex-shrink-0 object-contain"
           />
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-sky-200/80">
+            <p className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-sky-200/80">
               Results connection
             </p>
             <h1 className="mt-1 text-3xl font-bold tracking-tight text-white">
@@ -444,7 +444,7 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
               border: "1px solid rgba(255,255,255,0.9)",
             }}
           >
-            <div className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: "#168257" }}>
+            <div className="text-[0.625rem] font-bold uppercase tracking-[0.16em]" style={{ color: "#168257" }}>
               Result history connected
             </div>
             <div className="mt-2 text-xl font-bold" style={{ color: "#0B2A54" }}>
@@ -558,7 +558,7 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
           className="h-24 w-24 flex-shrink-0 object-contain"
         />
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-sky-200/80">
+          <p className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-sky-200/80">
             One last thing
           </p>
           <h1 className="mt-1 text-3xl font-bold tracking-tight text-white">

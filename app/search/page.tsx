@@ -347,7 +347,7 @@ export default function SwimmerSearchPage() {
             />
             <div>
               <div className="text-xl font-bold tracking-tight text-white">Natrix</div>
-              <div className="text-[10px] text-white/40">Swim Smarter Together</div>
+              <div className="text-[0.625rem] text-white/40">Swim Smarter Together</div>
             </div>
           </Link>
 
@@ -389,11 +389,11 @@ export default function SwimmerSearchPage() {
           </div>
 
           <div className="text-center md:text-left">
-            <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.2em] text-sky-200/80">
+            <p className="mb-2 text-[0.6875rem] font-bold uppercase tracking-[0.2em] text-sky-200/80">
               Singapore swim results
             </p>
 
-            <h1 className="text-[36px] font-bold leading-[1.02] tracking-[-0.04em] text-white md:text-5xl">
+            <h1 className="text-[2.25rem] font-bold leading-[1.02] tracking-[-0.04em] text-white md:text-5xl">
               Find your swimmer
             </h1>
 
@@ -421,7 +421,7 @@ export default function SwimmerSearchPage() {
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Enter swimmer name..."
                   autoFocus
-                  className="min-w-0 flex-1 bg-transparent py-3 text-[15px] outline-none"
+                  className="min-w-0 flex-1 bg-transparent py-3 text-[0.9375rem] outline-none"
                   style={{ color: "#0C2C50" }}
                 />
               </div>
@@ -436,7 +436,7 @@ export default function SwimmerSearchPage() {
               </button>
             </form>
 
-            <p className="mt-3 text-[11px] leading-relaxed text-white/35">
+            <p className="mt-3 text-[0.6875rem] leading-relaxed text-white/35">
               Singapore Aquatics-sanctioned meets currently supported. Club-only and non-sanctioned meets are not included yet.
             </p>
           </div>
@@ -464,10 +464,10 @@ export default function SwimmerSearchPage() {
                 >
                   {item.icon}
                 </div>
-                <div className="mt-2 text-[11px] font-bold md:text-sm" style={{ color: "#0A2D5D" }}>
+                <div className="mt-2 text-[0.6875rem] font-bold md:text-sm" style={{ color: "#0A2D5D" }}>
                   {item.title}
                 </div>
-                <div className="mt-1 text-[9px] leading-snug md:text-[11px]" style={{ color: "#697E93" }}>
+                <div className="mt-1 text-[0.5625rem] leading-snug md:text-[0.6875rem]" style={{ color: "#697E93" }}>
                   {item.text}
                 </div>
               </div>
@@ -568,7 +568,7 @@ export default function SwimmerSearchPage() {
             >
               <div className="p-5 md:p-6">
                 <div
-                  className="inline-flex rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wide"
+                  className="inline-flex rounded-full px-3 py-1 text-[0.625rem] font-bold uppercase tracking-wide"
                   style={{ background: "#E8F8F0", color: "#11835B" }}
                 >
                   ✓ Match found
@@ -592,7 +592,7 @@ export default function SwimmerSearchPage() {
                     {state.result.headline.event}
                   </div>
                   {state.result.headline.personalBest && (
-                    <div className="mt-1 text-[11px]" style={{ color: "#73869A" }}>
+                    <div className="mt-1 text-[0.6875rem]" style={{ color: "#73869A" }}>
                       {state.result.headline.personalBest.meet}
                       {formatDate(state.result.headline.personalBest.date) &&
                         ` · ${formatDate(state.result.headline.personalBest.date)}`}
@@ -606,7 +606,7 @@ export default function SwimmerSearchPage() {
                       className="rounded-2xl p-4"
                       style={{ background: "#F5FAFD", border: "1px solid #E0ECF3" }}
                     >
-                      <div className="text-[10px] font-bold uppercase tracking-wide" style={{ color: "#71849A" }}>
+                      <div className="text-[0.625rem] font-bold uppercase tracking-wide" style={{ color: "#71849A" }}>
                         Personal Best
                       </div>
                       <div
@@ -626,7 +626,7 @@ export default function SwimmerSearchPage() {
                           first && !first.is_target ? formatGap(ms - first.finals_time_ms) : null;
 
                         return (
-                          <div className="mt-2 text-[11px] leading-relaxed" style={{ color: "#6C8095" }}>
+                          <div className="mt-2 text-[0.6875rem] leading-relaxed" style={{ color: "#6C8095" }}>
                             <div>Avg speed {speed} m/s</div>
                             {gapToFirst && <div>{gapToFirst}s behind 1st place</div>}
                           </div>
@@ -640,7 +640,7 @@ export default function SwimmerSearchPage() {
                       className="rounded-2xl p-4"
                       style={{ background: "#F5FAFD", border: "1px solid #E0ECF3" }}
                     >
-                      <div className="text-[10px] font-bold uppercase tracking-wide" style={{ color: "#71849A" }}>
+                      <div className="text-[0.625rem] font-bold uppercase tracking-wide" style={{ color: "#71849A" }}>
                         Placing
                       </div>
                       <div
@@ -649,7 +649,7 @@ export default function SwimmerSearchPage() {
                       >
                         {ordinal(state.result.leaderboard.find((r) => r.is_target)!.place)}
                       </div>
-                      <div className="mt-2 text-[11px]" style={{ color: "#6C8095" }}>
+                      <div className="mt-2 text-[0.6875rem]" style={{ color: "#6C8095" }}>
                         of {state.result.leaderboard[0].total_entrants} swimmers
                       </div>
                     </div>
@@ -660,7 +660,7 @@ export default function SwimmerSearchPage() {
                       className="col-span-2 rounded-2xl p-4"
                       style={{ background: "#F5FAFD", border: "1px solid #E0ECF3" }}
                     >
-                      <div className="text-[10px] font-bold uppercase tracking-wide" style={{ color: "#71849A" }}>
+                      <div className="text-[0.625rem] font-bold uppercase tracking-wide" style={{ color: "#71849A" }}>
                         Most Recent
                       </div>
                       <div
@@ -669,7 +669,7 @@ export default function SwimmerSearchPage() {
                       >
                         {state.result.headline.mostRecent.time}
                       </div>
-                      <div className="text-[11px]" style={{ color: "#6C8095" }}>
+                      <div className="text-[0.6875rem]" style={{ color: "#6C8095" }}>
                         {state.result.headline.mostRecent.meet}
                         {formatDate(state.result.headline.mostRecent.date) &&
                           ` · ${formatDate(state.result.headline.mostRecent.date)}`}
@@ -683,7 +683,7 @@ export default function SwimmerSearchPage() {
                     className="mt-4 rounded-2xl px-4 py-3"
                     style={{ background: "#FFF4D6", border: "1px solid #F0D57D" }}
                   >
-                    <div className="text-[10px] font-bold uppercase tracking-wide" style={{ color: "#976500" }}>
+                    <div className="text-[0.625rem] font-bold uppercase tracking-wide" style={{ color: "#976500" }}>
                       Natrix noticed 👀
                     </div>
                     <p className="mt-1 text-sm font-semibold leading-relaxed" style={{ color: "#493500" }}>
@@ -699,7 +699,7 @@ export default function SwimmerSearchPage() {
                     <div className="text-sm font-bold" style={{ color: "#0B2A54" }}>
                       How they stacked up
                     </div>
-                    <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "#92A0AF" }}>
+                    <span className="text-[0.625rem] font-semibold uppercase tracking-wide" style={{ color: "#92A0AF" }}>
                       Race context
                     </span>
                   </div>
@@ -732,13 +732,13 @@ export default function SwimmerSearchPage() {
                               >
                                 {toDisplayName(r.swimmer_name)}
                                 {r.is_target && (
-                                  <span className="ml-2 text-[9px] font-bold uppercase" style={{ color: "#9A6900" }}>
+                                  <span className="ml-2 text-[0.5625rem] font-bold uppercase" style={{ color: "#9A6900" }}>
                                     Your swimmer
                                   </span>
                                 )}
                               </div>
                               {r.team_name && (
-                                <div className="truncate text-[10px]" style={{ color: "#8A98A7" }}>
+                                <div className="truncate text-[0.625rem]" style={{ color: "#8A98A7" }}>
                                   {r.team_name}
                                 </div>
                               )}
@@ -786,7 +786,7 @@ export default function SwimmerSearchPage() {
                   Track {state.result.swimmerName.split(" ")[0]} with Natrix →
                 </button>
 
-                <p className="mx-auto mt-2 max-w-sm text-[11px] leading-relaxed" style={{ color: "#73869A" }}>
+                <p className="mx-auto mt-2 max-w-sm text-[0.6875rem] leading-relaxed" style={{ color: "#73869A" }}>
                   Create a free account for saved swimmers, progress, comparisons and automatic result updates.
                 </p>
 
@@ -832,7 +832,7 @@ export default function SwimmerSearchPage() {
           </section>
         )}
 
-        <footer className="pb-2 pt-7 text-center text-[10px] leading-relaxed text-white/30">
+        <footer className="pb-2 pt-7 text-center text-[0.625rem] leading-relaxed text-white/30">
           Natrix · Singapore · Built for swim families
         </footer>
       </div>

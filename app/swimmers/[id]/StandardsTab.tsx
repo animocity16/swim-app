@@ -205,7 +205,7 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
         <p className="text-xs text-white/40 mb-4">Add upgrading times or meet qualifying standards to track progress.</p>
         <Link href="/standards"
           className="inline-flex items-center gap-1.5 rounded-2xl px-4 py-2 text-xs font-semibold"
-          style={{ background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.3)", color: "#FDE68A" }}>
+          style={{ background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.3)", color: "var(--natrix-font-colour, #FDE68A)" }}>
           Go to Standards →
         </Link>
       </div>
@@ -244,7 +244,7 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
     <div className="space-y-3">
 
       {swimmerSquad && nextUpgradingSet && (
-        <p className="px-1 text-[10px] font-medium uppercase tracking-widest text-white/30">
+        <p className="px-1 text-[0.625rem] font-medium uppercase tracking-widest text-white/30">
           Next target for <span className="text-white/50">{swimmerSquad} Squad</span>
         </p>
       )}
@@ -332,7 +332,7 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
                 <QualProgressRing qualified={qualified} total={total} />
 
                 <div className="min-w-0 flex-1">
-                  <p className="mb-0.5 truncate text-[10px] font-medium uppercase tracking-widest text-white/35">
+                  <p className="mb-0.5 truncate text-[0.625rem] font-medium uppercase tracking-widest text-white/35">
                     {set.type === "UPGRADING" ? "Upgrading" : "Meet Standard"}
                   </p>
                   <p className="truncate text-base font-bold text-white">{set.name}</p>
@@ -410,7 +410,7 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
                         </div>
 
                         <div className="text-right">
-                          <p className="text-[10px] uppercase tracking-wide text-white/25">Qualified</p>
+                          <p className="text-[0.625rem] uppercase tracking-wide text-white/25">Qualified</p>
                           <p
                             className="mt-0.5 text-sm font-bold"
                             style={{ color: group.qualified > 0 ? "#6EE7B7" : "rgba(255,255,255,0.48)" }}
@@ -471,11 +471,11 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
                                   <p className="truncate text-sm font-semibold" style={{ color: strokeColor }}>
                                     {item.event}
                                   </p>
-                                  <p className="text-[10px] text-white/30">{item.course}</p>
+                                  <p className="text-[0.625rem] text-white/30">{item.course}</p>
                                 </div>
 
                                 <div className="flex-shrink-0 text-right">
-                                  <p className="mb-0.5 text-[10px] text-white/28">Standard</p>
+                                  <p className="mb-0.5 text-[0.625rem] text-white/28">Standard</p>
                                   <p className="text-sm font-semibold text-white/55">
                                     {formatMs(item.qualifying_time_ms)}
                                   </p>
@@ -484,7 +484,7 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
                                 <div className="w-20 flex-shrink-0 text-right">
                                   {hasQual && pb !== undefined ? (
                                     <>
-                                      <p className="mb-0.5 text-[10px] font-semibold" style={{ color: "#6EE7B7" }}>
+                                      <p className="mb-0.5 text-[0.625rem] font-semibold" style={{ color: "#6EE7B7" }}>
                                         ✓ Qualified
                                       </p>
                                       <p className="text-sm font-bold" style={{ color: "#6EE7B7" }}>
@@ -493,16 +493,16 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
                                     </>
                                   ) : hasTime && pb !== undefined ? (
                                     <>
-                                      <p className="mb-0.5 text-[10px] text-white/28">PB</p>
+                                      <p className="mb-0.5 text-[0.625rem] text-white/28">PB</p>
                                       <p className="text-sm font-bold text-white">{formatMs(pb)}</p>
                                       {gapMs !== null && (
-                                        <p className="mt-0.5 text-[10px]" style={{ color: "#D97706" }}>
+                                        <p className="mt-0.5 text-[0.625rem]" style={{ color: "#D97706" }}>
                                           {formatGapSeconds(gapMs)}s away
                                         </p>
                                       )}
                                     </>
                                   ) : (
-                                    <p className="text-[10px] text-white/25">Not swum</p>
+                                    <p className="text-[0.625rem] text-white/25">Not swum</p>
                                   )}
                                 </div>
                               </div>
@@ -517,8 +517,8 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
                 <div className="px-1 pt-1">
                   <Link
                     href={`/standards/${set.id}`}
-                    className="text-[10px] font-semibold"
-                    style={{ color: "rgba(253,230,138,0.58)" }}
+                    className="text-[0.625rem] font-semibold"
+                    style={{ color: "var(--natrix-font-colour, rgba(253,230,138,0.58))" }}
                   >
                     Edit this standard set →
                   </Link>
@@ -539,8 +539,8 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
                 </p>
                 <Link
                   href={`/standards/${set.id}`}
-                  className="mt-2 block text-[10px] font-semibold"
-                  style={{ color: "rgba(253,230,138,0.58)" }}
+                  className="mt-2 block text-[0.625rem] font-semibold"
+                  style={{ color: "var(--natrix-font-colour, rgba(253,230,138,0.58))" }}
                 >
                   Edit standard set →
                 </Link>

@@ -73,7 +73,7 @@ function getInitials(name: string) {
 }
 
 const AVATAR_COLORS = [
-  { bg: "#92400E", text: "#FDE68A" },
+  { bg: "#92400E", text: "var(--natrix-font-colour, #FDE68A)" },
   { bg: "#78350F", text: "#FCD34D" },
   { bg: "#854F0B", text: "#FAC775" },
   { bg: "#633806", text: "#EF9F27" },
@@ -111,7 +111,7 @@ function SlotButton({
     >
       <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={onChange} />
       {required && !preview && (
-        <span className="absolute right-1.5 top-1.5 rounded-full px-1.5 py-0.5 text-[8px] uppercase tracking-wider"
+        <span className="absolute right-1.5 top-1.5 rounded-full px-1.5 py-0.5 text-[0.5rem] uppercase tracking-wider"
           style={{ background: "rgba(22,138,232,0.16)", color: "#7DD3FC" }}>
           Required
         </span>
@@ -121,8 +121,8 @@ function SlotButton({
       ) : (
         <>
           <span className="text-xl text-white/20">📷</span>
-          <p className="mt-1 text-[11px] font-semibold text-white/55">{label}</p>
-          <p className="mt-0.5 text-[9px] text-white/30">{hint}</p>
+          <p className="mt-1 text-[0.6875rem] font-semibold text-white/55">{label}</p>
+          <p className="mt-0.5 text-[0.5625rem] text-white/30">{hint}</p>
         </>
       )}
     </div>
@@ -493,7 +493,7 @@ export default function SwimCloudScanPage() {
     <div className="shell">
       <div className="container-app space-y-5 pb-28">
         <div className="pt-2">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-white/35">
+          <p className="text-[0.625rem] font-semibold uppercase tracking-[0.26em] text-white/35">
             Natrix Scan
           </p>
           <h1 className="mt-2 text-4xl font-bold tracking-tight text-white">SwimCloud</h1>
@@ -510,7 +510,7 @@ export default function SwimCloudScanPage() {
               className="space-y-3 rounded-3xl p-4"
               style={{ background: "rgba(255,255,255,0.075)", border: "1px solid rgba(255,255,255,0.12)" }}
             >
-              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">Scan type</p>
+              <p className="text-[0.625rem] font-semibold uppercase tracking-[0.18em] text-white/35">Scan type</p>
               <div className="flex gap-2">
                 {([
                   { key: "rankings", label: "Multiple swimmers" },
@@ -522,7 +522,7 @@ export default function SwimCloudScanPage() {
                     onClick={() => setSubMode(opt.key)}
                     className="flex-1 rounded-xl py-2.5 text-sm font-semibold transition"
                     style={{
-                      background: subMode === opt.key ? "#168AE8" : "rgba(255,255,255,0.055)",
+                      background: subMode === opt.key ? "var(--natrix-font-colour, #168AE8)" : "rgba(255,255,255,0.055)",
                       border: subMode === opt.key ? "1px solid rgba(125,211,252,0.28)" : "1px solid rgba(255,255,255,0.08)",
                       color: subMode === opt.key ? "#fff" : "rgba(255,255,255,0.5)",
                     }}
@@ -537,7 +537,7 @@ export default function SwimCloudScanPage() {
               className="space-y-3 rounded-3xl p-4"
               style={{ background: "rgba(255,255,255,0.075)", border: "1px solid rgba(255,255,255,0.12)" }}
             >
-              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">Course</p>
+              <p className="text-[0.625rem] font-semibold uppercase tracking-[0.18em] text-white/35">Course</p>
               <div className="flex gap-2">
                 {(["LCM", "SCM"] as MeetCourse[]).map((c) => (
                   <button
@@ -546,7 +546,7 @@ export default function SwimCloudScanPage() {
                     onClick={() => setMeetCourse(c)}
                     className="flex-1 rounded-xl py-2.5 text-sm font-semibold transition"
                     style={{
-                      background: meetCourse === c ? "#168AE8" : "rgba(255,255,255,0.055)",
+                      background: meetCourse === c ? "var(--natrix-font-colour, #168AE8)" : "rgba(255,255,255,0.055)",
                       border: meetCourse === c ? "1px solid rgba(125,211,252,0.28)" : "1px solid rgba(255,255,255,0.08)",
                       color: meetCourse === c ? "#fff" : "rgba(255,255,255,0.5)",
                     }}
@@ -565,12 +565,12 @@ export default function SwimCloudScanPage() {
               <SlotButton label="Screenshot 3" hint="Optional" preview={preview3} inputRef={ref3}
                 onChange={(e) => handleFile(e, setFile3, setPreview3)} />
             </div>
-            <p className="text-[10px] text-white/30">
+            <p className="text-[0.625rem] text-white/30">
               Add more slots if the page scrolls past what fits in one screenshot.
             </p>
             {subMode === "profile" && (
               <p
-                className="rounded-2xl px-4 py-3 text-[11px] leading-relaxed text-white/55"
+                className="rounded-2xl px-4 py-3 text-[0.6875rem] leading-relaxed text-white/55"
                 style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)" }}
               >
                 💡 Tip: scroll down a touch before you screenshot, so the first event row isn't
@@ -585,7 +585,7 @@ export default function SwimCloudScanPage() {
               onClick={handleScan}
               className="w-full rounded-2xl py-4 text-base font-semibold transition disabled:opacity-40"
               style={{
-                background: file1 ? "#168AE8" : "rgba(255,255,255,0.08)",
+                background: file1 ? "var(--natrix-font-colour, #168AE8)" : "rgba(255,255,255,0.08)",
                 color: "#fff",
                 boxShadow: file1 ? "0 12px 28px rgba(22,138,232,0.20)" : "none",
               }}
@@ -610,7 +610,7 @@ export default function SwimCloudScanPage() {
             {rows.length > 0 && (
               <>
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-semibold text-white/50">Meet name</label>
+                  <label className="text-[0.6875rem] font-semibold text-white/50">Meet name</label>
                   <input
                     value={manualMeetName}
                     onChange={(e) => setManualMeetName(e.target.value)}
@@ -619,7 +619,7 @@ export default function SwimCloudScanPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-semibold text-white/50">Meet date (optional)</label>
+                  <label className="text-[0.6875rem] font-semibold text-white/50">Meet date (optional)</label>
                   <input
                     type="date"
                     value={manualMeetDate}
@@ -640,19 +640,19 @@ export default function SwimCloudScanPage() {
                         style={{ borderColor: checked ? "rgba(253,230,138,0.3)" : undefined }}
                       >
                         <input type="checkbox" checked={checked} onChange={() => toggleRow(i)} className="h-4 w-4 shrink-0" />
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[11px] font-bold"
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[0.6875rem] font-bold"
                           style={{ background: color.bg, color: color.text }}>
                           {getInitials(row.name)}
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-semibold text-white">#{row.place} {row.name}</p>
-                          <p className="truncate text-[11px] text-white/40">
+                          <p className="truncate text-[0.6875rem] text-white/40">
                             {row.club ?? "No club"} {matched ? "· existing profile" : "· new profile will be created"}
                           </p>
                         </div>
                         <div className="shrink-0 text-right">
                           <p className="text-sm font-bold text-white">{row.timeStr}</p>
-                          <p className="text-[10px] text-white/40">{row.event}</p>
+                          <p className="text-[0.625rem] text-white/40">{row.event}</p>
                         </div>
                       </label>
                     );
@@ -664,7 +664,7 @@ export default function SwimCloudScanPage() {
                   disabled={selectedRows.size === 0 || savingSelected}
                   onClick={handleSaveSelected}
                   className="w-full rounded-2xl py-4 text-base font-semibold transition disabled:opacity-40"
-                  style={{ background: "#D97706", color: "#1C1204" }}
+                  style={{ background: "var(--natrix-font-colour, #D97706)", color: "#1C1204" }}
                 >
                   {savingSelected ? "Saving…" : `Save ${selectedRows.size} selected`}
                 </button>
@@ -673,7 +673,7 @@ export default function SwimCloudScanPage() {
 
             {savedNames.length > 0 && (
               <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-                <p className="text-[11px] font-semibold text-white/50">Saved this session</p>
+                <p className="text-[0.6875rem] font-semibold text-white/50">Saved this session</p>
                 <p className="mt-1 text-xs text-white/70">{savedNames.join(", ")}</p>
               </div>
             )}
@@ -697,11 +697,11 @@ export default function SwimCloudScanPage() {
 
             {showSwimmerPicker && !pickedSwimmer && (
               <div className="space-y-2 rounded-2xl border border-white/10 bg-white/5 p-3">
-                <p className="text-[11px] font-semibold text-white/50">
+                <p className="text-[0.6875rem] font-semibold text-white/50">
                   Whose results are these?
                   {profileInitials && <span className="text-white/30"> — avatar shows "{profileInitials}"</span>}
                 </p>
-                <p className="text-[10px] text-white/30">
+                <p className="text-[0.625rem] text-white/30">
                   SwimCloud doesn't show the full name on this page — pick once and we'll remember for next time.
                 </p>
                 <div className="max-h-48 space-y-1.5 overflow-auto">
@@ -712,13 +712,13 @@ export default function SwimCloudScanPage() {
                       onClick={() => selectSwimmer(s)}
                       className="flex w-full items-center gap-3 rounded-xl border border-white/10 bg-black/20 p-2.5 text-left transition hover:border-amber-400/40"
                     >
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[0.625rem] font-bold"
                         style={{ background: avatarColor(i).bg, color: avatarColor(i).text }}>
                         {getInitials(s.name)}
                       </div>
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-white">{s.name}</p>
-                        <p className="truncate text-[11px] text-white/40">{s.swim_club ?? "No club"}</p>
+                        <p className="truncate text-[0.6875rem] text-white/40">{s.swim_club ?? "No club"}</p>
                       </div>
                     </button>
                   ))}
@@ -740,7 +740,7 @@ export default function SwimCloudScanPage() {
                     <button type="button" onClick={handleCreateSwimmerForProfile}
                       disabled={!newSwimmerName.trim()}
                       className="w-full rounded-lg py-2 text-xs font-semibold disabled:opacity-40"
-                      style={{ background: "#D97706", color: "#1C1204" }}>
+                      style={{ background: "var(--natrix-font-colour, #D97706)", color: "#1C1204" }}>
                       Create & use this profile
                     </button>
                   </div>
@@ -751,15 +751,18 @@ export default function SwimCloudScanPage() {
             {pickedSwimmer && (
               <div className="flex items-center gap-3 rounded-2xl border p-3"
                 style={{ borderColor: "rgba(253,230,138,0.3)", background: "rgba(217,119,6,0.08)" }}>
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[11px] font-bold"
-                  style={{ background: "#92400E", color: "#FDE68A" }}>
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[0.6875rem] font-bold"
+                  style={{
+                    background: pickedSwimmer.group_type === "primary" ? "var(--natrix-avatar-colour, #92400E)" : "#92400E",
+                    color: pickedSwimmer.group_type === "primary" ? "var(--natrix-avatar-text, #FDE68A)" : "var(--natrix-font-colour, #FDE68A)",
+                  }}>
                   {getInitials(pickedSwimmer.name)}
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-white">Saving to {pickedSwimmer.name}</p>
                 </div>
                 <button type="button" onClick={() => { setPickedSwimmer(null); setShowSwimmerPicker(true); }}
-                  className="text-[11px] font-semibold text-white/40 underline">
+                  className="text-[0.6875rem] font-semibold text-white/40 underline">
                   Not them? Change
                 </button>
               </div>
@@ -768,7 +771,7 @@ export default function SwimCloudScanPage() {
             {pickedSwimmer && (profileRows.length > 0 || profileUnresolvedRows.length > 0) && (
               <>
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-semibold text-white/50">Meet name</label>
+                  <label className="text-[0.6875rem] font-semibold text-white/50">Meet name</label>
                   <input
                     value={manualMeetName}
                     onChange={(e) => setManualMeetName(e.target.value)}
@@ -777,7 +780,7 @@ export default function SwimCloudScanPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-semibold text-white/50">Meet date (optional)</label>
+                  <label className="text-[0.6875rem] font-semibold text-white/50">Meet date (optional)</label>
                   <input
                     type="date"
                     value={manualMeetDate}
@@ -797,7 +800,7 @@ export default function SwimCloudScanPage() {
                           <input type="checkbox" checked={checked} onChange={() => toggleProfileRow(i)} className="h-4 w-4 shrink-0" />
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-sm font-semibold text-white">{row.event}</p>
-                            <p className="truncate text-[11px] text-white/40">
+                            <p className="truncate text-[0.6875rem] text-white/40">
                               {row.round ?? "Round unknown"}{row.place ? ` · ${row.place}${row.place === 1 ? "st" : row.place === 2 ? "nd" : row.place === 3 ? "rd" : "th"}` : ""}
                               {row.delta != null ? ` · ${row.delta > 0 ? "+" : ""}${row.delta.toFixed(2)}` : ""}
                             </p>
@@ -811,7 +814,7 @@ export default function SwimCloudScanPage() {
 
                 {profileUnresolvedRows.length > 0 && (
                   <div className="space-y-2">
-                    <p className="text-[11px] font-semibold text-white/50">
+                    <p className="text-[0.6875rem] font-semibold text-white/50">
                       Couldn't identify the event — pick it, or leave blank to skip
                     </p>
                     {profileUnresolvedRows.map((row, i) => (
@@ -832,7 +835,7 @@ export default function SwimCloudScanPage() {
                               <option key={ev} value={ev}>{ev}</option>
                             ))}
                           </select>
-                          <p className="mt-1 truncate text-[11px] text-white/40">
+                          <p className="mt-1 truncate text-[0.6875rem] text-white/40">
                             {row.round ?? "Round unknown"}{row.place ? ` · ${row.place}th` : ""}
                             {row.delta != null ? ` · ${row.delta > 0 ? "+" : ""}${row.delta.toFixed(2)}` : ""}
                           </p>
@@ -848,7 +851,7 @@ export default function SwimCloudScanPage() {
                   disabled={totalToSave === 0 || savingSelected}
                   onClick={handleSaveProfileSelected}
                   className="w-full rounded-2xl py-4 text-base font-semibold transition disabled:opacity-40"
-                  style={{ background: "#D97706", color: "#1C1204" }}
+                  style={{ background: "var(--natrix-font-colour, #D97706)", color: "#1C1204" }}
                 >
                   {savingSelected ? "Saving…" : `Save ${totalToSave} selected`}
                 </button>
@@ -857,7 +860,7 @@ export default function SwimCloudScanPage() {
 
             {savedNames.length > 0 && (
               <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-                <p className="text-[11px] font-semibold text-white/50">Saved this session</p>
+                <p className="text-[0.6875rem] font-semibold text-white/50">Saved this session</p>
                 <p className="mt-1 text-xs text-white/70">{savedNames.join(", ")}</p>
               </div>
             )}
@@ -881,16 +884,16 @@ function DebugBox({
   return (
     <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
       <div className="flex items-center justify-between">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40">
+        <p className="text-[0.625rem] font-semibold uppercase tracking-wider text-white/40">
           Raw OCR text (debug)
         </p>
         <button type="button" onClick={onCopy}
-          className="rounded-full border border-white/15 px-2.5 py-1 text-[10px] font-semibold text-white/60">
+          className="rounded-full border border-white/15 px-2.5 py-1 text-[0.625rem] font-semibold text-white/60">
           {copyLabel}
         </button>
       </div>
-      {routeDebug && <p className="mt-1 text-[10px] text-white/30">{routeDebug}</p>}
-      <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words text-[10px] leading-relaxed text-white/50">
+      {routeDebug && <p className="mt-1 text-[0.625rem] text-white/30">{routeDebug}</p>}
+      <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words text-[0.625rem] leading-relaxed text-white/50">
         {rawText || "(empty)"}
       </pre>
     </div>

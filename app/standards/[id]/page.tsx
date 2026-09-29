@@ -264,7 +264,7 @@ export default function StandardsDetailPage() {
                 onClick={() => setSetGender(g)}
                 className="rounded-2xl border px-4 py-2 text-sm font-medium transition"
                 style={setGender === g
-                  ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
+                  ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "var(--natrix-font-colour, #FDE68A)" }
                   : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.4)" }}
               >
                 {g === "Male" ? "♂ Male" : "♀ Female"}
@@ -335,7 +335,7 @@ export default function StandardsDetailPage() {
               onClick={addItem}
               disabled={adding || !timeStr.trim() || !setGender}
               className="w-full rounded-2xl py-3 text-sm font-semibold text-white transition disabled:opacity-40"
-              style={{ background: "#D97706" }}
+              style={{ background: "var(--natrix-font-colour, #D97706)" }}
             >
               {adding ? "Adding..." : `Add ${setGender ? `${setGender} ` : ""}standard`}
             </button>
@@ -351,7 +351,7 @@ export default function StandardsDetailPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            <p className="text-[10px] font-medium uppercase tracking-widest text-white/30 px-1">
+            <p className="text-[0.625rem] font-medium uppercase tracking-widest text-white/30 px-1">
               {items.length} standard{items.length === 1 ? "" : "s"}
             </p>
             {Object.entries(grouped).map(([stroke, strokeItems]) => {
@@ -381,7 +381,7 @@ export default function StandardsDetailPage() {
                           </div>
                         </div>
                         <div className="flex items-center gap-3 flex-shrink-0">
-                          <p className="text-base font-bold" style={{ color: "#FDE68A" }}>
+                          <p className="text-base font-bold" style={{ color: "var(--natrix-font-colour, #FDE68A)" }}>
                             {formatMs(item.qualifying_time_ms)}
                           </p>
                           <button

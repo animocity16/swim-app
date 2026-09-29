@@ -403,17 +403,17 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
-            <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">
+            <p className="text-[0.625rem] font-medium uppercase tracking-widest text-white/30">
               {rows.length} result{rows.length === 1 ? "" : "s"} · {strokeGroups.reduce((n, g) => n + g.events.length, 0)} events
             </p>
             <button
               type="button"
               onClick={() => setShowCourseInfo((v) => !v)}
               aria-label="What do LCM and SCM mean?"
-              className="flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold transition"
+              className="flex h-4 w-4 items-center justify-center rounded-full text-[0.625rem] font-bold transition"
               style={{
                 background: showCourseInfo ? "rgba(253,230,138,0.25)" : "rgba(255,255,255,0.08)",
-                color: showCourseInfo ? "#FDE68A" : "rgba(255,255,255,0.4)",
+                color: showCourseInfo ? "var(--natrix-font-colour, #FDE68A)" : "rgba(255,255,255,0.4)",
               }}
             >
               i
@@ -426,7 +426,7 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
             style={{
               background: showAddForm ? "rgba(217,119,6,0.2)" : "rgba(255,255,255,0.05)",
               border: "1px solid rgba(255,255,255,0.12)",
-              color: showAddForm ? "#FDE68A" : "rgba(255,255,255,0.5)",
+              color: showAddForm ? "var(--natrix-font-colour, #FDE68A)" : "rgba(255,255,255,0.5)",
             }}
           >
             {showAddForm ? "Cancel" : "+ Add time"}
@@ -464,16 +464,16 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
             <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} className="input" />
 
             <div>
-              <p className="text-[10px] text-white/30 mb-2 uppercase tracking-wider">Meet name</p>
+              <p className="text-[0.625rem] text-white/30 mb-2 uppercase tracking-wider">Meet name</p>
               <div className="flex flex-wrap gap-1.5 mb-2">
                 {meetPresets.map((preset) => (
                   <button
                     key={preset}
                     type="button"
                     onClick={() => setNewMeetName(preset)}
-                    className="rounded-full px-2.5 py-1 text-[10px] font-medium transition"
+                    className="rounded-full px-2.5 py-1 text-[0.625rem] font-medium transition"
                     style={newMeetName === preset
-                      ? { background: "rgba(217,119,6,0.25)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
+                      ? { background: "rgba(217,119,6,0.25)", border: "1px solid rgba(253,230,138,0.4)", color: "var(--natrix-font-colour, #FDE68A)" }
                       : { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.45)" }}
                   >
                     {preset}
@@ -487,7 +487,7 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
             {addStatus && <p className="text-xs text-white/50">{addStatus}</p>}
             <button type="button" onClick={handleAddTime} disabled={saving}
               className="w-full rounded-2xl py-3 text-sm font-semibold text-white transition disabled:opacity-50"
-              style={{ background: "#D97706" }}>
+              style={{ background: "var(--natrix-font-colour, #D97706)" }}>
               {saving ? "Saving…" : "Add time"}
             </button>
           </div>
@@ -514,20 +514,11 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
                 className="w-full px-4 py-3 flex items-center gap-3 text-left transition hover:bg-white/5"
               >
                 {getStrokeIconSrc(sg.key) ? (
-                  <div
-                    className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl"
-                    style={{
-                      background: "rgba(255,255,255,0.06)",
-                      border: "1px solid rgba(255,255,255,0.10)",
-                      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)",
-                    }}
-                  >
-                    <img
-                      src={getStrokeIconSrc(sg.key)!}
-                      alt={`${sg.label} icon`}
-                      className="h-9 w-9 object-contain opacity-90"
-                    />
-                  </div>
+                  <img
+                    src={getStrokeIconSrc(sg.key)!}
+                    alt={`${sg.label} icon`}
+                    className="h-11 w-11 flex-shrink-0 rounded-2xl object-cover"
+                  />
                 ) : (
                   <div
                     className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl text-xs font-bold"
@@ -539,13 +530,13 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
 
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-bold text-white">{sg.label}</p>
-                  <p className="mt-0.5 text-[11px] text-white/30">
+                  <p className="mt-0.5 text-[0.6875rem] text-white/30">
                     {sg.events.length} event{sg.events.length === 1 ? "" : "s"}
                   </p>
                 </div>
 
                 {!isStrokeOpen && (
-                  <p className="text-sm font-bold flex-shrink-0" style={{ color: "#FDE68A" }}>
+                  <p className="text-sm font-bold flex-shrink-0" style={{ color: "var(--natrix-font-colour, #FDE68A)" }}>
                     {formatMs(sg.events[0]?.pb.time_ms)}
                   </p>
                 )}
@@ -579,25 +570,25 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
                         <div className="flex-1 min-w-0">
                           <div className="flex items-baseline gap-1.5">
                             <span className="text-sm font-semibold text-white">{eg.shortEvent}</span>
-                            <span className="text-[10px] text-white/30">{eg.course}</span>
+                            <span className="text-[0.625rem] text-white/30">{eg.course}</span>
                           </div>
                         </div>
                         <div className="text-right flex-shrink-0">
-                          <p className="text-sm font-bold" style={{ color: "#FDE68A" }}>{formatMs(eg.pb.time_ms)}</p>
+                          <p className="text-sm font-bold" style={{ color: "var(--natrix-font-colour, #FDE68A)" }}>{formatMs(eg.pb.time_ms)}</p>
                           {pbSpeed && (
-                            <p className="text-[10px] font-medium mt-0.5" style={{ color: "rgba(253,230,138,0.5)" }}>
+                            <p className="text-[0.625rem] font-medium mt-0.5" style={{ color: "rgba(253,230,138,0.5)" }}>
                               {pbSpeed}
                             </p>
                           )}
                           <div className="flex items-center justify-end gap-1 mt-0.5">
                             {eg.pb.place != null && (
-                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                              <span className="text-[0.5625rem] font-bold px-1.5 py-0.5 rounded-full"
                                 style={{ background: "rgba(99,179,237,0.15)", color: "#90CDF4", border: "1px solid rgba(99,179,237,0.25)" }}>
                                 {eg.pb.place}{eg.pb.place === 1 ? "st" : eg.pb.place === 2 ? "nd" : eg.pb.place === 3 ? "rd" : "th"}
                               </span>
                             )}
                             {eg.pb.swam_at && (
-                              <p className="text-[10px] text-white/30">{formatDate(eg.pb.swam_at)}</p>
+                              <p className="text-[0.625rem] text-white/30">{formatDate(eg.pb.swam_at)}</p>
                             )}
                           </div>
                         </div>
@@ -647,16 +638,16 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
 
                               {isEditing ? (
                                 <div className="space-y-2">
-                                  <p className="text-[10px] font-medium uppercase tracking-wider text-white/30">Meet name</p>
+                                  <p className="text-[0.625rem] font-medium uppercase tracking-wider text-white/30">Meet name</p>
                                   <div className="flex flex-wrap gap-1.5">
                                     {meetPresets.map((preset) => (
                                       <button
                                         key={preset}
                                         type="button"
                                         onClick={() => setEditingTime((p) => p ? { ...p, meetName: preset } : p)}
-                                        className="rounded-full px-2.5 py-1 text-[10px] font-medium transition"
+                                        className="rounded-full px-2.5 py-1 text-[0.625rem] font-medium transition"
                                         style={editingTime?.meetName === preset
-                                          ? { background: "rgba(217,119,6,0.25)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
+                                          ? { background: "rgba(217,119,6,0.25)", border: "1px solid rgba(253,230,138,0.4)", color: "var(--natrix-font-colour, #FDE68A)" }
                                           : { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.45)" }}
                                       >
                                         {preset}
@@ -675,7 +666,7 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
                                     onChange={(e) => setEditingTime((p) => p ? { ...p, swamAt: e.target.value } : p)}
                                     className="input"
                                   />
-                                  <p className="text-[10px] font-medium uppercase tracking-wider text-white/30">Course</p>
+                                  <p className="text-[0.625rem] font-medium uppercase tracking-wider text-white/30">Course</p>
                                   <div className="flex gap-1.5">
                                     {["LCM", "SCM", "SCY"].map((c) => (
                                       <button
@@ -684,7 +675,7 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
                                         onClick={() => setEditingTime((p) => p ? { ...p, course: c } : p)}
                                         className="flex-1 rounded-xl py-2 text-xs font-bold transition"
                                         style={editingTime?.course === c
-                                          ? { background: "#D97706", border: "1px solid #D97706", color: "#fff" }
+                                          ? { background: "var(--natrix-font-colour, #D97706)", border: "1px solid var(--natrix-font-colour, #D97706)", color: "#fff" }
                                           : { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}
                                       >
                                         {c}
@@ -694,7 +685,7 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
                                   <div className="flex gap-2">
                                     <button type="button" onClick={handleSaveEdit} disabled={savingEdit}
                                       className="flex-1 rounded-xl py-2 text-xs font-semibold text-white disabled:opacity-50"
-                                      style={{ background: "#D97706" }}>
+                                      style={{ background: "var(--natrix-font-colour, #D97706)" }}>
                                       {savingEdit ? "Saving…" : "Save"}
                                     </button>
                                     <button type="button" onClick={() => setEditingTime(null)}
@@ -707,30 +698,30 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
                                 <div className="flex items-center gap-3">
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2">
-                                      <span className="text-sm font-bold" style={{ color: isPB ? "#FDE68A" : "white" }}>
+                                      <span className="text-sm font-bold" style={{ color: isPB ? "var(--natrix-font-colour, #FDE68A)" : "white" }}>
                                         {formatMs(time.time_ms)}
                                       </span>
                                       {isPB && (
-                                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                                          style={{ background: "rgba(253,230,138,0.15)", color: "#FDE68A", border: "1px solid rgba(253,230,138,0.25)" }}>
+                                        <span className="text-[0.5625rem] font-bold px-1.5 py-0.5 rounded-full"
+                                          style={{ background: "rgba(253,230,138,0.15)", color: "var(--natrix-font-colour, #FDE68A)", border: "1px solid rgba(253,230,138,0.25)" }}>
                                           PB
                                         </span>
                                       )}
                                       {timeSpeed && (
-                                        <span className="text-[10px] font-medium" style={{ color: "rgba(255,255,255,0.3)" }}>
+                                        <span className="text-[0.625rem] font-medium" style={{ color: "rgba(255,255,255,0.3)" }}>
                                           {timeSpeed}
                                         </span>
                                       )}
                                     </div>
-                                    <p className="text-[11px] text-white/35 mt-0.5">
+                                    <p className="text-[0.6875rem] text-white/35 mt-0.5">
                                       {time.meet_name || "—"}
                                       {" · "}{time.swam_at ? formatDate(time.swam_at) : "Date unknown"}
                                     </p>
                                     {splits.length > 0 && (
                                       <button type="button"
                                         onClick={() => setExpandedSplits((p) => ({ ...p, [time.id]: !p[time.id] }))}
-                                        className="mt-1 text-[10px] font-medium transition"
-                                        style={{ color: "#FDE68A" }}>
+                                        className="mt-1 text-[0.625rem] font-medium transition"
+                                        style={{ color: "var(--natrix-font-colour, #FDE68A)" }}>
                                         {showSplits ? "Hide splits" : `Show ${splits.length} splits`}
                                       </button>
                                     )}
@@ -738,11 +729,11 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
                                   <div className="flex gap-1.5 flex-shrink-0">
                                     <button type="button"
                                       onClick={() => setEditingTime({ id: time.id, meetName: time.meet_name ?? "", swamAt: time.swam_at ?? "", course: time.course })}
-                                      className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-[11px] text-white/50 transition hover:bg-white/10">
+                                      className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-[0.6875rem] text-white/50 transition hover:bg-white/10">
                                       Edit
                                     </button>
                                     <button type="button" onClick={() => void handleDelete(time.id)}
-                                      className="rounded-lg border border-red-500/20 bg-red-500/10 px-2.5 py-1.5 text-[11px] text-red-300 transition hover:bg-red-500/20">
+                                      className="rounded-lg border border-red-500/20 bg-red-500/10 px-2.5 py-1.5 text-[0.6875rem] text-red-300 transition hover:bg-red-500/20">
                                       Del
                                     </button>
                                   </div>
@@ -766,20 +757,20 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
                                     {pacing && (
                                       <div className="flex items-center gap-1.5 px-3 py-1.5"
                                         style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                                        <span className="text-[10px] font-semibold" style={{ color: pacing.colorHex }}>
+                                        <span className="text-[0.625rem] font-semibold" style={{ color: pacing.colorHex }}>
                                           {pacing.icon === "down" ? "↓" : pacing.icon === "up" ? "↑" : "→"}
                                         </span>
-                                        <span className="text-[10px] font-medium" style={{ color: pacing.colorHex }}>
+                                        <span className="text-[0.625rem] font-medium" style={{ color: pacing.colorHex }}>
                                           {pacing.label}
                                         </span>
                                       </div>
                                     )}
                                     <div className="grid grid-cols-[1fr_56px_62px_80px] gap-2 px-3 py-2 items-center"
                                       style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                                      <span className="text-[9px] font-semibold uppercase tracking-widest text-white/30">Split</span>
-                                      <span className="text-[9px] font-semibold uppercase tracking-widest text-white/30 text-right">Leg</span>
-                                      <span className="text-[9px] font-semibold uppercase tracking-widest text-white/30 text-right">Cum.</span>
-                                      <span className="text-[9px] font-semibold uppercase tracking-widest text-white/30 text-right">Speed</span>
+                                      <span className="text-[0.5625rem] font-semibold uppercase tracking-widest text-white/30">Split</span>
+                                      <span className="text-[0.5625rem] font-semibold uppercase tracking-widest text-white/30 text-right">Leg</span>
+                                      <span className="text-[0.5625rem] font-semibold uppercase tracking-widest text-white/30 text-right">Cum.</span>
+                                      <span className="text-[0.5625rem] font-semibold uppercase tracking-widest text-white/30 text-right">Speed</span>
                                     </div>
                                     {sortedSplits.map((split, sIdx, arr) => {
                                       const speed = speeds[sIdx];
@@ -794,13 +785,13 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
                                           <p className="text-xs font-medium text-white/75">
                                             {split.split_label || "Split"}
                                           </p>
-                                          <p className="text-xs font-bold tabular-nums text-right" style={{ color: "#FDE68A" }}>
+                                          <p className="text-xs font-bold tabular-nums text-right" style={{ color: "var(--natrix-font-colour, #FDE68A)" }}>
                                             {formatMs(split.split_time_ms)}
                                           </p>
                                           <p className="text-xs tabular-nums text-right text-white/50">
                                             {split.cumulative_time_ms != null ? formatMs(split.cumulative_time_ms) : "—"}
                                           </p>
-                                          <p className="text-[11px] font-semibold tabular-nums text-right whitespace-nowrap" style={{ color: speedColor }}>
+                                          <p className="text-[0.6875rem] font-semibold tabular-nums text-right whitespace-nowrap" style={{ color: speedColor }}>
                                             {speed != null ? `${speed.toFixed(2)} m/s` : "—"}
                                           </p>
                                         </div>

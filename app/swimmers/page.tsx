@@ -232,15 +232,15 @@ export default function SwimmersPage() {
         <div className="container-app space-y-5">
           <div className="flex items-center justify-between pt-2">
             <div>
-              <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">Swimmers</p>
+              <p className="text-[0.625rem] font-medium uppercase tracking-widest text-white/30">Swimmers</p>
               <h1 className="mt-1 text-3xl font-bold tracking-tight text-white">Swimmers</h1>
             </div>
             <div className="h-10 w-10 rounded-2xl border border-white/10 bg-white/5" />
           </div>
-          <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">My swimmers</p>
+          <p className="text-[0.625rem] font-medium uppercase tracking-widest text-white/30">My swimmers</p>
           <SkeletonCard />
           <SkeletonCard />
-          <p className="text-[10px] font-medium uppercase tracking-widest text-white/30 mt-4">Following</p>
+          <p className="text-[0.625rem] font-medium uppercase tracking-widest text-white/30 mt-4">Following</p>
           <SkeletonCard />
           <SkeletonCard />
           <SkeletonCard />
@@ -256,8 +256,8 @@ export default function SwimmersPage() {
         {/* Branded header */}
         <div className="flex items-start justify-between pt-2">
           <div>
-            <div className="text-[28px] font-black tracking-[0.08em] text-white">NATRIX</div>
-            <div className="mt-0.5 text-[8px] font-semibold uppercase tracking-[0.24em] text-sky-200/50">
+            <div className="text-[1.75rem] font-black tracking-[0.08em] text-white">NATRIX</div>
+            <div className="mt-0.5 text-[0.5rem] font-semibold uppercase tracking-[0.24em] text-sky-200/50">
               Track · Improve · Belong
             </div>
             <div className="mt-5">
@@ -287,7 +287,7 @@ export default function SwimmersPage() {
           >
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: "#168AE8" }}>
+                <p className="text-[0.625rem] font-bold uppercase tracking-[0.16em]" style={{ color: "var(--natrix-font-colour, #168AE8)" }}>
                   Add swimmer
                 </p>
                 <h2 className="mt-1 text-xl font-bold" style={{ color: "#0B2A54" }}>
@@ -315,7 +315,7 @@ export default function SwimmersPage() {
                 className="input"
               />
               {previewRaceAge !== null && previewRaceAge > 0 && previewRaceAge < 30 && (
-                <p className="mt-1.5 px-1 text-xs font-medium" style={{ color: "#168AE8" }}>
+                <p className="mt-1.5 px-1 text-xs font-medium" style={{ color: "var(--natrix-font-colour, #168AE8)" }}>
                   ✓ Race age this year: {previewRaceAge}
                 </p>
               )}
@@ -358,7 +358,7 @@ export default function SwimmersPage() {
               onClick={addSwimmer}
               disabled={loading}
               className="w-full rounded-2xl py-3.5 text-sm font-bold text-white transition disabled:opacity-50"
-              style={{ background: "linear-gradient(90deg,#2AA4F4,#168AE8)" }}
+              style={{ background: "var(--natrix-font-colour, #168AE8)" }}
             >
               {loading ? "Adding..." : "Add swimmer"}
             </button>
@@ -393,7 +393,7 @@ export default function SwimmersPage() {
                   </div>
 
                   <div className="min-w-0 flex-1">
-                    <div className="text-[10px] font-bold uppercase tracking-[0.15em]" style={{ color: "#168AE8" }}>
+                    <div className="text-[0.625rem] font-bold uppercase tracking-[0.15em]" style={{ color: "var(--natrix-font-colour, #168AE8)" }}>
                       Primary swimmer
                     </div>
                     <h2 className="mt-1 truncate text-2xl font-bold" style={{ color: "#0B2A54" }}>
@@ -412,7 +412,7 @@ export default function SwimmersPage() {
                 <Link
                   href={`/swimmers/${swimmer.id}`}
                   className="mt-5 flex items-center justify-between rounded-2xl px-4 py-3.5 font-semibold text-white"
-                  style={{ background: "linear-gradient(90deg,#2AA4F4,#168AE8)" }}
+                  style={{ background: "var(--natrix-font-colour, #168AE8)" }}
                 >
                   <span>View full profile</span>
                   <span>›</span>
@@ -425,13 +425,13 @@ export default function SwimmersPage() {
         {/* My swimmers */}
         <section className="space-y-3">
           <div className="flex items-center justify-between px-1">
-            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/40">
+            <div className="text-[0.625rem] font-bold uppercase tracking-[0.18em] text-white/40">
               My swimmers
             </div>
             <button
               type="button"
               onClick={() => setShowAddForm(true)}
-              className="text-[10px] font-bold uppercase tracking-wide text-sky-200/75"
+              className="text-[0.625rem] font-bold uppercase tracking-wide text-sky-200/75"
             >
               + Add swimmer
             </button>
@@ -461,8 +461,8 @@ export default function SwimmersPage() {
                       </div>
                       {index === 0 && (
                         <span
-                          className="rounded-full px-2 py-1 text-[9px] font-bold"
-                          style={{ background: "#168AE8", color: "white" }}
+                          className="rounded-full px-2 py-1 text-[0.5625rem] font-bold"
+                          style={{ background: "var(--natrix-font-colour, #168AE8)", color: "white" }}
                         >
                           Primary
                         </span>
@@ -475,7 +475,7 @@ export default function SwimmersPage() {
                       Age {swimmer.age}
                     </div>
                     {swimmer.swim_club && (
-                      <div className="mt-1 truncate text-[10px]" style={{ color: "#71859A" }}>
+                      <div className="mt-1 truncate text-[0.625rem]" style={{ color: "#71859A" }}>
                         {swimmer.swim_club}
                       </div>
                     )}
@@ -494,12 +494,12 @@ export default function SwimmersPage() {
               >
                 <div
                   className="flex h-12 w-12 items-center justify-center rounded-full text-2xl"
-                  style={{ background: "#E8F4FD", color: "#168AE8" }}
+                  style={{ background: "#E8F4FD", color: "var(--natrix-font-colour, #168AE8)" }}
                 >
                   +
                 </div>
                 <div className="mt-3 text-sm font-bold" style={{ color: "#0B2A54" }}>Add swimmer</div>
-                <div className="mt-1 text-[10px]" style={{ color: "#71859A" }}>Link a new swimmer</div>
+                <div className="mt-1 text-[0.625rem]" style={{ color: "#71859A" }}>Link a new swimmer</div>
               </button>
             </div>
           ) : (
@@ -523,7 +523,7 @@ export default function SwimmersPage() {
               onClick={() => setFollowingOpen((v) => !v)}
               className="flex w-full items-center justify-between px-1"
             >
-              <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/40">
+              <span className="text-[0.625rem] font-bold uppercase tracking-[0.18em] text-white/40">
                 Following ({followingSwimmers.length})
               </span>
               <span className="text-sm text-white/35">{followingOpen ? "⌃" : "⌄"}</span>
@@ -546,7 +546,7 @@ export default function SwimmersPage() {
                         className="rounded-xl px-3 py-2 text-xs font-semibold transition"
                         style={
                           filterMode === "all"
-                            ? { background: "#168AE8", color: "white" }
+                            ? { background: "var(--natrix-font-colour, #168AE8)", color: "white" }
                             : { background: "transparent", color: "rgba(255,255,255,0.55)" }
                         }
                       >
@@ -560,7 +560,7 @@ export default function SwimmersPage() {
                         className="rounded-xl px-3 py-2 text-xs font-semibold transition disabled:opacity-30"
                         style={
                           filterMode === "club"
-                            ? { background: "#168AE8", color: "white" }
+                            ? { background: "var(--natrix-font-colour, #168AE8)", color: "white" }
                             : { background: "transparent", color: "rgba(255,255,255,0.55)" }
                         }
                       >
@@ -574,7 +574,7 @@ export default function SwimmersPage() {
                         className="rounded-xl px-3 py-2 text-xs font-semibold transition disabled:opacity-30"
                         style={
                           filterMode === "school"
-                            ? { background: "#168AE8", color: "white" }
+                            ? { background: "var(--natrix-font-colour, #168AE8)", color: "white" }
                             : { background: "transparent", color: "rgba(255,255,255,0.55)" }
                         }
                       >
@@ -592,7 +592,7 @@ export default function SwimmersPage() {
                             className="rounded-full px-3 py-1.5 text-xs font-semibold"
                             style={
                               filterValue === club
-                                ? { background: "#168AE8", color: "white" }
+                                ? { background: "var(--natrix-font-colour, #168AE8)", color: "white" }
                                 : { background: "rgba(255,255,255,0.10)", color: "rgba(255,255,255,0.6)" }
                             }
                           >
@@ -612,7 +612,7 @@ export default function SwimmersPage() {
                             className="rounded-full px-3 py-1.5 text-xs font-semibold"
                             style={
                               filterValue === schoolName
-                                ? { background: "#168AE8", color: "white" }
+                                ? { background: "var(--natrix-font-colour, #168AE8)", color: "white" }
                                 : { background: "rgba(255,255,255,0.10)", color: "rgba(255,255,255,0.6)" }
                             }
                           >
@@ -649,7 +649,7 @@ export default function SwimmersPage() {
                           </div>
                           <div className="mt-1 text-xs" style={{ color: "#71859A" }}>Age {swimmer.age}</div>
                           {swimmer.swim_club && (
-                            <div className="mt-1 truncate text-[10px]" style={{ color: "#71859A" }}>
+                            <div className="mt-1 truncate text-[0.625rem]" style={{ color: "#71859A" }}>
                               {swimmer.swim_club}
                             </div>
                           )}
@@ -658,7 +658,7 @@ export default function SwimmersPage() {
                         <button
                           type="button"
                           onClick={() => void deleteSwimmer(swimmer.id, swimmer.name)}
-                          className="mt-3 text-[10px] font-semibold"
+                          className="mt-3 text-[0.625rem] font-semibold"
                           style={{ color: "#C85C5C" }}
                         >
                           Remove
@@ -683,7 +683,7 @@ export default function SwimmersPage() {
           }}
         >
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: "#168AE8" }}>
+            <div className="text-[0.625rem] font-bold uppercase tracking-[0.16em]" style={{ color: "var(--natrix-font-colour, #168AE8)" }}>
               Compare
             </div>
             <div className="mt-1 text-base font-bold" style={{ color: "#0B2A54" }}>
@@ -693,7 +693,7 @@ export default function SwimmersPage() {
               See progress side by side
             </div>
           </div>
-          <span className="text-2xl" style={{ color: "#168AE8" }}>›</span>
+          <span className="text-2xl" style={{ color: "var(--natrix-font-colour, #168AE8)" }}>›</span>
         </Link>
 
         <div className="h-6" />
@@ -701,3 +701,4 @@ export default function SwimmersPage() {
     </div>
   );
 }
+

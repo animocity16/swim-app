@@ -182,7 +182,7 @@ function detectMeetType(rawText: string, hint: string | null): string {
 }
 
 const AVATAR_COLORS = [
-  { bg: "#92400E", text: "#FDE68A" },
+  { bg: "#92400E", text: "var(--natrix-font-colour, #FDE68A)" },
   { bg: "#78350F", text: "#FCD34D" },
   { bg: "#854F0B", text: "#FAC775" },
   { bg: "#633806", text: "#EF9F27" },
@@ -212,7 +212,7 @@ function SlotButton({
     >
       <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={onChange} />
       {required && !preview && (
-        <span className="absolute right-1.5 top-1.5 rounded-full px-1.5 py-0.5 text-[8px] uppercase tracking-wider"
+        <span className="absolute right-1.5 top-1.5 rounded-full px-1.5 py-0.5 text-[0.5rem] uppercase tracking-wider"
           style={{ background: "rgba(22,138,232,0.16)", color: "#7DD3FC" }}>
           Required
         </span>
@@ -222,8 +222,8 @@ function SlotButton({
       ) : (
         <>
           <span className="text-xl text-white/20">📷</span>
-          <p className="mt-1 text-[11px] font-semibold text-white/55">{label}</p>
-          <p className="mt-0.5 text-[9px] text-white/30">{hint}</p>
+          <p className="mt-1 text-[0.6875rem] font-semibold text-white/55">{label}</p>
+          <p className="mt-0.5 text-[0.5625rem] text-white/30">{hint}</p>
         </>
       )}
     </div>
@@ -251,14 +251,14 @@ function SourcePicker({ source, onChange }: { source: Source; onChange: (s: Sour
             onClick={() => onChange(opt.value)}
             className="flex flex-col items-center justify-center gap-0.5 rounded-xl py-2.5 text-xs font-semibold transition"
             style={active
-              ? { background: "#168AE8", color: "#fff", boxShadow: "0 10px 24px rgba(22,138,232,0.20)" }
+              ? { background: "var(--natrix-font-colour, #168AE8)", color: "#fff", boxShadow: "0 10px 24px rgba(22,138,232,0.20)" }
               : { background: "transparent", color: "rgba(255,255,255,0.45)" }}
           >
             <span className="flex items-center gap-1.5">
               <span className="text-sm">{opt.icon}</span>
               <span>{opt.label}</span>
             </span>
-            <span className="text-[10px] font-normal opacity-70">{opt.hint}</span>
+            <span className="text-[0.625rem] font-normal opacity-70">{opt.hint}</span>
           </button>
         );
       })}
@@ -285,7 +285,7 @@ function EventChips({
       className="rounded-2xl p-3 space-y-2"
       style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
     >
-      <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.35)" }}>
+      <p className="text-[0.625rem] font-semibold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.35)" }}>
         Saved events — tap to apply to next scan
       </p>
       <div className="flex flex-wrap gap-1.5">
@@ -296,7 +296,7 @@ function EventChips({
               key={chip}
               className="flex items-center overflow-hidden rounded-full"
               style={active
-                ? { background: "#D97706", border: "1px solid #D97706" }
+                ? { background: "var(--natrix-font-colour, #D97706)", border: "1px solid #D97706" }
                 : { background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.13)" }}
             >
               <button
@@ -320,7 +320,7 @@ function EventChips({
         })}
       </div>
       {activeChip && (
-        <p className="text-[10px]" style={{ color: "rgba(253,230,138,0.7)" }}>
+        <p className="text-[0.625rem]" style={{ color: "rgba(253,230,138,0.7)" }}>
           ✓ &ldquo;{activeChip}&rdquo; will be applied to your next multi-scan
         </p>
       )}
@@ -941,7 +941,7 @@ export default function ScanPage() {
         {/* Header */}
         <div className="flex items-start justify-between pt-2">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-white/35">Natrix Scan</p>
+            <p className="text-[0.625rem] font-semibold uppercase tracking-[0.26em] text-white/35">Natrix Scan</p>
             <h1 className="mt-2 text-4xl font-bold tracking-tight text-white">Add results</h1>
             <p className="mt-2 text-sm text-white/45">Import meet results without typing them in by hand.</p>
           </div>
@@ -976,7 +976,7 @@ export default function ScanPage() {
                 <p className="text-base font-semibold text-white">No swimmers added yet</p>
                 <p className="mt-1 text-sm text-white/40">Add a swimmer in My Kids first, or use the Spreadsheet tab to bulk-import.</p>
                 <button type="button" onClick={() => router.push("/swimmers")}
-                  className="mt-4 rounded-2xl px-5 py-2.5 text-sm font-semibold text-white" style={{ background: "#168AE8" }}>
+                  className="mt-4 rounded-2xl px-5 py-2.5 text-sm font-semibold text-white" style={{ background: "var(--natrix-font-colour, #168AE8)" }}>
                   Go to My Kids
                 </button>
               </div>
@@ -1015,7 +1015,7 @@ export default function ScanPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-xs font-semibold text-white/70">Meet course</p>
-                      <p className="text-[10px] text-white/35 mt-0.5">Set once — applies to all scans this session</p>
+                      <p className="text-[0.625rem] text-white/35 mt-0.5">Set once — applies to all scans this session</p>
                     </div>
                     <div className="flex rounded-xl overflow-hidden"
                       style={{ border: "1px solid rgba(255,255,255,0.12)" }}>
@@ -1026,7 +1026,7 @@ export default function ScanPage() {
                           onClick={() => setMeetCourse(c)}
                           className="px-4 py-2 text-sm font-bold transition"
                           style={meetCourse === c
-                            ? { background: "#168AE8", color: "#fff" }
+                            ? { background: "var(--natrix-font-colour, #168AE8)", color: "#fff" }
                             : { background: "transparent", color: "rgba(255,255,255,0.4)" }}
                         >
                           {c}
@@ -1052,7 +1052,7 @@ export default function ScanPage() {
                 <button type="button" onClick={handleScan} disabled={!file1}
                   className="w-full rounded-2xl py-4 text-lg font-bold text-white transition disabled:opacity-40"
                   style={{
-                    background: file1 ? "#168AE8" : "rgba(255,255,255,0.08)",
+                    background: file1 ? "var(--natrix-font-colour, #168AE8)" : "rgba(255,255,255,0.08)",
                     boxShadow: file1 ? "0 12px 28px rgba(22,138,232,0.20)" : "none",
                   }}>
                   Scan
@@ -1066,7 +1066,7 @@ export default function ScanPage() {
                 <p className="text-center text-lg font-semibold text-white">Scanning… {Math.round(progress)}%</p>
                 <div className="h-2 overflow-hidden rounded-full bg-white/10">
                   <div className="h-full rounded-full transition-all duration-200"
-                    style={{ width: `${progress}%`, background: "#168AE8" }} />
+                    style={{ width: `${progress}%`, background: "var(--natrix-font-colour, #168AE8)" }} />
                 </div>
                 <p className="text-center text-sm text-white/40">Reading screenshot</p>
               </div>
@@ -1083,8 +1083,8 @@ export default function ScanPage() {
                     <button
                       type="button"
                       onClick={() => setShowDebug((v) => !v)}
-                      className="flex items-center gap-1 rounded-full px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide underline decoration-dotted underline-offset-2 transition"
-                      style={{ color: "#FDE68A", background: "rgba(217,119,6,0.12)" }}
+                      className="flex items-center gap-1 rounded-full px-3 py-1.5 text-[0.6875rem] font-semibold uppercase tracking-wide underline decoration-dotted underline-offset-2 transition"
+                      style={{ color: "var(--natrix-font-colour, #FDE68A)", background: "rgba(217,119,6,0.12)" }}
                     >
                       {showDebug ? "▲ Hide scan details" : "▼ Scan details (tap to view)"}
                     </button>
@@ -1094,7 +1094,7 @@ export default function ScanPage() {
                   <div className="rounded-2xl p-3"
                     style={{ background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.15)" }}>
                     <div className="mb-2 flex items-center justify-between">
-                      <p className="text-[10px] uppercase tracking-widest" style={{ color: "#FDE68A" }}>
+                      <p className="text-[0.625rem] uppercase tracking-widest" style={{ color: "var(--natrix-font-colour, #FDE68A)" }}>
                         Raw OCR text
                       </p>
                       <button
@@ -1108,28 +1108,28 @@ export default function ScanPage() {
                           }
                           setTimeout(() => setCopyLabel("Copy"), 1500);
                         }}
-                        className="rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-wide transition"
-                        style={{ background: "rgba(217,119,6,0.25)", color: "#FDE68A", border: "1px solid rgba(217,119,6,0.4)" }}
+                        className="rounded-full px-3 py-1 text-[0.625rem] font-semibold uppercase tracking-wide transition"
+                        style={{ background: "rgba(217,119,6,0.25)", color: "var(--natrix-font-colour, #FDE68A)", border: "1px solid rgba(217,119,6,0.4)" }}
                       >
                         {copyLabel}
                       </button>
                     </div>
                     {routeDebug && (
-                      <p className="text-[10px] text-emerald-300/80 mb-2 break-all">
+                      <p className="text-[0.625rem] text-emerald-300/80 mb-2 break-all">
                         route: {routeDebug}
                       </p>
                     )}
                     {parsedResult && (
                       <>
-                        <p className="text-[10px] text-amber-300/70 mb-1 break-all">
+                        <p className="text-[0.625rem] text-amber-300/70 mb-1 break-all">
                           splits: {parsedResult.splits && parsedResult.splits.length > 0 ? JSON.stringify(parsedResult.splits) : "none detected"}
                         </p>
-                        <p className="text-[10px] text-amber-300/50 mb-2 break-all">
+                        <p className="text-[0.625rem] text-amber-300/50 mb-2 break-all">
                           trace: {parsedResult.splitDebug || "none"}
                         </p>
                       </>
                     )}
-                    <pre className="overflow-auto whitespace-pre-wrap text-[10px] leading-tight text-white/70" style={{ maxHeight: "300px", fontFamily: "monospace" }}>
+                    <pre className="overflow-auto whitespace-pre-wrap text-[0.625rem] leading-tight text-white/70" style={{ maxHeight: "300px", fontFamily: "monospace" }}>
                       {rawText}
                     </pre>
                   </div>
@@ -1169,7 +1169,7 @@ export default function ScanPage() {
                             <button key={c} type="button" onClick={() => setEditedCourse(c)}
                               className="flex-1 rounded-xl py-2 text-sm font-bold transition"
                               style={editedCourse === c
-                                ? { background: "#D97706", color: "#fff" }
+                                ? { background: "var(--natrix-font-colour, #D97706)", color: "#fff" }
                                 : { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.4)", border: "1px solid rgba(255,255,255,0.1)" }}>
                               {c}
                             </button>
@@ -1184,7 +1184,10 @@ export default function ScanPage() {
                         <div className="flex items-center gap-3 rounded-2xl p-3"
                           style={{ background: "rgba(186,117,23,0.1)", border: "1px solid rgba(186,117,23,0.3)" }}>
                           <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-xs font-bold"
-                            style={{ background: avatarColor(0).bg, color: avatarColor(0).text }}>
+                            style={{
+                              background: autoMatchedSwimmer.group_type === "primary" ? "var(--natrix-avatar-colour, " + avatarColor(0).bg + ")" : avatarColor(0).bg,
+                              color: autoMatchedSwimmer.group_type === "primary" ? "var(--natrix-avatar-text, " + avatarColor(0).text + ")" : avatarColor(0).text,
+                            }}>
                             {getInitials(autoMatchedSwimmer.name)}
                           </div>
                           <div className="flex-1">
@@ -1197,7 +1200,7 @@ export default function ScanPage() {
                         <button type="button" onClick={() => void saveSingleDirectly(autoMatchedSwimmer)}
                           disabled={isSaving}
                           className="w-full rounded-2xl py-4 text-base font-bold text-white transition disabled:opacity-50"
-                          style={{ background: "#D97706" }}>
+                          style={{ background: "var(--natrix-font-colour, #D97706)" }}>
                           {isSaving ? "Saving…" : `Save to ${autoMatchedSwimmer.name}`}
                         </button>
                       </div>
@@ -1226,7 +1229,7 @@ export default function ScanPage() {
                             </div>
                             <button type="button" onClick={() => setShowCreateForm(true)}
                               className="w-full rounded-xl py-3 text-sm font-bold text-white"
-                              style={{ background: "#D97706" }}>
+                              style={{ background: "var(--natrix-font-colour, #D97706)" }}>
                               + Create &quot;{newSwimmerName}&quot;
                             </button>
                           </div>
@@ -1281,7 +1284,7 @@ export default function ScanPage() {
                         <button type="button" onClick={() => void handleCreateNewSwimmerAndSaveSingle()}
                           disabled={creatingNewSwimmer || !newSwimmerName.trim()}
                           className="w-full rounded-2xl py-4 text-sm font-bold text-white transition disabled:opacity-50"
-                          style={{ background: "#D97706" }}>
+                          style={{ background: "var(--natrix-font-colour, #D97706)" }}>
                           {creatingNewSwimmer ? "Creating…" : "Create swimmer & save result"}
                         </button>
                       </div>
@@ -1299,14 +1302,14 @@ export default function ScanPage() {
 
                     {savedTimeId && savedCourse && (
                       <div className="pt-1">
-                        <p className="text-[10px] text-white/35 pb-1.5">Wrong course? Fix it here:</p>
+                        <p className="text-[0.625rem] text-white/35 pb-1.5">Wrong course? Fix it here:</p>
                         <div className="flex gap-1.5">
                           {(["LCM", "SCM", "SCY"] as const).map((c) => (
                             <button key={c} type="button" disabled={savingCourseChange}
                               onClick={() => void handleQuickCourseChange(c)}
                               className="flex-1 rounded-xl py-2 text-xs font-bold transition disabled:opacity-50"
                               style={savedCourse === c
-                                ? { background: "#D97706", border: "1px solid #D97706", color: "#fff" }
+                                ? { background: "var(--natrix-font-colour, #D97706)", border: "1px solid #D97706", color: "#fff" }
                                 : { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.5)" }}>
                               {c}
                             </button>
@@ -1315,7 +1318,7 @@ export default function ScanPage() {
                       </div>
                     )}
 
-                    <p className="text-[10px] text-white/35 pt-1">Event name saved as chip — tap it on the scan page to apply to multi-scans.</p>
+                    <p className="text-[0.625rem] text-white/35 pt-1">Event name saved as chip — tap it on the scan page to apply to multi-scans.</p>
                   </div>
                 )}
 
@@ -1347,7 +1350,7 @@ export default function ScanPage() {
                             <div className="flex items-center gap-3">
                               <div className="h-5 w-5 flex-shrink-0 rounded-md flex items-center justify-center"
                                 style={isSelected
-                                  ? { background: "#D97706", border: "1px solid #D97706" }
+                                  ? { background: "var(--natrix-font-colour, #D97706)", border: "1px solid #D97706" }
                                   : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)" }}>
                                 {isSelected && (
                                   <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
@@ -1361,7 +1364,7 @@ export default function ScanPage() {
                               </div>
                               <div className="text-right flex-shrink-0">
                                 <p className="text-sm font-bold text-white">{row.timeStr}</p>
-                                <p className="text-[10px] text-white/30">{row.course}</p>
+                                <p className="text-[0.625rem] text-white/30">{row.course}</p>
                               </div>
                             </div>
                           </button>
@@ -1378,12 +1381,12 @@ export default function ScanPage() {
                           <button type="button" onClick={() => setManualMeetName(manualMeetName === tempMeet ? "" : tempMeet)}
                             className="w-full flex items-center gap-2 rounded-xl px-3 py-2 text-left mb-2"
                             style={manualMeetName === tempMeet
-                              ? { background: "#D97706", border: "1px solid #D97706" }
+                              ? { background: "var(--natrix-font-colour, #D97706)", border: "1px solid #D97706" }
                               : { background: "rgba(217,119,6,0.12)", border: "1px solid rgba(253,230,138,0.3)" }}>
                             <span style={{ fontSize: "12px" }}>📍</span>
                             <div className="flex-1 min-w-0">
                               <p style={{ fontSize: "9px", fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: manualMeetName === tempMeet ? "rgba(255,255,255,0.7)" : "rgba(253,230,138,0.6)" }}>From last scan</p>
-                              <p className="text-xs font-semibold truncate" style={{ color: manualMeetName === tempMeet ? "#fff" : "#FDE68A" }}>{tempMeet}</p>
+                              <p className="text-xs font-semibold truncate" style={{ color: manualMeetName === tempMeet ? "#fff" : "var(--natrix-font-colour, #FDE68A)" }}>{tempMeet}</p>
                             </div>
                             {manualMeetName === tempMeet && (
                               <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7l3 3 5-5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
@@ -1394,7 +1397,7 @@ export default function ScanPage() {
                           {customMeets.filter(m => m !== tempMeet).map((preset) => (
                             <div key={preset} className="flex items-center rounded-full overflow-hidden"
                               style={manualMeetName === preset
-                                ? { background: "#D97706", border: "1px solid #D97706" }
+                                ? { background: "var(--natrix-font-colour, #D97706)", border: "1px solid #D97706" }
                                 : { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)" }}>
                               <button type="button" onClick={() => setManualMeetName(manualMeetName === preset ? "" : preset)}
                                 className="px-3 py-1 text-xs font-medium"
@@ -1439,7 +1442,10 @@ export default function ScanPage() {
                         <div className="flex items-center gap-3 rounded-2xl p-3"
                           style={{ background: "rgba(186,117,23,0.1)", border: "1px solid rgba(186,117,23,0.3)" }}>
                           <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-xs font-bold"
-                            style={{ background: avatarColor(0).bg, color: avatarColor(0).text }}>
+                            style={{
+                              background: scheduleMatchedSwimmer.group_type === "primary" ? "var(--natrix-avatar-colour, " + avatarColor(0).bg + ")" : avatarColor(0).bg,
+                              color: scheduleMatchedSwimmer.group_type === "primary" ? "var(--natrix-avatar-text, " + avatarColor(0).text + ")" : avatarColor(0).text,
+                            }}>
                             {getInitials(scheduleMatchedSwimmer.name)}
                           </div>
                           <div className="flex-1">
@@ -1452,7 +1458,7 @@ export default function ScanPage() {
                         <button type="button" onClick={() => void handleSaveSchedule(scheduleMatchedSwimmer)}
                           disabled={savingSchedule || selectedScheduleRows.size === 0}
                           className="w-full rounded-2xl py-4 text-base font-bold text-white transition disabled:opacity-50"
-                          style={{ background: "#D97706" }}>
+                          style={{ background: "var(--natrix-font-colour, #D97706)" }}>
                           {savingSchedule ? "Saving…" : `Save ${selectedScheduleRows.size} event${selectedScheduleRows.size === 1 ? "" : "s"} to ${scheduleMatchedSwimmer.name}`}
                         </button>
                       </div>
@@ -1481,7 +1487,7 @@ export default function ScanPage() {
                             </div>
                             <button type="button" onClick={() => setShowCreateForm(true)}
                               className="w-full rounded-xl py-3 text-sm font-bold text-white"
-                              style={{ background: "#D97706" }}>
+                              style={{ background: "var(--natrix-font-colour, #D97706)" }}>
                               + Create &quot;{newSwimmerName}&quot;
                             </button>
                           </div>
@@ -1540,7 +1546,7 @@ export default function ScanPage() {
                         <button type="button" onClick={() => void handleCreateNewSwimmerAndSaveSchedule()}
                           disabled={creatingNewSwimmer || !newSwimmerName.trim()}
                           className="w-full rounded-2xl py-4 text-sm font-bold text-white transition disabled:opacity-50"
-                          style={{ background: "#D97706" }}>
+                          style={{ background: "var(--natrix-font-colour, #D97706)" }}>
                           {creatingNewSwimmer ? "Creating…" : `Create swimmer & save ${selectedScheduleRows.size} event${selectedScheduleRows.size === 1 ? "" : "s"}`}
                         </button>
                       </div>
@@ -1570,8 +1576,8 @@ export default function ScanPage() {
                     {activeEventChip && (
                       <div className="flex items-center gap-2 rounded-xl px-3 py-2"
                         style={{ background: "rgba(217,119,6,0.12)", border: "1px solid rgba(253,230,138,0.2)" }}>
-                        <span style={{ fontSize: "11px", color: "#FDE68A" }}>🏷</span>
-                        <p style={{ fontSize: "11px", color: "#FDE68A", fontWeight: 600 }}>
+                        <span style={{ fontSize: "11px", color: "var(--natrix-font-colour, #FDE68A)" }}>🏷</span>
+                        <p style={{ fontSize: "11px", color: "var(--natrix-font-colour, #FDE68A)", fontWeight: 600 }}>
                           Using event: {activeEventChip}
                         </p>
                       </div>
@@ -1592,7 +1598,7 @@ export default function ScanPage() {
                           <div className="flex items-center gap-3">
                             <div className="h-5 w-5 flex-shrink-0 rounded-md flex items-center justify-center"
                               style={isSelected && !isSaved
-                                ? { background: "#D97706", border: "1px solid #D97706" }
+                                ? { background: "var(--natrix-font-colour, #D97706)", border: "1px solid #D97706" }
                                 : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)" }}>
                               {(isSelected || isSaved) && (
                                 <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
@@ -1624,12 +1630,12 @@ export default function ScanPage() {
                               <button type="button" onClick={() => setEventMeetName(eventMeetName === tempMeet ? "" : tempMeet)}
                                 className="w-full flex items-center gap-2 rounded-xl px-3 py-2 text-left mb-2"
                                 style={eventMeetName === tempMeet
-                                  ? { background: "#D97706", border: "1px solid #D97706" }
+                                  ? { background: "var(--natrix-font-colour, #D97706)", border: "1px solid #D97706" }
                                   : { background: "rgba(217,119,6,0.12)", border: "1px solid rgba(253,230,138,0.3)" }}>
                                 <span style={{ fontSize: "12px" }}>📍</span>
                                 <div className="flex-1 min-w-0">
                                   <p style={{ fontSize: "9px", fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: eventMeetName === tempMeet ? "rgba(255,255,255,0.7)" : "rgba(253,230,138,0.6)" }}>From last scan</p>
-                                  <p className="text-xs font-semibold truncate" style={{ color: eventMeetName === tempMeet ? "#fff" : "#FDE68A" }}>{tempMeet}</p>
+                                  <p className="text-xs font-semibold truncate" style={{ color: eventMeetName === tempMeet ? "#fff" : "var(--natrix-font-colour, #FDE68A)" }}>{tempMeet}</p>
                                 </div>
                                 {eventMeetName === tempMeet && (
                                   <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7l3 3 5-5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
@@ -1640,7 +1646,7 @@ export default function ScanPage() {
                               {customMeets.filter(m => m !== tempMeet).map((preset) => (
                                 <div key={preset} className="flex items-center rounded-full overflow-hidden"
                                   style={eventMeetName === preset
-                                    ? { background: "#D97706", border: "1px solid #D97706" }
+                                    ? { background: "var(--natrix-font-colour, #D97706)", border: "1px solid #D97706" }
                                     : { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)" }}>
                                   <button type="button" onClick={() => setEventMeetName(eventMeetName === preset ? "" : preset)}
                                     className="px-3 py-1 text-xs font-medium"
@@ -1682,7 +1688,7 @@ export default function ScanPage() {
                         <button type="button" onClick={() => void handleSaveSelected()}
                           disabled={savingSelected}
                           className="w-full rounded-2xl py-4 text-base font-bold text-white transition disabled:opacity-50"
-                          style={{ background: "#D97706" }}>
+                          style={{ background: "var(--natrix-font-colour, #D97706)" }}>
                           {savingSelected ? "Saving…" : `Save ${selectedRows.size} result${selectedRows.size === 1 ? "" : "s"}`}
                         </button>
                       </div>

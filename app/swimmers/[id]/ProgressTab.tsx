@@ -61,7 +61,7 @@ function getStrokeColor(event: string): string {
   if (e.includes("butterfly") || e.includes("fly")) return "#FB923C";
   if (e.includes("freestyle") || e.includes("free")) return "#38BDF8";
   if (e.includes("medley") || e.includes("im")) return "#F472B6";
-  return "#FDE68A";
+  return "var(--natrix-font-colour, #FDE68A)";
 }
 
 function formatMs(ms?: number | null): string {
@@ -272,7 +272,7 @@ function ProgressChart({
                   cx={x}
                   cy={y}
                   r={isSelected ? 11 : 8}
-                  fill={isPB ? "#FDE68A" : series.color}
+                  fill={isPB ? "var(--natrix-font-colour, #FDE68A)" : series.color}
                   stroke={isSelected ? "#FFFFFF" : "rgba(0,0,0,0.35)"}
                   strokeWidth={isSelected ? 3 : 2}
                 />
@@ -327,7 +327,7 @@ function ProgressChart({
           </div>
         </div>
       ) : (
-        <p className="text-center text-[10px] text-white/25">
+        <p className="text-center text-[0.625rem] text-white/25">
           Tap a dot to see the race details
         </p>
       )}
@@ -505,24 +505,24 @@ export default function ProgressTab({ swimmerId, swimmerName }: Props) {
           boxShadow: "0 18px 40px rgba(0,0,0,0.10)",
         }}
       >
-        <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">
+        <p className="text-[0.625rem] font-medium uppercase tracking-widest text-white/30">
           Overall progress
         </p>
 
         <div className="mt-3 grid grid-cols-3 gap-2">
           <div>
             <p className="text-xl font-bold text-white">{allSeries.length}</p>
-            <p className="text-[10px] text-white/35">events tracked</p>
+            <p className="text-[0.625rem] text-white/35">events tracked</p>
           </div>
           <div>
             <p className="text-xl font-bold text-white">{totalRaces}</p>
-            <p className="text-[10px] text-white/35">races recorded</p>
+            <p className="text-[0.625rem] text-white/35">races recorded</p>
           </div>
           <div>
             <p className="text-xl font-bold" style={{ color: "#6EE7B7" }}>
               {improvedEvents}
             </p>
-            <p className="text-[10px] text-white/35">events improved</p>
+            <p className="text-[0.625rem] text-white/35">events improved</p>
           </div>
         </div>
 
@@ -534,7 +534,7 @@ export default function ProgressTab({ swimmerId, swimmerName }: Props) {
               border: `1px solid ${strongestProgress.color}20`,
             }}
           >
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-white/30">
+            <p className="text-[0.625rem] font-semibold uppercase tracking-widest text-white/30">
               Natrix noticed
             </p>
             <p className="mt-1 text-sm text-white/70">
@@ -550,7 +550,7 @@ export default function ProgressTab({ swimmerId, swimmerName }: Props) {
 
       {/* Event progress grouped by stroke */}
       <div className="space-y-2">
-        <p className="px-1 text-[10px] font-medium uppercase tracking-widest text-white/30">
+        <p className="px-1 text-[0.625rem] font-medium uppercase tracking-widest text-white/30">
           Event progress
         </p>
 
@@ -590,14 +590,14 @@ export default function ProgressTab({ swimmerId, swimmerName }: Props) {
                       <p className="truncate text-sm font-bold text-white">
                         {group.label}
                       </p>
-                      <p className="mt-0.5 text-[10px] text-white/35">
+                      <p className="mt-0.5 text-[0.625rem] text-white/35">
                         {group.series.length} event{group.series.length === 1 ? "" : "s"} · {group.races} race{group.races === 1 ? "" : "s"}
                       </p>
                     </div>
 
                     {group.improved > 0 && (
                       <div className="hidden flex-shrink-0 text-right sm:block">
-                        <p className="text-[10px] uppercase tracking-wide text-white/25">
+                        <p className="text-[0.625rem] uppercase tracking-wide text-white/25">
                           Improved
                         </p>
                         <p className="mt-0.5 text-xs font-semibold" style={{ color: "#6EE7B7" }}>
@@ -653,14 +653,14 @@ export default function ProgressTab({ swimmerId, swimmerName }: Props) {
                                 <p className="truncate text-sm font-semibold text-white">
                                   {series.shortLabel}
                                 </p>
-                                <p className="mt-0.5 text-[10px] text-white/30">
+                                <p className="mt-0.5 text-[0.625rem] text-white/30">
                                   {series.course} · {series.rows.length} race
                                   {series.rows.length === 1 ? "" : "s"}
                                 </p>
                               </div>
 
                               <div className="flex-shrink-0 text-right">
-                                <p className="text-[9px] uppercase tracking-wide text-white/25">
+                                <p className="text-[0.5625rem] uppercase tracking-wide text-white/25">
                                   PB
                                 </p>
                                 <p className="text-base font-bold text-white">
@@ -669,13 +669,13 @@ export default function ProgressTab({ swimmerId, swimmerName }: Props) {
 
                                 {hasProgress && series.deltaMs > 0 ? (
                                   <p
-                                    className="mt-0.5 text-[10px] font-semibold"
+                                    className="mt-0.5 text-[0.625rem] font-semibold"
                                     style={{ color: "#6EE7B7" }}
                                   >
                                     ↓ {formatDelta(series.deltaMs)}
                                   </p>
                                 ) : (
-                                  <p className="mt-0.5 text-[10px] text-white/25">
+                                  <p className="mt-0.5 text-[0.625rem] text-white/25">
                                     {hasProgress ? "No PB drop" : "First result"}
                                   </p>
                                 )}
@@ -703,7 +703,7 @@ export default function ProgressTab({ swimmerId, swimmerName }: Props) {
                                     border: "1px solid rgba(255,255,255,0.07)",
                                   }}
                                 >
-                                  <p className="text-[10px] uppercase tracking-wide text-white/25">
+                                  <p className="text-[0.625rem] uppercase tracking-wide text-white/25">
                                     First
                                   </p>
                                   <p className="mt-1 text-sm font-bold text-white/70">
@@ -718,7 +718,7 @@ export default function ProgressTab({ swimmerId, swimmerName }: Props) {
                                     border: "1px solid rgba(255,255,255,0.07)",
                                   }}
                                 >
-                                  <p className="text-[10px] uppercase tracking-wide text-white/25">
+                                  <p className="text-[0.625rem] uppercase tracking-wide text-white/25">
                                     PB
                                   </p>
                                   <p className="mt-1 text-sm font-bold text-white">
@@ -733,7 +733,7 @@ export default function ProgressTab({ swimmerId, swimmerName }: Props) {
                                     border: "1px solid rgba(255,255,255,0.07)",
                                   }}
                                 >
-                                  <p className="text-[10px] uppercase tracking-wide text-white/25">
+                                  <p className="text-[0.625rem] uppercase tracking-wide text-white/25">
                                     Improved
                                   </p>
                                   <p
@@ -782,7 +782,7 @@ export default function ProgressTab({ swimmerId, swimmerName }: Props) {
                                   border: `1px solid ${series.color}24`,
                                 }}
                               >
-                                <p className="text-[10px] font-semibold uppercase tracking-widest text-white/30">
+                                <p className="text-[0.625rem] font-semibold uppercase tracking-widest text-white/30">
                                   Natrix noticed
                                 </p>
                                 <p className="mt-1 text-xs leading-relaxed text-white/55">

@@ -279,7 +279,7 @@ function SwimmerProfilePageInner() {
             <p className="text-sm font-semibold text-white">Edit profile</p>
             <button type="button" onClick={saveEdit} disabled={saving}
               className="text-sm font-semibold disabled:opacity-40"
-              style={{ color: "#FDE68A" }}>
+              style={{ color: "var(--natrix-font-colour, #FDE68A)" }}>
               {saving ? "Saving…" : "Save"}
             </button>
           </div>
@@ -300,7 +300,7 @@ function SwimmerProfilePageInner() {
                 <button key={g} type="button" onClick={() => setEditGender(editGender === g ? "" : g)}
                   className="rounded-2xl border py-2.5 text-sm font-medium transition"
                   style={editGender === g
-                    ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
+                    ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "var(--natrix-font-colour, #FDE68A)" }
                     : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}>
                   {g === "Male" ? "♂ Male" : "♀ Female"}
                 </button>
@@ -414,8 +414,8 @@ function SwimmerProfilePageInner() {
                     <div
                       className="flex h-24 w-24 items-center justify-center rounded-full text-2xl font-black"
                       style={{
-                        background: "linear-gradient(135deg,#185FA5,#2D8BD8)",
-                        color: "#D8ECFF",
+                        background: avatarBg,
+                        color: avatarText,
                         border: "4px solid rgba(255,255,255,0.92)",
                         boxShadow: "0 10px 24px rgba(11,42,84,0.18)",
                       }}
@@ -461,7 +461,7 @@ function SwimmerProfilePageInner() {
               </div>
 
               <div className="min-w-0 flex-1 pt-1">
-                <div className="text-[9px] font-black uppercase tracking-[0.18em]" style={{ color: "#4F91C8" }}>
+                <div className="text-[0.5625rem] font-black uppercase tracking-[0.18em]" style={{ color: "var(--natrix-font-colour, #168AE8)" }}>
                   Swimmer profile
                 </div>
                 <h1 className="mt-1 truncate text-2xl font-black tracking-tight" style={{ color: "#0B2A54" }}>
@@ -487,7 +487,7 @@ function SwimmerProfilePageInner() {
             <div className="mt-5 flex flex-wrap gap-2">
               {isPrimary && (
                 <span
-                  className="inline-flex items-center rounded-full px-3 py-1 text-[10px] font-bold"
+                  className="inline-flex items-center rounded-full px-3 py-1 text-[0.625rem] font-bold"
                   style={{
                     background: "#E6F3FC",
                     border: "1px solid #C8E2F5",
@@ -499,7 +499,7 @@ function SwimmerProfilePageInner() {
               )}
               {swimmer.squad && (
                 <span
-                  className="inline-flex items-center rounded-full px-3 py-1 text-[10px] font-bold"
+                  className="inline-flex items-center rounded-full px-3 py-1 text-[0.625rem] font-bold"
                   style={{
                     background: "#F3F8FC",
                     border: "1px solid #DCE8F1",
@@ -511,7 +511,7 @@ function SwimmerProfilePageInner() {
               )}
               {swimmer.group_type === "following" && (
                 <span
-                  className="inline-flex items-center rounded-full px-3 py-1 text-[10px] font-bold"
+                  className="inline-flex items-center rounded-full px-3 py-1 text-[0.625rem] font-bold"
                   style={{
                     background: "#EEF8FD",
                     border: "1px solid #D3ECF8",
@@ -523,7 +523,7 @@ function SwimmerProfilePageInner() {
               )}
             </div>
 
-            <p className="mt-4 text-[11px]" style={{ color: "#8295A6" }}>
+            <p className="mt-4 text-[0.6875rem]" style={{ color: "#8295A6" }}>
               Tap the photo or initials to personalise this swimmer.
             </p>
 
@@ -537,7 +537,7 @@ function SwimmerProfilePageInner() {
               <button
                 type="button"
                 onClick={handleRemovePhoto}
-                className="mt-3 text-[11px] font-medium underline decoration-dotted"
+                className="mt-3 text-[0.6875rem] font-medium underline decoration-dotted"
                 style={{ color: "#7B90A3" }}
               >
                 Remove photo
@@ -548,7 +548,7 @@ function SwimmerProfilePageInner() {
 
         {/* Profile navigation */}
         <div>
-          <p className="mb-2 px-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white/40">
+          <p className="mb-2 px-1 text-[0.625rem] font-bold uppercase tracking-[0.18em] text-white/40">
             Performance
           </p>
           <div
@@ -573,7 +573,7 @@ function SwimmerProfilePageInner() {
                   key={tab}
                   type="button"
                   onClick={() => setActiveTab(tab)}
-                  className="min-w-0 rounded-[16px] px-1 py-2.5 text-center text-[11px] font-bold tracking-tight transition"
+                  className="min-w-0 rounded-[16px] px-1 py-2.5 text-center text-[0.6875rem] font-bold tracking-tight transition"
                   style={
                     active
                       ? {

@@ -74,7 +74,7 @@ export default function InvitePage() {
 
       {/* Step 1 — Invite code */}
       <div className="w-full max-w-sm mb-4">
-        <p className="text-[10px] font-medium uppercase tracking-widest text-white/30 mb-2 px-1">Step 1 — Save your invite code</p>
+        <p className="text-[0.625rem] font-medium uppercase tracking-widest text-white/30 mb-2 px-1">Step 1 — Save your invite code</p>
         <div
           className="rounded-3xl p-5"
           style={{
@@ -87,7 +87,7 @@ export default function InvitePage() {
             className="rounded-2xl px-4 py-4 flex items-center justify-between gap-3"
             style={{ background: "rgba(0,20,50,0.4)", border: "1px solid rgba(253,230,138,0.2)" }}
           >
-            <p className="text-2xl font-bold tracking-widest" style={{ color: "#FDE68A" }}>{INVITE_CODE}</p>
+            <p className="text-2xl font-bold tracking-widest" style={{ color: "var(--natrix-font-colour, #FDE68A)" }}>{INVITE_CODE}</p>
             <button
               type="button"
               onClick={copyCode}
@@ -95,7 +95,7 @@ export default function InvitePage() {
               style={{
                 background: codeCopied ? "rgba(110,231,183,0.2)" : "rgba(253,230,138,0.15)",
                 border: codeCopied ? "1px solid rgba(110,231,183,0.4)" : "1px solid rgba(253,230,138,0.3)",
-                color: codeCopied ? "#6EE7B7" : "#FDE68A",
+                color: codeCopied ? "#6EE7B7" : "var(--natrix-font-colour, #FDE68A)",
               }}
             >
               {codeCopied ? "✓ Copied!" : "Copy"}
@@ -106,7 +106,7 @@ export default function InvitePage() {
 
       {/* Step 2 — Install */}
       <div className="w-full max-w-sm mb-4">
-        <p className="text-[10px] font-medium uppercase tracking-widest text-white/30 mb-2 px-1">Step 2 — Install on your phone</p>
+        <p className="text-[0.625rem] font-medium uppercase tracking-widest text-white/30 mb-2 px-1">Step 2 — Install on your phone</p>
         <div
           className="rounded-3xl p-5"
           style={{
@@ -124,7 +124,7 @@ export default function InvitePage() {
                 className="flex-1 rounded-2xl py-2.5 text-sm font-semibold transition"
                 style={
                   platform === p
-                    ? { background: "#D97706", color: "#fff" }
+                    ? { background: "var(--natrix-font-colour, #D97706)", color: "#fff" }
                     : { background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.5)" }
                 }
               >
@@ -138,7 +138,7 @@ export default function InvitePage() {
               <div key={step.number} className="flex items-start gap-3">
                 <div
                   className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-sm font-bold"
-                  style={{ background: "rgba(217,119,6,0.25)", color: "#FDE68A", border: "1px solid rgba(253,230,138,0.2)" }}
+                  style={{ background: "rgba(217,119,6,0.25)", color: "var(--natrix-font-colour, #FDE68A)", border: "1px solid rgba(253,230,138,0.2)" }}
                 >
                   {step.number}
                 </div>
@@ -154,7 +154,7 @@ export default function InvitePage() {
 
       {/* Step 3 — Create account */}
       <div className="w-full max-w-sm mb-8">
-        <p className="text-[10px] font-medium uppercase tracking-widest text-white/30 mb-2 px-1">Step 3 — Create your account</p>
+        <p className="text-[0.625rem] font-medium uppercase tracking-widest text-white/30 mb-2 px-1">Step 3 — Create your account</p>
         <div
           className="rounded-3xl p-4 mb-3 text-center"
           style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
@@ -167,7 +167,7 @@ export default function InvitePage() {
           <Link
             href="/signup"
             className="flex items-center justify-center w-full rounded-2xl py-4 text-base font-bold text-white transition"
-            style={{ background: "#D97706" }}
+            style={{ background: "var(--natrix-font-colour, #D97706)" }}
           >
             Create your free account →
           </Link>
