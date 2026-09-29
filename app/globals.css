@@ -337,6 +337,12 @@ body::after {
      since the same colour has to stay legible on both dark glass and
      white information cards. */
   .accent-text   { color: var(--natrix-font-colour, #FDE68A); }
+
+  /* Same live variable, but for the new white-card pages — #FDE68A (pale
+     amber) is invisible on a near-white card, so this defaults to the
+     new design's blue instead. Use this class, not .accent-text, on any
+     redesigned page. */
+  .accent-text-light { color: var(--natrix-font-colour, #168AE8); }
   .success-text  { color: #6EE7B7; }
   .warning-text  { color: #FCD34D; }
   .danger-text   { color: #FCA5A5; }

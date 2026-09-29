@@ -50,7 +50,7 @@ const MUTED = "#71859A";
 const ACCENT = "#168AE8";
 // Buttons/badges track the live accent var too, so a chosen Accent Colour
 // actually shows up on primary CTAs, not just labels.
-const ACCENT_GRADIENT = "linear-gradient(90deg, color-mix(in srgb, var(--natrix-font-colour, #168AE8) 78%, white), var(--natrix-font-colour, #168AE8))";
+const ACCENT_GRADIENT = "var(--natrix-font-colour, #168AE8)";
 const TINT_BG = "#EEF5FA";
 const TINT_BORDER = "#D6ECFB";
 const inputStyle: React.CSSProperties = {
@@ -84,7 +84,7 @@ function applyCustomBgInline(hue: number) {
 }
 
 // Sets the Accent Colour. globals.css now reads --natrix-font-colour directly
-// (.accent-text, plus the two legacy [style*="#..."] selectors for
+// (.accent-text-light, plus the two legacy [style*="#..."] selectors for
 // not-yet-redesigned pages) — no per-call injected <style> tag needed.
 function applyAccentColourInline(hex: string) {
   try{localStorage.setItem("natrix_font_colour",hex);}catch{}
@@ -347,7 +347,7 @@ export default function SettingsPage() {
 
         {/* ── Account ─────────────────────────────────────────────────────── */}
         <div className="rounded-[28px] p-5 space-y-4" style={CARD}>
-          <p className="text-[0.625rem] font-bold uppercase tracking-[0.16em] accent-text">Account</p>
+          <p className="text-[0.625rem] font-bold uppercase tracking-[0.16em] accent-text-light">Account</p>
           <div className="flex items-center gap-4">
             <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl text-lg font-bold"
               style={{background:ACCENT_GRADIENT,color:"white"}}>
@@ -384,7 +384,7 @@ export default function SettingsPage() {
           <div className="flex items-center gap-3">
             <span style={{fontSize:"1.125rem"}}>🛠️</span>
             <div>
-              <p className="text-sm font-semibold accent-text">Manage meets</p>
+              <p className="text-sm font-semibold accent-text-light">Manage meets</p>
               <p className="mt-0.5 text-xs" style={{color:MUTED}}>
                 {isAdmin ? "Admin · add or edit the official meet calendar" : "Add or cancel your own club's meets"}
               </p>
@@ -401,7 +401,7 @@ export default function SettingsPage() {
             <div className="flex items-center gap-3">
               <span style={{fontSize:"1.125rem"}}>📊</span>
               <div>
-                <p className="text-sm font-semibold accent-text">Real usage</p>
+                <p className="text-sm font-semibold accent-text-light">Real usage</p>
                 <p className="mt-0.5 text-xs" style={{color:MUTED}}>Admin · who's actually logging swim times</p>
               </div>
             </div>
@@ -411,7 +411,7 @@ export default function SettingsPage() {
 
         {/* ── Appearance ──────────────────────────────────────────────────── */}
         <div className="rounded-[28px] p-5 space-y-6" style={CARD}>
-          <p className="text-[0.625rem] font-bold uppercase tracking-[0.16em] accent-text">Appearance</p>
+          <p className="text-[0.625rem] font-bold uppercase tracking-[0.16em] accent-text-light">Appearance</p>
 
           {/* Live preview */}
           <div className="rounded-2xl p-4 space-y-2" style={{background:"#F7FAFC",border:"1px solid #E1EDF5"}}>
@@ -426,7 +426,7 @@ export default function SettingsPage() {
                 <p className="text-base font-bold truncate" style={{color:INK}}>{previewName}</p>
                 <p className="text-xs truncate" style={{color:MUTED}}>{previewSubtitle}</p>
                 <div className="flex items-center gap-3 mt-1.5">
-                  <span className="text-sm font-bold accent-text">{previewEvents}</span>
+                  <span className="text-sm font-bold accent-text-light">{previewEvents}</span>
                   <span className="text-[0.625rem] uppercase" style={{color:MUTED}}>events</span>
                   <span className="text-sm font-bold" style={{color:INK}}>{previewResults}</span>
                   <span className="text-[0.625rem] uppercase" style={{color:MUTED}}>results</span>
@@ -519,7 +519,7 @@ export default function SettingsPage() {
         {/* ── Text Size ───────────────────────────────────────────────────── */}
         <div className="rounded-[28px] p-5 space-y-4" style={CARD}>
           <div>
-            <p className="text-[0.625rem] font-bold uppercase tracking-[0.16em] accent-text">Text Size</p>
+            <p className="text-[0.625rem] font-bold uppercase tracking-[0.16em] accent-text-light">Text Size</p>
             <p className="mt-1 text-xs" style={{color:MUTED}}>Applies instantly across the whole app.</p>
           </div>
           <div className="grid grid-cols-4 gap-2">
@@ -528,9 +528,9 @@ export default function SettingsPage() {
               return(
                 <button key={size.id} type="button" onClick={()=>void handleSelectFontSize(size.id as FontSizeId)} disabled={savingFontSize}
                   className="flex flex-col items-center justify-center gap-1.5 rounded-2xl py-3 transition disabled:opacity-60"
-                  style={isActive?{background:"color-mix(in srgb, var(--natrix-font-colour, #168AE8) 12%, white)",border:"2px solid var(--natrix-font-colour, #168AE8)"}:{background:"#F7FAFC",border:"1px solid #E1EDF5"}}>
+                  style={isActive?{background:"rgba(22,138,232,0.10)",border:"2px solid var(--natrix-font-colour, #168AE8)"}:{background:"#F7FAFC",border:"1px solid #E1EDF5"}}>
                   <span className="font-bold leading-none" style={{fontSize:`${10+FONT_SIZES.indexOf(size)*3}px`,color:INK}}>Aa</span>
-                  <span className={`text-[0.5625rem] font-medium ${isActive?"accent-text":""}`} style={isActive?undefined:{color:MUTED}}>{size.label}</span>
+                  <span className={`text-[0.5625rem] font-medium ${isActive?"accent-text-light":""}`} style={isActive?undefined:{color:MUTED}}>{size.label}</span>
                 </button>
               );
             })}
@@ -542,7 +542,7 @@ export default function SettingsPage() {
         {/* ── Language ─────────────────────────────────────────────────────── */}
         <div className="rounded-[28px] p-5 space-y-4" style={CARD}>
           <div>
-            <p className="text-[0.625rem] font-bold uppercase tracking-[0.16em] accent-text">Language</p>
+            <p className="text-[0.625rem] font-bold uppercase tracking-[0.16em] accent-text-light">Language</p>
             <p className="mt-1 text-xs" style={{color:MUTED}}>Changes the app&apos;s menus and labels.</p>
           </div>
           <div className="grid grid-cols-3 gap-2">
@@ -551,9 +551,9 @@ export default function SettingsPage() {
               return(
                 <button key={lang.id} type="button" onClick={()=>void handleSelectLanguage(lang.id)} disabled={savingLanguage}
                   className="flex flex-col items-center justify-center gap-1.5 rounded-2xl py-3 transition disabled:opacity-60"
-                  style={isActive?{background:"color-mix(in srgb, var(--natrix-font-colour, #168AE8) 12%, white)",border:"2px solid var(--natrix-font-colour, #168AE8)"}:{background:"#F7FAFC",border:"1px solid #E1EDF5"}}>
+                  style={isActive?{background:"rgba(22,138,232,0.10)",border:"2px solid var(--natrix-font-colour, #168AE8)"}:{background:"#F7FAFC",border:"1px solid #E1EDF5"}}>
                   <span style={{fontSize:"1.125rem"}}>{lang.flag}</span>
-                  <span className={`text-[0.5625rem] font-medium text-center leading-tight ${isActive?"accent-text":""}`} style={isActive?undefined:{color:MUTED}}>{lang.label}</span>
+                  <span className={`text-[0.5625rem] font-medium text-center leading-tight ${isActive?"accent-text-light":""}`} style={isActive?undefined:{color:MUTED}}>{lang.label}</span>
                 </button>
               );
             })}
@@ -567,14 +567,14 @@ export default function SettingsPage() {
 
         {/* ── Help ────────────────────────────────────────────────────────── */}
         <div className="rounded-[28px] p-5" style={CARD}>
-          <p className="text-[0.625rem] font-bold uppercase tracking-[0.16em] mb-3 accent-text">Help</p>
+          <p className="text-[0.625rem] font-bold uppercase tracking-[0.16em] mb-3 accent-text-light">Help</p>
           <button type="button" onClick={replayTutorial}
             className="flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left transition"
             style={{background:TINT_BG,border:`1px solid ${TINT_BORDER}`}}>
             <div className="flex items-center gap-3">
               <span style={{fontSize:"1.125rem"}}>🎓</span>
               <div>
-                <p className="text-sm font-semibold accent-text">Replay tutorial</p>
+                <p className="text-sm font-semibold accent-text-light">Replay tutorial</p>
                 <p className="mt-0.5 text-xs" style={{color:MUTED}}>Walk through the app step by step again</p>
               </div>
             </div>
@@ -612,13 +612,13 @@ export default function SettingsPage() {
         {/* ── Feedback ────────────────────────────────────────────────────── */}
         <div className="rounded-[28px] p-5 space-y-4" style={CARD}>
           <div>
-            <p className="text-[0.625rem] font-bold uppercase tracking-[0.16em] accent-text">Feedback</p>
+            <p className="text-[0.625rem] font-bold uppercase tracking-[0.16em] accent-text-light">Feedback</p>
             <p className="mt-1 text-xs" style={{color:MUTED}}>Help shape Natrix — every message goes straight to J.O.D.</p>
           </div>
           {feedbackSent?(
             <div className="space-y-2 rounded-2xl py-6 text-center" style={{background:TINT_BG,border:`1px solid ${TINT_BORDER}`}}>
               <p className="text-2xl">🙏</p>
-              <p className="text-sm font-semibold accent-text">Thank you!</p>
+              <p className="text-sm font-semibold accent-text-light">Thank you!</p>
               <p className="text-xs" style={{color:MUTED}}>Your feedback means the world. We&apos;ll use it to make Natrix better.</p>
               <button type="button" onClick={()=>setFeedbackSent(false)} className="mt-2 text-xs underline" style={{color:MUTED}}>Send another</button>
             </div>
@@ -633,7 +633,7 @@ export default function SettingsPage() {
                       style={{opacity:feedbackRating>=star?1:0.25,filter:feedbackRating>=star?"none":"grayscale(1)"}}>⭐</button>
                   ))}
                 </div>
-                {feedbackRating>0&&<p className="mt-1.5 text-xs accent-text">{feedbackRating===5?"Love it! 🏊":feedbackRating===4?"Really good!":feedbackRating===3?"It's okay":feedbackRating===2?"Needs work":"Not great"}</p>}
+                {feedbackRating>0&&<p className="mt-1.5 text-xs accent-text-light">{feedbackRating===5?"Love it! 🏊":feedbackRating===4?"Really good!":feedbackRating===3?"It's okay":feedbackRating===2?"Needs work":"Not great"}</p>}
               </div>
               <div>
                 <p className="mb-2 text-xs" style={{color:MUTED}}>What would make Natrix better?</p>
@@ -659,7 +659,7 @@ export default function SettingsPage() {
 
         {/* ── About ───────────────────────────────────────────────────────── */}
         <div className="rounded-[28px] p-5" style={CARD}>
-          <p className="text-[0.625rem] font-bold uppercase tracking-[0.16em] mb-3 accent-text">About</p>
+          <p className="text-[0.625rem] font-bold uppercase tracking-[0.16em] mb-3 accent-text-light">About</p>
           {[
             {label:"Version",value:APP_VERSION,color:undefined},
             {label:"Built for",value:"Southeast Asia · expanding globally",color:undefined},
