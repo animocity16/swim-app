@@ -38,6 +38,27 @@ const HUES = [0,30,60,90,120,150,180,210,240,270,300,330,360];
 const BG_GRADIENT     = `linear-gradient(to right, ${HUES.map(h=>`hsl(${h},60%,14%)`).join(", ")})`;
 const AVATAR_GRADIENT = `linear-gradient(to right, ${HUES.map(h=>`hsl(${h},65%,38%)`).join(", ")})`;
 
+// ─── New-look design tokens (matches Swimmers/Compare/Dashboard) ─────────────
+
+const CARD: React.CSSProperties = {
+  background: "rgba(255,255,255,0.96)",
+  border: "1px solid rgba(255,255,255,0.9)",
+  boxShadow: "0 10px 24px rgba(0,25,55,0.10)",
+};
+const INK = "#0B2A54";
+const MUTED = "#71859A";
+const ACCENT = "#168AE8";
+// Buttons/badges track the live accent var too, so a chosen Accent Colour
+// actually shows up on primary CTAs, not just labels.
+const ACCENT_GRADIENT = "linear-gradient(90deg, color-mix(in srgb, var(--natrix-font-colour, #168AE8) 78%, white), var(--natrix-font-colour, #168AE8))";
+const TINT_BG = "#EEF5FA";
+const TINT_BORDER = "#D6ECFB";
+const inputStyle: React.CSSProperties = {
+  background: "#F7FAFC",
+  border: "1px solid #DFEAF2",
+  color: INK,
+};
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function getContrastText(hex: string): string {
@@ -62,12 +83,12 @@ function applyCustomBgInline(hue: number) {
   try{localStorage.setItem("natrix_custom_bg_hue",String(hue));}catch{}
 }
 
-function applyFontColourInline(hex: string) {
+// Sets the Accent Colour. globals.css now reads --natrix-font-colour directly
+// (.accent-text, plus the two legacy [style*="#..."] selectors for
+// not-yet-redesigned pages) — no per-call injected <style> tag needed.
+function applyAccentColourInline(hex: string) {
   try{localStorage.setItem("natrix_font_colour",hex);}catch{}
   document.documentElement.style.setProperty("--natrix-font-colour",hex);
-  let el=document.getElementById("natrix-font-colour") as HTMLStyleElement|null;
-  if(!el){el=document.createElement("style");el.id="natrix-font-colour";document.head.appendChild(el);}
-  el.textContent=`.accent-text{color:${hex}!important;}[style*="#FDE68A"]{color:${hex}!important;}[style*="#BA7517"]{color:${hex}!important;}`;
 }
 
 function applyAvatarColourInline(hue: number) {
@@ -227,10 +248,10 @@ export default function SettingsPage() {
 
   async function handleSelectFontColour(colourId: FontColourId){
     const colour=FONT_COLOURS.find(c=>c.id===colourId)!;
-    setActiveFontColour(colourId); applyFontColourInline(colour.hex);
+    setActiveFontColour(colourId); applyAccentColourInline(colour.hex);
     setSavingColors(true); setColorsSaved(false);
     await supabase.auth.updateUser({data:{font_colour:colourId}});
-    applyFontColourInline(colour.hex);
+    applyAccentColourInline(colour.hex);
     setSavingColors(false); setColorsSaved(true);
     setTimeout(()=>setColorsSaved(false),2000);
   }
@@ -291,7 +312,6 @@ export default function SettingsPage() {
   if(loading)return(<div className="shell"><div className="container-app"><p className="muted">Loading...</p></div></div>);
 
   const hasCustom=customBgOn||activeFontColour!==null||avatarColourOn;
-  const previewTextColour=activeFontColour?FONT_COLOURS.find(c=>c.id===activeFontColour)?.hex:"#FDE68A";
   const previewAvatarBg=avatarColourOn?`hsl(${avatarHue},65%,38%)`:"#0F6E56";
   const previewAvatarText=getContrastText(previewAvatarBg);
 
@@ -311,39 +331,47 @@ export default function SettingsPage() {
     <div className="shell">
       <div className="container-app space-y-5">
 
-        {/* Header */}
-        <div className="pt-2">
-          <p className="text-[10px] font-medium uppercase tracking-widest" style={{color:"#BA7517"}}>Natrix</p>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight text-white">Settings</h1>
+        {/* Branded header — matches Swimmers / Compare / Dashboard */}
+        <div className="flex items-start justify-between pt-2">
+          <div>
+            <div className="text-[1.75rem] font-black tracking-[0.08em] text-white">NATRIX</div>
+            <div className="mt-0.5 text-[0.5rem] font-semibold uppercase tracking-[0.24em] text-sky-200/50">
+              Track · Improve · Belong
+            </div>
+            <div className="mt-5">
+              <h1 className="text-3xl font-bold tracking-tight text-white">Settings</h1>
+            </div>
+          </div>
+          <img src="/natrix-mascot-search.png" alt="Natrix" className="h-[72px] w-[72px] object-contain" />
         </div>
 
         {/* ── Account ─────────────────────────────────────────────────────── */}
-        <div className="card space-y-4">
-          <p className="label">Account</p>
+        <div className="rounded-[28px] p-5 space-y-4" style={CARD}>
+          <p className="text-[0.625rem] font-bold uppercase tracking-[0.16em] accent-text">Account</p>
           <div className="flex items-center gap-4">
             <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl text-lg font-bold"
-              style={{background:"rgba(217,119,6,0.25)",color:"#FDE68A",border:"1px solid rgba(253,230,138,0.2)"}}>
+              style={{background:ACCENT_GRADIENT,color:"white"}}>
               {(displayName||email).slice(0,1).toUpperCase()}
             </div>
             <div className="min-w-0">
-              {displayName&&<p className="truncate text-base font-semibold text-white">{displayName}</p>}
-              <p className="truncate text-sm text-white/50">{email}</p>
+              {displayName&&<p className="truncate text-base font-semibold" style={{color:INK}}>{displayName}</p>}
+              <p className="truncate text-sm" style={{color:MUTED}}>{email}</p>
             </div>
           </div>
-          <div className="overflow-hidden rounded-2xl" style={{border:"1px solid rgba(255,255,255,0.12)",background:"rgba(255,255,255,0.05)"}}>
+          <div className="overflow-hidden rounded-2xl" style={{border:"1px solid #E1EDF5",background:"#F7FAFC"}}>
             <button type="button" onClick={()=>{setShowPasswordForm(v=>!v);setPasswordMsg("");}}
               className="flex w-full items-center justify-between px-4 py-3 text-left">
-              <div className="flex items-center gap-3"><LockIcon/><span className="text-sm font-medium text-white">Change password</span></div>
+              <div className="flex items-center gap-3"><LockIcon/><span className="text-sm font-medium" style={{color:INK}}>Change password</span></div>
               <ChevronIcon open={showPasswordForm}/>
             </button>
             {showPasswordForm&&(
-              <div className="space-y-3 border-t border-white/10 px-4 pb-4 pt-3">
-                <input type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)} placeholder="New password" className="input"/>
-                <input type="password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="Confirm new password" className="input"/>
-                {passwordMsg&&<p className="text-sm" style={{color:passwordMsg.startsWith("✓")?"#6EE7B7":"#FCA5A5"}}>{passwordMsg}</p>}
+              <div className="space-y-3 border-t px-4 pb-4 pt-3" style={{borderColor:"#E1EDF5"}}>
+                <input type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)} placeholder="New password" className="input" style={inputStyle}/>
+                <input type="password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="Confirm new password" className="input" style={inputStyle}/>
+                {passwordMsg&&<p className="text-sm" style={{color:passwordMsg.startsWith("✓")?"#1F9D68":"#C0392B"}}>{passwordMsg}</p>}
                 <button type="button" onClick={handleChangePassword} disabled={savingPassword}
                   className="w-full rounded-2xl py-3 text-sm font-semibold text-white transition disabled:opacity-50"
-                  style={{background:"#D97706"}}>{savingPassword?"Saving...":"Update password"}</button>
+                  style={{background:ACCENT_GRADIENT}}>{savingPassword?"Saving...":"Update password"}</button>
               </div>
             )}
           </div>
@@ -352,42 +380,42 @@ export default function SettingsPage() {
         {/* ── Manage meets (admin gets the official calendar, everyone gets their own) ── */}
         <Link href={isAdmin ? "/admin/meets" : "/meets/manage"}
           className="flex items-center justify-between rounded-2xl px-4 py-3.5 transition"
-          style={{background:"rgba(217,119,6,0.12)",border:"1px solid rgba(253,230,138,0.25)"}}>
+          style={{background:TINT_BG,border:`1px solid ${TINT_BORDER}`}}>
           <div className="flex items-center gap-3">
-            <span style={{fontSize:18}}>🛠️</span>
+            <span style={{fontSize:"1.125rem"}}>🛠️</span>
             <div>
-              <p className="text-sm font-semibold" style={{color:"#FDE68A"}}>Manage meets</p>
-              <p className="mt-0.5 text-xs text-white/40">
+              <p className="text-sm font-semibold accent-text">Manage meets</p>
+              <p className="mt-0.5 text-xs" style={{color:MUTED}}>
                 {isAdmin ? "Admin · add or edit the official meet calendar" : "Add or cancel your own club's meets"}
               </p>
             </div>
           </div>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke="rgba(253,230,138,0.5)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke={ACCENT} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </Link>
 
         {/* ── Real usage dashboard (admin only) ─────────────────────────── */}
         {isAdmin && (
           <Link href="/admin/usage"
             className="flex items-center justify-between rounded-2xl px-4 py-3.5 transition"
-            style={{background:"rgba(217,119,6,0.12)",border:"1px solid rgba(253,230,138,0.25)"}}>
+            style={{background:TINT_BG,border:`1px solid ${TINT_BORDER}`}}>
             <div className="flex items-center gap-3">
-              <span style={{fontSize:18}}>📊</span>
+              <span style={{fontSize:"1.125rem"}}>📊</span>
               <div>
-                <p className="text-sm font-semibold" style={{color:"#FDE68A"}}>Real usage</p>
-                <p className="mt-0.5 text-xs text-white/40">Admin · who's actually logging swim times</p>
+                <p className="text-sm font-semibold accent-text">Real usage</p>
+                <p className="mt-0.5 text-xs" style={{color:MUTED}}>Admin · who's actually logging swim times</p>
               </div>
             </div>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke="rgba(253,230,138,0.5)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke={ACCENT} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </Link>
         )}
 
         {/* ── Appearance ──────────────────────────────────────────────────── */}
-        <div className="card space-y-6">
-          <p className="label">Appearance</p>
+        <div className="rounded-[28px] p-5 space-y-6" style={CARD}>
+          <p className="text-[0.625rem] font-bold uppercase tracking-[0.16em] accent-text">Appearance</p>
 
           {/* Live preview */}
-          <div className="rounded-2xl p-4 space-y-2" style={{background:"rgba(0,0,0,0.2)",border:"1px solid rgba(255,255,255,0.08)"}}>
-            <p className="text-[10px] text-white/30 uppercase tracking-widest mb-3">Preview</p>
+          <div className="rounded-2xl p-4 space-y-2" style={{background:"#F7FAFC",border:"1px solid #E1EDF5"}}>
+            <p className="text-[0.625rem] uppercase tracking-widest mb-3" style={{color:MUTED}}>Preview</p>
             <div className="flex items-center gap-4">
               {/* Avatar preview */}
               <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl text-base font-bold transition-colors"
@@ -395,13 +423,13 @@ export default function SettingsPage() {
                 {previewInitials}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-base font-bold text-white truncate">{previewName}</p>
-                <p className="text-xs text-white/40 truncate">{previewSubtitle}</p>
+                <p className="text-base font-bold truncate" style={{color:INK}}>{previewName}</p>
+                <p className="text-xs truncate" style={{color:MUTED}}>{previewSubtitle}</p>
                 <div className="flex items-center gap-3 mt-1.5">
-                  <span className="text-sm font-bold" style={{color:previewTextColour??undefined}}>{previewEvents}</span>
-                  <span className="text-[10px] text-white/30 uppercase">events</span>
-                  <span className="text-sm font-bold text-white/60">{previewResults}</span>
-                  <span className="text-[10px] text-white/30 uppercase">results</span>
+                  <span className="text-sm font-bold accent-text">{previewEvents}</span>
+                  <span className="text-[0.625rem] uppercase" style={{color:MUTED}}>events</span>
+                  <span className="text-sm font-bold" style={{color:INK}}>{previewResults}</span>
+                  <span className="text-[0.625rem] uppercase" style={{color:MUTED}}>results</span>
                 </div>
               </div>
             </div>
@@ -410,48 +438,49 @@ export default function SettingsPage() {
           {/* Background bar */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-white">Background</p>
-              <div className="h-5 w-5 rounded-full border border-white/25 transition-colors"
-                style={{background:customBgOn?`hsl(${bgHue},60%,22%)`:"rgba(255,255,255,0.12)"}}/>
+              <p className="text-sm font-semibold" style={{color:INK}}>Background</p>
+              <div className="h-5 w-5 rounded-full border transition-colors"
+                style={{borderColor:"#DFEAF2",background:customBgOn?`hsl(${bgHue},60%,22%)`:"#E1EDF5"}}/>
             </div>
             <input type="range" min="0" max="360" step="1" value={bgHue}
               onChange={e=>handleBgHueDrag(Number(e.target.value))}
               onMouseUp={()=>void handleBgHueRelease()} onTouchEnd={()=>void handleBgHueRelease()}
               className="w-full h-3 rounded-full outline-none cursor-pointer"
               style={{background:BG_GRADIENT,WebkitAppearance:"none",appearance:"none"}}/>
-            <p className="text-[10px] text-white/30">Drag to shift background colour</p>
+            <p className="text-[0.625rem]" style={{color:MUTED}}>Drag to shift background colour</p>
           </div>
 
-          {/* Font colour chips */}
+          {/* Accent colour chips — colours labels/badges/buttons only, never
+              reading text, so it stays legible on both dark and white surfaces */}
           <div className="space-y-3">
-            <p className="text-sm font-semibold text-white">Font colour</p>
+            <p className="text-sm font-semibold" style={{color:INK}}>Accent colour</p>
             <div>
-              <p className="text-[10px] text-white/30 uppercase tracking-widest mb-2">Bright</p>
+              <p className="text-[0.625rem] uppercase tracking-widest mb-2" style={{color:MUTED}}>Bright</p>
               <div className="grid grid-cols-3 gap-2">
                 {FONT_COLOURS.filter(c=>!c.dark).map(colour=>{
                   const isActive=activeFontColour===colour.id;
                   return(
                     <button key={colour.id} type="button" onClick={()=>void handleSelectFontColour(colour.id)}
                       className="relative flex flex-col items-center justify-center gap-1.5 rounded-2xl py-3 transition"
-                      style={{background:isActive?`${colour.hex}22`:"rgba(255,255,255,0.05)",border:isActive?`2px solid ${colour.hex}`:"1px solid rgba(255,255,255,0.12)"}}>
-                      <div className="h-6 w-6 rounded-full" style={{background:colour.hex,border:colour.id==="white"?"1px solid rgba(255,255,255,0.3)":"none",boxShadow:isActive?`0 0 10px ${colour.hex}88`:"none"}}/>
-                      <span className="text-[10px] font-semibold" style={{color:isActive?colour.hex:"rgba(255,255,255,0.45)"}}>{colour.label}</span>
+                      style={{background:isActive?`${colour.hex}22`:"#F7FAFC",border:isActive?`2px solid ${colour.hex}`:"1px solid #E1EDF5"}}>
+                      <div className="h-6 w-6 rounded-full" style={{background:colour.hex,border:colour.id==="white"?"1px solid #DFEAF2":"none",boxShadow:isActive?`0 0 10px ${colour.hex}88`:"none"}}/>
+                      <span className="text-[0.625rem] font-semibold" style={{color:isActive?colour.hex:MUTED}}>{colour.label}</span>
                     </button>
                   );
                 })}
               </div>
             </div>
             <div>
-              <p className="text-[10px] text-white/30 uppercase tracking-widest mb-2">Dark</p>
+              <p className="text-[0.625rem] uppercase tracking-widest mb-2" style={{color:MUTED}}>Dark</p>
               <div className="grid grid-cols-3 gap-2">
                 {FONT_COLOURS.filter(c=>c.dark).map(colour=>{
                   const isActive=activeFontColour===colour.id;
                   return(
                     <button key={colour.id} type="button" onClick={()=>void handleSelectFontColour(colour.id)}
                       className="relative flex flex-col items-center justify-center gap-1.5 rounded-2xl py-3 transition"
-                      style={{background:isActive?`${colour.hex}22`:"rgba(255,255,255,0.05)",border:isActive?`2px solid ${colour.hex}`:"1px solid rgba(255,255,255,0.12)"}}>
-                      <div className="h-6 w-6 rounded-full" style={{background:colour.hex,border:colour.id==="black"?"1px solid rgba(255,255,255,0.2)":"none",boxShadow:isActive?`0 0 10px ${colour.hex}88`:"none"}}/>
-                      <span className="text-[10px] font-semibold" style={{color:isActive?colour.hex:"rgba(255,255,255,0.45)"}}>{colour.label}</span>
+                      style={{background:isActive?`${colour.hex}22`:"#F7FAFC",border:isActive?`2px solid ${colour.hex}`:"1px solid #E1EDF5"}}>
+                      <div className="h-6 w-6 rounded-full" style={{background:colour.hex,border:colour.id==="black"?"1px solid #DFEAF2":"none",boxShadow:isActive?`0 0 10px ${colour.hex}88`:"none"}}/>
+                      <span className="text-[0.625rem] font-semibold" style={{color:isActive?colour.hex:MUTED}}>{colour.label}</span>
                     </button>
                   );
                 })}
@@ -462,37 +491,36 @@ export default function SettingsPage() {
           {/* Avatar colour slider */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-white">Avatar colour</p>
-              <div className="h-5 w-5 rounded-full border border-white/25 transition-colors"
-                style={{background:previewAvatarBg}}/>
+              <p className="text-sm font-semibold" style={{color:INK}}>Avatar colour</p>
+              <div className="h-5 w-5 rounded-full border transition-colors" style={{borderColor:"#DFEAF2",background:previewAvatarBg}}/>
             </div>
             <input type="range" min="0" max="360" step="1" value={avatarHue}
               onChange={e=>handleAvatarHueDrag(Number(e.target.value))}
               onMouseUp={()=>void handleAvatarHueRelease()} onTouchEnd={()=>void handleAvatarHueRelease()}
               className="w-full h-3 rounded-full outline-none cursor-pointer"
               style={{background:AVATAR_GRADIENT,WebkitAppearance:"none",appearance:"none"}}/>
-            <p className="text-[10px] text-white/30">Drag to change your swimmer&apos;s avatar colour</p>
+            <p className="text-[0.625rem]" style={{color:MUTED}}>Drag to change your swimmer&apos;s avatar colour</p>
           </div>
 
           {/* Status + reset */}
           <div className="flex items-center gap-3">
             {hasCustom&&(
               <button type="button" onClick={()=>void handleResetColors()}
-                className="flex-1 rounded-2xl py-2.5 text-xs font-medium text-white/40 transition"
-                style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)"}}>
+                className="flex-1 rounded-2xl py-2.5 text-xs font-medium transition"
+                style={{background:"#F7FAFC",border:"1px solid #E1EDF5",color:MUTED}}>
                 Reset to defaults
               </button>
             )}
-            {colorsSaved&&<p className="text-xs flex-1 text-center" style={{color:"#6EE7B7"}}>✓ Saved</p>}
-            {savingColors&&<p className="text-xs flex-1 text-center text-white/30">Saving...</p>}
+            {colorsSaved&&<p className="text-xs flex-1 text-center" style={{color:"#1F9D68"}}>✓ Saved</p>}
+            {savingColors&&<p className="text-xs flex-1 text-center" style={{color:MUTED}}>Saving...</p>}
           </div>
         </div>
 
         {/* ── Text Size ───────────────────────────────────────────────────── */}
-        <div className="card space-y-4">
+        <div className="rounded-[28px] p-5 space-y-4" style={CARD}>
           <div>
-            <p className="label">Text Size</p>
-            <p className="mt-1 text-xs text-white/40">Applies instantly across the whole app.</p>
+            <p className="text-[0.625rem] font-bold uppercase tracking-[0.16em] accent-text">Text Size</p>
+            <p className="mt-1 text-xs" style={{color:MUTED}}>Applies instantly across the whole app.</p>
           </div>
           <div className="grid grid-cols-4 gap-2">
             {FONT_SIZES.map(size=>{
@@ -500,22 +528,22 @@ export default function SettingsPage() {
               return(
                 <button key={size.id} type="button" onClick={()=>void handleSelectFontSize(size.id as FontSizeId)} disabled={savingFontSize}
                   className="flex flex-col items-center justify-center gap-1.5 rounded-2xl py-3 transition disabled:opacity-60"
-                  style={isActive?{background:"rgba(217,119,6,0.2)",border:"2px solid #D97706"}:{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.12)"}}>
-                  <span className="font-bold leading-none text-white" style={{fontSize:`${10+FONT_SIZES.indexOf(size)*3}px`}}>Aa</span>
-                  <span className="text-[9px] font-medium" style={{color:isActive?"#FDE68A":"rgba(255,255,255,0.4)"}}>{size.label}</span>
+                  style={isActive?{background:"color-mix(in srgb, var(--natrix-font-colour, #168AE8) 12%, white)",border:"2px solid var(--natrix-font-colour, #168AE8)"}:{background:"#F7FAFC",border:"1px solid #E1EDF5"}}>
+                  <span className="font-bold leading-none" style={{fontSize:`${10+FONT_SIZES.indexOf(size)*3}px`,color:INK}}>Aa</span>
+                  <span className={`text-[0.5625rem] font-medium ${isActive?"accent-text":""}`} style={isActive?undefined:{color:MUTED}}>{size.label}</span>
                 </button>
               );
             })}
           </div>
-          {fontSizeSaved&&<p className="text-center text-xs" style={{color:"#6EE7B7"}}>✓ Text size saved</p>}
-          {savingFontSize&&<p className="text-center text-xs text-white/30">Saving...</p>}
+          {fontSizeSaved&&<p className="text-center text-xs" style={{color:"#1F9D68"}}>✓ Text size saved</p>}
+          {savingFontSize&&<p className="text-center text-xs" style={{color:MUTED}}>Saving...</p>}
         </div>
 
         {/* ── Language ─────────────────────────────────────────────────────── */}
-        <div className="card space-y-4">
+        <div className="rounded-[28px] p-5 space-y-4" style={CARD}>
           <div>
-            <p className="label">Language</p>
-            <p className="mt-1 text-xs text-white/40">Changes the app&apos;s menus and labels.</p>
+            <p className="text-[0.625rem] font-bold uppercase tracking-[0.16em] accent-text">Language</p>
+            <p className="mt-1 text-xs" style={{color:MUTED}}>Changes the app&apos;s menus and labels.</p>
           </div>
           <div className="grid grid-cols-3 gap-2">
             {LANGUAGES.map(lang=>{
@@ -523,49 +551,49 @@ export default function SettingsPage() {
               return(
                 <button key={lang.id} type="button" onClick={()=>void handleSelectLanguage(lang.id)} disabled={savingLanguage}
                   className="flex flex-col items-center justify-center gap-1.5 rounded-2xl py-3 transition disabled:opacity-60"
-                  style={isActive?{background:"rgba(217,119,6,0.2)",border:"2px solid #D97706"}:{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.12)"}}>
-                  <span style={{fontSize:18}}>{lang.flag}</span>
-                  <span className="text-[9px] font-medium text-center leading-tight" style={{color:isActive?"#FDE68A":"rgba(255,255,255,0.4)"}}>{lang.label}</span>
+                  style={isActive?{background:"color-mix(in srgb, var(--natrix-font-colour, #168AE8) 12%, white)",border:"2px solid var(--natrix-font-colour, #168AE8)"}:{background:"#F7FAFC",border:"1px solid #E1EDF5"}}>
+                  <span style={{fontSize:"1.125rem"}}>{lang.flag}</span>
+                  <span className={`text-[0.5625rem] font-medium text-center leading-tight ${isActive?"accent-text":""}`} style={isActive?undefined:{color:MUTED}}>{lang.label}</span>
                 </button>
               );
             })}
           </div>
-          {languageSaved&&<p className="text-center text-xs" style={{color:"#6EE7B7"}}>✓ Language saved</p>}
-          {savingLanguage&&<p className="text-center text-xs text-white/30">Saving...</p>}
+          {languageSaved&&<p className="text-center text-xs" style={{color:"#1F9D68"}}>✓ Language saved</p>}
+          {savingLanguage&&<p className="text-center text-xs" style={{color:MUTED}}>Saving...</p>}
         </div>
 
         {/* ── Splash screen ───────────────────────────────────────────────── */}
         <SplashMediaUpload/>
 
         {/* ── Help ────────────────────────────────────────────────────────── */}
-        <div className="card">
-          <p className="label mb-3">Help</p>
+        <div className="rounded-[28px] p-5" style={CARD}>
+          <p className="text-[0.625rem] font-bold uppercase tracking-[0.16em] mb-3 accent-text">Help</p>
           <button type="button" onClick={replayTutorial}
             className="flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left transition"
-            style={{background:"rgba(217,119,6,0.1)",border:"1px solid rgba(253,230,138,0.2)"}}>
+            style={{background:TINT_BG,border:`1px solid ${TINT_BORDER}`}}>
             <div className="flex items-center gap-3">
-              <span style={{fontSize:18}}>🎓</span>
+              <span style={{fontSize:"1.125rem"}}>🎓</span>
               <div>
-                <p className="text-sm font-semibold" style={{color:"#FDE68A"}}>Replay tutorial</p>
-                <p className="mt-0.5 text-xs text-white/40">Walk through the app step by step again</p>
+                <p className="text-sm font-semibold accent-text">Replay tutorial</p>
+                <p className="mt-0.5 text-xs" style={{color:MUTED}}>Walk through the app step by step again</p>
               </div>
             </div>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke="rgba(253,230,138,0.5)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke={ACCENT} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </button>
           <button type="button" onClick={()=>router.push("/scan")}
             className="flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left transition mt-3"
-            style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.12)"}}>
+            style={{background:"#F7FAFC",border:"1px solid #E1EDF5"}}>
             <div className="flex items-center gap-3">
-              <span style={{fontSize:18}}>📥</span>
+              <span style={{fontSize:"1.125rem"}}>📥</span>
               <div>
-                <p className="text-sm font-semibold text-white">Import swimmer data</p>
-                <p className="mt-0.5 text-xs text-white/40">Download template · upload your existing times</p>
+                <p className="text-sm font-semibold" style={{color:INK}}>Import swimmer data</p>
+                <p className="mt-0.5 text-xs" style={{color:MUTED}}>Download template · upload your existing times</p>
               </div>
             </div>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke="#B7C9D8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </button>
           <div className="mt-4 space-y-2">
-            <p className="mb-2 text-[9px] uppercase tracking-wider text-white/30">Quick reference</p>
+            <p className="mb-2 text-[0.5625rem] uppercase tracking-wider" style={{color:MUTED}}>Quick reference</p>
             {[
               {emoji:"👥",title:"Add a swimmer",desc:"Tap Swimmers → + button → fill in profile"},
               {emoji:"📷",title:"Scan a result",desc:"Tap Scan → upload Meet Mobile screenshot"},
@@ -573,31 +601,31 @@ export default function SettingsPage() {
               {emoji:"⭐",title:"Check standards",desc:"Swimmer profile → Standards tab"},
             ].map(item=>(
               <div key={item.title} className="flex items-start gap-3 rounded-2xl px-3 py-2.5"
-                style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.08)"}}>
-                <span style={{fontSize:16,flexShrink:0,marginTop:1}}>{item.emoji}</span>
-                <div><p className="text-sm font-medium text-white">{item.title}</p><p className="text-xs text-white/40">{item.desc}</p></div>
+                style={{background:"#F7FAFC",border:"1px solid #E1EDF5"}}>
+                <span style={{fontSize:"1rem",flexShrink:0,marginTop:1}}>{item.emoji}</span>
+                <div><p className="text-sm font-medium" style={{color:INK}}>{item.title}</p><p className="text-xs" style={{color:MUTED}}>{item.desc}</p></div>
               </div>
             ))}
           </div>
         </div>
 
         {/* ── Feedback ────────────────────────────────────────────────────── */}
-        <div className="card space-y-4">
+        <div className="rounded-[28px] p-5 space-y-4" style={CARD}>
           <div>
-            <p className="label">Feedback</p>
-            <p className="mt-1 text-xs text-white/40">Help shape Natrix — every message goes straight to J.O.D.</p>
+            <p className="text-[0.625rem] font-bold uppercase tracking-[0.16em] accent-text">Feedback</p>
+            <p className="mt-1 text-xs" style={{color:MUTED}}>Help shape Natrix — every message goes straight to J.O.D.</p>
           </div>
           {feedbackSent?(
-            <div className="space-y-2 rounded-2xl py-6 text-center" style={{background:"rgba(217,119,6,0.1)",border:"1px solid rgba(253,230,138,0.2)"}}>
+            <div className="space-y-2 rounded-2xl py-6 text-center" style={{background:TINT_BG,border:`1px solid ${TINT_BORDER}`}}>
               <p className="text-2xl">🙏</p>
-              <p className="text-sm font-semibold" style={{color:"#FDE68A"}}>Thank you!</p>
-              <p className="text-xs text-white/40">Your feedback means the world. We&apos;ll use it to make Natrix better.</p>
-              <button type="button" onClick={()=>setFeedbackSent(false)} className="mt-2 text-xs text-white/30 underline">Send another</button>
+              <p className="text-sm font-semibold accent-text">Thank you!</p>
+              <p className="text-xs" style={{color:MUTED}}>Your feedback means the world. We&apos;ll use it to make Natrix better.</p>
+              <button type="button" onClick={()=>setFeedbackSent(false)} className="mt-2 text-xs underline" style={{color:MUTED}}>Send another</button>
             </div>
           ):(
             <>
               <div>
-                <p className="mb-2 text-xs text-white/50">How are you finding Natrix?</p>
+                <p className="mb-2 text-xs" style={{color:MUTED}}>How are you finding Natrix?</p>
                 <div className="flex gap-2">
                   {[1,2,3,4,5].map(star=>(
                     <button key={star} type="button" onClick={()=>setFeedbackRating(star)}
@@ -605,76 +633,77 @@ export default function SettingsPage() {
                       style={{opacity:feedbackRating>=star?1:0.25,filter:feedbackRating>=star?"none":"grayscale(1)"}}>⭐</button>
                   ))}
                 </div>
-                {feedbackRating>0&&<p className="mt-1.5 text-xs" style={{color:"#FDE68A"}}>{feedbackRating===5?"Love it! 🏊":feedbackRating===4?"Really good!":feedbackRating===3?"It's okay":feedbackRating===2?"Needs work":"Not great"}</p>}
+                {feedbackRating>0&&<p className="mt-1.5 text-xs accent-text">{feedbackRating===5?"Love it! 🏊":feedbackRating===4?"Really good!":feedbackRating===3?"It's okay":feedbackRating===2?"Needs work":"Not great"}</p>}
               </div>
               <div>
-                <p className="mb-2 text-xs text-white/50">What would make Natrix better?</p>
+                <p className="mb-2 text-xs" style={{color:MUTED}}>What would make Natrix better?</p>
                 <textarea value={feedbackMessage} onChange={e=>setFeedbackMessage(e.target.value)}
                   placeholder="Tell us anything — bugs, ideas, what you love, what's missing..."
-                  rows={3} className="w-full resize-none rounded-[20px] px-4 py-3 text-sm text-white outline-none placeholder:text-white/35"
-                  style={{background:"rgba(0,20,50,0.35)",border:"1px solid rgba(255,255,255,0.2)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)"}}/>
+                  rows={3} className="w-full resize-none rounded-[20px] px-4 py-3 text-sm outline-none"
+                  style={{...inputStyle}}/>
               </div>
               <div>
-                <p className="mb-2 text-xs text-white/50">Most wanted feature (optional)</p>
-                <select value={feedbackFeature} onChange={e=>setFeedbackFeature(e.target.value)} className="input">
+                <p className="mb-2 text-xs" style={{color:MUTED}}>Most wanted feature (optional)</p>
+                <select value={feedbackFeature} onChange={e=>setFeedbackFeature(e.target.value)} className="input" style={inputStyle}>
                   <option value="">Pick one...</option>
                   {FEATURE_REQUESTS.map(f=><option key={f} value={f}>{f}</option>)}
                 </select>
               </div>
-              {feedbackError&&<p className="text-sm" style={{color:"#FCA5A5"}}>{feedbackError}</p>}
+              {feedbackError&&<p className="text-sm" style={{color:"#C0392B"}}>{feedbackError}</p>}
               <button type="button" onClick={handleSendFeedback} disabled={savingFeedback}
                 className="w-full rounded-2xl py-3 text-sm font-semibold text-white transition disabled:opacity-50"
-                style={{background:"#D97706"}}>{savingFeedback?"Sending...":"Send feedback 🚀"}</button>
+                style={{background:ACCENT_GRADIENT}}>{savingFeedback?"Sending...":"Send feedback 🚀"}</button>
             </>
           )}
         </div>
 
         {/* ── About ───────────────────────────────────────────────────────── */}
-        <div className="card">
-          <p className="label mb-3">About</p>
+        <div className="rounded-[28px] p-5" style={CARD}>
+          <p className="text-[0.625rem] font-bold uppercase tracking-[0.16em] mb-3 accent-text">About</p>
           {[
             {label:"Version",value:APP_VERSION,color:undefined},
             {label:"Built for",value:"Southeast Asia · expanding globally",color:undefined},
-            {label:"Made with",value:"🏊 for swim parents",color:"#FDE68A"},
+            {label:"Made with",value:"🏊 for swim parents",color:ACCENT},
             {label:"Developed by",value:"J.O.D — Just an Ordinary Dad",color:undefined},
           ].map((row,i,arr)=>(
             <div key={row.label}>
               <div className="flex items-center justify-between py-2">
-                <p className="text-sm text-white/60">{row.label}</p>
-                <p className="text-sm font-semibold text-white" style={row.color?{color:row.color}:undefined}>{row.value}</p>
+                <p className="text-sm" style={{color:MUTED}}>{row.label}</p>
+                <p className="text-sm font-semibold" style={{color:row.color??INK}}>{row.value}</p>
               </div>
-              {i<arr.length-1&&<div style={{height:1,background:"rgba(255,255,255,0.08)"}}/>}
+              {i<arr.length-1&&<div style={{height:1,background:"#E1EDF5"}}/>}
             </div>
           ))}
         </div>
 
-        <Link href="/privacy" className="block w-full rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-sm text-white/50 transition hover:bg-white/10">
+        <Link href="/privacy" className="block w-full rounded-2xl px-5 py-4 text-sm transition"
+          style={{background:"rgba(255,255,255,0.9)",border:"1px solid rgba(255,255,255,0.85)",color:MUTED}}>
           Privacy Policy
         </Link>
 
         <button type="button" onClick={handleLogout} disabled={loggingOut}
           className="w-full rounded-2xl py-4 text-base font-semibold transition disabled:opacity-50"
-          style={{background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.15)",color:"rgba(255,255,255,0.85)"}}>
+          style={{background:"rgba(255,255,255,0.9)",border:"1px solid rgba(255,255,255,0.85)",color:INK}}>
           {loggingOut?"Signing out...":"Sign out"}
         </button>
 
-        <div className="overflow-hidden rounded-3xl" style={{border:"1px solid rgba(239,68,68,0.2)",background:"rgba(239,68,68,0.06)"}}>
+        <div className="overflow-hidden rounded-3xl" style={{border:"1px solid rgba(220,80,80,0.3)",background:"rgba(255,255,255,0.9)"}}>
           <button type="button" onClick={()=>{setShowDeleteConfirm(v=>!v);setDeleteInput("");setDeleteStatus("");}}
             className="flex w-full items-center justify-between px-5 py-4 text-left">
             <div>
-              <p className="text-sm font-semibold" style={{color:"#FCA5A5"}}>Delete account</p>
-              <p className="mt-0.5 text-xs text-white/35">Permanently removes all your data</p>
+              <p className="text-sm font-semibold" style={{color:"#C0392B"}}>Delete account</p>
+              <p className="mt-0.5 text-xs" style={{color:MUTED}}>Permanently removes all your data</p>
             </div>
             <ChevronIcon open={showDeleteConfirm} danger/>
           </button>
           {showDeleteConfirm&&(
-            <div className="space-y-3 border-t border-red-500/15 px-5 pb-5 pt-4">
-              <p className="text-sm leading-relaxed text-white/60">This will permanently delete your account and all swimmer data. This cannot be undone. Type <span className="font-bold text-white">DELETE</span> to confirm.</p>
-              <input value={deleteInput} onChange={e=>setDeleteInput(e.target.value)} placeholder="Type DELETE to confirm" className="input" style={{borderColor:"rgba(239,68,68,0.3)"}}/>
-              {deleteStatus&&<p className="text-sm" style={{color:"#FCA5A5"}}>{deleteStatus}</p>}
+            <div className="space-y-3 border-t px-5 pb-5 pt-4" style={{borderColor:"rgba(220,80,80,0.2)"}}>
+              <p className="text-sm leading-relaxed" style={{color:MUTED}}>This will permanently delete your account and all swimmer data. This cannot be undone. Type <span className="font-bold" style={{color:INK}}>DELETE</span> to confirm.</p>
+              <input value={deleteInput} onChange={e=>setDeleteInput(e.target.value)} placeholder="Type DELETE to confirm" className="input" style={{...inputStyle,borderColor:"rgba(220,80,80,0.35)"}}/>
+              {deleteStatus&&<p className="text-sm" style={{color:"#C0392B"}}>{deleteStatus}</p>}
               <button type="button" onClick={handleDeleteAccount} disabled={deletingAccount||deleteInput!=="DELETE"}
                 className="w-full rounded-2xl py-3 text-sm font-semibold transition disabled:opacity-40"
-                style={{background:"rgba(239,68,68,0.25)",border:"1px solid rgba(239,68,68,0.4)",color:"#FCA5A5"}}>
+                style={{background:"rgba(220,80,80,0.12)",border:"1px solid rgba(220,80,80,0.35)",color:"#C0392B"}}>
                 {deletingAccount?"Deleting...":"Permanently delete account"}
               </button>
             </div>
@@ -687,5 +716,5 @@ export default function SettingsPage() {
   );
 }
 
-function LockIcon(){return(<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="3" y="7" width="10" height="8" rx="2" stroke="rgba(255,255,255,0.45)" strokeWidth="1.3"/><path d="M5 7V5a3 3 0 0 1 6 0v2" stroke="rgba(255,255,255,0.45)" strokeWidth="1.3" strokeLinecap="round"/></svg>);}
-function ChevronIcon({open,danger}:{open:boolean;danger?:boolean}){return(<svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{transform:open?"rotate(180deg)":"rotate(0deg)",transition:"transform 0.2s ease"}}><path d="M4 6l4 4 4-4" stroke={danger?"rgba(252,165,165,0.6)":"rgba(255,255,255,0.3)"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>);}
+function LockIcon(){return(<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="3" y="7" width="10" height="8" rx="2" stroke="#71859A" strokeWidth="1.3"/><path d="M5 7V5a3 3 0 0 1 6 0v2" stroke="#71859A" strokeWidth="1.3" strokeLinecap="round"/></svg>);}
+function ChevronIcon({open,danger}:{open:boolean;danger?:boolean}){return(<svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{transform:open?"rotate(180deg)":"rotate(0deg)",transition:"transform 0.2s ease"}}><path d="M4 6l4 4 4-4" stroke={danger?"#C0392B":"#71859A"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>);}

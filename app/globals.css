@@ -330,10 +330,24 @@ body::after {
   }
 
   /* Semantic text colours */
-  .accent-text   { color: #FDE68A; }
+  /* .accent-text now follows the user's chosen Accent Colour (Settings →
+     Appearance). Falls back to the original amber when nothing is chosen.
+     Use this class for accent ROLES only — small kicker labels, active
+     tabs, badges, highlighted numbers — never for normal reading text,
+     since the same colour has to stay legible on both dark glass and
+     white information cards. */
+  .accent-text   { color: var(--natrix-font-colour, #FDE68A); }
   .success-text  { color: #6EE7B7; }
   .warning-text  { color: #FCD34D; }
   .danger-text   { color: #FCA5A5; }
+
+  /* Legacy pages (pre-redesign) still hardcode the old amber accent as an
+     inline style rather than the .accent-text class — this keeps those
+     spots following the chosen Accent Colour too, without touching every
+     old page individually. Safe to delete once every page has been moved
+     onto .accent-text explicitly. */
+  [style*="#FDE68A"] { color: var(--natrix-font-colour, #FDE68A) !important; }
+  [style*="#BA7517"] { color: var(--natrix-font-colour, #FDE68A) !important; }
 }
 
 /* ============================================================

@@ -19,7 +19,13 @@ const THEMES: Record<string, ThemeVars> = {
   slate:    { bg:"#0D1117", dark:"#141B24", mid:"#1C2333", light:"#1E2638", light2:"#222C40", light3:"#1A2030", navBg:"rgba(13,17,23,0.88)" },
 };
 
-// ─── Font colour presets (must match settings page) ───────────────────────────
+// ─── Accent colour presets (must match settings page) ─────────────────────────
+// Stored under the same "font_colour" key/metadata field as before — this used
+// to recolour normal reading text everywhere, which breaks the moment a page
+// has both a dark background and white information cards (white text on a
+// white card, or black text on a dark background, both go unreadable). It now
+// only drives `.accent-text` and a couple of legacy accent selectors: NATRIX
+// kicker labels, active tabs, badges, highlighted numbers — never body text.
 
 const FONT_COLOUR_MAP: Record<string, string> = {
   pink:     "#FF6EB4",
@@ -127,12 +133,9 @@ export function applyCustomBg(hue: number) {
 
 export function applyFontColour(hex: string) {
   try { localStorage.setItem(FONT_COL_KEY, hex); } catch {}
+  // globals.css reads this var directly (.accent-text and the two legacy
+  // [style*="#..."] selectors) — no injected <style> tag needed any more.
   document.documentElement.style.setProperty("--natrix-font-colour", hex);
-  getOrCreateStyle("natrix-font-colour").textContent = `
-    .accent-text { color: ${hex} !important; }
-    [style*="#FDE68A"] { color: ${hex} !important; }
-    [style*="#BA7517"] { color: ${hex} !important; }
-  `;
 }
 
 export function applyAvatarHue(hue: number) {

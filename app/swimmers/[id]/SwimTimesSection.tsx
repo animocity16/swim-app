@@ -514,11 +514,20 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
                 className="w-full px-4 py-3 flex items-center gap-3 text-left transition hover:bg-white/5"
               >
                 {getStrokeIconSrc(sg.key) ? (
-                  <img
-                    src={getStrokeIconSrc(sg.key)!}
-                    alt={`${sg.label} icon`}
-                    className="h-11 w-11 flex-shrink-0 rounded-2xl object-cover"
-                  />
+                  <div
+                    className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl"
+                    style={{
+                      background: "rgba(255,255,255,0.06)",
+                      border: "1px solid rgba(255,255,255,0.10)",
+                      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)",
+                    }}
+                  >
+                    <img
+                      src={getStrokeIconSrc(sg.key)!}
+                      alt={`${sg.label} icon`}
+                      className="h-9 w-9 object-contain opacity-90"
+                    />
+                  </div>
                 ) : (
                   <div
                     className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl text-xs font-bold"
