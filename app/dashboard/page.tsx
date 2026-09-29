@@ -17,6 +17,7 @@ type Swimmer = {
   group_type?: string | null;
   gender?: string | null;
   squad?: string | null;
+  photo_url?: string | null;
 };
 
 type SwimmerStat = {
@@ -503,7 +504,7 @@ export default function DashboardPage() {
     const sessionPromise = supabase.auth.getSession();
     const swimmersPromise = supabase
       .from("swimmers")
-      .select("id, name, age, swim_club, group_type, gender, squad")
+      .select("id, name, age, swim_club, group_type, gender, squad, photo_url")
       .eq("group_type", "primary")
       .order("name", { ascending: true });
 
@@ -839,16 +840,25 @@ export default function DashboardPage() {
                 style={{ background: "rgba(48,158,246,0.05)" }} />
 
               <div className="relative flex items-center gap-4">
-                <div
-                  className="flex h-20 w-20 flex-shrink-0 items-center justify-center rounded-full text-xl font-bold"
-                  style={{
-                    background: "var(--natrix-avatar-colour, #185FA5)",
-                    color: "var(--natrix-avatar-text, #D8ECFF)",
-                    border: "4px solid rgba(255,255,255,0.85)",
-                  }}
-                >
-                  {getInitials(primary.name)}
-                </div>
+                {primary.photo_url ? (
+                  <img
+                    src={primary.photo_url}
+                    alt={primary.name}
+                    className="h-20 w-20 flex-shrink-0 rounded-full object-cover"
+                    style={{ border: "4px solid rgba(255,255,255,0.85)" }}
+                  />
+                ) : (
+                  <div
+                    className="flex h-20 w-20 flex-shrink-0 items-center justify-center rounded-full text-xl font-bold"
+                    style={{
+                      background: "var(--natrix-avatar-colour, #185FA5)",
+                      color: "var(--natrix-avatar-text, #D8ECFF)",
+                      border: "4px solid rgba(255,255,255,0.85)",
+                    }}
+                  >
+                    {getInitials(primary.name)}
+                  </div>
+                )}
 
                 <div className="min-w-0 flex-1">
                   <h1 className="truncate text-2xl font-bold tracking-tight" style={{ color: "#0B2A54" }}>
@@ -1252,12 +1262,20 @@ function SwimmerCard({ stat, index }: { stat: SwimmerStat; index: number }) {
         boxShadow: "0 10px 26px rgba(0,25,55,0.10)",
       }}
     >
-      <div
-        className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl text-sm font-bold"
-        style={{ background: avatarBg, color: avatarText }}
-      >
-        {getInitials(swimmer.name)}
-      </div>
+      {swimmer.photo_url ? (
+        <img
+          src={swimmer.photo_url}
+          alt={swimmer.name}
+          className="h-12 w-12 flex-shrink-0 rounded-2xl object-cover"
+        />
+      ) : (
+        <div
+          className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl text-sm font-bold"
+          style={{ background: avatarBg, color: avatarText }}
+        >
+          {getInitials(swimmer.name)}
+        </div>
+      )}
 
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-bold" style={{ color: "#0B2A54" }}>

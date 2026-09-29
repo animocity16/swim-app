@@ -18,6 +18,7 @@ type Swimmer = {
   squad?: string | null;
   group_type?: "primary" | "following" | string | null;
   created_at?: string | null;
+  photo_url?: string | null;
   user_id?: string | null;
 };
 
@@ -104,7 +105,7 @@ export default function SwimmersPage() {
       const sessionPromise = supabase.auth.getSession();
       const dataPromise = supabase
         .from("swimmers")
-        .select("id, name, age, birth_month, country, swim_club, school, gender, squad, group_type, created_at, user_id")
+        .select("id, name, age, birth_month, country, swim_club, school, gender, squad, group_type, created_at, user_id, photo_url")
         .order("name", { ascending: true });
 
       const { data: { session } } = await sessionPromise;
@@ -133,7 +134,7 @@ export default function SwimmersPage() {
     setLoading(true);
     const { data, error } = await supabase
       .from("swimmers")
-      .select("id, name, age, birth_month, country, swim_club, school, gender, squad, group_type, created_at, user_id")
+      .select("id, name, age, birth_month, country, swim_club, school, gender, squad, group_type, created_at, user_id, photo_url")
       .order("name", { ascending: true });
 
     if (error) { setStatus(`Error: ${error.message}`); }
@@ -381,16 +382,25 @@ export default function SwimmersPage() {
               <div className="relative p-5">
                 <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full" style={{ background: "rgba(48,158,246,0.08)" }} />
                 <div className="relative flex items-center gap-4">
-                  <div
-                    className="flex h-20 w-20 flex-shrink-0 items-center justify-center rounded-full text-xl font-bold"
-                    style={{
-                      background: `var(--natrix-avatar-colour, ${colors.bg})`,
-                      color: `var(--natrix-avatar-text, ${colors.text})`,
-                      border: "4px solid rgba(255,255,255,0.9)",
-                    }}
-                  >
-                    {getInitials(swimmer.name)}
-                  </div>
+                  {swimmer.photo_url ? (
+                    <img
+                      src={swimmer.photo_url}
+                      alt={swimmer.name}
+                      className="h-20 w-20 flex-shrink-0 rounded-full object-cover"
+                      style={{ border: "4px solid rgba(255,255,255,0.9)" }}
+                    />
+                  ) : (
+                    <div
+                      className="flex h-20 w-20 flex-shrink-0 items-center justify-center rounded-full text-xl font-bold"
+                      style={{
+                        background: `var(--natrix-avatar-colour, ${colors.bg})`,
+                        color: `var(--natrix-avatar-text, ${colors.text})`,
+                        border: "4px solid rgba(255,255,255,0.9)",
+                      }}
+                    >
+                      {getInitials(swimmer.name)}
+                    </div>
+                  )}
 
                   <div className="min-w-0 flex-1">
                     <div className="text-[0.625rem] font-bold uppercase tracking-[0.15em]" style={{ color: "var(--natrix-font-colour, #168AE8)" }}>
@@ -453,12 +463,20 @@ export default function SwimmersPage() {
                     }}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <div
-                        className="flex h-12 w-12 items-center justify-center rounded-full text-sm font-bold"
-                        style={{ background: colors.bg, color: colors.text }}
-                      >
-                        {getInitials(swimmer.name)}
-                      </div>
+                      {swimmer.photo_url ? (
+                        <img
+                          src={swimmer.photo_url}
+                          alt={swimmer.name}
+                          className="h-12 w-12 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div
+                          className="flex h-12 w-12 items-center justify-center rounded-full text-sm font-bold"
+                          style={{ background: colors.bg, color: colors.text }}
+                        >
+                          {getInitials(swimmer.name)}
+                        </div>
+                      )}
                       {index === 0 && (
                         <span
                           className="rounded-full px-2 py-1 text-[0.5625rem] font-bold"
@@ -638,12 +656,20 @@ export default function SwimmersPage() {
                         }}
                       >
                         <Link href={`/swimmers/${swimmer.id}`} className="block">
-                          <div
-                            className="flex h-12 w-12 items-center justify-center rounded-full text-sm font-bold"
-                            style={{ background: colors.bg, color: colors.text }}
-                          >
-                            {getInitials(swimmer.name)}
-                          </div>
+                          {swimmer.photo_url ? (
+                            <img
+                              src={swimmer.photo_url}
+                              alt={swimmer.name}
+                              className="h-12 w-12 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div
+                              className="flex h-12 w-12 items-center justify-center rounded-full text-sm font-bold"
+                              style={{ background: colors.bg, color: colors.text }}
+                            >
+                              {getInitials(swimmer.name)}
+                            </div>
+                          )}
                           <div className="mt-3 truncate text-sm font-bold" style={{ color: "#0B2A54" }}>
                             {swimmer.name}
                           </div>
