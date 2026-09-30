@@ -6,6 +6,17 @@ import { supabase } from "@/lib/supabaseClient";
 import { calcFinaPoints, type Gender } from "@/lib/finaPoints";
 import { canonicalEventName, canonicalCourse } from "@/lib/events";
 
+// ─── New-look design tokens (matches Settings/Swimmers/Dashboard/Compare/Meets) ─
+
+const CARD: React.CSSProperties = {
+  background: "rgba(255,255,255,0.96)",
+  border: "1px solid rgba(255,255,255,0.9)",
+  boxShadow: "0 10px 24px rgba(0,25,55,0.10)",
+};
+const INK = "#0B2A54";
+const MUTED = "#71859A";
+const ACCENT = "var(--natrix-font-colour, #168AE8)";
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type ResultRow = {
@@ -108,11 +119,12 @@ function ordinal(n: number): string {
   return `${n}${s[(v - 20) % 10] || s[v] || s[0]}`;
 }
 
+// Rank-tier colour, light-card version — matches Compare's RANK_STYLES palette.
 function placeColor(place: number | null): string {
-  if (place === 1) return "#FDE68A";
-  if (place === 2) return "#CBD5E1";
-  if (place === 3) return "#FDBA74";
-  return "rgba(255,255,255,0.45)";
+  if (place === 1) return "#B45309";
+  if (place === 2) return "#64748B";
+  if (place === 3) return "#C2410C";
+  return MUTED;
 }
 
 function genderLabel(gender: Gender | "unspecified" | null): string {
@@ -180,12 +192,12 @@ function buildLeaderboard(groups: EventGroup[]): LeaderboardEntry[] {
 
 function PlaceBadge({ rank }: { rank: number }) {
   const PLACE_STYLES: Record<number, { bg: string; border: string; color: string }> = {
-    1: { bg: "rgba(234,179,8,0.18)",   border: "rgba(253,230,138,0.4)",  color: "#FDE68A" },
-    2: { bg: "rgba(148,163,184,0.15)", border: "rgba(148,163,184,0.35)", color: "#CBD5E1" },
-    3: { bg: "rgba(180,100,50,0.18)",  border: "rgba(180,100,50,0.4)",   color: "#FDBA74" },
+    1: { bg: "#FEF3C7", border: "#FDE68A", color: "#B45309" },
+    2: { bg: "#F1F5F9", border: "#E2E8F0", color: "#64748B" },
+    3: { bg: "#FFEDD5", border: "#FED7AA", color: "#C2410C" },
   };
   const s = PLACE_STYLES[rank] ?? {
-    bg: "rgba(255,255,255,0.06)", border: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.38)",
+    bg: "#F7FAFC", border: "#E1EDF5", color: "#B7C9D8",
   };
   return (
     <div style={{
@@ -216,20 +228,21 @@ function ActionSheet({
     <>
       <div onClick={onCancel} style={{
         position: "fixed", inset: 0, zIndex: 50,
-        background: "rgba(0,0,0,0.6)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
+        background: "rgba(11,42,84,0.45)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
       }} />
       <div style={{
         position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
         width: "100%", maxWidth: "480px", zIndex: 51,
-        background: "rgba(6,25,45,0.98)",
-        border: "1px solid rgba(255,255,255,0.14)", borderBottom: "none",
+        background: "#FFFFFF",
+        border: "1px solid rgba(255,255,255,0.9)", borderBottom: "none",
         borderRadius: "28px 28px 0 0", padding: "20px 20px 40px",
+        boxShadow: "0 -10px 30px rgba(0,25,55,0.16)",
       }} onClick={(e) => e.stopPropagation()}>
-        <div style={{ width: "36px", height: "4px", borderRadius: "2px", background: "rgba(255,255,255,0.2)", margin: "0 auto 20px" }} />
+        <div style={{ width: "36px", height: "4px", borderRadius: "2px", background: "#E1EDF5", margin: "0 auto 20px" }} />
 
         <div style={{ textAlign: "center", marginBottom: "20px" }}>
-          <p style={{ fontSize: "15px", fontWeight: 700, color: "#fff" }}>{row.swimmer_name}</p>
-          <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.4)", marginTop: "4px" }}>
+          <p style={{ fontSize: "15px", fontWeight: 700, color: INK }}>{row.swimmer_name}</p>
+          <p style={{ fontSize: "13px", color: MUTED, marginTop: "4px" }}>
             {row.event} · {formatMs(row.time_ms)} · {row.course}
           </p>
         </div>
@@ -237,8 +250,8 @@ function ActionSheet({
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
           <button type="button" onClick={onEdit} style={{
             width: "100%", padding: "15px", borderRadius: "16px",
-            border: "1px solid rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.06)",
-            color: "#fff", fontSize: "15px", fontWeight: 600, cursor: "pointer",
+            border: "1px solid #E1EDF5", background: "#F7FAFC",
+            color: INK, fontSize: "15px", fontWeight: 600, cursor: "pointer",
           }}>
             ✏️ Edit result
           </button>
@@ -250,8 +263,8 @@ function ActionSheet({
           </button>
           <button type="button" onClick={onCancel} style={{
             width: "100%", padding: "15px", borderRadius: "16px",
-            border: "1px solid rgba(255,255,255,0.1)", background: "transparent",
-            color: "rgba(255,255,255,0.5)", fontSize: "15px", fontWeight: 500, cursor: "pointer",
+            border: "1px solid #E1EDF5", background: "transparent",
+            color: MUTED, fontSize: "15px", fontWeight: 500, cursor: "pointer",
           }}>
             Cancel
           </button>
@@ -287,25 +300,26 @@ function EditResultSheet({
     <>
       <div onClick={onCancel} style={{
         position: "fixed", inset: 0, zIndex: 50,
-        background: "rgba(0,0,0,0.6)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
+        background: "rgba(11,42,84,0.45)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
       }} />
       <div style={{
         position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
         width: "100%", maxWidth: "480px", zIndex: 51,
-        background: "rgba(6,25,45,0.98)",
-        border: "1px solid rgba(255,255,255,0.14)", borderBottom: "none",
+        background: "#FFFFFF",
+        border: "1px solid rgba(255,255,255,0.9)", borderBottom: "none",
         borderRadius: "28px 28px 0 0", padding: "20px 20px 40px",
+        boxShadow: "0 -10px 30px rgba(0,25,55,0.16)",
       }} onClick={(e) => e.stopPropagation()}>
-        <div style={{ width: "36px", height: "4px", borderRadius: "2px", background: "rgba(255,255,255,0.2)", margin: "0 auto 20px" }} />
+        <div style={{ width: "36px", height: "4px", borderRadius: "2px", background: "#E1EDF5", margin: "0 auto 20px" }} />
 
         <div style={{ textAlign: "center", marginBottom: "20px" }}>
-          <p style={{ fontSize: "17px", fontWeight: 700, color: "#fff", marginBottom: "6px" }}>Edit result</p>
-          <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.4)" }}>
+          <p style={{ fontSize: "17px", fontWeight: 700, color: INK, marginBottom: "6px" }}>Edit result</p>
+          <p style={{ fontSize: "13px", color: MUTED }}>
             {row.swimmer_name} · {row.event} · {formatMs(row.time_ms)}
           </p>
         </div>
 
-        <p style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(255,255,255,0.35)", marginBottom: "8px" }}>
+        <p style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: MUTED, marginBottom: "8px" }}>
           Official placing
         </p>
         <input
@@ -317,18 +331,19 @@ function EditResultSheet({
           onChange={(e) => setPlaceText(e.target.value)}
           style={{
             width: "100%", padding: "14px", borderRadius: "16px", fontSize: "17px", fontWeight: 700,
-            background: "rgba(255,255,255,0.06)",
-            border: placeValid ? "1px solid rgba(255,255,255,0.15)" : "1px solid #DC2626",
-            color: "#fff", marginBottom: placeValid ? "20px" : "6px", outline: "none",
+            background: "#F7FAFC",
+            border: placeValid ? "1px solid #DFEAF2" : "1px solid #DC2626",
+            color: INK, marginBottom: placeValid ? "20px" : "6px", outline: "none",
+            boxSizing: "border-box",
           }}
         />
         {!placeValid && (
-          <p style={{ fontSize: "12px", color: "#FCA5A5", marginBottom: "14px" }}>
+          <p style={{ fontSize: "12px", color: "#C0392B", marginBottom: "14px" }}>
             Enter a whole number of 1 or more, or leave blank for no placing.
           </p>
         )}
 
-        <p style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(255,255,255,0.35)", marginBottom: "8px" }}>
+        <p style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: MUTED, marginBottom: "8px" }}>
           Course
         </p>
         <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
@@ -337,9 +352,9 @@ function EditResultSheet({
               style={{
                 flex: 1, padding: "14px", borderRadius: "16px", fontSize: "15px", fontWeight: 700,
                 cursor: "pointer", transition: "all 0.15s",
-                background: selectedCourse === c ? "#D97706" : "rgba(255,255,255,0.06)",
-                border: selectedCourse === c ? "1px solid #D97706" : "1px solid rgba(255,255,255,0.12)",
-                color: selectedCourse === c ? "#fff" : "rgba(255,255,255,0.5)",
+                background: selectedCourse === c ? ACCENT : "#F7FAFC",
+                border: selectedCourse === c ? `1px solid ${ACCENT}` : "1px solid #E1EDF5",
+                color: selectedCourse === c ? "#fff" : MUTED,
               }}>
               {c}
             </button>
@@ -350,7 +365,7 @@ function EditResultSheet({
           <button type="button" onClick={() => onSave(selectedCourse, parsedPlace)} disabled={saving || unchanged || !placeValid}
             style={{
               width: "100%", padding: "15px", borderRadius: "16px", border: "none",
-              background: saving || unchanged || !placeValid ? "rgba(217,119,6,0.3)" : "#D97706",
+              background: saving || unchanged || !placeValid ? "rgba(22,138,232,0.35)" : ACCENT,
               color: "#fff", fontSize: "15px", fontWeight: 700,
               cursor: saving || unchanged || !placeValid ? "not-allowed" : "pointer",
             }}>
@@ -359,8 +374,8 @@ function EditResultSheet({
           <button type="button" onClick={onCancel} disabled={saving}
             style={{
               width: "100%", padding: "15px", borderRadius: "16px",
-              border: "1px solid rgba(255,255,255,0.1)", background: "transparent",
-              color: "rgba(255,255,255,0.5)", fontSize: "15px", fontWeight: 500, cursor: "pointer",
+              border: "1px solid #E1EDF5", background: "transparent",
+              color: MUTED, fontSize: "15px", fontWeight: 500, cursor: "pointer",
             }}>
             Cancel
           </button>
@@ -387,34 +402,35 @@ function DeleteSheet({
     <>
       <div onClick={onCancel} style={{
         position: "fixed", inset: 0, zIndex: 50,
-        background: "rgba(0,0,0,0.6)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
+        background: "rgba(11,42,84,0.45)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
       }} />
       <div style={{
         position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
         width: "100%", maxWidth: "480px", zIndex: 51,
-        background: "rgba(6,25,45,0.98)",
-        border: "1px solid rgba(255,255,255,0.14)", borderBottom: "none",
+        background: "#FFFFFF",
+        border: "1px solid rgba(255,255,255,0.9)", borderBottom: "none",
         borderRadius: "28px 28px 0 0", padding: "20px 20px 40px",
+        boxShadow: "0 -10px 30px rgba(0,25,55,0.16)",
       }} onClick={(e) => e.stopPropagation()}>
-        <div style={{ width: "36px", height: "4px", borderRadius: "2px", background: "rgba(255,255,255,0.2)", margin: "0 auto 20px" }} />
+        <div style={{ width: "36px", height: "4px", borderRadius: "2px", background: "#E1EDF5", margin: "0 auto 20px" }} />
         <div style={{ textAlign: "center", marginBottom: "16px" }}>
           <div style={{
             width: "52px", height: "52px", borderRadius: "16px",
-            background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)",
+            background: "rgba(220,80,80,0.12)", border: "1px solid rgba(220,80,80,0.3)",
             display: "flex", alignItems: "center", justifyContent: "center",
             margin: "0 auto 12px", fontSize: "22px",
           }}>🗑️</div>
-          <p style={{ fontSize: "17px", fontWeight: 700, color: "#fff", marginBottom: "6px" }}>Delete this result?</p>
-          <p style={{ fontSize: "14px", fontWeight: 600, color: "rgba(255,255,255,0.7)", marginBottom: "4px" }}>{row.swimmer_name}</p>
-          <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.4)" }}>{row.event} · {formatMs(row.time_ms)} · {row.course}</p>
-          <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.3)", marginTop: "8px" }}>
+          <p style={{ fontSize: "17px", fontWeight: 700, color: INK, marginBottom: "6px" }}>Delete this result?</p>
+          <p style={{ fontSize: "14px", fontWeight: 600, color: INK, marginBottom: "4px" }}>{row.swimmer_name}</p>
+          <p style={{ fontSize: "13px", color: MUTED }}>{row.event} · {formatMs(row.time_ms)} · {row.course}</p>
+          <p style={{ fontSize: "12px", color: "#B7C9D8", marginTop: "8px" }}>
             Swimmer profile is not affected.
           </p>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "20px" }}>
           <button type="button" onClick={onConfirm} disabled={deleting} style={{
             width: "100%", padding: "15px", borderRadius: "16px", border: "none",
-            background: deleting ? "rgba(239,68,68,0.4)" : "#DC2626",
+            background: deleting ? "rgba(220,80,80,0.4)" : "#DC2626",
             color: "#fff", fontSize: "15px", fontWeight: 700,
             cursor: deleting ? "not-allowed" : "pointer",
           }}>
@@ -422,8 +438,8 @@ function DeleteSheet({
           </button>
           <button type="button" onClick={onCancel} disabled={deleting} style={{
             width: "100%", padding: "15px", borderRadius: "16px",
-            border: "1px solid rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.06)",
-            color: "rgba(255,255,255,0.75)", fontSize: "15px", fontWeight: 600, cursor: "pointer",
+            border: "1px solid #E1EDF5", background: "#F7FAFC",
+            color: INK, fontSize: "15px", fontWeight: 600, cursor: "pointer",
           }}>
             Cancel
           </button>
@@ -441,10 +457,7 @@ function Leaderboard({ entries }: { entries: LeaderboardEntry[] }) {
   if (entries.length === 0) return null;
 
   return (
-    <div style={{
-      background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)",
-      borderRadius: "18px", padding: "14px 16px",
-    }}>
+    <div className="rounded-[22px] p-4" style={CARD}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -453,12 +466,12 @@ function Leaderboard({ entries }: { entries: LeaderboardEntry[] }) {
           background: "transparent", border: "none", padding: 0, cursor: "pointer",
         }}
       >
-        <span style={{ fontSize: "13px", fontWeight: 700, color: "#fff", display: "flex", alignItems: "center", gap: "6px" }}>
+        <span style={{ fontSize: "13px", fontWeight: 700, color: INK, display: "flex", alignItems: "center", gap: "6px" }}>
           🏆 Top Performers
         </span>
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none"
-          style={{ transform: open ? "rotate(0deg)" : "rotate(-90deg)", transition: "transform 0.15s", opacity: 0.4 }}>
-          <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          style={{ transform: open ? "rotate(0deg)" : "rotate(-90deg)", transition: "transform 0.15s" }}>
+          <path d="M4 6L8 10L12 6" stroke="#B7C9D8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
 
@@ -469,7 +482,7 @@ function Leaderboard({ entries }: { entries: LeaderboardEntry[] }) {
             return (
               <div key={e.swimmer_id} style={{
                 borderRadius: "12px",
-                background: idx === 0 ? "rgba(234,179,8,0.08)" : "rgba(255,255,255,0.03)",
+                background: idx === 0 ? "#FEF9E7" : "#F7FAFC",
                 overflow: "hidden",
               }}>
                 <button
@@ -480,28 +493,28 @@ function Leaderboard({ entries }: { entries: LeaderboardEntry[] }) {
                     padding: "8px 10px", background: "transparent", border: "none", cursor: "pointer",
                   }}
                 >
-                  <span style={{ fontSize: "11px", fontWeight: 700, color: "rgba(255,255,255,0.3)", width: "16px", flexShrink: 0 }}>
+                  <span style={{ fontSize: "11px", fontWeight: 700, color: MUTED, width: "16px", flexShrink: 0 }}>
                     {idx + 1}
                   </span>
                   <span style={{
-                    flex: 1, minWidth: 0, fontSize: "13px", fontWeight: 600, color: "#fff",
+                    flex: 1, minWidth: 0, fontSize: "13px", fontWeight: 600, color: INK,
                     overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "left",
                   }}>
                     {e.swimmer_name}
                   </span>
                   <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
-                    {e.gold > 0 && <span style={{ fontSize: "11px", fontWeight: 700, color: "#FDE68A" }}>🥇{e.gold}</span>}
-                    {e.silver > 0 && <span style={{ fontSize: "11px", fontWeight: 700, color: "#CBD5E1" }}>🥈{e.silver}</span>}
-                    {e.bronze > 0 && <span style={{ fontSize: "11px", fontWeight: 700, color: "#FDBA74" }}>🥉{e.bronze}</span>}
+                    {e.gold > 0 && <span style={{ fontSize: "11px", fontWeight: 700, color: "#B45309" }}>🥇{e.gold}</span>}
+                    {e.silver > 0 && <span style={{ fontSize: "11px", fontWeight: 700, color: "#64748B" }}>🥈{e.silver}</span>}
+                    {e.bronze > 0 && <span style={{ fontSize: "11px", fontWeight: 700, color: "#C2410C" }}>🥉{e.bronze}</span>}
                     <span style={{
-                      fontSize: "10px", fontWeight: 700, color: "rgba(255,255,255,0.4)",
-                      background: "rgba(255,255,255,0.06)", borderRadius: "8px", padding: "2px 6px",
+                      fontSize: "10px", fontWeight: 700, color: MUTED,
+                      background: "#EEF3F8", borderRadius: "8px", padding: "2px 6px",
                     }}>
                       {e.total_points} pts
                     </span>
                     <svg width="10" height="10" viewBox="0 0 16 16" fill="none"
-                      style={{ transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.15s", opacity: 0.35, flexShrink: 0 }}>
-                      <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      style={{ transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.15s", flexShrink: 0 }}>
+                      <path d="M4 6L8 10L12 6" stroke="#B7C9D8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   </div>
                 </button>
@@ -510,12 +523,12 @@ function Leaderboard({ entries }: { entries: LeaderboardEntry[] }) {
                   <div style={{ padding: "0 10px 10px 36px", display: "flex", flexDirection: "column", gap: "6px" }}>
                     {e.breakdown.map((b, bIdx) => (
                       <div key={`${b.event}-${bIdx}`} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "11px" }}>
-                        <span style={{ color: "rgba(255,255,255,0.55)" }}>{b.event}</span>
+                        <span style={{ color: MUTED }}>{b.event}</span>
                         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                           <span style={{ fontWeight: 700, color: placeColor(b.place) }}>
                             {b.place != null ? ordinal(b.place) : "—"}
                           </span>
-                          <span style={{ color: "rgba(255,255,255,0.6)", fontWeight: 600, minWidth: "52px", textAlign: "right" }}>
+                          <span style={{ color: INK, fontWeight: 600, minWidth: "52px", textAlign: "right" }}>
                             {b.points} pts
                           </span>
                         </div>
@@ -534,10 +547,10 @@ function Leaderboard({ entries }: { entries: LeaderboardEntry[] }) {
 
 // ─── Podium (top 3) ───────────────────────────────────────────────────────────
 
-const MEDALS: Record<number, { emoji: string; bg: string; border: string; glow: string }> = {
-  1: { emoji: "🥇", bg: "linear-gradient(135deg, rgba(234,179,8,0.22), rgba(234,179,8,0.06))", border: "rgba(253,230,138,0.45)", glow: "0 0 24px rgba(234,179,8,0.15)" },
-  2: { emoji: "🥈", bg: "linear-gradient(135deg, rgba(148,163,184,0.20), rgba(148,163,184,0.05))", border: "rgba(203,213,225,0.4)", glow: "0 0 18px rgba(148,163,184,0.1)" },
-  3: { emoji: "🥉", bg: "linear-gradient(135deg, rgba(180,100,50,0.22), rgba(180,100,50,0.06))", border: "rgba(253,186,116,0.4)", glow: "0 0 18px rgba(180,100,50,0.12)" },
+const MEDALS: Record<number, { emoji: string; bg: string; border: string }> = {
+  1: { emoji: "🥇", bg: "linear-gradient(135deg, #FEF3C7, #FDE9A8)", border: "#FBBF24" },
+  2: { emoji: "🥈", bg: "linear-gradient(135deg, #F1F5F9, #E2E8F0)", border: "#CBD5E1" },
+  3: { emoji: "🥉", bg: "linear-gradient(135deg, #FFEDD5, #FED7AA)", border: "#FB923C" },
 };
 
 function PodiumCard({
@@ -574,7 +587,8 @@ function PodiumCard({
       onMouseDown={startPress} onMouseUp={cancelPress} onMouseLeave={cancelPress}
       onTouchStart={startPress} onTouchEnd={cancelPress} onTouchMove={handleTouchMove}
       style={{
-        flex: 1, minWidth: 0, background: m.bg, border: `1px solid ${m.border}`, boxShadow: m.glow,
+        flex: 1, minWidth: 0, background: m.bg, border: `1px solid ${m.border}`,
+        boxShadow: "0 4px 14px rgba(0,25,55,0.08)",
         borderRadius: "16px", padding: heightPad,
         display: "flex", flexDirection: "column", alignItems: "center", gap: "4px",
         userSelect: "none", WebkitUserSelect: "none",
@@ -583,23 +597,23 @@ function PodiumCard({
     >
       <span style={{ fontSize: rank === 1 ? "26px" : "20px" }}>{m.emoji}</span>
       <span style={{
-        fontSize: "12px", fontWeight: 700, color: "#fff", textAlign: "center",
+        fontSize: "12px", fontWeight: 700, color: INK, textAlign: "center",
         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%",
       }}>
         {r.swimmer_name}
       </span>
-      <span style={{ fontSize: rank === 1 ? "15px" : "13px", fontWeight: 800, color: "#FDE68A", fontVariantNumeric: "tabular-nums" }}>
+      <span style={{ fontSize: rank === 1 ? "15px" : "13px", fontWeight: 800, color: ACCENT, fontVariantNumeric: "tabular-nums" }}>
         {formatMs(r.time_ms)}
       </span>
       {r.fina_points != null && (
-        <span style={{ fontSize: "9px", fontWeight: 700, color: "rgba(255,255,255,0.45)" }}>
+        <span style={{ fontSize: "9px", fontWeight: 700, color: MUTED }}>
           {r.fina_points} pts
         </span>
       )}
       {r.is_pb && (
         <span style={{
           fontSize: "8px", fontWeight: 700, letterSpacing: "0.06em",
-          background: "rgba(217,119,6,0.3)", color: "#FDE68A",
+          background: "rgba(22,138,232,0.14)", color: ACCENT,
           borderRadius: "5px", padding: "1px 5px",
         }}>PB</span>
       )}
@@ -655,8 +669,7 @@ function ResultRowCard({
       onMouseDown={startPress} onMouseUp={cancelPress} onMouseLeave={cancelPress}
       onTouchStart={startPress} onTouchEnd={cancelPress} onTouchMove={handleTouchMove}
       style={{
-        background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)",
-        borderRadius: "14px", padding: "10px 14px",
+        ...CARD, borderRadius: "14px", padding: "10px 14px",
         display: "flex", alignItems: "center", gap: "10px",
         userSelect: "none", WebkitUserSelect: "none", cursor: "default",
       }}
@@ -665,23 +678,23 @@ function ResultRowCard({
 
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-          <span style={{ fontSize: "13px", fontWeight: 600, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <span style={{ fontSize: "13px", fontWeight: 600, color: INK, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {r.swimmer_name}
           </span>
           {r.is_pb && (
             <span style={{
               fontSize: "9px", fontWeight: 700, letterSpacing: "0.06em",
-              background: "rgba(217,119,6,0.25)", color: "#FDE68A",
+              background: "rgba(22,138,232,0.12)", color: ACCENT,
               borderRadius: "5px", padding: "2px 5px", flexShrink: 0,
             }}>PB</span>
           )}
         </div>
-        <p style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", marginTop: "1px" }}>
+        <p style={{ fontSize: "10px", color: MUTED, marginTop: "1px" }}>
           {[r.swim_club, r.course, r.place != null ? `Official #${r.place}` : null, r.fina_points != null ? `${r.fina_points} pts` : null].filter(Boolean).join(" · ")}
         </p>
       </div>
 
-      <span style={{ fontSize: "14px", fontWeight: 700, color: "#FDE68A", fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>
+      <span style={{ fontSize: "14px", fontWeight: 700, color: ACCENT, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>
         {formatMs(r.time_ms)}
       </span>
     </div>
@@ -909,14 +922,14 @@ export default function MeetDetailPage() {
         <div className="container-app">
           <div className="pt-2">
             <button type="button" onClick={() => router.push("/meets")}
-              className="mb-3 inline-flex items-center gap-1.5 text-sm text-white/40 hover:text-white/70 transition">
+              className="mb-3 inline-flex items-center gap-1.5 text-sm text-white/60 hover:text-white/90 transition">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                 <path d="M10 3L5 8L10 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
               Meets
             </button>
           </div>
-          <p className="muted">Loading...</p>
+          <p className="text-white/60">Loading...</p>
         </div>
       </div>
     );
@@ -931,7 +944,7 @@ export default function MeetDetailPage() {
         {/* Header */}
         <div className="pt-2">
           <button type="button" onClick={() => router.push("/meets")}
-            className="mb-3 inline-flex items-center gap-1.5 text-sm text-white/40 hover:text-white/70 transition">
+            className="mb-3 inline-flex items-center gap-1.5 text-sm text-white/60 hover:text-white/90 transition">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M10 3L5 8L10 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
@@ -942,26 +955,26 @@ export default function MeetDetailPage() {
 
           <div className="mt-2 flex items-center gap-2 flex-wrap">
             {meetDate && (
-              <span style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "20px", padding: "3px 10px", fontSize: "11px", color: "rgba(255,255,255,0.55)", fontWeight: 500 }}>
+              <span style={{ background: "rgba(255,255,255,0.9)", border: "1px solid rgba(255,255,255,0.85)", borderRadius: "20px", padding: "3px 10px", fontSize: "11px", color: INK, fontWeight: 600 }}>
                 {formatDate(meetDate)}
               </span>
             )}
             {course && (
-              <span style={{ background: "rgba(217,119,6,0.15)", border: "1px solid rgba(253,230,138,0.22)", borderRadius: "20px", padding: "3px 10px", fontSize: "11px", color: "#FDE68A", fontWeight: 600 }}>
+              <span style={{ background: "rgba(22,138,232,0.16)", border: "1px solid rgba(22,138,232,0.3)", borderRadius: "20px", padding: "3px 10px", fontSize: "11px", color: "#EAF6FE", fontWeight: 600 }}>
                 {formatCourseFull(course)}
               </span>
             )}
           </div>
 
-          <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.25)", marginTop: "10px" }}>
+          <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.45)", marginTop: "10px" }}>
             Hold any result to edit or delete.
           </p>
         </div>
 
         {/* Empty */}
         {groups.length === 0 ? (
-          <div className="rounded-3xl p-8 text-center" style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}>
-            <p style={{ color: "rgba(255,255,255,0.45)" }}>No results found for this meet.</p>
+          <div className="rounded-[28px] p-8 text-center" style={CARD}>
+            <p style={{ color: MUTED }}>No results found for this meet.</p>
           </div>
         ) : (
           <>
@@ -1000,15 +1013,15 @@ export default function MeetDetailPage() {
                       background: "transparent", border: "none", padding: "0 2px 8px", cursor: "pointer",
                     }}
                   >
-                    <p style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(255,255,255,0.35)" }}>
+                    <p style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(255,255,255,0.55)" }}>
                       {group.event}
                       {group.gender !== null && (
-                        <span style={{ color: "rgba(255,255,255,0.25)" }}> · {genderLabel(group.gender)}</span>
+                        <span style={{ color: "rgba(255,255,255,0.4)" }}> · {genderLabel(group.gender)}</span>
                       )}
                       {group.ageGroup !== null && (
-                        <span style={{ color: "rgba(255,255,255,0.25)" }}> · {ageGroupLabel(group.ageGroup)}</span>
+                        <span style={{ color: "rgba(255,255,255,0.4)" }}> · {ageGroupLabel(group.ageGroup)}</span>
                       )}
-                      {" "}<span style={{ color: "rgba(255,255,255,0.2)" }}>· {group.results.length}</span>
+                      {" "}<span style={{ color: "rgba(255,255,255,0.32)" }}>· {group.results.length}</span>
                       {group.hasWarning && (
                         <span style={{ color: "#FCA5A5", marginLeft: "6px", letterSpacing: "normal" }} title="Duplicate placing found — likely a scan mistake, hold a result to correct it">
                           ⚠️ check placings
@@ -1016,8 +1029,8 @@ export default function MeetDetailPage() {
                       )}
                     </p>
                     <svg width="14" height="14" viewBox="0 0 16 16" fill="none"
-                      style={{ transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)", transition: "transform 0.15s", opacity: 0.4, flexShrink: 0 }}>
-                      <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      style={{ transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)", transition: "transform 0.15s", opacity: 0.6, flexShrink: 0 }}>
+                      <path d="M4 6L8 10L12 6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   </button>
 
