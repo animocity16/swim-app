@@ -15,6 +15,9 @@ export type TrendSeries = {
   points: TrendPoint[];
 };
 
+const INK = "#0B2A54";
+const MUTED = "#71859A";
+
 function formatMs(ms: number | null | undefined): string {
   if (ms == null || Number.isNaN(ms)) return "—";
   const totalSeconds = ms / 1000;
@@ -76,9 +79,9 @@ export default function TrendOverlayChart({
     return (
       <div
         className="rounded-2xl px-4 py-5 text-center"
-        style={{ background: "rgba(255,255,255,0.035)", border: "1px solid rgba(255,255,255,0.06)" }}
+        style={{ background: "#F7FAFC", border: "1px solid #E1EDF5" }}
       >
-        <p className="text-xs text-white/40">No dated results yet for this event.</p>
+        <p className="text-xs" style={{ color: MUTED }}>No dated results yet for this event.</p>
       </div>
     );
   }
@@ -117,7 +120,7 @@ export default function TrendOverlayChart({
     <div className="space-y-2">
       <div
         className="overflow-hidden rounded-2xl"
-        style={{ background: "rgba(0,10,30,0.32)", border: "1px solid rgba(255,255,255,0.07)" }}
+        style={{ background: "#F7FAFC", border: "1px solid #E1EDF5" }}
       >
         <svg
           viewBox={`0 0 ${W} ${H}`}
@@ -135,7 +138,7 @@ export default function TrendOverlayChart({
                 x2={W - PAD_X}
                 y1={y}
                 y2={y}
-                stroke="rgba(255,255,255,0.06)"
+                stroke="#E1EDF5"
                 strokeWidth="1"
               />
             );
@@ -160,7 +163,7 @@ export default function TrendOverlayChart({
                   <circle key={i} cx={p.x} cy={p.y} r={i === points.length - 1 ? 4 : 2.5} fill={s.color} />
                 ))}
                 {last && (
-                  <text x={last.x} y={last.y - 8} textAnchor="middle" fontSize="9" fill={s.color}>
+                  <text x={last.x} y={last.y - 8} textAnchor="middle" fontSize="9" fontWeight="700" fill={s.color}>
                     {formatMs(s.points[s.points.length - 1].ms)}
                   </text>
                 )}
@@ -168,10 +171,10 @@ export default function TrendOverlayChart({
             );
           })}
 
-          <text x={PAD_X} y={H - 8} fontSize="9" fill="rgba(255,255,255,0.3)">
+          <text x={PAD_X} y={H - 8} fontSize="9" fill={MUTED}>
             {formatShortDate(cleaned[0].points[0].swam_at)}
           </text>
-          <text x={W - PAD_X} y={H - 8} fontSize="9" fill="rgba(255,255,255,0.3)" textAnchor="end">
+          <text x={W - PAD_X} y={H - 8} fontSize="9" fill={MUTED} textAnchor="end">
             {formatShortDate(
               cleaned.reduce((latest, s) => {
                 const t = rowTime(s.points[s.points.length - 1]);
@@ -189,14 +192,14 @@ export default function TrendOverlayChart({
         {cleaned.map((s) => (
           <div key={s.id} className="flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-full" style={{ background: s.color }} />
-            <span className="text-[11px] text-white/60">
+            <span className="text-[0.6875rem]" style={{ color: INK }}>
               {s.label} · {formatMs(s.points[s.points.length - 1].ms)}
             </span>
           </div>
         ))}
       </div>
 
-      {insight && <p className="text-[11px] text-white/35">{insight}</p>}
+      {insight && <p className="text-[0.6875rem]" style={{ color: MUTED }}>{insight}</p>}
     </div>
   );
 }

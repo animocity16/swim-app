@@ -16,6 +16,7 @@ type Swimmer = {
   school?: string | null;
   group_type?: string | null;
   gender?: string | null;
+  photo_url?: string | null;
 };
 
 type SwimTimeRow = {
@@ -29,6 +30,19 @@ type SwimTimeRow = {
 
 type EventKey = string;
 type Scope = "all" | "club" | "school";
+
+// ─── New-look design tokens (matches Settings/Swimmers/Dashboard) ────────────
+
+const CARD: React.CSSProperties = {
+  background: "rgba(255,255,255,0.96)",
+  border: "1px solid rgba(255,255,255,0.9)",
+  boxShadow: "0 10px 24px rgba(0,25,55,0.10)",
+};
+const INK = "#0B2A54";
+const MUTED = "#71859A";
+const ACCENT = "var(--natrix-font-colour, #168AE8)";
+const ACCENT_TINT_BG = "rgba(22,138,232,0.10)";
+const ACCENT_TINT_BORDER = "rgba(22,138,232,0.22)";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -45,8 +59,10 @@ function formatMs(ms: number | null | undefined) {
     : seconds.toFixed(2);
 }
 
-function getInitials(name: string) {
-  return name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
+function getInitials(name: string | null | undefined) {
+  const safe = (name ?? "").trim();
+  if (!safe) return "?";
+  return safe.split(" ").filter(Boolean).map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 }
 
 function keyOf(event: string, course: string) {
@@ -63,8 +79,10 @@ function getPBMap(times: SwimTimeRow[]) {
   return map;
 }
 
-function shortName(name: string): string {
-  const parts = name.trim().split(" ");
+function shortName(name: string | null | undefined): string {
+  const safe = (name ?? "").trim();
+  if (!safe) return "Swimmer";
+  const parts = safe.split(" ").filter(Boolean);
   if (parts.length === 1) return parts[0];
   return `${parts[0]} ${parts[parts.length - 1][0]}.`;
 }
@@ -79,7 +97,9 @@ const AVATAR_COLORS = [
 ];
 
 function avatarColor(index: number) {
-  return AVATAR_COLORS[index % AVATAR_COLORS.length];
+  const n = AVATAR_COLORS.length;
+  const safeIndex = Number.isFinite(index) ? ((index % n) + n) % n : 0;
+  return AVATAR_COLORS[safeIndex];
 }
 
 const STROKE_ORDER = ["Freestyle", "Backstroke", "Breaststroke", "Butterfly", "IM"];
@@ -106,12 +126,14 @@ function getEventDistance(event: string): number {
   return match ? Number(match[0]) : 9999;
 }
 
+// Rank-tier styling for the light-card design — 1st/2nd/3rd keep their
+// medal identity (gold/silver/bronze), 4th+ fall back to a neutral card.
 const RANK_STYLES: Record<number, { bg: string; border: string; numColor: string }> = {
-  1: { bg: "rgba(234,179,8,0.15)",   border: "rgba(234,179,8,0.4)",    numColor: "#FDE68A" },
-  2: { bg: "rgba(148,163,184,0.12)", border: "rgba(148,163,184,0.3)",  numColor: "#CBD5E1" },
-  3: { bg: "rgba(180,100,50,0.15)",  border: "rgba(180,100,50,0.35)",  numColor: "#FDBA74" },
-  4: { bg: "rgba(255,255,255,0.05)", border: "rgba(255,255,255,0.1)",  numColor: "rgba(255,255,255,0.4)" },
-  5: { bg: "rgba(255,255,255,0.03)", border: "rgba(255,255,255,0.08)", numColor: "rgba(255,255,255,0.3)" },
+  1: { bg: "#FEF3C7", border: "#FDE68A", numColor: "#B45309" },
+  2: { bg: "#F1F5F9", border: "#E2E8F0", numColor: "#64748B" },
+  3: { bg: "#FFEDD5", border: "#FED7AA", numColor: "#C2410C" },
+  4: { bg: "#F7FAFC", border: "#E1EDF5", numColor: "#94A3B8" },
+  5: { bg: "#F7FAFC", border: "#E1EDF5", numColor: "#B7C9D8" },
 };
 
 const STROKE_ABBR: Record<string, string> = {
@@ -134,16 +156,16 @@ const GRID_GAP_CAP = 0.06;
 
 function gridCellStyle(ms: number | null, bestMs: number | null): { background: string; color: string } {
   if (ms == null || bestMs == null) {
-    return { background: "rgba(217,119,6,0.05)", color: "rgba(255,255,255,0.22)" };
+    return { background: "#F7FAFC", color: "#B7C9D8" };
   }
   const gapFraction = Math.min((ms - bestMs) / bestMs, GRID_GAP_CAP) / GRID_GAP_CAP;
-  const alpha = 0.45 - gapFraction * 0.4;
+  const alpha = 0.22 - gapFraction * 0.16;
   const color =
-    gapFraction < 0.02 ? "#FDE68A" :
-    gapFraction < 0.35 ? "rgba(255,255,255,0.8)" :
-    gapFraction < 0.7 ? "rgba(255,255,255,0.5)" :
-    "rgba(255,255,255,0.3)";
-  return { background: `rgba(217,119,6,${alpha.toFixed(2)})`, color };
+    gapFraction < 0.02 ? "#B45309" :
+    gapFraction < 0.35 ? INK :
+    gapFraction < 0.7 ? MUTED :
+    "#B7C9D8";
+  return { background: `rgba(22,138,232,${alpha.toFixed(2)})`, color };
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -191,7 +213,7 @@ export default function ComparePage() {
 
     const { data } = await supabase
       .from("swimmers")
-      .select("id, name, age, swim_club, school, group_type, gender")
+      .select("id, name, age, swim_club, school, group_type, gender, photo_url")
       .order("group_type", { ascending: false })
       .order("name", { ascending: true });
 
@@ -470,44 +492,55 @@ export default function ComparePage() {
     return <div className="shell"><div className="container-app"><p className="muted">Loading...</p></div></div>;
   }
 
-  const chipBase = "rounded-2xl px-3 py-1.5 text-xs font-semibold transition";
-  const chipActive = { background: "rgba(217,119,6,0.15)", border: "1px solid rgba(253,230,138,0.35)", color: "#FDE68A" };
-  const chipInactive = { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" };
-
-  const scopeBtnStyle = (active: boolean) => active
-    ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
-    : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" };
+  const chipActive = { background: ACCENT_TINT_BG, border: `1px solid ${ACCENT_TINT_BORDER}`, color: ACCENT };
+  const chipInactive = { background: "#F7FAFC", border: "1px solid #E1EDF5", color: MUTED };
+  const scopeBtnStyle = (active: boolean) => active ? chipActive : chipInactive;
 
   return (
     <div className="shell">
       <div className="container-app space-y-5">
 
-        {/* Header */}
-        <div className="pt-2">
-          <p className="text-[10px] font-medium uppercase tracking-widest" style={{ color: "#BA7517" }}>Natrix</p>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight text-white">Compare</h1>
-          <p className="mt-1 text-sm text-white/50">Tap a filter to open its list. Tap again to close it.</p>
+        {/* Branded header — matches Settings / Swimmers / Dashboard */}
+        <div className="flex items-start justify-between pt-2">
+          <div>
+            <div className="text-[1.75rem] font-black tracking-[0.08em] text-white">NATRIX</div>
+            <div className="mt-0.5 text-[0.5rem] font-semibold uppercase tracking-[0.24em] text-sky-200/50">
+              Track · Improve · Belong
+            </div>
+            <div className="mt-5">
+              <h1 className="text-3xl font-bold tracking-tight text-white">Compare</h1>
+              <p className="mt-1 text-sm text-white/60">Tap a filter to open its list. Tap again to close it.</p>
+            </div>
+          </div>
+          <img src="/natrix-mascot-search.png" alt="Natrix" className="h-[72px] w-[72px] object-contain" />
         </div>
 
         {/* ── Picker ────────────────────────────────────────────────────── */}
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-5 space-y-4">
+        <div className="rounded-[28px] p-5 space-y-4" style={CARD}>
 
           {/* My swimmer */}
           <div>
-            <p className="text-[10px] font-medium uppercase tracking-widest text-white/30 mb-2">My swimmer</p>
+            <p className="text-[0.625rem] font-bold uppercase tracking-[0.16em] mb-2" style={{ color: ACCENT }}>My swimmer</p>
             <div className="flex flex-wrap gap-2">
               {primarySwimmers.map((s, i) => {
                 const colors = avatarColor(i);
                 const active = s.id === mySwimmerId;
                 return (
                   <button key={s.id} type="button" onClick={() => void handleMySwimmerChange(s.id)}
-                    className="flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm font-medium transition"
+                    className="flex items-center gap-2 rounded-2xl px-3 py-2 text-sm font-medium transition"
                     style={active
-                      ? { background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.4)", color: "#FDE68A" }
-                      : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.6)" }}>
-                    <div className="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold flex-shrink-0"
-                      style={{ background: colors.bg, color: colors.text }}>{getInitials(s.name)}</div>
-                    {s.name.split(" ")[0]}
+                      ? { background: ACCENT_TINT_BG, border: `1px solid ${ACCENT_TINT_BORDER}`, color: ACCENT }
+                      : { background: "#F7FAFC", border: "1px solid #E1EDF5", color: MUTED }}>
+                    {s.photo_url ? (
+                      <img src={s.photo_url} alt={s.name} className="h-6 w-6 flex-shrink-0 rounded-full object-cover" />
+                    ) : (
+                      <div className="flex h-6 w-6 items-center justify-center rounded-full text-[0.625rem] font-bold flex-shrink-0"
+                        style={{
+                          background: active ? "var(--natrix-avatar-colour, " + colors.bg + ")" : colors.bg,
+                          color: active ? "var(--natrix-avatar-text, " + colors.text + ")" : colors.text,
+                        }}>{getInitials(s.name)}</div>
+                    )}
+                    {(s.name ?? "").trim().split(" ")[0] || "Swimmer"}
                   </button>
                 );
               })}
@@ -516,14 +549,14 @@ export default function ComparePage() {
 
           {/* VS divider */}
           <div className="flex items-center gap-3">
-            <div className="flex-1 h-px bg-white/10" />
-            <span className="text-xs font-bold text-white/25 uppercase tracking-widest">vs</span>
-            <div className="flex-1 h-px bg-white/10" />
+            <div className="flex-1" style={{ height: 1, background: "#E1EDF5" }} />
+            <span className="text-xs font-bold uppercase tracking-widest" style={{ color: "#B7C9D8" }}>vs</span>
+            <div className="flex-1" style={{ height: 1, background: "#E1EDF5" }} />
           </div>
 
           {/* Scope */}
           <div>
-            <p className="text-[9px] font-medium uppercase tracking-widest text-white/25 mb-2">Scope (optional)</p>
+            <p className="text-[0.5625rem] font-medium uppercase tracking-widest mb-2" style={{ color: MUTED }}>Scope (optional)</p>
             <div className="flex gap-2">
               {(["all", "club", "school"] as Scope[]).map((s) => (
                 <button key={s} type="button" onClick={() => toggleScope(s)}
@@ -537,10 +570,11 @@ export default function ComparePage() {
             {scope === "club" && scopeOpen && (
               <div className="flex flex-wrap gap-2 mt-2">
                 {clubOptions.length === 0 ? (
-                  <p className="text-xs text-white/35">No clubs found on your following swimmers.</p>
+                  <p className="text-xs" style={{ color: MUTED }}>No clubs found on your following swimmers.</p>
                 ) : clubOptions.map((club) => (
                   <button key={club} type="button" onClick={() => setClubValue((prev) => prev === club ? null : club)}
-                    className={chipBase} style={clubValue === club ? chipActive : chipInactive}>
+                    className="rounded-2xl px-3 py-1.5 text-xs font-semibold transition"
+                    style={clubValue === club ? chipActive : chipInactive}>
                     {club}
                   </button>
                 ))}
@@ -550,10 +584,11 @@ export default function ComparePage() {
             {scope === "school" && scopeOpen && (
               <div className="flex flex-wrap gap-2 mt-2">
                 {schoolOptions.length === 0 ? (
-                  <p className="text-xs text-white/35">No schools found on your following swimmers.</p>
+                  <p className="text-xs" style={{ color: MUTED }}>No schools found on your following swimmers.</p>
                 ) : schoolOptions.map((school) => (
                   <button key={school} type="button" onClick={() => setSchoolValue((prev) => prev === school ? null : school)}
-                    className={chipBase} style={schoolValue === school ? chipActive : chipInactive}>
+                    className="rounded-2xl px-3 py-1.5 text-xs font-semibold transition"
+                    style={schoolValue === school ? chipActive : chipInactive}>
                     {school}
                   </button>
                 ))}
@@ -563,7 +598,7 @@ export default function ComparePage() {
 
           {/* Rank */}
           <div>
-            <p className="text-[9px] font-medium uppercase tracking-widest text-white/25 mb-2">Sort</p>
+            <p className="text-[0.5625rem] font-medium uppercase tracking-widest mb-2" style={{ color: MUTED }}>Sort</p>
             <button type="button" onClick={toggleRank}
               className="w-full rounded-2xl py-2 text-xs font-semibold transition"
               style={scopeBtnStyle(rankOn)}>
@@ -574,7 +609,8 @@ export default function ComparePage() {
               <div className="flex flex-wrap gap-2 mt-2">
                 {RANK_COUNTS.map((n) => (
                   <button key={n} type="button" onClick={() => setRankCount(n)}
-                    className={chipBase} style={rankCount === n ? chipActive : chipInactive}>
+                    className="rounded-2xl px-3 py-1.5 text-xs font-semibold transition"
+                    style={rankCount === n ? chipActive : chipInactive}>
                     Top {n}
                   </button>
                 ))}
@@ -585,21 +621,25 @@ export default function ComparePage() {
           {/* Selected */}
           {selectedSwimmers.length > 0 && (
             <div>
-              <p className="text-[10px] font-medium uppercase tracking-widest text-white/30 mb-2">
+              <p className="text-[0.625rem] font-bold uppercase tracking-[0.16em] mb-2" style={{ color: ACCENT }}>
                 Selected ({selectedIds.size}/{MAX_COMPARE})
               </p>
               <div className="flex flex-wrap gap-2">
-                {selectedSwimmers.map((s, i) => {
+                {selectedSwimmers.map((s) => {
                   const idx = allSwimmers.findIndex((x) => x.id === s.id);
                   const colors = avatarColor(idx);
                   return (
                     <button key={s.id} type="button" onClick={() => void toggleSelected(s.id)}
                       className="flex items-center gap-1.5 rounded-full pl-1 pr-3 py-1 text-xs font-medium transition"
-                      style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.25)", color: "white" }}>
-                      <span className="flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-bold"
-                        style={{ background: colors.bg, color: colors.text }}>
-                        {getInitials(s.name)}
-                      </span>
+                      style={{ background: "#F1F6FA", border: "1px solid #E1EDF5", color: INK }}>
+                      {s.photo_url ? (
+                        <img src={s.photo_url} alt={s.name} className="h-5 w-5 rounded-full object-cover" />
+                      ) : (
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full text-[0.5625rem] font-bold"
+                          style={{ background: colors.bg, color: colors.text }}>
+                          {getInitials(s.name)}
+                        </span>
+                      )}
                       {shortName(s.name)}
                     </button>
                   );
@@ -610,22 +650,22 @@ export default function ComparePage() {
 
           {/* Prompt / list */}
           {!anythingActive ? (
-            <p className="text-sm text-white/35 text-center py-2">
+            <p className="text-sm text-center py-2" style={{ color: MUTED }}>
               Tap All, Club, School, or Rank above to see swimmers.
             </p>
           ) : rankLoading ? (
             <div className="flex items-center justify-center gap-3 py-4">
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-amber-400" />
-              <p className="text-sm text-white/50">Ranking swimmers…</p>
+              <div className="h-4 w-4 animate-spin rounded-full border-2" style={{ borderColor: "#E1EDF5", borderTopColor: "var(--natrix-font-colour, #168AE8)" }} />
+              <p className="text-sm" style={{ color: MUTED }}>Ranking swimmers…</p>
             </div>
           ) : visibleList === null ? (
-            <p className="text-sm text-white/35 text-center py-2">
+            <p className="text-sm text-center py-2" style={{ color: MUTED }}>
               {scope === "club" && scopeOpen && "Choose a club above to see its swimmers."}
               {scope === "school" && scopeOpen && "Choose a school above to see its swimmers."}
               {rankOn && !rankCount && "Choose how many to show above."}
             </p>
           ) : visibleList.length === 0 ? (
-            <p className="text-sm text-white/40 text-center py-2">No swimmers found here.</p>
+            <p className="text-sm text-center py-2" style={{ color: MUTED }}>No swimmers found here.</p>
           ) : (
             <div className="max-h-[260px] overflow-y-auto rounded-2xl space-y-1.5 pr-1">
               {visibleList.map((s, i) => {
@@ -637,15 +677,19 @@ export default function ComparePage() {
                 return (
                   <button key={s.id} type="button" onClick={() => void toggleSelected(s.id)} disabled={disabled}
                     className="w-full flex items-center gap-3 rounded-2xl p-2.5 text-left transition"
-                    style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)", opacity: disabled ? 0.4 : 1 }}>
-                    {rankNum && <span className="w-4 text-xs text-white/35 flex-shrink-0">#{rankNum}</span>}
-                    <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
-                      style={{ background: colors.bg, color: colors.text }}>
-                      {getInitials(s.name)}
-                    </span>
+                    style={{ background: "#F7FAFC", border: "1px solid #E1EDF5", opacity: disabled ? 0.4 : 1 }}>
+                    {rankNum && <span className="w-4 text-xs flex-shrink-0" style={{ color: MUTED }}>#{rankNum}</span>}
+                    {s.photo_url ? (
+                      <img src={s.photo_url} alt={s.name} className="h-7 w-7 flex-shrink-0 rounded-full object-cover" />
+                    ) : (
+                      <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-[0.625rem] font-bold"
+                        style={{ background: colors.bg, color: colors.text }}>
+                        {getInitials(s.name)}
+                      </span>
+                    )}
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs font-medium text-white truncate">{s.name}</p>
-                      <p className="text-[10px] text-white/40 truncate">
+                      <p className="text-xs font-medium truncate" style={{ color: INK }}>{s.name}</p>
+                      <p className="text-[0.625rem] truncate" style={{ color: MUTED }}>
                         {[s.swim_club, s.school].filter(Boolean).join(" · ")}
                       </p>
                     </div>
@@ -658,15 +702,15 @@ export default function ComparePage() {
 
         {/* ── Results ───────────────────────────────────────────────────── */}
         {selectedIds.size === 0 ? (
-          <div className="rounded-3xl p-8 text-center" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+          <div className="rounded-[28px] p-8 text-center" style={CARD}>
             <p className="text-2xl mb-2">🏊</p>
-            <p className="text-base font-semibold text-white">Select swimmers above</p>
-            <p className="mt-1 text-sm text-white/40">Tap up to {MAX_COMPARE} swimmers to rank PBs.</p>
+            <p className="text-base font-semibold" style={{ color: INK }}>Select swimmers above</p>
+            <p className="mt-1 text-sm" style={{ color: MUTED }}>Tap up to {MAX_COMPARE} swimmers to rank PBs.</p>
           </div>
         ) : loadingTimes ? (
           <div className="flex items-center justify-center gap-3 py-4">
-            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-amber-400" />
-            <p className="text-sm text-white/50">Loading times…</p>
+            <div className="h-4 w-4 animate-spin rounded-full border-2" style={{ borderColor: "#E1EDF5", borderTopColor: "#168AE8" }} />
+            <p className="text-sm" style={{ color: MUTED }}>Loading times…</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -684,9 +728,9 @@ export default function ComparePage() {
 
             {resultsView === "list" && (
             <div>
-              <p className="text-[9px] font-medium uppercase tracking-widest text-white/25 mb-2">Stroke</p>
+              <p className="text-[0.5625rem] font-medium uppercase tracking-widest mb-2" style={{ color: MUTED }}>Stroke</p>
               {strokesWithData.length === 0 ? (
-                <p className="text-sm text-white/40">No shared events yet — everyone needs a PB in the same event and course as your swimmer.</p>
+                <p className="text-sm" style={{ color: MUTED }}>No shared events yet — everyone needs a PB in the same event and course as your swimmer.</p>
               ) : (
                 <div className="flex flex-wrap gap-2">
                   {strokesWithData.map((stroke) => (
@@ -704,10 +748,10 @@ export default function ComparePage() {
 
             {resultsView === "list" && (!activeStroke ? (
               strokesWithData.length > 0 && (
-                <p className="text-sm text-white/35 text-center py-6">Choose a stroke above to see the ranking.</p>
+                <p className="text-sm text-center py-6" style={{ color: MUTED }}>Choose a stroke above to see the ranking.</p>
               )
             ) : (
-              <div className="rounded-3xl overflow-hidden" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)" }}>
+              <div className="rounded-[28px] overflow-hidden" style={CARD}>
                 {strokeEvents.map((ev, evIdx) => {
                   const ranked = allCompared
                     .map((entry) => ({
@@ -724,20 +768,20 @@ export default function ComparePage() {
 
                   return (
                     <div key={ev.key}
-                      style={{ borderBottom: isLastEvent ? "none" : "1px solid rgba(255,255,255,0.05)", padding: "12px 16px" }}>
+                      style={{ borderBottom: isLastEvent ? "none" : "1px solid #EEF3F8", padding: "12px 16px" }}>
 
                       <div className="flex items-center justify-between mb-3">
-                        <p className="text-xs font-medium text-white/45">
+                        <p className="text-xs font-medium" style={{ color: INK }}>
                           {canonicalEventName(ev.event)
                             .replace("Freestyle", "Free").replace("Backstroke", "Back")
                             .replace("Breaststroke", "Breast").replace("Butterfly", "Fly")}
-                          <span className="ml-1 text-white/25">{canonicalCourse(ev.course)}</span>
+                          <span className="ml-1" style={{ color: MUTED }}>{canonicalCourse(ev.course)}</span>
                         </p>
                         {selectedIds.size === 1 && (
                           <button type="button"
                             onClick={() => setTrendEventKey((prev) => prev === ev.key ? null : ev.key)}
-                            className="flex items-center gap-1 text-[11px] font-medium"
-                            style={{ color: trendEventKey === ev.key ? "#FDE68A" : "#D97706" }}>
+                            className="flex items-center gap-1 text-[0.6875rem] font-medium"
+                            style={{ color: ACCENT }}>
                             Trend
                           </button>
                         )}
@@ -748,7 +792,7 @@ export default function ComparePage() {
                           series={allCompared.map((entry): TrendSeries => ({
                             id: entry.swimmer.id,
                             label: entry.isMine ? "You" : shortName(entry.swimmer.name),
-                            color: entry.isMine ? "#D97706" : avatarColor(entry.colorIndex).text,
+                            color: entry.isMine ? "#168AE8" : avatarColor(entry.colorIndex).bg,
                             points: (timesMap.get(entry.swimmer.id) ?? [])
                               .filter((row) => keyOf(row.event, row.course) === ev.key)
                               .map((row) => ({ ms: row.time_ms, swam_at: row.swam_at ?? null })),
@@ -764,26 +808,32 @@ export default function ComparePage() {
                               className="flex items-center gap-3 rounded-2xl px-3 py-2.5"
                               style={{ background: style.bg, border: `1px solid ${style.border}` }}>
                               <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold"
-                                style={{ background: "rgba(0,0,0,0.2)", color: style.numColor }}>
+                                style={{ background: "rgba(255,255,255,0.6)", color: style.numColor }}>
                                 {entry.rank}
                               </div>
-                              <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-[10px] font-bold"
-                                style={{ background: entry.isMine ? "#D97706" : colors.bg, color: entry.isMine ? "white" : colors.text }}>
-                                {getInitials(entry.swimmer.name)}
-                              </div>
-                              <p className="flex-1 min-w-0 truncate text-sm font-medium"
-                                style={{ color: entry.rank === 1 ? "white" : "rgba(255,255,255,0.7)" }}>
+                              {entry.swimmer.photo_url ? (
+                                <img src={entry.swimmer.photo_url} alt={entry.swimmer.name}
+                                  className="h-7 w-7 flex-shrink-0 rounded-lg object-cover" />
+                              ) : (
+                                <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-[0.625rem] font-bold"
+                                  style={{
+                                    background: entry.isMine ? "var(--natrix-avatar-colour, #185FA5)" : colors.bg,
+                                    color: entry.isMine ? "var(--natrix-avatar-text, #D8ECFF)" : colors.text,
+                                  }}>
+                                  {getInitials(entry.swimmer.name)}
+                                </div>
+                              )}
+                              <p className="flex-1 min-w-0 truncate text-sm font-medium" style={{ color: INK }}>
                                 {shortName(entry.swimmer.name)}
                                 {entry.isMine && (
-                                  <span className="ml-1.5 text-[10px] font-normal" style={{ color: "#D97706" }}>you</span>
+                                  <span className="ml-1.5 text-[0.625rem] font-normal" style={{ color: ACCENT }}>you</span>
                                 )}
                               </p>
-                              <p className="text-sm font-bold flex-shrink-0"
-                                style={{ color: entry.rank === 1 ? style.numColor : "rgba(255,255,255,0.75)" }}>
+                              <p className="text-sm font-bold flex-shrink-0" style={{ color: entry.rank === 1 ? style.numColor : INK }}>
                                 {formatMs(entry.ms)}
                               </p>
                               {entry.rank > 1 && rankedWithPos[0]?.ms != null && entry.ms != null && (
-                                <p className="text-[10px] flex-shrink-0" style={{ color: "rgba(255,255,255,0.3)" }}>
+                                <p className="text-[0.625rem] flex-shrink-0" style={{ color: MUTED }}>
                                   +{formatMs(entry.ms - rankedWithPos[0].ms)}
                                 </p>
                               )}
@@ -800,10 +850,10 @@ export default function ComparePage() {
 
             {resultsView === "grid" && (
               gridEvents.length === 0 ? (
-                <p className="text-sm text-white/40">No shared events yet — everyone needs a PB in the same event and course as your swimmer.</p>
+                <p className="text-sm" style={{ color: MUTED }}>No shared events yet — everyone needs a PB in the same event and course as your swimmer.</p>
               ) : (
-                <div className="rounded-3xl p-4 overflow-x-auto"
-                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", WebkitOverflowScrolling: "touch" }}>
+                <div className="rounded-[28px] p-4 overflow-x-auto"
+                  style={{ ...CARD, WebkitOverflowScrolling: "touch" }}>
                   <div style={{
                     display: "grid",
                     gridTemplateColumns: `84px repeat(${gridEvents.length}, 46px)`,
@@ -813,7 +863,7 @@ export default function ComparePage() {
                     <div />
                     {gridEvents.map((ev) => (
                       <div key={ev.key} className="text-center"
-                        style={{ fontSize: "9px", color: "rgba(255,255,255,0.35)", paddingBottom: "4px" }}>
+                        style={{ fontSize: "0.5625rem", color: MUTED, paddingBottom: "4px" }}>
                         {gridEventLabel(ev.event)}
                       </div>
                     ))}
@@ -823,16 +873,21 @@ export default function ComparePage() {
                       return (
                         <Fragment key={entry.swimmer.id}>
                           <div className="flex items-center gap-1.5 truncate"
-                            style={{ fontSize: "10px", color: entry.isMine ? "#FDE68A" : "rgba(255,255,255,0.7)", fontWeight: 500 }}>
-                            <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded"
-                              style={{
-                                background: entry.isMine ? "#78350F" : colors.bg,
-                                color: entry.isMine ? "#FCD34D" : colors.text,
-                                fontSize: "8px",
-                                fontWeight: 700,
-                              }}>
-                              {getInitials(entry.swimmer.name)}
-                            </span>
+                            style={{ fontSize: "0.625rem", color: entry.isMine ? ACCENT : INK, fontWeight: 500 }}>
+                            {entry.swimmer.photo_url ? (
+                              <img src={entry.swimmer.photo_url} alt={entry.swimmer.name}
+                                className="h-4 w-4 flex-shrink-0 rounded object-cover" />
+                            ) : (
+                              <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded"
+                                style={{
+                                  background: entry.isMine ? "var(--natrix-avatar-colour, #185FA5)" : colors.bg,
+                                  color: entry.isMine ? "var(--natrix-avatar-text, #D8ECFF)" : colors.text,
+                                  fontSize: "0.5rem",
+                                  fontWeight: 700,
+                                }}>
+                                {getInitials(entry.swimmer.name)}
+                              </span>
+                            )}
                             <span className="truncate">{entry.isMine ? "You" : shortName(entry.swimmer.name)}</span>
                           </div>
                           {gridEvents.map((ev) => {
@@ -842,7 +897,7 @@ export default function ComparePage() {
                             return (
                               <div key={`${entry.swimmer.id}-${ev.key}`}
                                 className="flex items-center justify-center rounded-lg"
-                                style={{ ...cellStyle, fontSize: "10px", padding: "6px 0" }}>
+                                style={{ ...cellStyle, fontSize: "0.625rem", padding: "6px 0" }}>
                                 {ms != null ? formatMs(ms) : "—"}
                               </div>
                             );
@@ -851,7 +906,7 @@ export default function ComparePage() {
                       );
                     })}
                   </div>
-                  <p className="mt-3 text-[10px] text-white/30">Brighter cell = closer to the fastest time in that event.</p>
+                  <p className="mt-3 text-[0.625rem]" style={{ color: "#B7C9D8" }}>Brighter cell = closer to the fastest time in that event.</p>
                 </div>
               )
             )}
