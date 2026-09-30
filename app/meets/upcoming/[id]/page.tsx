@@ -659,10 +659,21 @@ function buildDayPlan(events: PlanInputEvent[]): PlanItem[] {
   return out.sort((a, b) => a.t - b.t);
 }
 
+// ─── New-look design tokens (matches Settings/Swimmers/Dashboard/Compare/Meets) ─
+
+const CARD: React.CSSProperties = {
+  background: "rgba(255,255,255,0.96)",
+  border: "1px solid rgba(255,255,255,0.9)",
+  boxShadow: "0 10px 24px rgba(0,25,55,0.10)",
+};
+const INK = "#0B2A54";
+const MUTED = "#71859A";
+const ACCENT = "var(--natrix-font-colour, #168AE8)";
+
 function FuelPlanTimeline({ items }: { items: PlanItem[] }) {
   if (items.length === 0) {
     return (
-      <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.35)" }}>
+      <p style={{ fontSize: "12px", color: MUTED }}>
         Add a warm-up and at least one event with a time to see a fuel plan.
       </p>
     );
@@ -678,7 +689,7 @@ function FuelPlanTimeline({ items }: { items: PlanItem[] }) {
               width: "62px",
               fontSize: "11px",
               fontWeight: 700,
-              color: item.race ? "rgba(100,180,255,0.9)" : "#FDE68A",
+              color: item.race ? "#0369A1" : "#B45309",
               paddingTop: "1px",
             }}
           >
@@ -690,12 +701,12 @@ function FuelPlanTimeline({ items }: { items: PlanItem[] }) {
                 width: item.race ? "10px" : "8px",
                 height: item.race ? "10px" : "8px",
                 borderRadius: "50%",
-                background: item.race ? "rgba(100,180,255,0.9)" : "#D97706",
+                background: item.race ? "#0369A1" : "#D97706",
                 marginTop: "3px",
               }}
             />
             {i < items.length - 1 && (
-              <div style={{ flex: 1, width: "1px", background: "rgba(255,255,255,0.15)", marginTop: "3px" }} />
+              <div style={{ flex: 1, width: "1px", background: "#E1EDF5", marginTop: "3px" }} />
             )}
           </div>
           <div style={{ flex: 1, paddingBottom: "2px" }}>
@@ -704,13 +715,13 @@ function FuelPlanTimeline({ items }: { items: PlanItem[] }) {
                 fontSize: "12.5px",
                 fontWeight: 700,
                 margin: "0 0 2px",
-                color: item.race ? "rgba(100,180,255,0.9)" : "#fff",
+                color: item.race ? "#0369A1" : INK,
               }}
             >
               {item.race ? "🏁 " : ""}
               {item.label}
             </p>
-            <p style={{ fontSize: "11.5px", color: "rgba(255,255,255,0.55)", lineHeight: 1.4, margin: 0 }}>
+            <p style={{ fontSize: "11.5px", color: MUTED, lineHeight: 1.4, margin: 0 }}>
               {item.detail}
             </p>
           </div>
@@ -810,24 +821,17 @@ function QuickFuelPlanner() {
   };
 
   const rowInputStyle: CSSProperties = {
-    background: "rgba(0,0,0,0.25)",
-    border: "1px solid rgba(255,255,255,0.18)",
+    background: "#F7FAFC",
+    border: "1px solid #DFEAF2",
     borderRadius: "10px",
     padding: "8px 10px",
-    color: "#fff",
+    color: INK,
     fontSize: "12px",
     outline: "none",
   };
 
   return (
-    <div
-      style={{
-        background: "rgba(255,255,255,0.05)",
-        border: "1px solid rgba(255,255,255,0.1)",
-        borderRadius: "16px",
-        overflow: "hidden",
-      }}
-    >
+    <div className="rounded-2xl overflow-hidden" style={CARD}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -844,7 +848,7 @@ function QuickFuelPlanner() {
       >
         <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <span>🍌</span>
-          <span style={{ fontSize: "13.5px", fontWeight: 700, color: "#fff" }}>Quick fuel plan</span>
+          <span style={{ fontSize: "13.5px", fontWeight: 700, color: INK }}>Quick fuel plan</span>
         </span>
         <svg
           width="16"
@@ -853,13 +857,13 @@ function QuickFuelPlanner() {
           fill="none"
           style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}
         >
-          <path d="M4 6L8 10L12 6" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M4 6L8 10L12 6" stroke="#B7C9D8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
 
       {open && (
         <div style={{ padding: "0 14px 16px" }}>
-          <p style={{ fontSize: "11.5px", color: "rgba(255,255,255,0.4)", margin: "0 0 12px" }}>
+          <p style={{ fontSize: "11.5px", color: MUTED, margin: "0 0 12px" }}>
             No start list yet? Type in warm-up and event times by hand to get a plan early.
           </p>
 
@@ -869,8 +873,8 @@ function QuickFuelPlanner() {
                 <div
                   style={{
                     ...rowTagStyle,
-                    background: row.type === "warmup" ? "rgba(100,180,255,0.15)" : "rgba(217,119,6,0.2)",
-                    color: row.type === "warmup" ? "rgba(100,180,255,0.9)" : "#FDE68A",
+                    background: row.type === "warmup" ? "#EAF6FE" : "#FEF3E2",
+                    color: row.type === "warmup" ? "#0369A1" : "#B45309",
                   }}
                 >
                   {row.type === "warmup" ? "Warm-up" : "Event"}
@@ -893,7 +897,7 @@ function QuickFuelPlanner() {
                     style={{ ...rowInputStyle, flex: 1, minWidth: 0 }}
                   />
                 ) : (
-                  <div style={{ flex: 1, minWidth: 0, padding: "8px 10px", color: "rgba(255,255,255,0.3)", fontSize: "12px" }}>
+                  <div style={{ flex: 1, minWidth: 0, padding: "8px 10px", color: "#B7C9D8", fontSize: "12px" }}>
                     — swimmer&apos;s own warm-up —
                   </div>
                 )}
@@ -906,7 +910,7 @@ function QuickFuelPlanner() {
                     flexShrink: 0,
                     background: "none",
                     border: "none",
-                    color: "rgba(255,255,255,0.35)",
+                    color: "#B7C9D8",
                     fontSize: "15px",
                     cursor: "pointer",
                     padding: "2px 4px",
@@ -926,11 +930,11 @@ function QuickFuelPlanner() {
               style={{
                 flex: 1,
                 textAlign: "center",
-                background: "rgba(255,255,255,0.06)",
-                border: "1px solid rgba(255,255,255,0.12)",
+                background: "#F7FAFC",
+                border: "1px solid #E1EDF5",
                 borderRadius: "8px",
                 padding: "8px",
-                color: "rgba(255,255,255,0.6)",
+                color: MUTED,
                 fontSize: "11px",
                 cursor: "pointer",
               }}
@@ -943,11 +947,11 @@ function QuickFuelPlanner() {
               style={{
                 flex: 1,
                 textAlign: "center",
-                background: "rgba(255,255,255,0.06)",
-                border: "1px solid rgba(255,255,255,0.12)",
+                background: "#F7FAFC",
+                border: "1px solid #E1EDF5",
                 borderRadius: "8px",
                 padding: "8px",
-                color: "rgba(255,255,255,0.6)",
+                color: MUTED,
                 fontSize: "11px",
                 cursor: "pointer",
               }}
@@ -961,9 +965,9 @@ function QuickFuelPlanner() {
             onClick={compute}
             style={{
               width: "100%",
-              background: "rgba(217,119,6,0.28)",
-              border: "1px solid rgba(253,230,138,0.4)",
-              color: "#FDE68A",
+              background: ACCENT,
+              border: "none",
+              color: "#fff",
               fontSize: "12.5px",
               fontWeight: 700,
               borderRadius: "12px",
@@ -974,10 +978,10 @@ function QuickFuelPlanner() {
             ✨ Get fuel plan
           </button>
 
-          {error && <p style={{ fontSize: "12px", color: "#FCA5A5", marginTop: "12px" }}>{error}</p>}
+          {error && <p style={{ fontSize: "12px", color: "#C0392B", marginTop: "12px" }}>{error}</p>}
 
           {items && (
-            <div style={{ marginTop: "14px", paddingTop: "14px", borderTop: "1px dashed rgba(255,255,255,0.15)" }}>
+            <div style={{ marginTop: "14px", paddingTop: "14px", borderTop: "1px dashed #E1EDF5" }}>
               <FuelPlanTimeline items={items} />
             </div>
           )}
@@ -993,9 +997,9 @@ function SkeletonCard() {
   return (
     <div style={{
       height: "72px",
-      background: "rgba(255,255,255,0.04)",
-      border: "1px solid rgba(255,255,255,0.08)",
-      borderRadius: "16px",
+      background: "rgba(255,255,255,0.6)",
+      border: "1px solid rgba(255,255,255,0.8)",
+      borderRadius: "20px",
       animation: "pulse 2s ease-in-out infinite",
     }} />
   );
@@ -1092,11 +1096,11 @@ function EventCard({
   }
 
   const iconButtonStyle: CSSProperties = {
-    background: "rgba(255,255,255,0.06)",
-    border: "1px solid rgba(255,255,255,0.12)",
+    background: "#F7FAFC",
+    border: "1px solid #E1EDF5",
     borderRadius: "8px",
     padding: "4px 8px",
-    color: "rgba(255,255,255,0.6)",
+    color: MUTED,
     fontSize: "11px",
     cursor: "pointer",
     flexShrink: 0,
@@ -1104,19 +1108,18 @@ function EventCard({
 
   return (
     <div style={{
-      background: "rgba(255,255,255,0.05)",
-      border: "1px solid rgba(255,255,255,0.1)",
+      ...CARD,
       borderRadius: "16px",
       padding: "14px 16px",
       opacity: deleting ? 0.5 : 1,
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ fontSize: "13px", fontWeight: 700, color: "#fff", marginBottom: "4px" }}>
+          <p style={{ fontSize: "13px", fontWeight: 700, color: INK, marginBottom: "4px" }}>
             {event.event_name}
           </p>
           {!editing && (
-            <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.4)" }}>
+            <p style={{ fontSize: "11px", color: MUTED }}>
               Event {event.event_number} · Heat {event.heat} · Lane {event.lane}
             </p>
           )}
@@ -1124,12 +1127,12 @@ function EventCard({
         {!editing && (
           <div style={{ textAlign: "right", flexShrink: 0 }}>
             {event.seed_time && (
-              <p style={{ fontSize: "13px", fontWeight: 600, color: "rgba(255,255,255,0.7)" }}>
+              <p style={{ fontSize: "13px", fontWeight: 600, color: INK }}>
                 {event.seed_time}
               </p>
             )}
             {event.start_time && (
-              <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.3)", marginTop: "2px" }}>
+              <p style={{ fontSize: "11px", color: "#B7C9D8", marginTop: "2px" }}>
                 ~{event.start_time}
               </p>
             )}
@@ -1141,7 +1144,7 @@ function EventCard({
         <div style={{ marginTop: "10px", display: "flex", flexDirection: "column", gap: "8px" }}>
           <div style={{ display: "flex", gap: "8px" }}>
             <label style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.4)", display: "block", marginBottom: "3px" }}>
+              <span style={{ fontSize: "10px", color: MUTED, display: "block", marginBottom: "3px" }}>
                 Heat
               </span>
               <input
@@ -1149,15 +1152,15 @@ function EventCard({
                 value={editHeat}
                 onChange={(e) => setEditHeat(e.target.value)}
                 style={{
-                  width: "100%", background: "rgba(255,255,255,0.06)",
-                  border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px",
-                  padding: "6px 10px", color: "#fff", fontSize: "12px",
+                  width: "100%", background: "#F7FAFC",
+                  border: "1px solid #DFEAF2", borderRadius: "8px",
+                  padding: "6px 10px", color: INK, fontSize: "12px",
                   outline: "none", boxSizing: "border-box",
                 }}
               />
             </label>
             <label style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.4)", display: "block", marginBottom: "3px" }}>
+              <span style={{ fontSize: "10px", color: MUTED, display: "block", marginBottom: "3px" }}>
                 Lane
               </span>
               <input
@@ -1165,15 +1168,15 @@ function EventCard({
                 value={editLane}
                 onChange={(e) => setEditLane(e.target.value)}
                 style={{
-                  width: "100%", background: "rgba(255,255,255,0.06)",
-                  border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px",
-                  padding: "6px 10px", color: "#fff", fontSize: "12px",
+                  width: "100%", background: "#F7FAFC",
+                  border: "1px solid #DFEAF2", borderRadius: "8px",
+                  padding: "6px 10px", color: INK, fontSize: "12px",
                   outline: "none", boxSizing: "border-box",
                 }}
               />
             </label>
             <label style={{ flex: 1.4, minWidth: 0 }}>
-              <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.4)", display: "block", marginBottom: "3px" }}>
+              <span style={{ fontSize: "10px", color: MUTED, display: "block", marginBottom: "3px" }}>
                 Seed time
               </span>
               <input
@@ -1182,9 +1185,9 @@ function EventCard({
                 value={editSeedTime}
                 onChange={(e) => setEditSeedTime(e.target.value)}
                 style={{
-                  width: "100%", background: "rgba(255,255,255,0.06)",
-                  border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px",
-                  padding: "6px 10px", color: "#fff", fontSize: "12px",
+                  width: "100%", background: "#F7FAFC",
+                  border: "1px solid #DFEAF2", borderRadius: "8px",
+                  padding: "6px 10px", color: INK, fontSize: "12px",
                   outline: "none", boxSizing: "border-box",
                 }}
               />
@@ -1192,7 +1195,7 @@ function EventCard({
           </div>
 
           {editError && (
-            <p style={{ fontSize: "11px", color: "#f87171" }}>{editError}</p>
+            <p style={{ fontSize: "11px", color: "#C0392B" }}>{editError}</p>
           )}
 
           <div style={{ display: "flex", gap: "8px" }}>
@@ -1201,9 +1204,9 @@ function EventCard({
               onClick={saveEdit}
               disabled={editSaving}
               style={{
-                flex: 1, background: "rgba(100,180,255,0.15)",
-                border: "1px solid rgba(100,180,255,0.3)", borderRadius: "8px",
-                padding: "7px 10px", color: "#9cd0ff", fontSize: "12px", fontWeight: 600,
+                flex: 1, background: ACCENT,
+                border: "none", borderRadius: "8px",
+                padding: "7px 10px", color: "#fff", fontSize: "12px", fontWeight: 600,
                 cursor: editSaving ? "default" : "pointer",
               }}
             >
@@ -1214,9 +1217,9 @@ function EventCard({
               onClick={() => setEditing(false)}
               disabled={editSaving}
               style={{
-                flex: 1, background: "rgba(255,255,255,0.06)",
-                border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px",
-                padding: "7px 10px", color: "rgba(255,255,255,0.6)", fontSize: "12px",
+                flex: 1, background: "#F7FAFC",
+                border: "1px solid #E1EDF5", borderRadius: "8px",
+                padding: "7px 10px", color: MUTED, fontSize: "12px",
                 cursor: editSaving ? "default" : "pointer",
               }}
             >
@@ -1228,13 +1231,13 @@ function EventCard({
         <div style={{
           marginTop: "10px",
           paddingTop: "10px",
-          borderTop: "1px solid rgba(255,255,255,0.08)",
+          borderTop: "1px solid #EEF3F8",
           display: "flex",
           alignItems: "center",
           gap: "8px",
         }}>
           <span style={{
-            fontSize: "10px", color: "rgba(255,255,255,0.35)",
+            fontSize: "10px", color: "#B7C9D8",
             textTransform: "uppercase", letterSpacing: "0.06em",
             flexShrink: 0,
           }}>
@@ -1247,21 +1250,21 @@ function EventCard({
             onChange={(e) => setWarmup(e.target.value)}
             onBlur={save}
             style={{
-              flex: 1, background: "rgba(255,255,255,0.06)",
-              border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px",
-              padding: "6px 10px", color: "#fff", fontSize: "12px",
+              flex: 1, background: "#F7FAFC",
+              border: "1px solid #DFEAF2", borderRadius: "8px",
+              padding: "6px 10px", color: INK, fontSize: "12px",
               outline: "none", boxSizing: "border-box", minWidth: 0,
             }}
           />
           {saving && (
-            <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.3)", flexShrink: 0 }}>
+            <span style={{ fontSize: "10px", color: "#B7C9D8", flexShrink: 0 }}>
               Saving…
             </span>
           )}
           <button type="button" onClick={startEdit} style={iconButtonStyle}>
             Edit
           </button>
-          <button type="button" onClick={handleDelete} disabled={deleting} style={{ ...iconButtonStyle, color: "#f87171", borderColor: "rgba(248,113,113,0.25)" }}>
+          <button type="button" onClick={handleDelete} disabled={deleting} style={{ ...iconButtonStyle, color: "#C0392B", borderColor: "rgba(220,80,80,0.25)" }}>
             {deleting ? "…" : "Delete"}
           </button>
         </div>
@@ -1310,8 +1313,7 @@ function SwimmerGroup({
           justifyContent: "space-between",
           gap: "8px",
           padding: "12px 14px",
-          background: "rgba(255,255,255,0.05)",
-          border: "1px solid rgba(255,255,255,0.1)",
+          ...CARD,
           borderRadius: "14px",
         }}
       >
@@ -1331,12 +1333,12 @@ function SwimmerGroup({
             textAlign: "left",
           }}
         >
-          <span style={{ fontSize: "14px", fontWeight: 700, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <span style={{ fontSize: "14px", fontWeight: 700, color: INK, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {name}
           </span>
           <span style={{
-            fontSize: "10px", fontWeight: 700, color: "rgba(100,180,255,0.8)",
-            background: "rgba(100,180,255,0.12)", borderRadius: "20px", padding: "2px 8px",
+            fontSize: "10px", fontWeight: 700, color: "#0369A1",
+            background: "#EAF6FE", borderRadius: "20px", padding: "2px 8px",
             flexShrink: 0,
           }}>
             {events.length}
@@ -1348,9 +1350,9 @@ function SwimmerGroup({
           onClick={() => setFuelPlanOpen((v) => !v)}
           style={{
             flexShrink: 0,
-            background: fuelPlanOpen ? "#D97706" : "rgba(217,119,6,0.28)",
-            border: "1px solid rgba(253,230,138,0.4)",
-            color: fuelPlanOpen ? "#1a1200" : "#FDE68A",
+            background: fuelPlanOpen ? ACCENT : "rgba(22,138,232,0.12)",
+            border: `1px solid ${fuelPlanOpen ? ACCENT : "rgba(22,138,232,0.25)"}`,
+            color: fuelPlanOpen ? "#fff" : ACCENT,
             fontSize: "11.5px",
             fontWeight: 700,
             borderRadius: "10px",
@@ -1371,7 +1373,7 @@ function SwimmerGroup({
             width="16" height="16" viewBox="0 0 16 16" fill="none"
             style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}
           >
-            <path d="M4 6L8 10L12 6" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M4 6L8 10L12 6" stroke="#B7C9D8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
       </div>
@@ -1380,8 +1382,7 @@ function SwimmerGroup({
         <div style={{
           marginTop: "8px",
           padding: "14px",
-          background: "rgba(255,255,255,0.03)",
-          border: "1px solid rgba(255,255,255,0.08)",
+          ...CARD,
           borderRadius: "14px",
         }}>
           <FuelPlanTimeline items={fuelPlanItems} />
@@ -1431,9 +1432,9 @@ function SwimmerPicker({
         style={{
           padding: "7px 14px",
           borderRadius: "20px",
-          border: `1px solid ${active ? "rgba(100,180,255,0.4)" : "rgba(255,255,255,0.12)"}`,
-          background: active ? "rgba(100,180,255,0.15)" : "rgba(255,255,255,0.04)",
-          color: active ? "rgba(150,200,255,0.95)" : "rgba(255,255,255,0.4)",
+          border: active ? `1px solid ${ACCENT}` : "1px solid #E1EDF5",
+          background: active ? "rgba(22,138,232,0.12)" : "#F7FAFC",
+          color: active ? ACCENT : MUTED,
           fontSize: "12px",
           fontWeight: active ? 600 : 400,
           cursor: "pointer",
@@ -1448,13 +1449,13 @@ function SwimmerPicker({
     const allSelected = group.every((n) => selectedSwimmers.includes(n));
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
-        <p style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+        <p style={{ fontSize: "10px", color: MUTED, textTransform: "uppercase", letterSpacing: "0.06em" }}>
           {label}
         </p>
         <button
           type="button"
           onClick={() => onBulkToggle(group, !allSelected)}
-          style={{ fontSize: "11px", color: "rgba(100,180,255,0.8)", background: "none", border: "none", cursor: "pointer" }}
+          style={{ fontSize: "11px", color: ACCENT, background: "none", border: "none", cursor: "pointer" }}
         >
           {allSelected ? "Clear" : "Select all"}
         </button>
@@ -1463,12 +1464,7 @@ function SwimmerPicker({
   };
 
   return (
-    <div style={{
-      background: "rgba(255,255,255,0.05)",
-      border: "1px solid rgba(255,255,255,0.1)",
-      borderRadius: "14px",
-      overflow: "hidden",
-    }}>
+    <div className="rounded-2xl overflow-hidden" style={CARD}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -1478,9 +1474,9 @@ function SwimmerPicker({
         }}
       >
         <span style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
-          <span style={{ fontSize: "13px", fontWeight: 700, color: "#fff", flexShrink: 0 }}>Swimmers</span>
+          <span style={{ fontSize: "13px", fontWeight: 700, color: INK, flexShrink: 0 }}>Swimmers</span>
           <span style={{
-            fontSize: "12px", color: "rgba(255,255,255,0.4)",
+            fontSize: "12px", color: MUTED,
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
           }}>
             {selectedSwimmers.length === 0
@@ -1494,7 +1490,7 @@ function SwimmerPicker({
           width="16" height="16" viewBox="0 0 16 16" fill="none"
           style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s", flexShrink: 0 }}
         >
-          <path d="M4 6L8 10L12 6" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M4 6L8 10L12 6" stroke="#B7C9D8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
       {open && (
@@ -1764,7 +1760,7 @@ export default function UpcomingMeetDetailPage() {
             style={{
               display: "flex", alignItems: "center", gap: "6px",
               background: "none", border: "none", cursor: "pointer",
-              color: "rgba(100,180,255,0.8)", fontSize: "13px", padding: "0 0 8px",
+              color: "rgba(255,255,255,0.65)", fontSize: "13px", padding: "0 0 8px",
             }}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -1775,7 +1771,7 @@ export default function UpcomingMeetDetailPage() {
           <h1 style={{ fontSize: "24px", fontWeight: 700, color: "#fff", marginBottom: "4px" }}>
             {meet.name}
           </h1>
-          <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.4)" }}>
+          <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.55)" }}>
             {[formatDateRange(meet.start_date, meet.end_date), meet.location].filter(Boolean).join(" · ")}
           </p>
         </div>
@@ -1797,8 +1793,8 @@ export default function UpcomingMeetDetailPage() {
             style={{
               display: "flex", flexDirection: "column", alignItems: "center",
               justifyContent: "center", gap: "8px",
-              background: events.length > 0 ? "rgba(255,255,255,0.03)" : "rgba(100,180,255,0.07)",
-              border: `1px dashed ${events.length > 0 ? "rgba(255,255,255,0.1)" : "rgba(100,180,255,0.3)"}`,
+              background: events.length > 0 ? "rgba(255,255,255,0.9)" : "rgba(22,138,232,0.12)",
+              border: `1px dashed ${events.length > 0 ? "#DFEAF2" : "rgba(22,138,232,0.35)"}`,
               borderRadius: "16px", padding: "20px 16px",
               cursor: uploading ? "not-allowed" : "pointer",
               textAlign: "center",
@@ -1807,24 +1803,24 @@ export default function UpcomingMeetDetailPage() {
             {uploading ? (
               <>
                 <div style={{ fontSize: "24px" }}>⏳</div>
-                <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.5)" }}>
+                <p style={{ fontSize: "13px", color: MUTED }}>
                   {uploadStatus ?? "Reading PDF..."}
                 </p>
               </>
             ) : events.length > 0 ? (
               <>
                 <div style={{ fontSize: "20px" }}>📄</div>
-                <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.3)" }}>
+                <p style={{ fontSize: "12px", color: MUTED }}>
                   Re-upload start list PDF
                 </p>
               </>
             ) : (
               <>
                 <div style={{ fontSize: "28px" }}>📋</div>
-                <p style={{ fontSize: "14px", fontWeight: 600, color: "rgba(100,180,255,0.9)" }}>
+                <p style={{ fontSize: "14px", fontWeight: 600, color: ACCENT }}>
                   Import start list PDF
                 </p>
-                <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.35)" }}>
+                <p style={{ fontSize: "12px", color: MUTED }}>
                   Tap to upload your session start list
                 </p>
               </>
@@ -1840,9 +1836,9 @@ export default function UpcomingMeetDetailPage() {
           />
           {uploadError && (
             <pre style={{
-              fontSize: "11px", color: "#f87171", marginTop: "8px", textAlign: "left",
+              fontSize: "11px", color: "#C0392B", marginTop: "8px", textAlign: "left",
               whiteSpace: "pre-wrap", wordBreak: "break-word",
-              background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)",
+              background: "rgba(220,80,80,0.06)", border: "1px solid rgba(220,80,80,0.2)",
               borderRadius: "10px", padding: "10px", maxHeight: "200px", overflowY: "auto",
               fontFamily: "monospace",
             }}>
@@ -1857,13 +1853,12 @@ export default function UpcomingMeetDetailPage() {
 
         {debugData && (
           <div style={{
-            background: "rgba(255,255,255,0.03)",
-            border: "1px solid rgba(255,255,255,0.1)",
+            ...CARD,
             borderRadius: "16px",
             padding: "14px",
             fontFamily: "monospace",
             fontSize: "10px",
-            color: "rgba(255,255,255,0.6)",
+            color: MUTED,
             whiteSpace: "pre-wrap",
             maxHeight: "400px",
             overflowY: "auto",
@@ -1875,38 +1870,38 @@ export default function UpcomingMeetDetailPage() {
                 value={debugSearchTerm}
                 onChange={(e) => setDebugSearchTerm(e.target.value)}
                 style={{
-                  flex: 1, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)",
-                  borderRadius: "8px", padding: "6px 10px", color: "#fff", fontSize: "11px", outline: "none",
+                  flex: 1, background: "#F7FAFC", border: "1px solid #DFEAF2",
+                  borderRadius: "8px", padding: "6px 10px", color: INK, fontSize: "11px", outline: "none",
                 }}
               />
               <button
                 type="button"
                 onClick={runDebugSearch}
-                style={{ padding: "6px 12px", borderRadius: "8px", border: "none", background: "rgba(100,180,255,0.25)", color: "#fff", fontSize: "11px", cursor: "pointer" }}
+                style={{ padding: "6px 12px", borderRadius: "8px", border: "none", background: ACCENT, color: "#fff", fontSize: "11px", cursor: "pointer" }}
               >
                 Find
               </button>
             </div>
-            <p style={{ color: debugData.usedOcr ? "#FCA5A5" : "#86EFAC", fontWeight: 700, marginBottom: "6px" }}>
+            <p style={{ color: debugData.usedOcr ? "#C0392B" : "#1F9D68", fontWeight: 700, marginBottom: "6px" }}>
               Source: {debugData.usedOcr ? "OCR (no usable text layer found)" : "Real PDF text layer"}
             </p>
             {debugData.usedOcr && (
-              <p style={{ color: "rgba(255,255,255,0.5)", marginBottom: "6px" }}>
+              <p style={{ color: MUTED, marginBottom: "6px" }}>
                 Text-layer attempt got {debugData.textLayerChars} character(s) before giving up.
               </p>
             )}
             {debugData.textLayerError && (
-              <p style={{ color: "#FCA5A5", marginBottom: "6px" }}>
+              <p style={{ color: "#C0392B", marginBottom: "6px" }}>
                 Text-layer error: {debugData.textLayerError}
               </p>
             )}
-            <p style={{ color: "#FDE68A", fontWeight: 700, marginBottom: "6px" }}>
+            <p style={{ color: "#B45309", fontWeight: 700, marginBottom: "6px" }}>
               DEBUG — swimmer names in DB: {JSON.stringify(debugData.swimmerNames)}
             </p>
-            <p style={{ color: "#FDE68A", fontWeight: 700, marginBottom: "6px" }}>
+            <p style={{ color: "#B45309", fontWeight: 700, marginBottom: "6px" }}>
               Total lines extracted: {debugData.totalLines}
             </p>
-            <p style={{ color: "#93C5FD", fontWeight: 700, marginTop: "10px", marginBottom: "6px" }}>
+            <p style={{ color: "#0369A1", fontWeight: 700, marginTop: "10px", marginBottom: "6px" }}>
               First 80 lines:
             </p>
             {debugData.first80Lines.map((line, i) => (
@@ -1918,7 +1913,7 @@ export default function UpcomingMeetDetailPage() {
         {/* Events list */}
         {events.length > 0 ? (
           <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-            <p style={{ fontSize: "10px", color: "rgba(255,255,255,0.3)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+            <p style={{ fontSize: "10px", color: "rgba(255,255,255,0.45)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
               {events.length} event{events.length !== 1 ? "s" : ""} across {new Set(events.map((e) => e.swimmer_name)).size} swimmer{new Set(events.map((e) => e.swimmer_name)).size !== 1 ? "s" : ""}
             </p>
             {(() => {
@@ -1945,12 +1940,12 @@ export default function UpcomingMeetDetailPage() {
         ) : (
           !uploading && (
             <div style={{
-              background: "rgba(255,255,255,0.03)",
-              border: "1px solid rgba(255,255,255,0.08)",
+              background: "rgba(255,255,255,0.85)",
+              border: "1px solid rgba(255,255,255,0.7)",
               borderRadius: "16px", padding: "24px",
               textAlign: "center",
             }}>
-              <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.2)" }}>
+              <p style={{ fontSize: "13px", color: MUTED }}>
                 Events will appear here after PDF import
               </p>
             </div>
