@@ -1,10 +1,20 @@
-
 "use client";
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+
+// ─── New-look design tokens (matches Settings/Swimmers/Dashboard/Compare) ────
+
+const CARD: React.CSSProperties = {
+  background: "rgba(255,255,255,0.96)",
+  border: "1px solid rgba(255,255,255,0.9)",
+  boxShadow: "0 10px 24px rgba(0,25,55,0.10)",
+};
+const INK = "#0B2A54";
+const MUTED = "#71859A";
+const ACCENT = "var(--natrix-font-colour, #168AE8)";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -87,8 +97,8 @@ function SkeletonCard() {
   return (
     <div style={{
       height: "72px",
-      background: "rgba(255,255,255,0.04)",
-      border: "1px solid rgba(255,255,255,0.08)",
+      background: "rgba(255,255,255,0.6)",
+      border: "1px solid rgba(255,255,255,0.8)",
       borderRadius: "20px",
       animation: "pulse 2s ease-in-out infinite",
     }} />
@@ -114,7 +124,7 @@ function DeleteSheet({
         onClick={onCancel}
         style={{
           position: "fixed", inset: 0, zIndex: 50,
-          background: "rgba(0,0,0,0.6)",
+          background: "rgba(11,42,84,0.45)",
           backdropFilter: "blur(6px)",
           WebkitBackdropFilter: "blur(6px)",
         }}
@@ -124,25 +134,26 @@ function DeleteSheet({
           position: "fixed", bottom: 0, left: "50%",
           transform: "translateX(-50%)",
           width: "100%", maxWidth: "480px", zIndex: 51,
-          background: "rgba(6,25,45,0.98)",
-          border: "1px solid rgba(255,255,255,0.14)",
+          background: "#FFFFFF",
+          border: "1px solid rgba(255,255,255,0.9)",
           borderBottom: "none",
           borderRadius: "28px 28px 0 0",
           padding: "20px 20px 40px",
+          boxShadow: "0 -10px 30px rgba(0,25,55,0.16)",
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div style={{ width: "36px", height: "4px", borderRadius: "2px", background: "rgba(255,255,255,0.2)", margin: "0 auto 20px" }} />
+        <div style={{ width: "36px", height: "4px", borderRadius: "2px", background: "#E1EDF5", margin: "0 auto 20px" }} />
         <div style={{ textAlign: "center", marginBottom: "16px" }}>
           <div style={{
             width: "52px", height: "52px", borderRadius: "16px",
-            background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)",
+            background: "rgba(220,80,80,0.12)", border: "1px solid rgba(220,80,80,0.3)",
             display: "flex", alignItems: "center", justifyContent: "center",
             margin: "0 auto 12px", fontSize: "22px",
           }}>🗑️</div>
-          <p style={{ fontSize: "17px", fontWeight: 700, color: "#fff", marginBottom: "6px" }}>Delete this meet?</p>
-          <p style={{ fontSize: "14px", fontWeight: 600, color: "rgba(255,255,255,0.7)", marginBottom: "4px" }}>{meet.meetName}</p>
-          <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.4)" }}>
+          <p style={{ fontSize: "17px", fontWeight: 700, color: INK, marginBottom: "6px" }}>Delete this meet?</p>
+          <p style={{ fontSize: "14px", fontWeight: 600, color: INK, marginBottom: "4px" }}>{meet.meetName}</p>
+          <p style={{ fontSize: "13px", color: MUTED }}>
             This will permanently remove all {meet.resultCount} result{meet.resultCount !== 1 ? "s" : ""} from this meet. Swimmer profiles are not affected.
           </p>
         </div>
@@ -151,7 +162,7 @@ function DeleteSheet({
             type="button" onClick={onConfirm} disabled={deleting}
             style={{
               width: "100%", padding: "15px", borderRadius: "16px", border: "none",
-              background: deleting ? "rgba(239,68,68,0.4)" : "#DC2626",
+              background: deleting ? "rgba(220,80,80,0.4)" : "#DC2626",
               color: "#fff", fontSize: "15px", fontWeight: 700,
               cursor: deleting ? "not-allowed" : "pointer",
             }}
@@ -162,9 +173,9 @@ function DeleteSheet({
             type="button" onClick={onCancel} disabled={deleting}
             style={{
               width: "100%", padding: "15px", borderRadius: "16px",
-              border: "1px solid rgba(255,255,255,0.15)",
-              background: "rgba(255,255,255,0.06)",
-              color: "rgba(255,255,255,0.75)", fontSize: "15px", fontWeight: 600, cursor: "pointer",
+              border: "1px solid #E1EDF5",
+              background: "#F7FAFC",
+              color: INK, fontSize: "15px", fontWeight: 600, cursor: "pointer",
             }}
           >
             Cancel
@@ -176,6 +187,7 @@ function DeleteSheet({
 }
 
 // ─── Past Meet card with long-press (has logged results — links to FINA points page) ─
+// Amber identity = "past/completed" status, kept consistent regardless of Accent Colour.
 
 function PastMeetCard({ meet, onLongPress }: { meet: PastMeet; onLongPress: (meet: PastMeet) => void }) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -196,35 +208,34 @@ function PastMeetCard({ meet, onLongPress }: { meet: PastMeet; onLongPress: (mee
       onTouchStart={startPress} onTouchEnd={cancelPress} onTouchMove={cancelPress}
       style={{
         display: "flex", alignItems: "center", gap: "14px",
-        background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)",
-        borderRadius: "20px", padding: "14px 16px",
+        ...CARD, borderRadius: "20px", padding: "14px 16px",
         textDecoration: "none", userSelect: "none", WebkitUserSelect: "none",
       }}
     >
       <div style={{
         width: "44px", height: "44px", borderRadius: "14px",
-        background: "rgba(217,119,6,0.18)", border: "1px solid rgba(253,230,138,0.2)",
+        background: "#FEF3E2", border: "1px solid #FBDBA7",
         display: "flex", alignItems: "center", justifyContent: "center",
         fontSize: "20px", flexShrink: 0,
       }}>🏊</div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ fontSize: "14px", fontWeight: 700, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <p style={{ fontSize: "14px", fontWeight: 700, color: INK, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {meet.meetName}
         </p>
-        <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.4)", marginTop: "2px" }}>
+        <p style={{ fontSize: "11px", color: MUTED, marginTop: "2px" }}>
           {formatDate(meet.latestDate)}
         </p>
       </div>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "5px", flexShrink: 0 }}>
         <span style={{
-          background: "rgba(217,119,6,0.18)", border: "1px solid rgba(253,230,138,0.22)",
+          background: "#FEF3E2", border: "1px solid #FBDBA7",
           borderRadius: "20px", padding: "3px 10px",
-          fontSize: "10px", fontWeight: 700, color: "#FDE68A", whiteSpace: "nowrap",
+          fontSize: "10px", fontWeight: 700, color: "#B45309", whiteSpace: "nowrap",
         }}>
           {meet.resultCount} result{meet.resultCount !== 1 ? "s" : ""}
         </span>
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-          <path d="M5 3L9 7L5 11" stroke="rgba(255,255,255,0.25)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M5 3L9 7L5 11" stroke="#B7C9D8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </div>
     </Link>
@@ -232,6 +243,7 @@ function PastMeetCard({ meet, onLongPress }: { meet: PastMeet; onLongPress: (mee
 }
 
 // ─── Upcoming Meet card ────────────────────────────────────────────────────────
+// Blue identity = "upcoming" status, kept consistent regardless of Accent Colour.
 
 function UpcomingMeetCard({ meet, mine }: { meet: UpcomingMeet; mine: boolean }) {
   return (
@@ -239,37 +251,36 @@ function UpcomingMeetCard({ meet, mine }: { meet: UpcomingMeet; mine: boolean })
       href={`/meets/upcoming/${meet.id}`}
       style={{
         display: "flex", alignItems: "center", gap: "14px",
-        background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)",
-        borderRadius: "20px", padding: "14px 16px",
+        ...CARD, borderRadius: "20px", padding: "14px 16px",
         textDecoration: "none",
       }}
     >
       <div style={{
         width: "44px", height: "44px", borderRadius: "14px",
-        background: "rgba(56,189,248,0.12)", border: "1px solid rgba(56,189,248,0.2)",
+        background: "#EAF6FE", border: "1px solid #BAE6FD",
         display: "flex", alignItems: "center", justifyContent: "center",
         fontSize: "20px", flexShrink: 0,
       }}>🏅</div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ fontSize: "14px", fontWeight: 700, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <p style={{ fontSize: "14px", fontWeight: 700, color: INK, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {meet.name}
         </p>
-        <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.4)", marginTop: "2px" }}>
+        <p style={{ fontSize: "11px", color: MUTED, marginTop: "2px" }}>
           {[formatDateRange(meet.start_date, meet.end_date), meet.location].filter(Boolean).join(" · ")}
         </p>
         {mine && (
           <span style={{
             display: "inline-block", marginTop: "5px",
-            background: "rgba(56,189,248,0.15)", border: "1px solid rgba(56,189,248,0.3)",
+            background: "#EAF6FE", border: "1px solid #BAE6FD",
             borderRadius: "20px", padding: "2px 8px",
-            fontSize: "9px", fontWeight: 700, color: "#7DD3FC",
+            fontSize: "9px", fontWeight: 700, color: "#0369A1",
           }}>
             Added by you
           </span>
         )}
       </div>
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
-        <path d="M5 3L9 7L5 11" stroke="rgba(255,255,255,0.25)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M5 3L9 7L5 11" stroke="#B7C9D8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     </Link>
   );
@@ -285,29 +296,29 @@ function OverdueMeetCard({ meet }: { meet: UpcomingMeet }) {
       href={`/meets/upcoming/${meet.id}`}
       style={{
         display: "flex", alignItems: "center", gap: "14px",
-        background: "rgba(255,255,255,0.04)", border: "1px dashed rgba(255,255,255,0.15)",
+        background: "rgba(255,255,255,0.7)", border: "1px dashed #C7D6E3",
         borderRadius: "20px", padding: "14px 16px",
         textDecoration: "none",
       }}
     >
       <div style={{
         width: "44px", height: "44px", borderRadius: "14px",
-        background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)",
+        background: "#F1F6FA", border: "1px solid #E1EDF5",
         display: "flex", alignItems: "center", justifyContent: "center",
         fontSize: "20px", flexShrink: 0,
       }}>🏅</div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ fontSize: "14px", fontWeight: 700, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <p style={{ fontSize: "14px", fontWeight: 700, color: INK, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {meet.name}
         </p>
-        <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.4)", marginTop: "2px" }}>
+        <p style={{ fontSize: "11px", color: MUTED, marginTop: "2px" }}>
           {[formatDateRange(meet.start_date, meet.end_date), meet.location].filter(Boolean).join(" · ")}
         </p>
       </div>
       <span style={{
-        background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)",
+        background: "#F1F6FA", border: "1px solid #E1EDF5",
         borderRadius: "20px", padding: "3px 10px",
-        fontSize: "10px", fontWeight: 700, color: "rgba(255,255,255,0.45)", whiteSpace: "nowrap", flexShrink: 0,
+        fontSize: "10px", fontWeight: 700, color: MUTED, whiteSpace: "nowrap", flexShrink: 0,
       }}>
         Awaiting results
       </span>
@@ -329,14 +340,14 @@ function YearGroup({ year, defaultOpen, children }: { year: string; defaultOpen:
           padding: "8px 4px", background: "none", border: "none", cursor: "pointer",
         }}
       >
-        <span style={{ fontSize: "12px", fontWeight: 600, color: "rgba(255,255,255,0.35)", letterSpacing: "0.08em" }}>
+        <span style={{ fontSize: "12px", fontWeight: 700, color: MUTED, letterSpacing: "0.08em" }}>
           {year}
         </span>
         <svg
           width="16" height="16" viewBox="0 0 16 16" fill="none"
           style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}
         >
-          <path d="M4 6L8 10L12 6" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M4 6L8 10L12 6" stroke="#B7C9D8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
       {open && (
@@ -453,7 +464,7 @@ export default function MeetsPage() {
       <div className="shell">
         <div className="container-app space-y-5">
           <div className="pt-2">
-            <p style={{ fontSize: "10px", fontWeight: 600, letterSpacing: "0.15em", textTransform: "uppercase", color: "rgba(255,255,255,0.3)" }}>Natrix</p>
+            <p style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(255,255,255,0.4)" }}>Natrix</p>
             <h1 className="mt-1 text-3xl font-bold tracking-tight text-white">Meets</h1>
           </div>
           <style>{`@keyframes pulse { 0%,100%{opacity:0.5} 50%{opacity:1} }`}</style>
@@ -469,16 +480,23 @@ export default function MeetsPage() {
       <style>{`@keyframes pulse { 0%,100%{opacity:0.5} 50%{opacity:1} }`}</style>
       <div className="container-app space-y-4">
 
-        {/* Header */}
-        <div className="pt-2">
-          <p style={{ fontSize: "10px", fontWeight: 600, letterSpacing: "0.15em", textTransform: "uppercase", color: "#BA7517" }}>Natrix</p>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight text-white">Meets</h1>
+        {/* Branded header — matches Settings / Swimmers / Dashboard / Compare */}
+        <div className="flex items-start justify-between pt-2">
+          <div>
+            <div className="text-[1.75rem] font-black tracking-[0.08em] text-white">NATRIX</div>
+            <div className="mt-0.5 text-[0.5rem] font-semibold uppercase tracking-[0.24em] text-sky-200/50">
+              Track · Improve · Belong
+            </div>
+            <div className="mt-5">
+              <h1 className="text-3xl font-bold tracking-tight text-white">Meets</h1>
+            </div>
+          </div>
+          <img src="/natrix-mascot-search.png" alt="Natrix" className="h-[72px] w-[72px] object-contain" />
         </div>
 
         {/* Tab toggle */}
         <div style={{
-          display: "flex", background: "rgba(255,255,255,0.06)",
-          borderRadius: "14px", padding: "3px", gap: "3px",
+          display: "flex", ...CARD, borderRadius: "16px", padding: "4px", gap: "3px",
         }}>
           {(["upcoming", "past"] as const).map((t) => (
             <button
@@ -486,10 +504,10 @@ export default function MeetsPage() {
               type="button"
               onClick={() => setTab(t)}
               style={{
-                flex: 1, padding: "9px 0", borderRadius: "11px", border: "none",
-                background: tab === t ? "rgba(255,255,255,0.12)" : "transparent",
-                color: tab === t ? "#fff" : "rgba(255,255,255,0.35)",
-                fontSize: "13px", fontWeight: tab === t ? 600 : 400,
+                flex: 1, padding: "9px 0", borderRadius: "12px", border: "none",
+                background: tab === t ? ACCENT : "transparent",
+                color: tab === t ? "#fff" : MUTED,
+                fontSize: "13px", fontWeight: tab === t ? 700 : 500,
                 cursor: "pointer", transition: "all 0.15s ease",
                 textTransform: "capitalize",
               }}
@@ -503,15 +521,15 @@ export default function MeetsPage() {
         {tab === "upcoming" && (
           <div>
             <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "6px" }}>
-              <Link href="/meets/manage" style={{ fontSize: "12px", fontWeight: 600, color: "#FDE68A", textDecoration: "none" }}>
+              <Link href="/meets/manage" style={{ fontSize: "12px", fontWeight: 700, color: "#168AE8", textDecoration: "none" }}>
                 + Add your meet
               </Link>
             </div>
             {upcomingMeets.length === 0 ? (
-              <div className="rounded-3xl p-8 text-center" style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}>
+              <div className="rounded-[28px] p-8 text-center" style={CARD}>
                 <div style={{ fontSize: "32px", marginBottom: "10px" }}>📅</div>
-                <p className="font-semibold text-white">No upcoming meets</p>
-                <p className="mt-1 text-sm" style={{ color: "rgba(255,255,255,0.4)" }}>
+                <p className="font-semibold" style={{ color: INK }}>No upcoming meets</p>
+                <p className="mt-1 text-sm" style={{ color: MUTED }}>
                   Meets will appear here once they're added.
                 </p>
               </div>
@@ -533,10 +551,10 @@ export default function MeetsPage() {
         {tab === "past" && (
           <div className="space-y-5">
             {pastMeets.length === 0 && overdueWithoutResults.length === 0 ? (
-              <div className="rounded-3xl p-8 text-center" style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}>
+              <div className="rounded-[28px] p-8 text-center" style={CARD}>
                 <div style={{ fontSize: "32px", marginBottom: "10px" }}>🏅</div>
-                <p className="font-semibold text-white">No past meets yet</p>
-                <p className="mt-1 text-sm" style={{ color: "rgba(255,255,255,0.4)" }}>
+                <p className="font-semibold" style={{ color: INK }}>No past meets yet</p>
+                <p className="mt-1 text-sm" style={{ color: MUTED }}>
                   Scan a Meet Mobile screenshot to get started.
                 </p>
               </div>
@@ -556,7 +574,7 @@ export default function MeetsPage() {
 
                 {overdueWithoutResults.length > 0 && (
                   <div>
-                    <p style={{ fontSize: "12px", fontWeight: 600, color: "rgba(255,255,255,0.35)", letterSpacing: "0.08em", padding: "8px 4px" }}>
+                    <p style={{ fontSize: "12px", fontWeight: 700, color: MUTED, letterSpacing: "0.08em", padding: "8px 4px" }}>
                       AWAITING RESULTS
                     </p>
                     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
