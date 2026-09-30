@@ -5,6 +5,27 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 
+// ─── New-look design tokens (matches Settings/Swimmers/Dashboard/Compare/Meets) ─
+
+const CARD: React.CSSProperties = {
+  background: "rgba(255,255,255,0.96)",
+  border: "1px solid rgba(255,255,255,0.9)",
+  boxShadow: "0 10px 24px rgba(0,25,55,0.10)",
+};
+const INK = "#0B2A54";
+const MUTED = "#71859A";
+const ACCENT = "var(--natrix-font-colour, #168AE8)";
+const inputStyle: React.CSSProperties = {
+  background: "#F7FAFC",
+  border: "1px solid #DFEAF2",
+  color: INK,
+  borderRadius: "16px",
+  padding: "12px 16px",
+  fontSize: "14px",
+  width: "100%",
+  boxSizing: "border-box",
+};
+
 type MyMeet = {
   id: string;
   name: string;
@@ -129,7 +150,7 @@ export default function MyMeetsPage() {
   if (!authChecked) {
     return (
       <div className="shell">
-        <div className="container-app pt-10 text-center muted">Checking access...</div>
+        <div className="container-app pt-10 text-center" style={{ color: MUTED }}>Checking access...</div>
       </div>
     );
   }
@@ -139,24 +160,29 @@ export default function MyMeetsPage() {
       <div className="container-app space-y-5">
 
         <div className="pt-2 pb-1">
-          <Link href="/meets" className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>← Back to meets</Link>
-          <p className="label mt-2" style={{ color: "#BA7517", marginBottom: "4px" }}>Natrix</p>
-          <h1 className="title">My Meets</h1>
-          <p className="mt-2 text-sm muted">
+          <Link href="/meets" className="text-xs" style={{ color: "rgba(255,255,255,0.55)" }}>← Back to meets</Link>
+          <div className="flex items-start justify-between mt-3">
+            <div>
+              <p className="text-[0.625rem] font-bold uppercase tracking-[0.16em]" style={{ color: ACCENT, marginBottom: "4px" }}>Natrix</p>
+              <h1 className="text-3xl font-bold tracking-tight text-white">My Meets</h1>
+            </div>
+            <img src="/natrix-mascot-search.png" alt="Natrix" className="h-[56px] w-[56px] object-contain" />
+          </div>
+          <p className="mt-2 text-sm text-white/65">
             Add meets your club is swimming that aren&apos;t on the calendar yet. These are only visible to you — official Natrix meets show up automatically for everyone.
           </p>
         </div>
 
         {/* Form */}
-        <div className="card space-y-4">
-          <p className="text-sm font-bold" style={{ color: "#FDE68A" }}>
+        <div className="rounded-[28px] p-5 space-y-4" style={CARD}>
+          <p className="text-sm font-bold" style={{ color: ACCENT }}>
             {form.id ? "Editing your meet" : "Add a meet"}
           </p>
 
           <div className="space-y-1.5">
-            <label className="label">Meet name</label>
+            <label className="text-xs font-semibold" style={{ color: MUTED }}>Meet name</label>
             <input
-              className="input"
+              style={inputStyle}
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               placeholder="e.g. CSC Invitational 2026"
@@ -164,8 +190,8 @@ export default function MyMeetsPage() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="label">Start date</label>
-            <div className="input" style={{ padding: 0, overflow: "hidden", display: "flex", alignItems: "center" }}>
+            <label className="text-xs font-semibold" style={{ color: MUTED }}>Start date</label>
+            <div style={{ ...inputStyle, padding: 0, overflow: "hidden", display: "flex", alignItems: "center" }}>
               <input
                 type="date"
                 value={form.start_date}
@@ -173,15 +199,15 @@ export default function MyMeetsPage() {
                 style={{
                   width: "100%", height: "100%", minWidth: 0,
                   background: "transparent", border: "none", outline: "none",
-                  color: "#fff", padding: "0 16px", colorScheme: "dark",
+                  color: INK, padding: "12px 16px", colorScheme: "light",
                   boxSizing: "border-box",
                 }}
               />
             </div>
           </div>
           <div className="space-y-1.5">
-            <label className="label">End date (optional)</label>
-            <div className="input" style={{ padding: 0, overflow: "hidden", display: "flex", alignItems: "center" }}>
+            <label className="text-xs font-semibold" style={{ color: MUTED }}>End date (optional)</label>
+            <div style={{ ...inputStyle, padding: 0, overflow: "hidden", display: "flex", alignItems: "center" }}>
               <input
                 type="date"
                 value={form.end_date}
@@ -189,7 +215,7 @@ export default function MyMeetsPage() {
                 style={{
                   width: "100%", height: "100%", minWidth: 0,
                   background: "transparent", border: "none", outline: "none",
-                  color: "#fff", padding: "0 16px", colorScheme: "dark",
+                  color: INK, padding: "12px 16px", colorScheme: "light",
                   boxSizing: "border-box",
                 }}
               />
@@ -198,9 +224,9 @@ export default function MyMeetsPage() {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label className="label">Type</label>
+              <label className="text-xs font-semibold" style={{ color: MUTED }}>Type</label>
               <select
-                className="input"
+                style={inputStyle}
                 value={form.meet_type}
                 onChange={(e) => setForm({ ...form, meet_type: e.target.value })}
               >
@@ -208,9 +234,9 @@ export default function MyMeetsPage() {
               </select>
             </div>
             <div className="space-y-1.5">
-              <label className="label">Location</label>
+              <label className="text-xs font-semibold" style={{ color: MUTED }}>Location</label>
               <input
-                className="input"
+                style={inputStyle}
                 value={form.location}
                 onChange={(e) => setForm({ ...form, location: e.target.value })}
                 placeholder="e.g. OCBC Aquatic"
@@ -219,24 +245,27 @@ export default function MyMeetsPage() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="label">Notes</label>
+            <label className="text-xs font-semibold" style={{ color: MUTED }}>Notes</label>
             <textarea
-              className="input"
-              style={{ height: "auto", minHeight: "70px", paddingTop: "12px", paddingBottom: "12px" }}
+              style={{ ...inputStyle, height: "auto", minHeight: "70px", paddingTop: "12px", paddingBottom: "12px", resize: "none" }}
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
               placeholder="Anything worth remembering"
             />
           </div>
 
-          {error && <p className="text-sm" style={{ color: "#fca5a5" }}>{error}</p>}
+          {error && <p className="text-sm" style={{ color: "#C0392B" }}>{error}</p>}
 
           <div className="flex gap-3">
-            <button onClick={handleSave} disabled={saving} className="btn-block flex-1">
+            <button onClick={handleSave} disabled={saving}
+              className="flex-1 rounded-2xl py-3 text-sm font-semibold text-white transition disabled:opacity-50"
+              style={{ background: ACCENT }}>
               {saving ? "Saving..." : form.id ? "Save changes" : "Add meet"}
             </button>
             {form.id && (
-              <button onClick={resetForm} className="btn-outline">
+              <button onClick={resetForm}
+                className="rounded-2xl px-5 py-3 text-sm font-semibold transition"
+                style={{ background: "#F7FAFC", border: "1px solid #E1EDF5", color: INK }}>
                 Cancel
               </button>
             )}
@@ -245,24 +274,26 @@ export default function MyMeetsPage() {
 
         {/* List */}
         <div className="space-y-2">
-          <p className="label">Your meets</p>
+          <p className="text-[0.625rem] font-bold uppercase tracking-[0.16em]" style={{ color: ACCENT }}>Your meets</p>
           {loading ? (
-            <p className="muted text-sm">Loading...</p>
+            <p className="text-sm" style={{ color: MUTED }}>Loading...</p>
           ) : meets.length === 0 ? (
-            <p className="muted text-sm">You haven&apos;t added any meets yet.</p>
+            <p className="text-sm" style={{ color: MUTED }}>You haven&apos;t added any meets yet.</p>
           ) : (
             meets.map((meet) => (
-              <div key={meet.id} className="card-soft flex items-center gap-3">
+              <div key={meet.id} className="flex items-center gap-3 rounded-2xl p-3" style={{ background: "#F7FAFC", border: "1px solid #E1EDF5" }}>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-white truncate">{meet.name}</p>
-                  <p className="text-xs muted mt-0.5 truncate">
+                  <p className="text-sm font-bold truncate" style={{ color: INK }}>{meet.name}</p>
+                  <p className="text-xs mt-0.5 truncate" style={{ color: MUTED }}>
                     {[fmt(meet.start_date), meet.meet_type, meet.location].filter(Boolean).join(" · ")}
                   </p>
                 </div>
-                <button onClick={() => startEdit(meet)} className="btn flex-shrink-0">
+                <button onClick={() => startEdit(meet)} className="flex-shrink-0 rounded-xl px-3 py-1.5 text-xs font-semibold"
+                  style={{ background: "#EEF5FA", border: "1px solid #D6ECFB", color: ACCENT }}>
                   Edit
                 </button>
-                <button onClick={() => setPendingDelete(meet)} className="btn-danger flex-shrink-0">
+                <button onClick={() => setPendingDelete(meet)} className="flex-shrink-0 rounded-xl px-3 py-1.5 text-xs font-semibold"
+                  style={{ background: "rgba(220,80,80,0.08)", border: "1px solid rgba(220,80,80,0.25)", color: "#C0392B" }}>
                   Cancel
                 </button>
               </div>
@@ -276,23 +307,31 @@ export default function MyMeetsPage() {
         <>
           <div
             onClick={() => setPendingDelete(null)}
-            style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(6px)" }}
+            style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(11,42,84,0.45)", backdropFilter: "blur(6px)" }}
           />
           <div
-            className="card"
             style={{
               position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
               width: "100%", maxWidth: "480px", zIndex: 51,
-              borderBottom: "none", borderRadius: "28px 28px 0 0", paddingBottom: "40px",
+              background: "#FFFFFF",
+              border: "1px solid rgba(255,255,255,0.9)",
+              borderBottom: "none", borderRadius: "28px 28px 0 0",
+              padding: "20px 20px 40px",
+              boxShadow: "0 -10px 30px rgba(0,25,55,0.16)",
             }}
           >
-            <p className="text-center text-lg font-bold text-white mb-1.5">Cancel this meet?</p>
-            <p className="text-center text-sm muted mb-5">{pendingDelete.name}</p>
+            <div style={{ width: "36px", height: "4px", borderRadius: "2px", background: "#E1EDF5", margin: "0 auto 20px" }} />
+            <p className="text-center text-lg font-bold mb-1.5" style={{ color: INK }}>Cancel this meet?</p>
+            <p className="text-center text-sm mb-5" style={{ color: MUTED }}>{pendingDelete.name}</p>
             <div className="space-y-2.5">
-              <button onClick={handleCancelMeet} className="btn-danger w-full h-14" style={{ background: "rgba(220,38,38,0.9)", color: "#fff", borderColor: "rgba(220,38,38,0.9)" }}>
+              <button onClick={handleCancelMeet}
+                className="w-full h-14 rounded-2xl text-sm font-semibold"
+                style={{ background: "#DC2626", color: "#fff" }}>
                 Cancel meet
               </button>
-              <button onClick={() => setPendingDelete(null)} className="btn-outline w-full h-14">
+              <button onClick={() => setPendingDelete(null)}
+                className="w-full h-14 rounded-2xl text-sm font-semibold"
+                style={{ background: "#F7FAFC", border: "1px solid #E1EDF5", color: INK }}>
                 Keep it
               </button>
             </div>
