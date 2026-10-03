@@ -8,6 +8,8 @@ import SplashMediaUpload from "@/app/components/SplashMediaUpload";
 import { applyTheme, applyFontSize, FONT_SIZES, type FontSizeId } from "@/app/components/ThemeProvider";
 import { LANGUAGES, applyLanguage, type LanguageId } from "@/lib/i18n";
 import Link from "next/link";
+import MyDevicesCard from "@/app/components/MyDevicesCard";
+import { clearRegistered, unregisterThisDevice } from "@/lib/devices";
 
 const APP_VERSION = "1.0.0";
 
@@ -295,7 +297,7 @@ export default function SettingsPage() {
     setSavingFeedback(false);
   }
 
-  async function handleLogout(){setLoggingOut(true);await supabase.auth.signOut();router.replace("/login");}
+  async function handleLogout(){setLoggingOut(true);try{await unregisterThisDevice();}catch{/* best effort */}clearRegistered();await supabase.auth.signOut();router.replace("/login");}
 
   async function handleDeleteAccount(){
     if(deleteInput!=="DELETE"){setDeleteStatus("Please type DELETE to confirm.");return;}
@@ -376,6 +378,9 @@ export default function SettingsPage() {
             )}
           </div>
         </div>
+
+        {/* ── My devices (family bundle: up to 3 devices) ─────────────────── */}
+        <MyDevicesCard/>
 
         {/* ── Manage meets (admin gets the official calendar, everyone gets their own) ── */}
         <Link href={isAdmin ? "/admin/meets" : "/meets/manage"}

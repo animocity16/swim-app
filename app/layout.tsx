@@ -5,6 +5,7 @@ import TutorialOverlay from "@/app/components/TutorialOverlay";
 import SplashScreen from "@/app/components/SplashScreen";
 import ThemeProvider from "@/app/components/ThemeProvider";
 import LanguageProvider from "@/app/components/LanguageProvider";
+import DeviceGuard from "@/app/components/DeviceGuard";
 import { Analytics } from "@vercel/analytics/next";
 
 export const metadata: Metadata = {
@@ -72,6 +73,9 @@ export default function RootLayout({
         {/* ✅ ThemeProvider — loads saved theme from Supabase on every app open */}
         <ThemeProvider />
         <LanguageProvider />
+
+        {/* Family bundle — one account, up to 3 devices */}
+        <DeviceGuard />
 
         {/* Splash screen — cold launch only, skipped when returning from background */}
         <SplashScreen />
