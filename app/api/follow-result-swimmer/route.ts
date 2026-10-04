@@ -70,15 +70,19 @@ export async function POST(req: NextRequest) {
 
   const name = tidyCase(displayName(swimmerName));
 
-  // 4. Already following this exact swimmer (same name + same club)? Don't create a duplicate.
-  const { data: existing } = await supabase
+  // 4. Already following this swimmer? Same name + age within 1 year counts as the same
+  //    swimmer. Club is not used: older follows store acronyms (e.g. "APSC").
+  const escapedName = name.replace(/[\\%_]/g, "\\$&");
+  const { data: sameName } = await supabase
     .from("swimmers")
-    .select("id")
+    .select("id, age")
     .eq("user_id", user.id)
     .eq("group_type", "following")
-    .eq("name", name)
-    .eq("swim_club", teamName)
-    .maybeSingle();
+    .ilike("name", escapedName);
+
+  const existing = (sameName ?? []).find(
+    (s) => age === null || s.age === null || Math.abs(s.age - age) <= 1
+  );
 
   if (existing) {
     return NextResponse.json({ success: true, swimmerId: existing.id, alreadyFollowing: true });

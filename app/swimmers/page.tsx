@@ -65,10 +65,6 @@ function tidyCase(s: string): string {
   return s === s.toUpperCase() ? s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()) : s;
 }
 
-function swimmerKey(name: string, club: string | null | undefined): string {
-  return `${name.trim().toLowerCase()}|${(club ?? "").trim().toLowerCase()}`;
-}
-
 // ─── Skeleton loader ──────────────────────────────────────────────────────────
 
 function SkeletonCard() {
@@ -119,6 +115,7 @@ export default function SwimmersPage() {
   const [searching, setSearching]     = useState(false);
   const [searchError, setSearchError] = useState("");
   const [followingKey, setFollowingKey] = useState<string | null>(null);
+  const [followSearch, setFollowSearch] = useState("");
   const groupType: "primary" | "following" = addMode === "mine" ? "primary" : "following";
 
   const currentYear = new Date().getFullYear();
@@ -293,26 +290,31 @@ export default function SwimmersPage() {
   }, [followingSwimmers]);
 
   const filteredFollowing = useMemo(() => {
+    let list = followingSwimmers;
     if (filterMode === "club" && filterValue) {
-      return followingSwimmers.filter((s) => s.swim_club?.trim() === filterValue);
+      list = list.filter((s) => s.swim_club?.trim() === filterValue);
     }
     if (filterMode === "school" && filterValue) {
-      return followingSwimmers.filter((s) => s.school?.trim() === filterValue);
+      list = list.filter((s) => s.school?.trim() === filterValue);
     }
-    return followingSwimmers;
-  }, [followingSwimmers, filterMode, filterValue]);
+    const q = followSearch.trim().toLowerCase();
+    if (q) list = list.filter((s) => s.name.toLowerCase().includes(q));
+    return list;
+  }, [followingSwimmers, filterMode, filterValue, followSearch]);
 
   // "Same age" lock for the Following search: the primary swimmer's age (±1 year)
   const lockAge = primarySwimmers[0]?.age ?? null;
   const lockName = primarySwimmers[0]?.name.split(" ")[0] ?? "";
-  const ownedKeys = useMemo(
-    () => new Set(primarySwimmers.map((s) => swimmerKey(s.name, s.swim_club))),
-    [primarySwimmers]
-  );
-  const followedKeys = useMemo(
-    () => new Set(followingSwimmers.map((s) => swimmerKey(s.name, s.swim_club))),
-    [followingSwimmers]
-  );
+  // Same swimmer = same name and an age within 1 year. Club is NOT used, because
+  // older follows store club acronyms (e.g. "APSC") while meet results use full names.
+  function alreadyHave(list: Swimmer[], shownName: string, hitAge: number | null): boolean {
+    const n = shownName.trim().toLowerCase();
+    return list.some(
+      (s) =>
+        s.name.trim().toLowerCase() === n &&
+        (hitAge === null || s.age === null || s.age === undefined || Math.abs(s.age - hitAge) <= 1)
+    );
+  }
 
   useEffect(() => {
     if (!showAddForm || addMode !== "follow" || manualEntry) return;
@@ -496,9 +498,8 @@ export default function SwimmersPage() {
                       {searchResults.map((hit) => {
                         const shown = tidyCase(displayName(hit.swimmer_name));
                         const key = `${hit.swimmer_name}|${hit.team_name ?? ""}`;
-                        const sKey = swimmerKey(shown, hit.team_name);
-                        const isOwned = ownedKeys.has(sKey);
-                        const isFollowed = followedKeys.has(sKey);
+                        const isOwned = alreadyHave(primarySwimmers, shown, hit.latest_age);
+                        const isFollowed = alreadyHave(followingSwimmers, shown, hit.latest_age);
                         const busy = followingKey === key;
                         return (
                           <div
@@ -514,9 +515,9 @@ export default function SwimmersPage() {
                             </div>
                             <div className="min-w-0 flex-1">
                               <div className="truncate text-sm font-bold" style={{ color: "#0B2A54" }}>{shown}</div>
-                              <div className="truncate text-xs" style={{ color: "#71859A" }}>
+                              <div className="text-xs leading-snug" style={{ color: "#71859A" }}>
+                                {hit.latest_age ? `Age ${hit.latest_age} · ` : ""}
                                 {hit.team_name ?? "No club"}
-                                {hit.latest_age ? ` · Age ${hit.latest_age}` : ""}
                               </div>
                             </div>
                             <button
@@ -806,6 +807,14 @@ export default function SwimmersPage() {
 
             {followingOpen && (
               <>
+                <input
+                  value={followSearch}
+                  onChange={(e) => setFollowSearch(e.target.value)}
+                  placeholder="Search who you follow"
+                  autoComplete="off"
+                  className="input"
+                />
+
                 {(clubs.length > 0 || schools.length > 0) && (
                   <div className="space-y-3">
                     <div
@@ -897,6 +906,10 @@ export default function SwimmersPage() {
                       </div>
                     )}
                   </div>
+                )}
+
+                {filteredFollowing.length === 0 && (
+                  <p className="px-1 text-sm text-white/45">No one matches that search.</p>
                 )}
 
                 <div className="grid grid-cols-2 gap-3">
