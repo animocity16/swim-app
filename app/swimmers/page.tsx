@@ -18,6 +18,7 @@ type Swimmer = {
   squad?: string | null;
   group_type?: "primary" | "following" | string | null;
   created_at?: string | null;
+  photo_url?: string | null;
   user_id?: string | null;
 };
 
@@ -43,30 +44,6 @@ function getInitials(name: string) { return name.split(" ").map((n) => n[0]).joi
 function raceAgeFromBirthYear(birthYear: number): number { return new Date().getFullYear() - birthYear; }
 
 type FilterMode = "all" | "club" | "school";
-
-// A swimmer found in the meet-results database (via search_followable_swimmers)
-type SearchHit = {
-  swimmer_name: string;       // as stored, e.g. "Tan, Alex"
-  team_name: string | null;
-  latest_age: number | null;
-  result_count: number;
-};
-
-// Meet results store names as "Last, First". Natrix shows "First Last".
-function displayName(raw: string): string {
-  const idx = raw.indexOf(",");
-  const flipped = idx > -1 ? `${raw.slice(idx + 1).trim()} ${raw.slice(0, idx).trim()}` : raw.trim();
-  return flipped.replace(/\s+/g, " ");
-}
-
-// A handful of source rows are ALL CAPS; tidy those only.
-function tidyCase(s: string): string {
-  return s === s.toUpperCase() ? s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()) : s;
-}
-
-function swimmerKey(name: string, club: string | null | undefined): string {
-  return `${name.trim().toLowerCase()}|${(club ?? "").trim().toLowerCase()}`;
-}
 
 // ─── Skeleton loader ──────────────────────────────────────────────────────────
 
@@ -109,16 +86,7 @@ export default function SwimmersPage() {
   const [swimClub, setSwimClub]       = useState("");
   const [school, setSchool]           = useState("");
   const [gender, setGender]           = useState<"Male" | "Female" | "">("");
-
-  // Add card: search first (Following), manual form as the backup
-  const [addMode, setAddMode]         = useState<"follow" | "mine">("follow");
-  const [manualEntry, setManualEntry] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<SearchHit[]>([]);
-  const [searching, setSearching]     = useState(false);
-  const [searchError, setSearchError] = useState("");
-  const [followingKey, setFollowingKey] = useState<string | null>(null);
-  const groupType: "primary" | "following" = addMode === "mine" ? "primary" : "following";
+  const [groupType, setGroupType]     = useState<"primary" | "following">("primary");
 
   const currentYear = new Date().getFullYear();
   const parsedBirthYear = Number(birthYear);
@@ -137,7 +105,7 @@ export default function SwimmersPage() {
       const sessionPromise = supabase.auth.getSession();
       const dataPromise = supabase
         .from("swimmers")
-        .select("id, name, age, birth_month, country, swim_club, school, gender, squad, group_type, created_at, user_id")
+        .select("id, name, age, birth_month, country, swim_club, school, gender, squad, group_type, created_at, user_id, photo_url")
         .order("name", { ascending: true });
 
       const { data: { session } } = await sessionPromise;
@@ -166,55 +134,12 @@ export default function SwimmersPage() {
     setLoading(true);
     const { data, error } = await supabase
       .from("swimmers")
-      .select("id, name, age, birth_month, country, swim_club, school, gender, squad, group_type, created_at, user_id")
+      .select("id, name, age, birth_month, country, swim_club, school, gender, squad, group_type, created_at, user_id, photo_url")
       .order("name", { ascending: true });
 
     if (error) { setStatus(`Error: ${error.message}`); }
     else { setSwimmers((data as Swimmer[]) || []); }
     setLoading(false);
-  }
-
-  // Same as fetchSwimmers but without the full-page skeleton, so the Add card stays open
-  async function refreshSwimmersQuiet() {
-    const { data } = await supabase
-      .from("swimmers")
-      .select("id, name, age, birth_month, country, swim_club, school, gender, squad, group_type, created_at, user_id")
-      .order("name", { ascending: true });
-    if (data) setSwimmers(data as Swimmer[]);
-  }
-
-  function openAddCard(mode: "follow" | "mine") {
-    setAddMode(mode);
-    setManualEntry(mode === "mine");
-    setStatus("");
-    setShowAddForm(true);
-  }
-
-  async function followFromResults(hit: SearchHit) {
-    if (!hit.team_name) return;
-    const key = `${hit.swimmer_name}|${hit.team_name}`;
-    setFollowingKey(key);
-    setSearchError("");
-    try {
-      const res = await fetch("/api/follow-result-swimmer", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          swimmerName: hit.swimmer_name,
-          teamName: hit.team_name,
-          age: hit.latest_age,
-        }),
-      });
-      const result = await res.json();
-      if (!res.ok || !result.success) {
-        setSearchError(result.error ?? "Couldn't follow that swimmer. Please try again.");
-      } else {
-        await refreshSwimmersQuiet();
-      }
-    } catch {
-      setSearchError("Network error. Please try again.");
-    }
-    setFollowingKey(null);
   }
 
   async function addSwimmer() {
@@ -253,7 +178,7 @@ export default function SwimmersPage() {
     if (error) { setStatus(`Error: ${error.message}`); setLoading(false); return; }
 
     setName(""); setBirthYear(""); setBirthMonth(""); setCountry("");
-    setSwimClub(""); setSchool(""); setGender("");
+    setSwimClub(""); setSchool(""); setGender(""); setGroupType("primary");
     setShowAddForm(false);
     setStatus("Swimmer added.");
     await fetchSwimmers();
@@ -301,47 +226,6 @@ export default function SwimmersPage() {
     return followingSwimmers;
   }, [followingSwimmers, filterMode, filterValue]);
 
-  // "Same age" lock for the Following search: the primary swimmer's age (±1 year)
-  const lockAge = primarySwimmers[0]?.age ?? null;
-  const lockName = primarySwimmers[0]?.name.split(" ")[0] ?? "";
-  const ownedKeys = useMemo(
-    () => new Set(primarySwimmers.map((s) => swimmerKey(s.name, s.swim_club))),
-    [primarySwimmers]
-  );
-  const followedKeys = useMemo(
-    () => new Set(followingSwimmers.map((s) => swimmerKey(s.name, s.swim_club))),
-    [followingSwimmers]
-  );
-
-  useEffect(() => {
-    if (!showAddForm || addMode !== "follow" || manualEntry) return;
-    const q = searchQuery.trim();
-    if (q.length < 2) {
-      setSearchResults([]);
-      setSearchError("");
-      setSearching(false);
-      return;
-    }
-    let cancelled = false;
-    setSearching(true);
-    const timer = setTimeout(async () => {
-      const { data, error } = await supabase.rpc("search_followable_swimmers", {
-        p_query: q,
-        p_age: lockAge,
-      });
-      if (cancelled) return;
-      if (error) {
-        setSearchError("Search isn't working right now. Please try again, or add them manually.");
-        setSearchResults([]);
-      } else {
-        setSearchError("");
-        setSearchResults((data ?? []) as SearchHit[]);
-      }
-      setSearching(false);
-    }, 300);
-    return () => { cancelled = true; clearTimeout(timer); };
-  }, [searchQuery, showAddForm, addMode, manualEntry, lockAge]);
-
   // Show skeleton while auth/data loads
   if (!authChecked || loading) {
     return (
@@ -349,15 +233,15 @@ export default function SwimmersPage() {
         <div className="container-app space-y-5">
           <div className="flex items-center justify-between pt-2">
             <div>
-              <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">Swimmers</p>
+              <p className="text-[0.625rem] font-medium uppercase tracking-widest text-white/30">Swimmers</p>
               <h1 className="mt-1 text-3xl font-bold tracking-tight text-white">Swimmers</h1>
             </div>
             <div className="h-10 w-10 rounded-2xl border border-white/10 bg-white/5" />
           </div>
-          <p className="text-[10px] font-medium uppercase tracking-widest text-white/30">My swimmers</p>
+          <p className="text-[0.625rem] font-medium uppercase tracking-widest text-white/30">My swimmers</p>
           <SkeletonCard />
           <SkeletonCard />
-          <p className="text-[10px] font-medium uppercase tracking-widest text-white/30 mt-4">Following</p>
+          <p className="text-[0.625rem] font-medium uppercase tracking-widest text-white/30 mt-4">Following</p>
           <SkeletonCard />
           <SkeletonCard />
           <SkeletonCard />
@@ -373,8 +257,8 @@ export default function SwimmersPage() {
         {/* Branded header */}
         <div className="flex items-start justify-between pt-2">
           <div>
-            <div className="text-[28px] font-black tracking-[0.08em] text-white">NATRIX</div>
-            <div className="mt-0.5 text-[8px] font-semibold uppercase tracking-[0.24em] text-sky-200/50">
+            <div className="text-[1.75rem] font-black tracking-[0.08em] text-white">NATRIX</div>
+            <div className="mt-0.5 text-[0.5rem] font-semibold uppercase tracking-[0.24em] text-sky-200/50">
               Track · Improve · Belong
             </div>
             <div className="mt-5">
@@ -392,7 +276,7 @@ export default function SwimmersPage() {
 
         <PendingMatchesBanner />
 
-        {/* Add swimmer card — search first, manual form as the backup */}
+        {/* Add swimmer form */}
         {showAddForm && (
           <div
             className="rounded-[28px] p-5 space-y-3"
@@ -404,17 +288,16 @@ export default function SwimmersPage() {
           >
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: "#168AE8" }}>
+                <p className="text-[0.625rem] font-bold uppercase tracking-[0.16em]" style={{ color: "var(--natrix-font-colour, #168AE8)" }}>
                   Add swimmer
                 </p>
                 <h2 className="mt-1 text-xl font-bold" style={{ color: "#0B2A54" }}>
-                  {addMode === "follow" && !manualEntry ? "Find a swimmer" : "Create a swimmer"}
+                  Create or follow a swimmer
                 </h2>
               </div>
               <button
                 type="button"
                 onClick={() => setShowAddForm(false)}
-                aria-label="Close"
                 className="flex h-9 w-9 items-center justify-center rounded-full text-lg"
                 style={{ background: "#EEF5FA", color: "#52708D" }}
               >
@@ -422,221 +305,64 @@ export default function SwimmersPage() {
               </button>
             </div>
 
-            {/* Following / My swimmer switch */}
-            <div className="grid grid-cols-2 gap-1 rounded-2xl p-1" style={{ background: "#EEF5FA" }}>
-              {(["follow", "mine"] as const).map((mode) => (
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" className="input" />
+
+            <div>
+              <input
+                value={birthYear}
+                onChange={(e) => setBirthYear(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                placeholder="Year of birth e.g. 2013"
+                inputMode="numeric"
+                className="input"
+              />
+              {previewRaceAge !== null && previewRaceAge > 0 && previewRaceAge < 30 && (
+                <p className="mt-1.5 px-1 text-xs font-medium" style={{ color: "var(--natrix-font-colour, #168AE8)" }}>
+                  ✓ Race age this year: {previewRaceAge}
+                </p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              {(["Male", "Female"] as const).map((g) => (
                 <button
-                  key={mode}
+                  key={g}
                   type="button"
-                  onClick={() => {
-                    setAddMode(mode);
-                    setManualEntry(mode === "mine");
-                    setStatus("");
-                  }}
-                  className="rounded-xl py-2.5 text-sm font-bold transition"
+                  onClick={() => setGender(g)}
+                  className="rounded-2xl border py-2.5 text-sm font-medium transition"
                   style={
-                    addMode === mode
-                      ? { background: "#FFFFFF", color: "#0B2A54", boxShadow: "0 1px 3px rgba(11,42,84,0.15)" }
-                      : { background: "transparent", color: "#71859A" }
+                    gender === g
+                      ? { background: "#E7F4FE", border: "1px solid #A8D7F8", color: "#0B63A5" }
+                      : { background: "#F7FAFC", border: "1px solid #DFEAF2", color: "#71859A" }
                   }
                 >
-                  {mode === "follow" ? "Following" : "My swimmer"}
+                  {g === "Male" ? "♂ Male" : "♀ Female"}
                 </button>
               ))}
             </div>
 
-            {/* ── SEARCH VIEW (Following) ───────────────────────────────────── */}
-            {addMode === "follow" && !manualEntry && (
-              <>
-                <p className="text-[13px] leading-relaxed" style={{ color: "#71859A" }}>
-                  Try searching first. Swimmers from meets we&apos;ve already loaded are in here, so you may not
-                  need to add anyone by hand.
-                </p>
+            <select value={birthMonth} onChange={(e) => setBirthMonth(e.target.value ? Number(e.target.value) : "")} className="input">
+              <option value="">Birth month (optional)</option>
+              {MONTHS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+            </select>
+            <input value={country} onChange={(e) => setCountry(e.target.value)} placeholder="Country (optional)" className="input" />
+            <input value={swimClub} onChange={(e) => setSwimClub(e.target.value)} placeholder="Swim club (optional)" className="input" />
+            <input value={school} onChange={(e) => setSchool(e.target.value)} placeholder="School (optional)" className="input" />
+            <select value={groupType} onChange={(e) => setGroupType(e.target.value as "primary" | "following")} className="input">
+              <option value="primary">My Swimmer</option>
+              <option value="following">Following</option>
+            </select>
 
-                <input
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search by name"
-                  autoComplete="off"
-                  className="input"
-                />
+            {status ? <p className="text-sm" style={{ color: "#71859A" }}>{status}</p> : null}
 
-                {lockAge !== null && (
-                  <div
-                    className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold"
-                    style={{ background: "#E7F4FE", color: "#0B63A5" }}
-                  >
-                    🔒 Age {lockAge} ±1 · same as {lockName}
-                  </div>
-                )}
-
-                {searchQuery.trim().length < 2 ? (
-                  <p className="text-xs" style={{ color: "#71859A" }}>
-                    Type at least 2 letters of a name.
-                  </p>
-                ) : searching ? (
-                  <p className="text-sm" style={{ color: "#71859A" }}>Searching…</p>
-                ) : searchError ? (
-                  <p className="text-sm" style={{ color: "#C85C5C" }}>{searchError}</p>
-                ) : searchResults.length === 0 ? (
-                  <div className="py-3 text-center">
-                    <div className="text-base font-bold" style={{ color: "#0B2A54" }}>No swimmers found</div>
-                    <p className="mx-auto mt-1 max-w-[280px] text-[13px] leading-relaxed" style={{ color: "#71859A" }}>
-                      Try just a surname, or check the spelling. If they swim at a meet we haven&apos;t loaded
-                      yet, add them from a meet result below.
-                    </p>
-                  </div>
-                ) : (
-                  <>
-                    <p className="text-[11px] font-bold uppercase tracking-wide" style={{ color: "#71859A" }}>
-                      {searchResults.length} {searchResults.length === 1 ? "swimmer" : "swimmers"}
-                    </p>
-                    <div className="max-h-[300px] space-y-2 overflow-y-auto pr-1">
-                      {searchResults.map((hit) => {
-                        const shown = tidyCase(displayName(hit.swimmer_name));
-                        const key = `${hit.swimmer_name}|${hit.team_name ?? ""}`;
-                        const sKey = swimmerKey(shown, hit.team_name);
-                        const isOwned = ownedKeys.has(sKey);
-                        const isFollowed = followedKeys.has(sKey);
-                        const busy = followingKey === key;
-                        return (
-                          <div
-                            key={key}
-                            className="flex items-center gap-3 rounded-2xl border p-2.5"
-                            style={{ background: "#FFFFFF", borderColor: "#DFEAF2" }}
-                          >
-                            <div
-                              className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold"
-                              style={{ background: "#EEF5FA", color: "#0B2A54" }}
-                            >
-                              {getInitials(shown)}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="truncate text-sm font-bold" style={{ color: "#0B2A54" }}>{shown}</div>
-                              <div className="truncate text-xs" style={{ color: "#71859A" }}>
-                                {hit.team_name ?? "No club"}
-                                {hit.latest_age ? ` · Age ${hit.latest_age}` : ""}
-                              </div>
-                            </div>
-                            <button
-                              type="button"
-                              disabled={isOwned || isFollowed || busy || !hit.team_name}
-                              onClick={() => void followFromResults(hit)}
-                              className="min-h-[40px] min-w-[88px] rounded-xl px-3 text-xs font-bold transition disabled:opacity-70"
-                              style={
-                                isOwned || isFollowed
-                                  ? { background: "#E7F4FE", color: "#0B63A5", border: "1px solid #E7F4FE" }
-                                  : { background: "#FFFFFF", color: "#168AE8", border: "1.5px solid #168AE8" }
-                              }
-                            >
-                              {isOwned ? "Your swimmer" : isFollowed ? "Following ✓" : busy ? "Adding…" : "Follow"}
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
-
-                {/* Backup routes */}
-                <div className="space-y-2 border-t pt-3" style={{ borderColor: "#DFEAF2" }}>
-                  <p className="text-[13px] font-bold" style={{ color: "#0B2A54" }}>
-                    Not there?{" "}
-                    <span className="font-medium" style={{ color: "#71859A" }}>
-                      Scan a meet result, or add them yourself.
-                    </span>
-                  </p>
-                  <Link
-                    href="/scan"
-                    className="flex min-h-[44px] items-center justify-between rounded-2xl border px-4 text-sm font-bold"
-                    style={{ background: "#FFFFFF", borderColor: "#DFEAF2", color: "#0B2A54" }}
-                  >
-                    <span>Scan a meet result</span>
-                    <span style={{ color: "#71859A" }}>›</span>
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => setManualEntry(true)}
-                    className="flex min-h-[44px] w-full items-center justify-between rounded-2xl border px-4 text-sm font-bold"
-                    style={{ background: "#FFFFFF", borderColor: "#DFEAF2", color: "#0B2A54" }}
-                  >
-                    <span>Add them manually</span>
-                    <span style={{ color: "#71859A" }}>›</span>
-                  </button>
-                </div>
-              </>
-            )}
-
-            {/* ── MANUAL FORM (same fields as before) ───────────────────────── */}
-            {manualEntry && (
-              <>
-                {addMode === "follow" && (
-                  <button
-                    type="button"
-                    onClick={() => { setManualEntry(false); setStatus(""); }}
-                    className="text-xs font-bold"
-                    style={{ color: "#168AE8" }}
-                  >
-                    ← Back to search
-                  </button>
-                )}
-
-                <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" className="input" />
-
-                <div>
-                  <input
-                    value={birthYear}
-                    onChange={(e) => setBirthYear(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                    placeholder="Year of birth e.g. 2013"
-                    inputMode="numeric"
-                    className="input"
-                  />
-                  {previewRaceAge !== null && previewRaceAge > 0 && previewRaceAge < 30 && (
-                    <p className="mt-1.5 px-1 text-xs font-medium" style={{ color: "#168AE8" }}>
-                      ✓ Race age this year: {previewRaceAge}
-                    </p>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  {(["Male", "Female"] as const).map((g) => (
-                    <button
-                      key={g}
-                      type="button"
-                      onClick={() => setGender(g)}
-                      className="rounded-2xl border py-2.5 text-sm font-medium transition"
-                      style={
-                        gender === g
-                          ? { background: "#E7F4FE", border: "1px solid #A8D7F8", color: "#0B63A5" }
-                          : { background: "#F7FAFC", border: "1px solid #DFEAF2", color: "#71859A" }
-                      }
-                    >
-                      {g === "Male" ? "♂ Male" : "♀ Female"}
-                    </button>
-                  ))}
-                </div>
-
-                <select value={birthMonth} onChange={(e) => setBirthMonth(e.target.value ? Number(e.target.value) : "")} className="input">
-                  <option value="">Birth month (optional)</option>
-                  {MONTHS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-                </select>
-                <input value={country} onChange={(e) => setCountry(e.target.value)} placeholder="Country (optional)" className="input" />
-                <input value={swimClub} onChange={(e) => setSwimClub(e.target.value)} placeholder="Swim club (optional)" className="input" />
-                <input value={school} onChange={(e) => setSchool(e.target.value)} placeholder="School (optional)" className="input" />
-
-                {status ? <p className="text-sm" style={{ color: "#71859A" }}>{status}</p> : null}
-
-                <button
-                  type="button"
-                  onClick={addSwimmer}
-                  disabled={loading}
-                  className="w-full rounded-2xl py-3.5 text-sm font-bold text-white transition disabled:opacity-50"
-                  style={{ background: "linear-gradient(90deg,#2AA4F4,#168AE8)" }}
-                >
-                  {loading ? "Adding..." : addMode === "mine" ? "Add my swimmer" : "Add swimmer to Following"}
-                </button>
-              </>
-            )}
+            <button
+              type="button"
+              onClick={addSwimmer}
+              disabled={loading}
+              className="w-full rounded-2xl py-3.5 text-sm font-bold text-white transition disabled:opacity-50"
+              style={{ background: "var(--natrix-font-colour, #168AE8)" }}
+            >
+              {loading ? "Adding..." : "Add swimmer"}
+            </button>
           </div>
         )}
 
@@ -656,19 +382,28 @@ export default function SwimmersPage() {
               <div className="relative p-5">
                 <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full" style={{ background: "rgba(48,158,246,0.08)" }} />
                 <div className="relative flex items-center gap-4">
-                  <div
-                    className="flex h-20 w-20 flex-shrink-0 items-center justify-center rounded-full text-xl font-bold"
-                    style={{
-                      background: `var(--natrix-avatar-colour, ${colors.bg})`,
-                      color: `var(--natrix-avatar-text, ${colors.text})`,
-                      border: "4px solid rgba(255,255,255,0.9)",
-                    }}
-                  >
-                    {getInitials(swimmer.name)}
-                  </div>
+                  {swimmer.photo_url ? (
+                    <img
+                      src={swimmer.photo_url}
+                      alt={swimmer.name}
+                      className="h-20 w-20 flex-shrink-0 rounded-full object-cover"
+                      style={{ border: "4px solid rgba(255,255,255,0.9)" }}
+                    />
+                  ) : (
+                    <div
+                      className="flex h-20 w-20 flex-shrink-0 items-center justify-center rounded-full text-xl font-bold"
+                      style={{
+                        background: `var(--natrix-avatar-colour, ${colors.bg})`,
+                        color: `var(--natrix-avatar-text, ${colors.text})`,
+                        border: "4px solid rgba(255,255,255,0.9)",
+                      }}
+                    >
+                      {getInitials(swimmer.name)}
+                    </div>
+                  )}
 
                   <div className="min-w-0 flex-1">
-                    <div className="text-[10px] font-bold uppercase tracking-[0.15em]" style={{ color: "#168AE8" }}>
+                    <div className="text-[0.625rem] font-bold uppercase tracking-[0.15em]" style={{ color: "var(--natrix-font-colour, #168AE8)" }}>
                       Primary swimmer
                     </div>
                     <h2 className="mt-1 truncate text-2xl font-bold" style={{ color: "#0B2A54" }}>
@@ -687,7 +422,7 @@ export default function SwimmersPage() {
                 <Link
                   href={`/swimmers/${swimmer.id}`}
                   className="mt-5 flex items-center justify-between rounded-2xl px-4 py-3.5 font-semibold text-white"
-                  style={{ background: "linear-gradient(90deg,#2AA4F4,#168AE8)" }}
+                  style={{ background: "var(--natrix-font-colour, #168AE8)" }}
                 >
                   <span>View full profile</span>
                   <span>›</span>
@@ -700,20 +435,20 @@ export default function SwimmersPage() {
         {/* My swimmers */}
         <section className="space-y-3">
           <div className="flex items-center justify-between px-1">
-            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/40">
+            <div className="text-[0.625rem] font-bold uppercase tracking-[0.18em] text-white/40">
               My swimmers
             </div>
             <button
               type="button"
-              onClick={() => openAddCard("follow")}
-              className="text-[10px] font-bold uppercase tracking-wide text-sky-200/75"
+              onClick={() => setShowAddForm(true)}
+              className="text-[0.625rem] font-bold uppercase tracking-wide text-sky-200/75"
             >
               + Add swimmer
             </button>
           </div>
 
           {primarySwimmers.length > 0 ? (
-            <div className={primarySwimmers.length === 1 ? "grid grid-cols-1 gap-3" : "grid grid-cols-2 gap-3"}>
+            <div className="grid grid-cols-2 gap-3">
               {primarySwimmers.map((swimmer, index) => {
                 const colors = avatarColor(index);
                 return (
@@ -728,16 +463,24 @@ export default function SwimmersPage() {
                     }}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <div
-                        className="flex h-12 w-12 items-center justify-center rounded-full text-sm font-bold"
-                        style={{ background: colors.bg, color: colors.text }}
-                      >
-                        {getInitials(swimmer.name)}
-                      </div>
+                      {swimmer.photo_url ? (
+                        <img
+                          src={swimmer.photo_url}
+                          alt={swimmer.name}
+                          className="h-12 w-12 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div
+                          className="flex h-12 w-12 items-center justify-center rounded-full text-sm font-bold"
+                          style={{ background: colors.bg, color: colors.text }}
+                        >
+                          {getInitials(swimmer.name)}
+                        </div>
+                      )}
                       {index === 0 && (
                         <span
-                          className="rounded-full px-2 py-1 text-[9px] font-bold"
-                          style={{ background: "#168AE8", color: "white" }}
+                          className="rounded-full px-2 py-1 text-[0.5625rem] font-bold"
+                          style={{ background: "var(--natrix-font-colour, #168AE8)", color: "white" }}
                         >
                           Primary
                         </span>
@@ -750,7 +493,7 @@ export default function SwimmersPage() {
                       Age {swimmer.age}
                     </div>
                     {swimmer.swim_club && (
-                      <div className="mt-1 truncate text-[10px]" style={{ color: "#71859A" }}>
+                      <div className="mt-1 truncate text-[0.625rem]" style={{ color: "#71859A" }}>
                         {swimmer.swim_club}
                       </div>
                     )}
@@ -758,11 +501,29 @@ export default function SwimmersPage() {
                 );
               })}
 
+              <button
+                type="button"
+                onClick={() => setShowAddForm(true)}
+                className="rounded-[24px] border border-dashed p-4 text-left transition active:scale-[0.98]"
+                style={{
+                  background: "rgba(255,255,255,0.90)",
+                  borderColor: "#BFD8E8",
+                }}
+              >
+                <div
+                  className="flex h-12 w-12 items-center justify-center rounded-full text-2xl"
+                  style={{ background: "#E8F4FD", color: "var(--natrix-font-colour, #168AE8)" }}
+                >
+                  +
+                </div>
+                <div className="mt-3 text-sm font-bold" style={{ color: "#0B2A54" }}>Add swimmer</div>
+                <div className="mt-1 text-[0.625rem]" style={{ color: "#71859A" }}>Link a new swimmer</div>
+              </button>
             </div>
           ) : (
             <button
               type="button"
-              onClick={() => openAddCard("mine")}
+              onClick={() => setShowAddForm(true)}
               className="w-full rounded-[28px] p-7 text-center"
               style={{ background: "rgba(255,255,255,0.94)", border: "1px solid rgba(255,255,255,0.88)" }}
             >
@@ -780,7 +541,7 @@ export default function SwimmersPage() {
               onClick={() => setFollowingOpen((v) => !v)}
               className="flex w-full items-center justify-between px-1"
             >
-              <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/40">
+              <span className="text-[0.625rem] font-bold uppercase tracking-[0.18em] text-white/40">
                 Following ({followingSwimmers.length})
               </span>
               <span className="text-sm text-white/35">{followingOpen ? "⌃" : "⌄"}</span>
@@ -803,7 +564,7 @@ export default function SwimmersPage() {
                         className="rounded-xl px-3 py-2 text-xs font-semibold transition"
                         style={
                           filterMode === "all"
-                            ? { background: "#168AE8", color: "white" }
+                            ? { background: "var(--natrix-font-colour, #168AE8)", color: "white" }
                             : { background: "transparent", color: "rgba(255,255,255,0.55)" }
                         }
                       >
@@ -817,7 +578,7 @@ export default function SwimmersPage() {
                         className="rounded-xl px-3 py-2 text-xs font-semibold transition disabled:opacity-30"
                         style={
                           filterMode === "club"
-                            ? { background: "#168AE8", color: "white" }
+                            ? { background: "var(--natrix-font-colour, #168AE8)", color: "white" }
                             : { background: "transparent", color: "rgba(255,255,255,0.55)" }
                         }
                       >
@@ -831,7 +592,7 @@ export default function SwimmersPage() {
                         className="rounded-xl px-3 py-2 text-xs font-semibold transition disabled:opacity-30"
                         style={
                           filterMode === "school"
-                            ? { background: "#168AE8", color: "white" }
+                            ? { background: "var(--natrix-font-colour, #168AE8)", color: "white" }
                             : { background: "transparent", color: "rgba(255,255,255,0.55)" }
                         }
                       >
@@ -849,7 +610,7 @@ export default function SwimmersPage() {
                             className="rounded-full px-3 py-1.5 text-xs font-semibold"
                             style={
                               filterValue === club
-                                ? { background: "#168AE8", color: "white" }
+                                ? { background: "var(--natrix-font-colour, #168AE8)", color: "white" }
                                 : { background: "rgba(255,255,255,0.10)", color: "rgba(255,255,255,0.6)" }
                             }
                           >
@@ -869,7 +630,7 @@ export default function SwimmersPage() {
                             className="rounded-full px-3 py-1.5 text-xs font-semibold"
                             style={
                               filterValue === schoolName
-                                ? { background: "#168AE8", color: "white" }
+                                ? { background: "var(--natrix-font-colour, #168AE8)", color: "white" }
                                 : { background: "rgba(255,255,255,0.10)", color: "rgba(255,255,255,0.6)" }
                             }
                           >
@@ -895,18 +656,26 @@ export default function SwimmersPage() {
                         }}
                       >
                         <Link href={`/swimmers/${swimmer.id}`} className="block">
-                          <div
-                            className="flex h-12 w-12 items-center justify-center rounded-full text-sm font-bold"
-                            style={{ background: colors.bg, color: colors.text }}
-                          >
-                            {getInitials(swimmer.name)}
-                          </div>
+                          {swimmer.photo_url ? (
+                            <img
+                              src={swimmer.photo_url}
+                              alt={swimmer.name}
+                              className="h-12 w-12 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div
+                              className="flex h-12 w-12 items-center justify-center rounded-full text-sm font-bold"
+                              style={{ background: colors.bg, color: colors.text }}
+                            >
+                              {getInitials(swimmer.name)}
+                            </div>
+                          )}
                           <div className="mt-3 truncate text-sm font-bold" style={{ color: "#0B2A54" }}>
                             {swimmer.name}
                           </div>
                           <div className="mt-1 text-xs" style={{ color: "#71859A" }}>Age {swimmer.age}</div>
                           {swimmer.swim_club && (
-                            <div className="mt-1 truncate text-[10px]" style={{ color: "#71859A" }}>
+                            <div className="mt-1 truncate text-[0.625rem]" style={{ color: "#71859A" }}>
                               {swimmer.swim_club}
                             </div>
                           )}
@@ -915,7 +684,7 @@ export default function SwimmersPage() {
                         <button
                           type="button"
                           onClick={() => void deleteSwimmer(swimmer.id, swimmer.name)}
-                          className="mt-3 text-[10px] font-semibold"
+                          className="mt-3 text-[0.625rem] font-semibold"
                           style={{ color: "#C85C5C" }}
                         >
                           Remove
@@ -940,7 +709,7 @@ export default function SwimmersPage() {
           }}
         >
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: "#168AE8" }}>
+            <div className="text-[0.625rem] font-bold uppercase tracking-[0.16em]" style={{ color: "var(--natrix-font-colour, #168AE8)" }}>
               Compare
             </div>
             <div className="mt-1 text-base font-bold" style={{ color: "#0B2A54" }}>
@@ -950,7 +719,7 @@ export default function SwimmersPage() {
               See progress side by side
             </div>
           </div>
-          <span className="text-2xl" style={{ color: "#168AE8" }}>›</span>
+          <span className="text-2xl" style={{ color: "var(--natrix-font-colour, #168AE8)" }}>›</span>
         </Link>
 
         <div className="h-6" />
@@ -958,3 +727,4 @@ export default function SwimmersPage() {
     </div>
   );
 }
+
