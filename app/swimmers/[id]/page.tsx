@@ -8,6 +8,7 @@ import SwimTimesSection from "./SwimTimesSection";
 import ProgressTab from "./ProgressTab";
 import StandardsTab from "./StandardsTab";
 import DiaryTab from "./DiaryTab";
+import ZonesTab from "./ZonesTab";
 
 type Swimmer = {
   id: number;
@@ -25,7 +26,7 @@ type Swimmer = {
   photo_url?: string | null;
 };
 
-type Tab = "times" | "progress" | "standards" | "diary";
+type Tab = "times" | "progress" | "standards" | "diary" | "zones";
 
 const AVATAR_COLORS = [
   { bg: "#0F6E56", text: "#9FE1CB" },
@@ -552,19 +553,20 @@ function SwimmerProfilePageInner() {
             Performance
           </p>
           <div
-            className="grid grid-cols-4 gap-1 rounded-[22px] p-1.5"
+            className="grid grid-cols-5 gap-1 rounded-[22px] p-1.5"
             style={{
               background: "rgba(6,31,66,0.72)",
               border: "1px solid rgba(255,255,255,0.10)",
               boxShadow: "0 10px 26px rgba(0,0,0,0.12)",
             }}
           >
-            {(["times", "progress", "standards", "diary"] as Tab[]).map((tab) => {
+            {(["times", "progress", "standards", "diary", "zones"] as Tab[]).map((tab) => {
               const labels: Record<Tab, string> = {
                 times: "Results",
                 progress: "Progress",
                 standards: "Standards",
                 diary: "Diary",
+                zones: "Zones",
               };
               const active = activeTab === tab;
 
@@ -619,6 +621,10 @@ function SwimmerProfilePageInner() {
 
           {activeTab === "diary" && (
             <DiaryTab swimmerId={swimmer.id} swimmerName={swimmer.name} />
+          )}
+
+          {activeTab === "zones" && (
+            <ZonesTab swimmerId={swimmer.id} swimmerName={swimmer.name} />
           )}
         </section>
 
