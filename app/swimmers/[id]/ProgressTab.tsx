@@ -7,6 +7,9 @@ import { canonicalCourse, canonicalEventName, eventKey } from "@/lib/events";
 type Props = {
   swimmerId: number;
   swimmerName: string;
+  // Demo only. When provided, these rows are used as-is and Supabase is never
+  // contacted. When omitted (every production caller), behaviour is unchanged.
+  staticRows?: TimeRow[];
 };
 
 type TimeRow = {
@@ -335,9 +338,11 @@ function ProgressChart({
   );
 }
 
-export default function ProgressTab({ swimmerId, swimmerName }: Props) {
-  const [rows, setRows] = useState<TimeRow[]>([]);
-  const [loading, setLoading] = useState(true);
+export default function ProgressTab({ swimmerId, swimmerName, staticRows }: Props) {
+  const isStatic = staticRows !== undefined;
+  const [fetchedRows, setFetchedRows] = useState<TimeRow[]>([]);
+  const rows = staticRows ?? fetchedRows;
+  const [loading, setLoading] = useState(!isStatic);
   const [expandedStroke, setExpandedStroke] = useState<StrokeKey | null>(null);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [selectedRows, setSelectedRows] = useState<Record<string, TimeRow | null>>({});
@@ -347,6 +352,7 @@ export default function ProgressTab({ swimmerId, swimmerName }: Props) {
   }, [swimmerId]);
 
   async function load() {
+    if (isStatic) return; // demo: never touch Supabase
     setLoading(true);
 
     const { data, error } = await supabase
@@ -357,12 +363,12 @@ export default function ProgressTab({ swimmerId, swimmerName }: Props) {
 
     if (error) {
       console.error("ProgressTab: failed to load swim times", error);
-      setRows([]);
+      setFetchedRows([]);
       setLoading(false);
       return;
     }
 
-    setRows((data ?? []) as TimeRow[]);
+    setFetchedRows((data ?? []) as TimeRow[]);
     setLoading(false);
   }
 

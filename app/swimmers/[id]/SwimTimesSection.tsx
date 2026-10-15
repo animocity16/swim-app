@@ -9,6 +9,11 @@ type Props = {
   swimmerId: number;
   swimmerAge?: number | null;
   swimmerName?: string;
+  // Demo only. When either is provided the section is read-only: the supplied
+  // data is used as-is, Supabase is never contacted, and add / edit / delete are
+  // disabled. When both are omitted (every production caller), behaviour is unchanged.
+  staticRows?: SwimTimeRow[];
+  staticSplits?: SwimSplitRow[];
 };
 
 type SwimTimeRow = {
@@ -246,10 +251,25 @@ function ShareIcon() {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = "Swimmer" }: Props) {
-  const [rows, setRows] = useState<SwimTimeRow[]>([]);
-  const [splitsMap, setSplitsMap] = useState<Record<number, SwimSplitRow[]>>({});
-  const [loading, setLoading] = useState(true);
+// Groups split rows by the swim they belong to. Shared by the live loader and
+// the static path so both use exactly the same rule.
+function buildSplitsMap(splits: SwimSplitRow[]): Record<number, SwimSplitRow[]> {
+  const map: Record<number, SwimSplitRow[]> = {};
+  for (const s of splits) {
+    if (!map[s.swim_time_id]) map[s.swim_time_id] = [];
+    map[s.swim_time_id].push(s);
+  }
+  return map;
+}
+
+export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = "Swimmer", staticRows, staticSplits }: Props) {
+  const isStatic = staticRows !== undefined || staticSplits !== undefined;
+  const [fetchedRows, setFetchedRows] = useState<SwimTimeRow[]>([]);
+  const [fetchedSplitsMap, setSplitsMap] = useState<Record<number, SwimSplitRow[]>>({});
+  const rows = staticRows ?? fetchedRows;
+  const staticSplitsMap = useMemo(() => (staticSplits ? buildSplitsMap(staticSplits) : undefined), [staticSplits]);
+  const splitsMap = staticSplitsMap ?? fetchedSplitsMap;
+  const [loading, setLoading] = useState(!isStatic);
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [showCourseInfo, setShowCourseInfo] = useState(false);
@@ -274,6 +294,7 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
   useEffect(() => { void loadTimes(); }, [swimmerId]);
 
   async function loadTimes() {
+    if (isStatic) return; // demo: never touch Supabase
     setLoading(true);
     try {
       const { data: timesData } = await supabase
@@ -285,18 +306,13 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
       const timeRows = ((timesData as SwimTimeRow[]) || []).filter(
         (r) => typeof r.id === "number" && typeof r.time_ms === "number" && !!r.event && !!r.course
       );
-      setRows(timeRows);
+      setFetchedRows(timeRows);
 
       if (timeRows.length > 0) {
         const { data: splitData } = await supabase
           .from("swim_splits").select("*")
           .in("swim_time_id", timeRows.map((r) => r.id));
-        const map: Record<number, SwimSplitRow[]> = {};
-        for (const s of (splitData as SwimSplitRow[]) || []) {
-          if (!map[s.swim_time_id]) map[s.swim_time_id] = [];
-          map[s.swim_time_id].push(s);
-        }
-        setSplitsMap(map);
+        setSplitsMap(buildSplitsMap((splitData as SwimSplitRow[]) || []));
       }
     } finally {
       setLoading(false);
@@ -304,6 +320,7 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
   }
 
   async function handleAddTime() {
+    if (isStatic) return; // demo is read-only: no writes, ever
     const event = canonicalEventName(newEvent.trim());
     const course = canonicalCourse(newCourse);
     const ms = parseTimeInputToMs(newTime);
@@ -324,6 +341,7 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
   }
 
   async function handleDelete(id: number) {
+    if (isStatic) return; // demo is read-only: no writes, ever
     if (!window.confirm("Delete this time?")) return;
     await supabase.from("swim_splits").delete().eq("swim_time_id", id);
     await supabase.from("swim_times").delete().eq("id", id);
@@ -331,6 +349,7 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
   }
 
   async function handleSaveEdit() {
+    if (isStatic) return; // demo is read-only: no writes, ever
     if (!editingTime) return;
     setSavingEdit(true);
     await supabase.from("swim_times").update({
@@ -419,6 +438,7 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
               i
             </button>
           </div>
+          {!isStatic && (
           <button
             type="button"
             onClick={() => setShowAddForm((v) => !v)}
@@ -431,6 +451,7 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
           >
             {showAddForm ? "Cancel" : "+ Add time"}
           </button>
+          )}
         </div>
 
         {/* Course-code explainer -- LCM/SCM/SCY mean nothing to a parent
@@ -446,7 +467,7 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
         )}
 
         {/* Add time form */}
-        {showAddForm && (
+        {showAddForm && !isStatic && (
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-3">
             <select value={newEvent} onChange={(e) => setNewEvent(e.target.value)} className="input">
               <option value="">Select event…</option>
@@ -726,6 +747,7 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
                                       </button>
                                     )}
                                   </div>
+                                  {!isStatic && (
                                   <div className="flex gap-1.5 flex-shrink-0">
                                     <button type="button"
                                       onClick={() => setEditingTime({ id: time.id, meetName: time.meet_name ?? "", swamAt: time.swam_at ?? "", course: time.course })}
@@ -737,6 +759,7 @@ export default function SwimTimesSection({ swimmerId, swimmerAge, swimmerName = 
                                       Del
                                     </button>
                                   </div>
+                                  )}
                                 </div>
                               )}
 

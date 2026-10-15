@@ -12,6 +12,7 @@ import {
   formatDate,
   getInitials,
 } from "@/lib/demoData";
+import { splitMeetsByStatus, useNow } from "../meetStatus";
 
 function strokeMeta(event: string) {
   const e = event.toLowerCase();
@@ -73,9 +74,15 @@ export default function DemoDashboardPage() {
 
   const recentResults = myTimes.slice(0, 4);
   const latest = recentResults[0];
-  const upcomingMeets = [...DEMO_MEETS]
-    .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
-    .slice(0, 3);
+  // Upcoming vs past depends on today's date, so it is worked out in the browser
+  // (see useNow). The meet dates themselves are unchanged. When no demo meet is
+  // still to come, the section shows the most recent ones labelled as past.
+  const now = useNow();
+  const { upcoming: upcomingList, past: pastList } = now
+    ? splitMeetsByStatus(DEMO_MEETS, now)
+    : { upcoming: [], past: [] };
+  const showingPast = now !== null && upcomingList.length === 0;
+  const upcomingMeets = (showingPast ? pastList : upcomingList).slice(0, 3);
 
   const pbMap = new Map<string, number>();
   for (const row of [...myTimes].sort((a, b) => a.time_ms - b.time_ms)) {
@@ -324,7 +331,7 @@ export default function DemoDashboardPage() {
         <div>
           <div className="mb-2 flex items-center justify-between px-1">
             <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-white/30">
-              Upcoming meets
+              {now === null ? "Meets" : showingPast ? "Recent meets" : "Upcoming meets"}
             </p>
             <Link href="/demo/meets" className="text-xs font-semibold" style={{ color: "#7DD3FC" }}>
               View all
@@ -357,7 +364,7 @@ export default function DemoDashboardPage() {
                 </div>
                 <div className="text-right">
                   <p className="text-xs font-semibold text-white/55">{formatDate(meet.startDate)}</p>
-                  <p className="mt-0.5 text-[10px] text-white/28">{meet.meetType}</p>
+                  <p className="mt-0.5 text-[10px] text-white/28">{showingPast ? `Past · ${meet.meetType}` : meet.meetType}</p>
                 </div>
               </Link>
             ))}

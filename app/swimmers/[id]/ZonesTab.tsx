@@ -7,6 +7,9 @@ import { canonicalCourse, canonicalEventName } from "@/lib/events";
 type Props = {
   swimmerId: number;
   swimmerName?: string;
+  // Demo only. When provided, these rows are used as-is and Supabase is never
+  // contacted. When omitted (every production caller), behaviour is unchanged.
+  staticRows?: SwimTimeRow[];
 };
 
 type SwimTimeRow = {
@@ -184,9 +187,11 @@ function calculateThreshold(pbs: PbByDistance, stroke: StrokeInfo): Threshold | 
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function ZonesTab({ swimmerId, swimmerName = "Swimmer" }: Props) {
-  const [rows, setRows] = useState<SwimTimeRow[]>([]);
-  const [loading, setLoading] = useState(true);
+export default function ZonesTab({ swimmerId, swimmerName = "Swimmer", staticRows }: Props) {
+  const isStatic = staticRows !== undefined;
+  const [fetchedRows, setFetchedRows] = useState<SwimTimeRow[]>([]);
+  const rows = staticRows ?? fetchedRows;
+  const [loading, setLoading] = useState(!isStatic);
   const [loadError, setLoadError] = useState("");
 
   const [selectedStroke, setSelectedStroke] = useState<StrokeKey | null>(null);
@@ -198,6 +203,7 @@ export default function ZonesTab({ swimmerId, swimmerName = "Swimmer" }: Props) 
   }, [swimmerId]);
 
   async function loadTimes() {
+    if (isStatic) return; // demo: never touch Supabase
     setLoading(true);
     setLoadError("");
     try {
@@ -209,11 +215,11 @@ export default function ZonesTab({ swimmerId, swimmerName = "Swimmer" }: Props) 
       if (error) {
         console.error("ZonesTab loadTimes error:", error);
         setLoadError(error.message || "Couldn't load results.");
-        setRows([]);
+        setFetchedRows([]);
         return;
       }
 
-      setRows(
+      setFetchedRows(
         ((data as SwimTimeRow[]) || []).filter(
           (r) => typeof r.id === "number" && typeof r.time_ms === "number" && r.time_ms > 0 && !!r.event && !!r.course
         )
@@ -221,7 +227,7 @@ export default function ZonesTab({ swimmerId, swimmerName = "Swimmer" }: Props) 
     } catch (err: any) {
       console.error("ZonesTab loadTimes exception:", err);
       setLoadError(err?.message || "Couldn't load results.");
-      setRows([]);
+      setFetchedRows([]);
     } finally {
       setLoading(false);
     }

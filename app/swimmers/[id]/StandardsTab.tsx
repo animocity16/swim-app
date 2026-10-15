@@ -33,7 +33,25 @@ type Props = {
   swimmerAge: number;
   swimmerGender: string | null | undefined;
   swimmerSquad?: string | null;
+  // Demo only. When any of these is provided, the supplied data is used as-is
+  // and neither Supabase nor authentication is contacted. When all are omitted
+  // (every production caller), behaviour is unchanged.
+  staticTimes?: SwimTime[];
+  staticSets?: StandardSet[];
+  staticItems?: StandardItem[];
 };
+
+// Fastest time per event+course. Shared by the live loader and the static path
+// so both use exactly the same rule.
+function buildPbMap(times: SwimTime[]): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const t of times) {
+    const key = `${canonicalEventName(t.event)}|${t.course}`;
+    const existing = map.get(key);
+    if (!existing || t.time_ms < existing) map.set(key, t.time_ms);
+  }
+  return map;
+}
 
 function formatMs(ms: number): string {
   const totalSeconds = ms / 1000;
@@ -109,17 +127,23 @@ function QualProgressRing({ qualified, total }: { qualified: number; total: numb
   );
 }
 
-export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swimmerSquad }: Props) {
-  const [sets, setSets] = useState<StandardSet[]>([]);
-  const [items, setItems] = useState<StandardItem[]>([]);
-  const [pbMap, setPbMap] = useState<Map<string, number>>(new Map());
-  const [loading, setLoading] = useState(true);
+export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swimmerSquad, staticTimes, staticSets, staticItems }: Props) {
+  const isStatic = staticTimes !== undefined || staticSets !== undefined || staticItems !== undefined;
+  const [fetchedSets, setSets] = useState<StandardSet[]>([]);
+  const [fetchedItems, setItems] = useState<StandardItem[]>([]);
+  const [fetchedPbMap, setPbMap] = useState<Map<string, number>>(new Map());
+  const staticPbMap = useMemo(() => (staticTimes ? buildPbMap(staticTimes) : undefined), [staticTimes]);
+  const sets = staticSets ?? fetchedSets;
+  const items = staticItems ?? fetchedItems;
+  const pbMap = staticPbMap ?? fetchedPbMap;
+  const [loading, setLoading] = useState(!isStatic);
   const [expandedSet, setExpandedSet] = useState<number | null>(null);
   const [expandedStroke, setExpandedStroke] = useState<Record<string, boolean>>({});
 
   useEffect(() => { void load(); }, [swimmerId]);
 
   async function load() {
+    if (isStatic) return; // demo: no Supabase reads and no auth check
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setLoading(false); return; }
@@ -140,13 +164,7 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
     setSets(loadedSets);
 
     const times = (timesResult.data ?? []) as SwimTime[];
-    const map = new Map<string, number>();
-    for (const t of times) {
-      const key = `${canonicalEventName(t.event)}|${t.course}`;
-      const existing = map.get(key);
-      if (!existing || t.time_ms < existing) map.set(key, t.time_ms);
-    }
-    setPbMap(map);
+    setPbMap(buildPbMap(times));
 
     if (loadedSets.length > 0) {
       const setIds = loadedSets.map((s) => s.id);
@@ -203,11 +221,13 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
         <p className="text-3xl mb-3">⭐</p>
         <p className="text-sm font-semibold text-white mb-1">No standards yet</p>
         <p className="text-xs text-white/40 mb-4">Add upgrading times or meet qualifying standards to track progress.</p>
+        {!isStatic && (
         <Link href="/standards"
           className="inline-flex items-center gap-1.5 rounded-2xl px-4 py-2 text-xs font-semibold"
           style={{ background: "rgba(217,119,6,0.2)", border: "1px solid rgba(253,230,138,0.3)", color: "var(--natrix-font-colour, #FDE68A)" }}>
           Go to Standards →
         </Link>
+        )}
       </div>
     );
   }
@@ -514,6 +534,7 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
                   );
                 })}
 
+                {!isStatic && (
                 <div className="px-1 pt-1">
                   <Link
                     href={`/standards/${set.id}`}
@@ -523,6 +544,7 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
                     Edit this standard set →
                   </Link>
                 </div>
+                )}
               </div>
             )}
 
@@ -537,6 +559,7 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
                 <p className="text-xs text-white/35">
                   No events in this standard set match this swimmer&apos;s age / gender.
                 </p>
+                {!isStatic && (
                 <Link
                   href={`/standards/${set.id}`}
                   className="mt-2 block text-[0.625rem] font-semibold"
@@ -544,6 +567,7 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
                 >
                   Edit standard set →
                 </Link>
+                )}
               </div>
             )}
           </div>
