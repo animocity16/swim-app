@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { appFetch } from "@/lib/demo/demoFetch";
 
 const PENDING_MATCH_KEY = "natrix_pending_match";
 
@@ -154,7 +155,7 @@ export default function OnboardingFlow({ userName }: { userName: string }) {
     setSwimmerError("");
 
     try {
-      const res = await fetch("/api/claim-swimmer", {
+      const res = await appFetch("/api/claim-swimmer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

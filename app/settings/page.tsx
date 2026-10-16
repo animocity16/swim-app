@@ -9,6 +9,8 @@ import { applyTheme, applyFontSize, FONT_SIZES, type FontSizeId } from "@/app/co
 import { LANGUAGES, applyLanguage, type LanguageId } from "@/lib/i18n";
 import Link from "next/link";
 import MyDevicesCard from "@/app/components/MyDevicesCard";
+import { appFetch } from "@/lib/demo/demoFetch";
+import { isDemoActive } from "@/lib/demo/demoMode";
 import { clearRegistered, unregisterThisDevice } from "@/lib/devices";
 
 const APP_VERSION = "1.0.0";
@@ -118,6 +120,7 @@ export default function SettingsPage() {
   const [email, setEmail]             = useState("");
   const [displayName, setDisplayName] = useState("");
   const [isAdmin, setIsAdmin]         = useState(false);
+  const [inDemo, setInDemo]           = useState(false);
 
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [newPassword, setNewPassword]           = useState("");
@@ -172,7 +175,7 @@ export default function SettingsPage() {
     totalEvents: number; totalTimes: number;
   } | null>(null);
 
-  useEffect(()=>{void loadUser();},[]);
+  useEffect(()=>{setInDemo(isDemoActive());void loadUser();},[]);
 
   async function loadUser() {
     const{data:{session}}=await supabase.auth.getSession();
@@ -303,7 +306,7 @@ export default function SettingsPage() {
     if(deleteInput!=="DELETE"){setDeleteStatus("Please type DELETE to confirm.");return;}
     setDeletingAccount(true);setDeleteStatus("Deleting your data...");
     try{
-      const res=await fetch("/api/delete-account",{method:"POST"});
+      const res=await appFetch("/api/delete-account",{method:"POST"});
       const json=await res.json() as{success?:boolean;dryRun?:boolean;error?:string;log?:string[]};
       if(!res.ok){setDeleteStatus(`Error: ${json.error??"Something went wrong."}`);setDeletingAccount(false);return;}
       if(json.dryRun){console.log("🔒 Dry run log:",json.log);setDeleteStatus("Dry run complete — check browser console.");setDeletingAccount(false);return;}
@@ -380,7 +383,7 @@ export default function SettingsPage() {
         </div>
 
         {/* ── My devices (family bundle: up to 3 devices) ─────────────────── */}
-        <MyDevicesCard/>
+        {!inDemo&&<MyDevicesCard/>}
 
         {/* ── Manage meets (admin gets the official calendar, everyone gets their own) ── */}
         <Link href={isAdmin ? "/admin/meets" : "/meets/manage"}

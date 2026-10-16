@@ -369,8 +369,8 @@ export default function SwimmerSearchPage() {
         </header>
 
         {/* Hero */}
-        <section className="relative overflow-hidden pb-6 pt-2 md:grid md:grid-cols-[0.9fr_1.1fr] md:items-center md:gap-8 md:pb-8">
-          <div className="relative mx-auto mb-2 flex h-[190px] max-w-[300px] items-end justify-center md:mb-0 md:h-[300px]">
+        <section className="relative pb-5 pt-1 text-center">
+          <div className="relative mx-auto mb-1 flex h-[130px] max-w-[220px] items-end justify-center md:h-[170px]">
             <img
               src="/natrix-mascot-search.png"
               alt="Natrix swim mascot"
@@ -378,40 +378,82 @@ export default function SwimmerSearchPage() {
               onError={(event) => {
                 event.currentTarget.src = "/natrix-favicon.svg";
                 event.currentTarget.className =
-                  "relative z-10 h-28 w-28 self-center object-contain opacity-90";
+                  "relative z-10 h-24 w-24 self-center object-contain opacity-90";
               }}
             />
             <div
               aria-hidden="true"
-              className="absolute bottom-3 left-1/2 h-12 w-[80%] -translate-x-1/2 rounded-[50%] blur-2xl"
+              className="absolute bottom-2 left-1/2 h-10 w-[80%] -translate-x-1/2 rounded-[50%] blur-2xl"
               style={{ background: "rgba(103,214,255,0.22)" }}
             />
           </div>
 
-          <div className="text-center md:text-left">
-            <p className="mb-2 text-[0.6875rem] font-bold uppercase tracking-[0.2em] text-sky-200/80">
-              Singapore swim results
+          <h1 className="text-[2.25rem] font-bold leading-[1.02] tracking-[-0.04em] text-white md:text-5xl">
+            Every swim tells a story.
+          </h1>
+          <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-white/65 md:max-w-xl md:text-base">
+            Track personal bests, discover progression and understand your swimmer&apos;s performance.
+          </p>
+        </section>
+
+        {/* Two ways in, given equal weight */}
+        <section className="grid gap-3 pb-3 md:grid-cols-2 md:gap-4">
+          {/* 1. Explore the demo: anyone, anywhere, no sign-in */}
+          <div
+            className="flex flex-col rounded-[26px] p-5"
+            style={{
+              background: "rgba(255,255,255,0.96)",
+              border: "1px solid rgba(255,255,255,0.9)",
+              boxShadow: "0 16px 36px rgba(0,25,50,0.22)",
+            }}
+          >
+            <p className="text-[0.625rem] font-bold uppercase tracking-[0.18em]" style={{ color: "#B45309" }}>
+              Anywhere in the world
+            </p>
+            <h2 className="mt-1 text-xl font-bold tracking-tight" style={{ color: "#0A2D5D" }}>
+              Explore Natrix Demo
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed" style={{ color: "#51677D" }}>
+              Try the real app with fictional swimmers: personal bests, progress, standards,
+              training zones and comparisons. No sign-in needed.
+            </p>
+            <div className="mt-auto pt-4">
+              <a
+                href="/demo"
+                className="flex w-full items-center justify-center rounded-[17px] px-5 py-3 text-sm font-bold text-white transition active:scale-[0.98]"
+                style={{ background: "#D97706" }}
+              >
+                Explore the demo
+              </a>
+            </div>
+          </div>
+
+          {/* 2. Find a Singapore swimmer: the existing results search */}
+          <div
+            className="flex flex-col rounded-[26px] p-5"
+            style={{
+              background: "rgba(255,255,255,0.96)",
+              border: "1px solid rgba(255,255,255,0.9)",
+              boxShadow: "0 16px 36px rgba(0,25,50,0.22)",
+            }}
+          >
+            <p className="text-[0.625rem] font-bold uppercase tracking-[0.18em]" style={{ color: "#0B79D8" }}>
+              Singapore swimmers only
+            </p>
+            <h2 className="mt-1 text-xl font-bold tracking-tight" style={{ color: "#0A2D5D" }}>
+              Find Your Swimmer
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed" style={{ color: "#51677D" }}>
+              Search real meet results and personal bests. Search currently covers Singapore
+              swimmers only.
             </p>
 
-            <h1 className="text-[2.25rem] font-bold leading-[1.02] tracking-[-0.04em] text-white md:text-5xl">
-              Find your swimmer
-            </h1>
-
-            <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-white/65 md:mx-0 md:text-base">
-              Search real meet results, personal bests and race context. No account needed.
-            </p>
-
-            <form
-              onSubmit={handleSearch}
-              className="mx-auto mt-5 flex max-w-xl gap-2 rounded-[22px] p-2 md:mx-0"
-              style={{
-                background: "rgba(255,255,255,0.96)",
-                border: "1px solid rgba(255,255,255,0.9)",
-                boxShadow: "0 16px 36px rgba(0,25,50,0.22)",
-              }}
-            >
-              <div className="flex min-w-0 flex-1 items-center gap-3 px-2">
-                <svg width="21" height="21" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <form onSubmit={handleSearch} className="mt-auto pt-4">
+              <div
+                className="flex items-center gap-2 rounded-[17px] px-3"
+                style={{ background: "#F1F6FB", border: "1px solid #D5E3F0" }}
+              >
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                   <circle cx="11" cy="11" r="6.5" stroke="#12385F" strokeWidth="2" />
                   <path d="M16 16L21 21" stroke="#12385F" strokeWidth="2" strokeLinecap="round" />
                 </svg>
@@ -420,27 +462,37 @@ export default function SwimmerSearchPage() {
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Enter swimmer name..."
-                  autoFocus
+                  aria-label="Swimmer name"
                   className="min-w-0 flex-1 bg-transparent py-3 text-[0.9375rem] outline-none"
                   style={{ color: "#0C2C50" }}
                 />
               </div>
-
               <button
                 type="submit"
                 disabled={loading || query.trim().length < 2}
-                className="rounded-[17px] px-5 py-3 text-sm font-bold text-white transition active:scale-[0.98] disabled:opacity-40"
+                className="mt-2 flex w-full items-center justify-center rounded-[17px] px-5 py-3 text-sm font-bold text-white transition active:scale-[0.98] disabled:opacity-40"
                 style={{ background: "linear-gradient(135deg,#2B9CF3,#0871D8)" }}
               >
                 {loading ? "…" : "Search"}
               </button>
             </form>
-
-            <p className="mt-3 text-[0.6875rem] leading-relaxed text-white/35">
-              Singapore Aquatics-sanctioned meets currently supported. Club-only and non-sanctioned meets are not included yet.
-            </p>
           </div>
         </section>
+
+        <div className="space-y-1.5 pb-6 text-center">
+          <p className="text-xs leading-relaxed text-white/55">
+            Not in Singapore? Add your swimmers and enter results manually. Natrix works for any pool.
+          </p>
+          <p className="text-[0.6875rem] leading-relaxed text-white/35">
+            Singapore Aquatics-sanctioned meets currently supported. Club-only and non-sanctioned meets are not included yet.
+          </p>
+          <p className="pt-1 text-xs text-white/60">
+            Already have an account?{" "}
+            <Link href="/login" className="font-semibold underline underline-offset-2" style={{ color: "#FDE68A" }}>
+              Sign in
+            </Link>
+          </p>
+        </div>
 
         {/* Guest value */}
         {!state && !loading && (

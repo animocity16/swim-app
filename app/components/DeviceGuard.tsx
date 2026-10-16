@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { isDemoActive } from "@/lib/demo/demoMode";
 import {
   MAX_DEVICES,
   checkDevice,
@@ -42,7 +43,8 @@ export default function DeviceGuard() {
   const running = useRef(false);
   const lastRun = useRef(0);
 
-  const skip = SKIP_PREFIXES.some((p) => pathname.startsWith(p));
+  // The interactive demo has no real account, so there are no devices to guard.
+  const skip = SKIP_PREFIXES.some((p) => pathname.startsWith(p)) || isDemoActive();
 
   const runCheck = useCallback(async () => {
     if (running.current) return;
