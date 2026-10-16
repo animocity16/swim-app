@@ -13,7 +13,7 @@ import { appFetch } from "@/lib/demo/demoFetch";
 import { isDemoActive } from "@/lib/demo/demoMode";
 import { clearRegistered, unregisterThisDevice } from "@/lib/devices";
 
-const APP_VERSION = "1.0.0";
+const APP_VERSION = "2.0";
 
 // Only this account sees the full admin calendar tools.
 const ADMIN_USER_ID = "9156c797-d133-4a7f-aa93-03688f2bdfd1";
