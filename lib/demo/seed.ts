@@ -100,9 +100,9 @@ const PRIMARY: Profile = {
 };
 
 const FOLLOWED: Profile[] = [
-  { name: "Noah Bennett", age: 12, gender: "Male", swim_club: "Harbour Swim Club", school: "Lakeside Primary", squad: null, f: 0.97, attends: [0, 2, 3, 4, 5, 6, 7] },
+  { name: "Isla Bennett", age: 12, gender: "Female", swim_club: "Harbour Swim Club", school: "Lakeside Primary", squad: null, f: 0.97, attends: [0, 2, 3, 4, 5, 6, 7] },
   { name: "Sofia Alvarez", age: 12, gender: "Female", swim_club: "Riverside Aquatics", school: "Riverside Academy", squad: null, f: 1.025, attends: [1, 2, 3, 4, 5, 7] },
-  { name: "Liam Chen", age: 13, gender: "Male", swim_club: "Summit Swim Team", school: "Summit College", squad: null, f: 0.94, attends: [0, 1, 3, 4, 5, 6, 7] },
+  { name: "Grace Chen", age: 12, gender: "Female", swim_club: "Summit Swim Team", school: "Summit College", squad: null, f: 0.94, attends: [0, 1, 3, 4, 5, 6, 7] },
 ];
 
 // Swimmers a visitor can find by searching and follow. They are not in the
@@ -116,13 +116,13 @@ function pool(storedName: string, p: Profile): PoolSwimmer {
 
 export const DEMO_POOL: PoolSwimmer[] = [
   pool("Grant, Olivia", { name: "Olivia Grant", age: 12, gender: "Female", swim_club: "Harbour Swim Club", school: null, squad: null, f: 0.995, attends: [2, 3, 4, 5, 6, 7] }),
-  pool("Walker, Ethan", { name: "Ethan Walker", age: 12, gender: "Male", swim_club: "Riverside Aquatics", school: null, squad: null, f: 0.985, attends: [0, 1, 3, 4, 5, 7] }),
-  pool("Patel, Maya", { name: "Maya Patel", age: 11, gender: "Female", swim_club: "Summit Swim Team", school: null, squad: null, f: 1.04, attends: [1, 3, 5, 6, 7] }),
-  pool("Meyer, Lucas", { name: "Lucas Meyer", age: 13, gender: "Male", swim_club: "Harbour Swim Club", school: null, squad: null, f: 0.95, attends: [2, 3, 4, 6, 7] }),
+  pool("Walker, Ella", { name: "Ella Walker", age: 12, gender: "Female", swim_club: "Riverside Aquatics", school: null, squad: null, f: 0.985, attends: [0, 1, 3, 4, 5, 7] }),
+  pool("Patel, Maya", { name: "Maya Patel", age: 12, gender: "Female", swim_club: "Summit Swim Team", school: null, squad: null, f: 1.04, attends: [1, 3, 5, 6, 7] }),
+  pool("Meyer, Lena", { name: "Lena Meyer", age: 12, gender: "Female", swim_club: "Harbour Swim Club", school: null, squad: null, f: 0.95, attends: [2, 3, 4, 6, 7] }),
   pool("Nguyen, Chloe", { name: "Chloe Nguyen", age: 12, gender: "Female", swim_club: "Riverside Aquatics", school: null, squad: null, f: 1.01, attends: [0, 2, 3, 5, 7] }),
-  pool("Thompson, Jack", { name: "Jack Thompson", age: 14, gender: "Male", swim_club: "Summit Swim Team", school: null, squad: null, f: 0.9, attends: [1, 3, 4, 5, 6, 7] }),
+  pool("Thompson, Jade", { name: "Jade Thompson", age: 12, gender: "Female", swim_club: "Summit Swim Team", school: null, squad: null, f: 0.9, attends: [1, 3, 4, 5, 6, 7] }),
   pool("Fischer, Zoe", { name: "Zoe Fischer", age: 12, gender: "Female", swim_club: "Summit Swim Team", school: null, squad: null, f: 1.0, attends: [0, 1, 2, 3, 4, 5, 6, 7] }),
-  pool("Okafor, Aiden", { name: "Aiden Okafor", age: 12, gender: "Male", swim_club: "Harbour Swim Club", school: null, squad: null, f: 1.02, attends: [3, 4, 5, 6, 7] }),
+  pool("Okafor, Amara", { name: "Amara Okafor", age: 12, gender: "Female", swim_club: "Harbour Swim Club", school: null, squad: null, f: 1.02, attends: [3, 4, 5, 6, 7] }),
 ];
 
 // ─── Result generation ───────────────────────────────────────────────────────

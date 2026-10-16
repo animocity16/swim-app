@@ -32,7 +32,7 @@ export default function DemoModeBanner() {
 
   const tip =
     pathname === "/swimmers"
-      ? "Tap “+ Add swimmer”, then search “Olivia”, “Ethan” or “Zoe” to follow them."
+      ? "Tap “+ Add swimmer”, then search “Olivia”, “Ella” or “Zoe” to follow them."
       : null;
 
   return (
