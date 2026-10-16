@@ -159,7 +159,7 @@ export default function LoginPage() {
 
         {/* Try Demo — no login required, drops straight into a sample account */}
         <Link
-          href="/demo/dashboard"
+          href="/demo"
           className="flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-bold transition"
           style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.18)", color: "#FDE68A" }}
         >
