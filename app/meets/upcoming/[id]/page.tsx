@@ -30,9 +30,32 @@ type MeetEvent = {
   seed_time: string | null;
   start_time: string | null;
   warmup_time: string | null;
+  // Which calendar day this event is on (YYYY-MM-DD). Start lists only give a
+  // clock time, so without this a multi-day meet gets squashed into one "day".
+  event_date: string | null;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+// "2026-11-08" -> "Sun 8 Nov". Built from the parts so the phone's timezone
+// can never shift it to the wrong day.
+function dayLabel(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  if (!y || !m || !d) return dateStr;
+  return new Date(y, m - 1, d).toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
+}
+
+// First 10 chars of a date string = YYYY-MM-DD (works for "2026-11-08" and
+// "2026-11-08T00:00:00").
+function toDateInput(dateStr: string | null | undefined): string {
+  return dateStr ? dateStr.slice(0, 10) : "";
+}
+
+const NO_DAY = "none";
 
 function formatDateRange(start: string, end: string | null): string {
   const s = new Date(start);
@@ -1025,6 +1048,7 @@ function EventCard({
   const [editHeat, setEditHeat] = useState(String(event.heat));
   const [editLane, setEditLane] = useState(String(event.lane));
   const [editSeedTime, setEditSeedTime] = useState(event.seed_time ?? "");
+  const [editDay, setEditDay] = useState(toDateInput(event.event_date));
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -1045,6 +1069,7 @@ function EventCard({
     setEditHeat(String(event.heat));
     setEditLane(String(event.lane));
     setEditSeedTime(event.seed_time ?? "");
+    setEditDay(toDateInput(event.event_date));
     setEditError(null);
     setEditing(true);
   }
@@ -1066,7 +1091,12 @@ function EventCard({
     setEditSaving(true);
     setEditError(null);
 
-    const updates = { heat: heatNum, lane: laneNum, seed_time: trimmedSeed || null };
+    const updates = {
+      heat: heatNum,
+      lane: laneNum,
+      seed_time: trimmedSeed || null,
+      event_date: editDay || null,
+    };
     const { error } = await supabase.from("meet_events").update(updates).eq("id", event.id);
 
     setEditSaving(false);
@@ -1120,6 +1150,7 @@ function EventCard({
           </p>
           {!editing && (
             <p style={{ fontSize: "11px", color: MUTED }}>
+              {event.event_date ? `${dayLabel(toDateInput(event.event_date))} · ` : ""}
               Event {event.event_number} · Heat {event.heat} · Lane {event.lane}
             </p>
           )}
@@ -1193,6 +1224,23 @@ function EventCard({
               />
             </label>
           </div>
+
+          <label style={{ display: "block" }}>
+            <span style={{ fontSize: "10px", color: MUTED, display: "block", marginBottom: "3px" }}>
+              Day of this race
+            </span>
+            <input
+              type="date"
+              value={editDay}
+              onChange={(e) => setEditDay(e.target.value)}
+              style={{
+                width: "100%", background: "#F7FAFC",
+                border: "1px solid #DFEAF2", borderRadius: "8px",
+                padding: "6px 10px", color: INK, fontSize: "12px",
+                outline: "none", boxSizing: "border-box",
+              }}
+            />
+          </label>
 
           {editError && (
             <p style={{ fontSize: "11px", color: "#C0392B" }}>{editError}</p>
@@ -1279,6 +1327,7 @@ function SwimmerGroup({
   name,
   events,
   defaultOpen,
+  defaultDay,
   onWarmupSaved,
   onDeleted,
   onUpdated,
@@ -1286,6 +1335,7 @@ function SwimmerGroup({
   name: string;
   events: MeetEvent[];
   defaultOpen: boolean;
+  defaultDay: string; // pre-filled date for "set day" (the meet's first day)
   onWarmupSaved: (eventId: string, value: string | null) => void;
   onDeleted: (eventId: string) => void;
   onUpdated: (eventId: string, updates: Partial<MeetEvent>) => void;
@@ -1293,16 +1343,61 @@ function SwimmerGroup({
   const [open, setOpen] = useState(defaultOpen);
   const [fuelPlanOpen, setFuelPlanOpen] = useState(false);
 
-  // Chains every event this swimmer has at this meet into ONE fueling
-  // timeline, using the warm-up/race times already saved on each event —
-  // nothing new to type in here.
+  // A meet can run over several days, and a start list only gives clock times
+  // ("9:55 AM") — so events are split into days first (by event_date), and a
+  // separate fuel plan is built for each day. Events with no day set yet are
+  // kept together in their own group until a day is chosen for them.
+  const days = useMemo(() => {
+    const keys = new Set<string>();
+    for (const e of events) keys.add(e.event_date ? toDateInput(e.event_date) : NO_DAY);
+    return Array.from(keys).sort((a, b) => {
+      if (a === NO_DAY) return 1;
+      if (b === NO_DAY) return -1;
+      return a.localeCompare(b);
+    });
+  }, [events]);
+
+  const [selectedDay, setSelectedDay] = useState<string>("");
+  const activeDay = days.includes(selectedDay) ? selectedDay : days[0] ?? NO_DAY;
+
+  const eventsForDay = (day: string) =>
+    events.filter((e) => (e.event_date ? toDateInput(e.event_date) : NO_DAY) === day);
+
+  const dayTitle = (day: string, i: number) =>
+    day === NO_DAY ? "Day not set" : `Day ${i + 1} · ${dayLabel(day)}`;
+
+  // Chains this swimmer's events for the SELECTED day into one fueling
+  // timeline, using the warm-up/race times already saved on each event.
   const fuelPlanItems = useMemo(
     () =>
       buildDayPlan(
-        events.map((e) => ({ name: e.event_name, warmup: e.warmup_time, start: e.start_time }))
+        events
+          .filter((e) => (e.event_date ? toDateInput(e.event_date) : NO_DAY) === activeDay)
+          .map((e) => ({ name: e.event_name, warmup: e.warmup_time, start: e.start_time }))
       ),
-    [events]
+    [events, activeDay]
   );
+
+  // Give every event in the "Day not set" group a day in one go.
+  const [bulkDay, setBulkDay] = useState(defaultDay);
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkError, setBulkError] = useState<string | null>(null);
+
+  async function applyDayToUndated() {
+    if (!bulkDay) return;
+    const ids = events.filter((e) => !e.event_date).map((e) => e.id);
+    if (ids.length === 0) return;
+    setBulkSaving(true);
+    setBulkError(null);
+    const { error } = await supabase.from("meet_events").update({ event_date: bulkDay }).in("id", ids);
+    setBulkSaving(false);
+    if (error) {
+      setBulkError(error.message);
+      return;
+    }
+    ids.forEach((id) => onUpdated(id, { event_date: bulkDay }));
+    setSelectedDay(bulkDay);
+  }
 
   return (
     <div>
@@ -1385,20 +1480,105 @@ function SwimmerGroup({
           ...CARD,
           borderRadius: "14px",
         }}>
+          {/* One tab per race day, so days never get mixed into one timeline */}
+          {days.length > 1 && (
+            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "12px" }}>
+              {days.map((d, i) => {
+                const active = d === activeDay;
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setSelectedDay(d)}
+                    style={{
+                      padding: "6px 12px", borderRadius: "999px", cursor: "pointer",
+                      fontSize: "11.5px", fontWeight: 700,
+                      background: active ? ACCENT : "#F7FAFC",
+                      color: active ? "#fff" : MUTED,
+                      border: active ? `1px solid ${ACCENT}` : "1px solid #E1EDF5",
+                    }}
+                  >
+                    {dayTitle(d, i)}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {days.length === 1 && activeDay !== NO_DAY && (
+            <p style={{ fontSize: "11.5px", fontWeight: 700, color: INK, marginBottom: "10px" }}>
+              {dayLabel(activeDay)}
+            </p>
+          )}
+
+          {/* Events that don't have a day yet: pick it once for all of them */}
+          {activeDay === NO_DAY && (
+            <div style={{
+              background: "#FFF7E6", border: "1px solid #FBDBA7", borderRadius: "12px",
+              padding: "10px 12px", marginBottom: "12px",
+            }}>
+              <p style={{ fontSize: "11.5px", color: "#92400E", margin: "0 0 8px", lineHeight: 1.4 }}>
+                These races don&apos;t have a day yet, so they&apos;re all shown together. Pick the day
+                they&apos;re on. If they&apos;re spread over different days, set each one with Edit.
+              </p>
+              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                <input
+                  type="date"
+                  value={bulkDay}
+                  onChange={(e) => setBulkDay(e.target.value)}
+                  style={{
+                    flex: 1, minWidth: 0, background: "#fff",
+                    border: "1px solid #DFEAF2", borderRadius: "8px",
+                    padding: "6px 10px", color: INK, fontSize: "12px",
+                    outline: "none", boxSizing: "border-box",
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={applyDayToUndated}
+                  disabled={bulkSaving || !bulkDay}
+                  style={{
+                    flexShrink: 0, background: ACCENT, border: "none", borderRadius: "8px",
+                    padding: "7px 12px", color: "#fff", fontSize: "12px", fontWeight: 600,
+                    cursor: bulkSaving || !bulkDay ? "default" : "pointer",
+                    opacity: bulkSaving || !bulkDay ? 0.6 : 1,
+                  }}
+                >
+                  {bulkSaving ? "Saving…" : "Set day"}
+                </button>
+              </div>
+              {bulkError && (
+                <p style={{ fontSize: "11px", color: "#C0392B", margin: "6px 0 0" }}>{bulkError}</p>
+              )}
+            </div>
+          )}
+
           <FuelPlanTimeline items={fuelPlanItems} />
         </div>
       )}
 
       {open && (
         <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px", paddingLeft: "4px" }}>
-          {events.map((ev) => (
-            <EventCard
-              key={ev.id}
-              event={ev}
-              onWarmupSaved={onWarmupSaved}
-              onDeleted={onDeleted}
-              onUpdated={onUpdated}
-            />
+          {days.map((d, i) => (
+            <div key={d} style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              {(days.length > 1 || d === NO_DAY) && (
+                <p style={{
+                  fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em",
+                  textTransform: "uppercase", color: "rgba(255,255,255,0.55)",
+                  margin: "4px 0 0",
+                }}>
+                  {dayTitle(d, i)}
+                </p>
+              )}
+              {eventsForDay(d).map((ev) => (
+                <EventCard
+                  key={ev.id}
+                  event={ev}
+                  onWarmupSaved={onWarmupSaved}
+                  onDeleted={onDeleted}
+                  onUpdated={onUpdated}
+                />
+              ))}
+            </div>
           ))}
         </div>
       )}
@@ -1532,6 +1712,9 @@ export default function UpcomingMeetDetailPage() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  // Which day the start list being imported is for. Start-list PDFs only show
+  // clock times, so we ask, and stamp every event from that PDF with this day.
+  const [uploadDate, setUploadDate] = useState("");
   const [debugData, setDebugData] = useState<{ swimmerNames: string[]; totalLines: number; rawTextSample: string; first80Lines: string[]; usedOcr: boolean; textLayerError: string | null; textLayerChars: number } | null>(null);
   const [debugSearchTerm, setDebugSearchTerm] = useState("");
   const [lastFile, setLastFile] = useState<File | null>(null);
@@ -1558,6 +1741,7 @@ export default function UpcomingMeetDetailPage() {
 
     if (!meetData) { router.replace("/meets"); return; }
     setMeet(meetData as UpcomingMeet);
+    setUploadDate((prev) => prev || toDateInput((meetData as UpcomingMeet).start_date));
 
     // Load this user's swimmers
     const { data: swimmers } = await supabase
@@ -1669,6 +1853,10 @@ export default function UpcomingMeetDetailPage() {
       setUploadError("Select at least one swimmer to match events for.");
       return;
     }
+    if (!uploadDate) {
+      setUploadError("Pick which day this start list is for first.");
+      return;
+    }
 
     setUploading(true);
     setUploadError(null);
@@ -1710,6 +1898,7 @@ export default function UpcomingMeetDetailPage() {
         lane: ev.lane,
         seed_time: ev.seedTime,
         start_time: ev.startTime,
+        event_date: uploadDate,
       }));
 
       const { error } = await supabase
@@ -1788,6 +1977,34 @@ export default function UpcomingMeetDetailPage() {
 
         {/* PDF Upload */}
         <div>
+          {/* Which day is this start list for? Each day's PDF gets its own day,
+              so a multi-day meet doesn't get squashed into one. */}
+          <div style={{
+            display: "flex", alignItems: "center", gap: "10px",
+            background: "rgba(255,255,255,0.9)", border: "1px solid #DFEAF2",
+            borderRadius: "14px", padding: "10px 14px", marginBottom: "10px",
+          }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontSize: "12px", fontWeight: 700, color: INK, margin: 0 }}>
+                Which day is this start list for?
+              </p>
+              <p style={{ fontSize: "10.5px", color: MUTED, margin: "2px 0 0" }}>
+                Pick the day before you upload. Do one PDF per day.
+              </p>
+            </div>
+            <input
+              type="date"
+              value={uploadDate}
+              min={toDateInput(meet.start_date) || undefined}
+              max={toDateInput(meet.end_date ?? meet.start_date) || undefined}
+              onChange={(e) => setUploadDate(e.target.value)}
+              style={{
+                flexShrink: 0, background: "#F7FAFC",
+                border: "1px solid #DFEAF2", borderRadius: "8px",
+                padding: "6px 8px", color: INK, fontSize: "12px", outline: "none",
+              }}
+            />
+          </div>
           <label
             htmlFor="pdf-upload"
             style={{
@@ -1930,6 +2147,7 @@ export default function UpcomingMeetDetailPage() {
                   name={name}
                   events={grouped.get(name)!}
                   defaultOpen={names.length === 1 || i === 0}
+                  defaultDay={toDateInput(meet.start_date)}
                   onWarmupSaved={handleWarmupSaved}
                   onDeleted={handleEventDeleted}
                   onUpdated={handleEventUpdated}

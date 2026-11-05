@@ -1211,6 +1211,26 @@ export default function DashboardPage() {
             </Link>
 
             <Link
+              href="/meets?tab=all"
+              className="mt-2 flex items-center gap-3 rounded-2xl px-3 py-3"
+              style={{ background: "white", border: "1px solid #E0ECF3" }}
+            >
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl text-lg"
+                style={{ background: "#E8F8F0" }}>
+                🔎
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-semibold" style={{ color: "#0B2A54" }}>
+                  Find a meet
+                </div>
+                <div className="mt-0.5 text-[10px]" style={{ color: "#71859A" }}>
+                  Search every meet in Natrix
+                </div>
+              </div>
+              <span style={{ color: "#7A8EA2" }}>›</span>
+            </Link>
+
+            <Link
               href="/calculator"
               className="mt-2 flex items-center gap-3 rounded-2xl px-3 py-3"
               style={{ background: "white", border: "1px solid #E0ECF3" }}

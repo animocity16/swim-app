@@ -36,6 +36,18 @@ type PastMeet = {
   course: string | null;
 };
 
+// A meet from the full database (every scraped meet, not just the ones this
+// parent's swimmers swam in).
+type AllMeet = {
+  meet_id: string;
+  meet_name: string;
+  start_date: string | null;
+  result_count: number;
+  swimmer_count: number;
+};
+
+type Tab = "upcoming" | "past" | "all";
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatDate(dateStr: string | null): string {
@@ -326,6 +338,49 @@ function OverdueMeetCard({ meet }: { meet: UpcomingMeet }) {
   );
 }
 
+// ─── Meet from the full database (search results) ────────────────────────────
+
+function AllMeetCard({ meet }: { meet: AllMeet }) {
+  return (
+    <Link
+      href={`/meets/all/${encodeURIComponent(meet.meet_id)}`}
+      style={{
+        display: "flex", alignItems: "center", gap: "14px",
+        ...CARD, borderRadius: "20px", padding: "14px 16px",
+        textDecoration: "none",
+      }}
+    >
+      <div style={{
+        width: "44px", height: "44px", borderRadius: "14px",
+        background: "#EAF6FE", border: "1px solid #BAE6FD",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: "20px", flexShrink: 0,
+      }}>🏊</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontSize: "14px", fontWeight: 700, color: INK, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {meet.meet_name}
+        </p>
+        <p style={{ fontSize: "11px", color: MUTED, marginTop: "2px" }}>
+          {[formatDate(meet.start_date), `${meet.swimmer_count} swimmer${meet.swimmer_count !== 1 ? "s" : ""}`]
+            .filter(Boolean).join(" · ")}
+        </p>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "5px", flexShrink: 0 }}>
+        <span style={{
+          background: "#EAF6FE", border: "1px solid #BAE6FD",
+          borderRadius: "20px", padding: "3px 10px",
+          fontSize: "10px", fontWeight: 700, color: "#0369A1", whiteSpace: "nowrap",
+        }}>
+          {meet.result_count} result{meet.result_count !== 1 ? "s" : ""}
+        </span>
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M5 3L9 7L5 11" stroke="#B7C9D8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </div>
+    </Link>
+  );
+}
+
 // ─── Year group (collapsible) ─────────────────────────────────────────────────
 
 function YearGroup({ year, defaultOpen, children }: { year: string; defaultOpen: boolean; children: React.ReactNode }) {
@@ -363,7 +418,15 @@ function YearGroup({ year, defaultOpen, children }: { year: string; defaultOpen:
 
 export default function MeetsPage() {
   const router = useRouter();
-  const [tab, setTab] = useState<"upcoming" | "past">("upcoming");
+  const [tab, setTab] = useState<Tab>("upcoming");
+
+  // "All meets" search state
+  const [allQuery, setAllQuery] = useState("");
+  const [allYear, setAllYear] = useState<number | null>(null);
+  const [allMeets, setAllMeets] = useState<AllMeet[]>([]);
+  const [allLoading, setAllLoading] = useState(false);
+  const [allError, setAllError] = useState("");
+  const allLoadedOnce = useRef(false);
   const [upcomingMeets, setUpcomingMeets] = useState<UpcomingMeet[]>([]);
   const [overdueMeets, setOverdueMeets] = useState<UpcomingMeet[]>([]);
   const [pastMeets, setPastMeets] = useState<PastMeet[]>([]);
@@ -374,6 +437,38 @@ export default function MeetsPage() {
   const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => { void load(); }, []);
+
+  // Open straight to a tab when linked, e.g. Home → Quick tools → "Find a meet"
+  // goes to /meets?tab=all.
+  useEffect(() => {
+    const wanted = new URLSearchParams(window.location.search).get("tab");
+    if (wanted === "all" || wanted === "past" || wanted === "upcoming") setTab(wanted);
+  }, []);
+
+  // Search the full meet database whenever the All meets tab is open and the
+  // text or year changes (short pause after typing so we don't fire per keystroke).
+  useEffect(() => {
+    if (tab !== "all") return;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setAllLoading(true);
+      setAllError("");
+      const { data, error } = await supabase.rpc("search_meets", {
+        p_query: allQuery.trim() || null,
+        p_year: allYear,
+      });
+      if (cancelled) return;
+      if (error) {
+        setAllError("Couldn't load meets right now. Please try again.");
+        setAllMeets([]);
+      } else {
+        setAllMeets((data ?? []) as AllMeet[]);
+      }
+      setAllLoading(false);
+      allLoadedOnce.current = true;
+    }, allLoadedOnce.current ? 300 : 0);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [tab, allQuery, allYear]);
 
   async function load() {
     const { data: { session } } = await supabase.auth.getSession();
@@ -498,7 +593,7 @@ export default function MeetsPage() {
         <div style={{
           display: "flex", ...CARD, borderRadius: "16px", padding: "4px", gap: "3px",
         }}>
-          {(["upcoming", "past"] as const).map((t) => (
+          {(["upcoming", "past", "all"] as const).map((t) => (
             <button
               key={t}
               type="button"
@@ -512,7 +607,7 @@ export default function MeetsPage() {
                 textTransform: "capitalize",
               }}
             >
-              {t === "upcoming" ? "Upcoming" : "Past"}
+              {t === "upcoming" ? "Upcoming" : t === "past" ? "Past" : "All meets"}
             </button>
           ))}
         </div>
@@ -585,6 +680,94 @@ export default function MeetsPage() {
                   </div>
                 )}
               </>
+            )}
+          </div>
+        )}
+
+        {/* All meets tab — search every meet in the Natrix database */}
+        {tab === "all" && (
+          <div className="space-y-3">
+            <div style={{
+              display: "flex", alignItems: "center", gap: "10px",
+              ...CARD, borderRadius: "18px", padding: "4px 14px",
+            }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="11" cy="11" r="6.5" stroke={INK} strokeWidth="2" />
+                <path d="M16 16L21 21" stroke={INK} strokeWidth="2" strokeLinecap="round" />
+              </svg>
+              <input
+                type="text"
+                value={allQuery}
+                onChange={(e) => setAllQuery(e.target.value)}
+                placeholder="Search meets by name…"
+                style={{
+                  flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none",
+                  padding: "12px 0", fontSize: "15px", color: INK,
+                }}
+              />
+              {allQuery && (
+                <button
+                  type="button"
+                  onClick={() => setAllQuery("")}
+                  aria-label="Clear search"
+                  style={{ background: "none", border: "none", color: MUTED, fontSize: "18px", cursor: "pointer" }}
+                >
+                  ×
+                </button>
+              )}
+            </div>
+
+            {/* Year chips */}
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              {[null, ...Array.from(
+                { length: Math.max(1, new Date().getFullYear() - 2026 + 1) },
+                (_, i) => new Date().getFullYear() - i
+              )].map((y) => {
+                const active = allYear === y;
+                return (
+                  <button
+                    key={y ?? "any"}
+                    type="button"
+                    onClick={() => setAllYear(y)}
+                    style={{
+                      padding: "7px 14px", borderRadius: "999px", cursor: "pointer",
+                      fontSize: "12px", fontWeight: 700,
+                      background: active ? ACCENT : "rgba(255,255,255,0.9)",
+                      color: active ? "#fff" : MUTED,
+                      border: active ? `1px solid ${ACCENT}` : "1px solid #E1EDF5",
+                    }}
+                  >
+                    {y ?? "All years"}
+                  </button>
+                );
+              })}
+            </div>
+
+            {allError && (
+              <p style={{ fontSize: "13px", color: "#FCA5A5", padding: "4px" }}>{allError}</p>
+            )}
+
+            {allLoading && allMeets.length === 0 ? (
+              <><SkeletonCard /><SkeletonCard /><SkeletonCard /></>
+            ) : allMeets.length === 0 && !allError ? (
+              <div className="rounded-[28px] p-8 text-center" style={CARD}>
+                <div style={{ fontSize: "32px", marginBottom: "10px" }}>🔎</div>
+                <p className="font-semibold" style={{ color: INK }}>No meets found</p>
+                <p className="mt-1 text-sm" style={{ color: MUTED }}>
+                  Try fewer words, or pick a different year.
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px", opacity: allLoading ? 0.6 : 1 }}>
+                {allMeets.map((meet) => (
+                  <AllMeetCard key={meet.meet_id} meet={meet} />
+                ))}
+                {allMeets.length >= 60 && (
+                  <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.5)", textAlign: "center", padding: "6px" }}>
+                    Showing the 60 most recent matches. Type more of the meet name to narrow it down.
+                  </p>
+                )}
+              </div>
             )}
           </div>
         )}
