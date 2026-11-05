@@ -1409,6 +1409,9 @@ function SwimmerGroup({
   // Chosen day for each undated group (starts on the meet's first day).
   const [seriesDays, setSeriesDays] = useState<Record<number, string>>({});
   const [savingSeries, setSavingSeries] = useState<number | null>(null);
+  // Only one undated group is shown at a time (chips switch between them),
+  // so the page stays short on a phone.
+  const [activeSeries, setActiveSeries] = useState<number | null>(null);
   const [seriesError, setSeriesError] = useState<string | null>(null);
 
   async function applyDayToSeries(series: number, evs: MeetEvent[]) {
@@ -1551,7 +1554,42 @@ function SwimmerGroup({
                   : " Pick the day they're on."}{" "}
                 If a group is spread over different days, set each race with Edit.
               </p>
-              {undatedSeries.map((g) => {
+              {undatedSeries.length > 1 && (
+                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "12px" }}>
+                  {undatedSeries.map((g, i) => {
+                    const active =
+                      (activeSeries !== null && undatedSeries.some((x) => x.series === activeSeries)
+                        ? activeSeries
+                        : undatedSeries[0].series) === g.series;
+                    return (
+                      <button
+                        key={g.series}
+                        type="button"
+                        onClick={() => setActiveSeries(g.series)}
+                        style={{
+                          padding: "6px 12px", borderRadius: "999px", cursor: "pointer",
+                          fontSize: "11.5px", fontWeight: 700,
+                          background: active ? "#B45309" : "#FFF7E6",
+                          color: active ? "#fff" : "#92400E",
+                          border: active ? "1px solid #B45309" : "1px solid #FBDBA7",
+                        }}
+                      >
+                        {`Group ${i + 1} · ${g.events.length} race${g.events.length === 1 ? "" : "s"}`}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {undatedSeries
+                .filter((g) =>
+                  undatedSeries.length <= 1
+                    ? true
+                    : g.series ===
+                      (activeSeries !== null && undatedSeries.some((x) => x.series === activeSeries)
+                        ? activeSeries
+                        : undatedSeries[0].series)
+                )
+                .map((g) => {
                 const chosen = seriesDays[g.series] ?? defaultDay;
                 const busy = savingSeries === g.series;
                 return (
