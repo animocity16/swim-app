@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { isDemoActive } from "@/lib/demo/demoMode";
 
 const TUTORIAL_KEY = "natrix_tutorial_done";
 
@@ -87,7 +88,7 @@ export default function TutorialOverlay() {
     "/swimmer",
     "/confirm-swimmer",
     "/calculator",
-  ].some((p) => pathname.startsWith(p));
+  ].some((p) => pathname.startsWith(p)) || isDemoActive(); // no tour in the demo, and it must not mark the real tutorial as seen
 
   useEffect(() => {
     setMounted(true);

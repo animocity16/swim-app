@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { appFetch } from "@/lib/demo/demoFetch";
 import PendingMatchesBanner from "@/app/components/PendingMatchesBanner";
 
 type Swimmer = {
@@ -194,7 +195,7 @@ export default function SwimmersPage() {
     setFollowingKey(key);
     setSearchError("");
     try {
-      const res = await fetch("/api/follow-result-swimmer", {
+      const res = await appFetch("/api/follow-result-swimmer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

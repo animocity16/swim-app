@@ -6,6 +6,7 @@ import SplashScreen from "@/app/components/SplashScreen";
 import ThemeProvider from "@/app/components/ThemeProvider";
 import LanguageProvider from "@/app/components/LanguageProvider";
 import DeviceGuard from "@/app/components/DeviceGuard";
+import DemoModeBanner from "@/app/components/DemoModeBanner";
 import { Analytics } from "@vercel/analytics/next";
 
 export const metadata: Metadata = {
@@ -79,6 +80,9 @@ export default function RootLayout({
 
         {/* Splash screen — cold launch only, skipped when returning from background */}
         <SplashScreen />
+
+        {/* Interactive demo notice — only appears while demo mode is on */}
+        <DemoModeBanner />
 
         {/* Water ripple overlay — sits behind all content */}
         <div className="water-ripple" aria-hidden="true" />

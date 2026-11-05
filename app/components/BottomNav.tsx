@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { isDemoActive } from "@/lib/demo/demoMode";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "@/lib/i18n";
 
@@ -76,10 +77,6 @@ const LOCK_BADGE = (
 
 const HIDDEN_ON = ["/login", "/signup", "/forgot-password", "/reset-password", "/invite", "/auth", "/onboarding"];
 
-// Settings isn't part of the public read-only demo, but the rest of the
-// navigation mirrors the real app so visitors can explore the product.
-const DEMO_HIDDEN_HREFS = ["/settings"];
-
 // Pages a logged-out parent can browse before creating an account. Anything
 // in the nav other than Home (which points at /search here) shows locked.
 const PUBLIC_PATHS = ["/", "/search"];
@@ -90,6 +87,12 @@ export default function BottomNav() {
   const pathname = usePathname();
   const router = useRouter();
   const [scanMenuOpen, setScanMenuOpen] = useState(false);
+  // Interactive demo: the real navigation runs on the visitor's sample data.
+  // Read after mount so server and first client render match.
+  const [isDemo, setIsDemo] = useState(false);
+  useEffect(() => {
+    setIsDemo(isDemoActive());
+  }, [pathname]);
   const scanWrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -108,11 +111,10 @@ export default function BottomNav() {
 
   if (HIDDEN_ON.some((p) => pathname.startsWith(p))) return null;
 
-  const isDemo = pathname.startsWith("/demo");
   const isPublic = !isDemo && (PUBLIC_PATHS.includes(pathname) || pathname.startsWith("/swimmer/"));
-  const prefix = isDemo ? "/demo" : "";
+  const prefix = "";
 
-  let items = isDemo ? NAV_ITEMS.filter((item) => !DEMO_HIDDEN_HREFS.includes(item.href)) : NAV_ITEMS;
+  let items = NAV_ITEMS;
   if (isPublic) {
     items = items
       .filter((item) => !PUBLIC_HIDDEN_HREFS.includes(item.href))

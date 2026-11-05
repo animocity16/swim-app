@@ -1,28 +1,54 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import ShareCardModal, { type ShareResult } from "@/app/components/ShareCardModal";
-import {
-  DEMO_PRIMARY_SWIMMER_ID,
-  DEMO_SWIMMERS,
-  DEMO_TIMES,
-  formatDate,
-  formatMs,
-} from "@/lib/demoData";
+import { getDb } from "@/lib/demo/store";
+import { formatDemoDate, formatDemoMs } from "@/lib/demo/format";
 
 type Stage = "ready" | "scanning" | "result";
+
+type DemoScanResult = {
+  event: string;
+  course: string;
+  time_ms: number;
+  meet_name: string;
+  swam_at: string;
+  place: number | null;
+  is_pb: boolean;
+};
 
 export default function DemoScanPage() {
   const [stage, setStage] = useState<Stage>("ready");
   const [shareResult, setShareResult] = useState<ShareResult | null>(null);
 
-  const swimmer = DEMO_SWIMMERS.find((s) => s.id === DEMO_PRIMARY_SWIMMER_ID)!;
-  const result = useMemo(() => {
-    return [...DEMO_TIMES]
-      .filter((row) => row.swimmer_id === DEMO_PRIMARY_SWIMMER_ID && row.event === "100 Free")
-      .sort((a, b) => new Date(b.swam_at).getTime() - new Date(a.swam_at).getTime())[0];
+  // Read after mount: the sample data lives in this browser tab only.
+  const [data, setData] = useState<{ swimmer: { id: number; name: string }; result: DemoScanResult } | null>(null);
+  useEffect(() => {
+    const db = getDb();
+    const swimmer = (db.tables.swimmers ?? []).find((r) => r.group_type === "primary");
+    if (!swimmer) return;
+    const rows = (db.tables.swim_times ?? []).filter(
+      (r) => r.swimmer_id === swimmer.id && r.event === "100 Free" && r.course === "LCM"
+    );
+    const latest = [...rows].sort((a, b) => String(b.swam_at).localeCompare(String(a.swam_at)))[0];
+    if (!latest) return;
+    const best = Math.min(...rows.map((r) => Number(r.time_ms)));
+    setData({
+      swimmer: { id: Number(swimmer.id), name: String(swimmer.name) },
+      result: {
+        event: String(latest.event),
+        course: String(latest.course),
+        time_ms: Number(latest.time_ms),
+        meet_name: String(latest.meet_name),
+        swam_at: String(latest.swam_at),
+        place: latest.place == null ? null : Number(latest.place),
+        is_pb: Number(latest.time_ms) === best,
+      },
+    });
   }, []);
+  const swimmer = data?.swimmer ?? { id: 1, name: "Emma Carter" };
+  const result = data?.result ?? null;
 
   function runDemoScan() {
     setStage("scanning");
@@ -57,7 +83,7 @@ export default function DemoScanPage() {
               See how a parent can turn a result screenshot into a tracked swim time.
             </p>
           </div>
-          <Link href="/demo/dashboard" className="rounded-full px-3 py-2 text-xs font-semibold text-white/60"
+          <Link href="/dashboard" className="rounded-full px-3 py-2 text-xs font-semibold text-white/60"
             style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}>
             Home
           </Link>
@@ -102,10 +128,10 @@ export default function DemoScanPage() {
             </div>
 
             <div className="space-y-2 text-sm">
-              <ResultRow place="1" name="Chloe Lim" time="1:16.20" muted />
-              <ResultRow place="2" name={swimmer.name} time={result ? formatMs(result.time_ms) : "1:18.30"} highlight />
-              <ResultRow place="3" name="Ava Wong" time="1:19.05" muted />
-              <ResultRow place="4" name="Natalie Teo" time="1:20.41" muted />
+              <ResultRow place="1" name="Olivia Grant" time="1:06.40" muted />
+              <ResultRow place="2" name={swimmer.name} time={result ? formatDemoMs(result.time_ms) : "1:07.50"} highlight />
+              <ResultRow place="3" name="Sofia Alvarez" time="1:09.10" muted />
+              <ResultRow place="4" name="Zoe Fischer" time="1:09.85" muted />
             </div>
           </div>
         </div>
@@ -152,10 +178,10 @@ export default function DemoScanPage() {
               </div>
 
               <div className="mt-5 grid grid-cols-2 gap-3">
-                <Metric label="Time" value={formatMs(result.time_ms)} />
+                <Metric label="Time" value={formatDemoMs(result.time_ms)} />
                 <Metric label="Place" value={result.place ? `#${result.place}` : "—"} />
                 <Metric label="Meet" value={result.meet_name} small />
-                <Metric label="Date" value={formatDate(result.swam_at)} small />
+                <Metric label="Date" value={formatDemoDate(result.swam_at)} small />
               </div>
 
               <div className="mt-4 flex items-center gap-2">
@@ -175,7 +201,7 @@ export default function DemoScanPage() {
                 style={{ background: "#D97706" }}>
                 Share result
               </button>
-              <Link href={`/demo/swimmers/${swimmer.id}`}
+              <Link href={`/swimmers/${swimmer.id}`}
                 className="rounded-2xl py-3.5 text-center text-sm font-semibold text-white/80"
                 style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)" }}>
                 View profile
@@ -184,7 +210,7 @@ export default function DemoScanPage() {
 
             <button type="button" onClick={() => setStage("ready")}
               className="w-full py-2 text-xs font-semibold text-white/35">
-              Reset demo
+              Scan again
             </button>
           </div>
         )}
