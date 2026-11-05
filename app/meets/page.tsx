@@ -490,6 +490,8 @@ export default function MeetsPage() {
   const [swimLoading, setSwimLoading] = useState(false);
   const [swimError, setSwimError] = useState("");
   const [allQuery, setAllQuery] = useState("");
+  const [swimClub, setSwimClub] = useState("");
+  const [swimAge, setSwimAge] = useState("");
   const [allYear, setAllYear] = useState<number | null>(null);
   const [allMeets, setAllMeets] = useState<AllMeet[]>([]);
   const [allLoading, setAllLoading] = useState(false);
@@ -542,7 +544,9 @@ export default function MeetsPage() {
   useEffect(() => {
     if (tab !== "all" || allMode !== "swimmers") return;
     const q = allQuery.trim();
-    if (q.length < 2) {
+    const club = swimClub.trim();
+    const age = swimAge ? Number(swimAge) : null;
+    if (q.length < 2 && club.length < 2 && age === null) {
       setSwimHits([]);
       setSwimError("");
       setSwimLoading(false);
@@ -551,7 +555,11 @@ export default function MeetsPage() {
     let cancelled = false;
     setSwimLoading(true);
     const timer = setTimeout(async () => {
-      const { data, error } = await supabase.rpc("search_all_swimmers", { p_query: q });
+      const { data, error } = await supabase.rpc("search_all_swimmers", {
+        p_query: q.length >= 2 ? q : null,
+        p_club: club.length >= 2 ? club : null,
+        p_age: age,
+      });
       if (cancelled) return;
       if (error) {
         setSwimError("Couldn't search swimmers right now. Please try again.");
@@ -563,7 +571,7 @@ export default function MeetsPage() {
       setSwimLoading(false);
     }, 300);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [tab, allMode, allQuery]);
+  }, [tab, allMode, allQuery, swimClub, swimAge]);
 
   async function load() {
     const { data: { session } } = await supabase.auth.getSession();
@@ -891,16 +899,56 @@ export default function MeetsPage() {
             {/* ── Swimmers mode: anyone in the saved meet data, no age limit ── */}
             {allMode === "swimmers" && (
               <>
+                {/* Filters: club and age (name is the search box above) */}
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <input
+                    type="text"
+                    value={swimClub}
+                    onChange={(e) => setSwimClub(e.target.value)}
+                    placeholder="Club…"
+                    style={{
+                      flex: 1, minWidth: 0, ...CARD, borderRadius: "14px",
+                      padding: "11px 14px", fontSize: "14px", color: INK, outline: "none",
+                    }}
+                  />
+                  <select
+                    value={swimAge}
+                    onChange={(e) => setSwimAge(e.target.value)}
+                    aria-label="Age"
+                    style={{
+                      flexShrink: 0, width: "112px", ...CARD, borderRadius: "14px",
+                      padding: "11px 10px", fontSize: "14px", color: swimAge ? INK : MUTED, outline: "none",
+                    }}
+                  >
+                    <option value="">Any age</option>
+                    {Array.from({ length: 36 }, (_, i) => i + 6).map((a) => (
+                      <option key={a} value={a}>{`Age ${a}`}</option>
+                    ))}
+                  </select>
+                </div>
+                {(swimClub || swimAge) && (
+                  <button
+                    type="button"
+                    onClick={() => { setSwimClub(""); setSwimAge(""); }}
+                    style={{
+                      alignSelf: "flex-start", background: "none", border: "none", padding: "2px 4px",
+                      color: "rgba(255,255,255,0.7)", fontSize: "12px", fontWeight: 600, cursor: "pointer",
+                    }}
+                  >
+                    Clear club and age
+                  </button>
+                )}
+
                 {swimError && (
                   <p style={{ fontSize: "13px", color: "#FCA5A5", padding: "4px" }}>{swimError}</p>
                 )}
 
-                {allQuery.trim().length < 2 ? (
+                {allQuery.trim().length < 2 && swimClub.trim().length < 2 && !swimAge ? (
                   <div className="rounded-[28px] p-8 text-center" style={CARD}>
                     <div style={{ fontSize: "32px", marginBottom: "10px" }}>🏊</div>
                     <p className="font-semibold" style={{ color: INK }}>Find any swimmer</p>
                     <p className="mt-1 text-sm" style={{ color: MUTED }}>
-                      Type a name to search every swimmer in the meets we&apos;ve saved. You don&apos;t have to follow them first.
+                      Search by name, club, age, or any mix. It covers every swimmer in the meets we&apos;ve saved, and you don&apos;t have to follow them first.
                     </p>
                   </div>
                 ) : swimLoading && swimHits.length === 0 ? (
@@ -910,7 +958,7 @@ export default function MeetsPage() {
                     <div style={{ fontSize: "32px", marginBottom: "10px" }}>🔎</div>
                     <p className="font-semibold" style={{ color: INK }}>No swimmers found</p>
                     <p className="mt-1 text-sm" style={{ color: MUTED }}>
-                      Try just the first or last name, or check the spelling.
+                      Try fewer filters, just the first or last name, or check the spelling.
                     </p>
                   </div>
                 ) : (
@@ -920,7 +968,7 @@ export default function MeetsPage() {
                     ))}
                     {swimHits.length >= 40 && (
                       <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.5)", textAlign: "center", padding: "6px" }}>
-                        Showing the first 40 matches. Add a first name to narrow it down.
+                        Showing the first 40 matches. Add a name, club or age to narrow it down.
                       </p>
                     )}
                   </div>
