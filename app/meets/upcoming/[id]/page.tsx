@@ -1378,25 +1378,55 @@ function SwimmerGroup({
     [events, activeDay]
   );
 
-  // Give every event in the "Day not set" group a day in one go.
-  const [bulkDay, setBulkDay] = useState(defaultDay);
-  const [bulkSaving, setBulkSaving] = useState(false);
-  const [bulkError, setBulkError] = useState<string | null>(null);
+  // Races imported before days existed have no day. Start-list event numbers
+  // run in series per session/day (e.g. 104, 112, 116 vs 204, 210), so split
+  // the undated races into groups by that series. Each group gets its own
+  // fuel plan and its own day picker, instead of one plan mashing them all.
+  const undatedSeries = useMemo(() => {
+    const map = new Map<number, MeetEvent[]>();
+    for (const e of events) {
+      if (e.event_date) continue;
+      const series = Math.floor((e.event_number || 0) / 100);
+      if (!map.has(series)) map.set(series, []);
+      map.get(series)!.push(e);
+    }
+    return Array.from(map.entries())
+      .sort((x, y) => x[0] - y[0])
+      .map(([series, evs]) => {
+        const nums = evs.map((e) => e.event_number).sort((m, n) => m - n);
+        const shown = nums.slice(0, 6).join(", ") + (nums.length > 6 ? "…" : "");
+        return {
+          series,
+          events: evs,
+          label: `Races ${shown}`,
+          items: buildDayPlan(
+            evs.map((e) => ({ name: e.event_name, warmup: e.warmup_time, start: e.start_time }))
+          ),
+        };
+      });
+  }, [events]);
 
-  async function applyDayToUndated() {
-    if (!bulkDay) return;
-    const ids = events.filter((e) => !e.event_date).map((e) => e.id);
-    if (ids.length === 0) return;
-    setBulkSaving(true);
-    setBulkError(null);
-    const { error } = await supabase.from("meet_events").update({ event_date: bulkDay }).in("id", ids);
-    setBulkSaving(false);
+  // Chosen day for each undated group (starts on the meet's first day).
+  const [seriesDays, setSeriesDays] = useState<Record<number, string>>({});
+  const [savingSeries, setSavingSeries] = useState<number | null>(null);
+  const [seriesError, setSeriesError] = useState<string | null>(null);
+
+  async function applyDayToSeries(series: number, evs: MeetEvent[]) {
+    const day = seriesDays[series] ?? defaultDay;
+    if (!day || evs.length === 0) return;
+    setSavingSeries(series);
+    setSeriesError(null);
+    const { error } = await supabase
+      .from("meet_events")
+      .update({ event_date: day })
+      .in("id", evs.map((e) => e.id));
+    setSavingSeries(null);
     if (error) {
-      setBulkError(error.message);
+      setSeriesError(error.message);
       return;
     }
-    ids.forEach((id) => onUpdated(id, { event_date: bulkDay }));
-    setSelectedDay(bulkDay);
+    evs.forEach((e) => onUpdated(e.id, { event_date: day }));
+    setSelectedDay(day);
   }
 
   return (
@@ -1510,49 +1540,69 @@ function SwimmerGroup({
             </p>
           )}
 
-          {/* Events that don't have a day yet: pick it once for all of them */}
-          {activeDay === NO_DAY && (
-            <div style={{
-              background: "#FFF7E6", border: "1px solid #FBDBA7", borderRadius: "12px",
-              padding: "10px 12px", marginBottom: "12px",
-            }}>
-              <p style={{ fontSize: "11.5px", color: "#92400E", margin: "0 0 8px", lineHeight: 1.4 }}>
-                These races don&apos;t have a day yet, so they&apos;re all shown together. Pick the day
-                they&apos;re on. If they&apos;re spread over different days, set each one with Edit.
+          {/* Races without a day yet: split into groups by event-number series,
+              each with its own day picker and its own fuel plan */}
+          {activeDay === NO_DAY ? (
+            <>
+              <p style={{ fontSize: "11.5px", color: "#92400E", margin: "0 0 10px", lineHeight: 1.4 }}>
+                These races don&apos;t have a day yet.
+                {undatedSeries.length > 1
+                  ? " I've split them into groups by event number (races in the same series are usually on the same day). Pick the day for each group."
+                  : " Pick the day they're on."}{" "}
+                If a group is spread over different days, set each race with Edit.
               </p>
-              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                <input
-                  type="date"
-                  value={bulkDay}
-                  onChange={(e) => setBulkDay(e.target.value)}
-                  style={{
-                    flex: 1, minWidth: 0, background: "#fff",
-                    border: "1px solid #DFEAF2", borderRadius: "8px",
-                    padding: "6px 10px", color: INK, fontSize: "12px",
-                    outline: "none", boxSizing: "border-box",
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={applyDayToUndated}
-                  disabled={bulkSaving || !bulkDay}
-                  style={{
-                    flexShrink: 0, background: ACCENT, border: "none", borderRadius: "8px",
-                    padding: "7px 12px", color: "#fff", fontSize: "12px", fontWeight: 600,
-                    cursor: bulkSaving || !bulkDay ? "default" : "pointer",
-                    opacity: bulkSaving || !bulkDay ? 0.6 : 1,
-                  }}
-                >
-                  {bulkSaving ? "Saving…" : "Set day"}
-                </button>
-              </div>
-              {bulkError && (
-                <p style={{ fontSize: "11px", color: "#C0392B", margin: "6px 0 0" }}>{bulkError}</p>
+              {undatedSeries.map((g) => {
+                const chosen = seriesDays[g.series] ?? defaultDay;
+                const busy = savingSeries === g.series;
+                return (
+                  <div key={g.series} style={{ marginBottom: "16px" }}>
+                    <div style={{
+                      background: "#FFF7E6", border: "1px solid #FBDBA7", borderRadius: "12px",
+                      padding: "10px 12px", marginBottom: "10px",
+                    }}>
+                      <p style={{ fontSize: "12px", fontWeight: 700, color: "#92400E", margin: "0 0 8px" }}>
+                        {g.label}
+                      </p>
+                      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                        <input
+                          type="date"
+                          value={chosen}
+                          onChange={(e) =>
+                            setSeriesDays((prev) => ({ ...prev, [g.series]: e.target.value }))
+                          }
+                          style={{
+                            flex: 1, minWidth: 0, background: "#fff",
+                            border: "1px solid #DFEAF2", borderRadius: "8px",
+                            padding: "6px 10px", color: INK, fontSize: "12px",
+                            outline: "none", boxSizing: "border-box",
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => applyDayToSeries(g.series, g.events)}
+                          disabled={busy || !chosen}
+                          style={{
+                            flexShrink: 0, background: ACCENT, border: "none", borderRadius: "8px",
+                            padding: "7px 12px", color: "#fff", fontSize: "12px", fontWeight: 600,
+                            cursor: busy || !chosen ? "default" : "pointer",
+                            opacity: busy || !chosen ? 0.6 : 1,
+                          }}
+                        >
+                          {busy ? "Saving…" : "Set day"}
+                        </button>
+                      </div>
+                    </div>
+                    <FuelPlanTimeline items={g.items} />
+                  </div>
+                );
+              })}
+              {seriesError && (
+                <p style={{ fontSize: "11px", color: "#C0392B", margin: "0 0 6px" }}>{seriesError}</p>
               )}
-            </div>
+            </>
+          ) : (
+            <FuelPlanTimeline items={fuelPlanItems} />
           )}
-
-          <FuelPlanTimeline items={fuelPlanItems} />
         </div>
       )}
 
