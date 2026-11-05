@@ -912,7 +912,7 @@ export default function MeetsPage() {
                     type="text"
                     value={swimClub}
                     onChange={(e) => setSwimClub(e.target.value)}
-                    placeholder="Club…"
+                    placeholder="Club (e.g. SSC, CSC)…"
                     style={{
                       flex: 1, minWidth: 0, ...CARD, borderRadius: "14px",
                       padding: "11px 14px", fontSize: "14px", color: INK, outline: "none",
