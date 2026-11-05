@@ -323,9 +323,19 @@ export default function AllMeetDetailPage() {
                             {r.place ?? "–"}
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <p style={{ fontSize: "13px", fontWeight: 600, color: INK, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            <Link
+                              href={
+                                `/meets/swimmer?name=${encodeURIComponent(r.swimmerName)}` +
+                                (r.team ? `&team=${encodeURIComponent(r.team)}` : "")
+                              }
+                              style={{
+                                display: "block", fontSize: "13px", fontWeight: 600, color: INK,
+                                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                                textDecoration: "none",
+                              }}
+                            >
                               {displayName(r.swimmerName)}
-                            </p>
+                            </Link>
                             <p style={{ fontSize: "10px", color: MUTED, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                               {[r.team, r.age != null ? `Age ${r.age}` : null].filter(Boolean).join(" · ")}
                             </p>

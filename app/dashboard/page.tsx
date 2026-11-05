@@ -1221,10 +1221,10 @@ export default function DashboardPage() {
               </div>
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-semibold" style={{ color: "#0B2A54" }}>
-                  Find a meet
+                  Find a meet or swimmer
                 </div>
                 <div className="mt-0.5 text-[10px]" style={{ color: "#71859A" }}>
-                  Search every meet in Natrix
+                  Search all meets and swimmers in Natrix
                 </div>
               </div>
               <span style={{ color: "#7A8EA2" }}>›</span>

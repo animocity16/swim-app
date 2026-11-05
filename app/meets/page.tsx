@@ -46,7 +46,23 @@ type AllMeet = {
   swimmer_count: number;
 };
 
+// A swimmer found by name across every saved meet.
+type SwimmerHit = {
+  swimmer_name: string; // as stored, e.g. "Tan, Alex"
+  team_name: string | null;
+  latest_age: number | null;
+  result_count: number;
+  meet_count: number;
+};
+
 type Tab = "upcoming" | "past" | "all";
+
+// Meet results store names as "Last, First". Show "First Last".
+function displayName(raw: string): string {
+  const idx = raw.indexOf(",");
+  const flipped = idx > -1 ? `${raw.slice(idx + 1).trim()} ${raw.slice(0, idx).trim()}` : raw.trim();
+  return flipped.replace(/\s+/g, " ");
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -381,6 +397,54 @@ function AllMeetCard({ meet }: { meet: AllMeet }) {
   );
 }
 
+// ─── Swimmer from the full database (search results) ─────────────────────────
+
+function SwimmerHitCard({ hit }: { hit: SwimmerHit }) {
+  const href =
+    `/meets/swimmer?name=${encodeURIComponent(hit.swimmer_name)}` +
+    (hit.team_name ? `&team=${encodeURIComponent(hit.team_name)}` : "");
+  const initial = displayName(hit.swimmer_name).charAt(0).toUpperCase() || "?";
+  return (
+    <Link
+      href={href}
+      style={{
+        display: "flex", alignItems: "center", gap: "14px",
+        ...CARD, borderRadius: "20px", padding: "14px 16px",
+        textDecoration: "none",
+      }}
+    >
+      <div style={{
+        width: "44px", height: "44px", borderRadius: "50%",
+        background: "#EAF6FE", border: "1px solid #BAE6FD",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: "16px", fontWeight: 800, color: "#0369A1", flexShrink: 0,
+      }}>
+        {initial}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontSize: "14px", fontWeight: 700, color: INK, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {displayName(hit.swimmer_name)}
+        </p>
+        <p style={{ fontSize: "11px", color: MUTED, marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {[hit.team_name, hit.latest_age != null ? `Age ${hit.latest_age}` : null].filter(Boolean).join(" · ")}
+        </p>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "5px", flexShrink: 0 }}>
+        <span style={{
+          background: "#EAF6FE", border: "1px solid #BAE6FD",
+          borderRadius: "20px", padding: "3px 10px",
+          fontSize: "10px", fontWeight: 700, color: "#0369A1", whiteSpace: "nowrap",
+        }}>
+          {hit.result_count} result{hit.result_count !== 1 ? "s" : ""}
+        </span>
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M5 3L9 7L5 11" stroke="#B7C9D8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </div>
+    </Link>
+  );
+}
+
 // ─── Year group (collapsible) ─────────────────────────────────────────────────
 
 function YearGroup({ year, defaultOpen, children }: { year: string; defaultOpen: boolean; children: React.ReactNode }) {
@@ -420,7 +484,11 @@ export default function MeetsPage() {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("upcoming");
 
-  // "All meets" search state
+  // Search tab state (shared text box for Meets and Swimmers)
+  const [allMode, setAllMode] = useState<"meets" | "swimmers">("meets");
+  const [swimHits, setSwimHits] = useState<SwimmerHit[]>([]);
+  const [swimLoading, setSwimLoading] = useState(false);
+  const [swimError, setSwimError] = useState("");
   const [allQuery, setAllQuery] = useState("");
   const [allYear, setAllYear] = useState<number | null>(null);
   const [allMeets, setAllMeets] = useState<AllMeet[]>([]);
@@ -448,7 +516,7 @@ export default function MeetsPage() {
   // Search the full meet database whenever the All meets tab is open and the
   // text or year changes (short pause after typing so we don't fire per keystroke).
   useEffect(() => {
-    if (tab !== "all") return;
+    if (tab !== "all" || allMode !== "meets") return;
     let cancelled = false;
     const timer = setTimeout(async () => {
       setAllLoading(true);
@@ -468,7 +536,34 @@ export default function MeetsPage() {
       allLoadedOnce.current = true;
     }, allLoadedOnce.current ? 300 : 0);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [tab, allQuery, allYear]);
+  }, [tab, allMode, allQuery, allYear]);
+
+  // Swimmer search: any swimmer in the saved meet data, no age limit.
+  useEffect(() => {
+    if (tab !== "all" || allMode !== "swimmers") return;
+    const q = allQuery.trim();
+    if (q.length < 2) {
+      setSwimHits([]);
+      setSwimError("");
+      setSwimLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setSwimLoading(true);
+    const timer = setTimeout(async () => {
+      const { data, error } = await supabase.rpc("search_all_swimmers", { p_query: q });
+      if (cancelled) return;
+      if (error) {
+        setSwimError("Couldn't search swimmers right now. Please try again.");
+        setSwimHits([]);
+      } else {
+        setSwimError("");
+        setSwimHits((data ?? []) as SwimmerHit[]);
+      }
+      setSwimLoading(false);
+    }, 300);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [tab, allMode, allQuery]);
 
   async function load() {
     const { data: { session } } = await supabase.auth.getSession();
@@ -607,7 +702,7 @@ export default function MeetsPage() {
                 textTransform: "capitalize",
               }}
             >
-              {t === "upcoming" ? "Upcoming" : t === "past" ? "Past" : "All meets"}
+              {t === "upcoming" ? "Upcoming" : t === "past" ? "Past" : "Search"}
             </button>
           ))}
         </div>
@@ -684,9 +779,28 @@ export default function MeetsPage() {
           </div>
         )}
 
-        {/* All meets tab — search every meet in the Natrix database */}
+        {/* Search tab — look up any meet, or any swimmer, in the Natrix database */}
         {tab === "all" && (
           <div className="space-y-3">
+            {/* Meets | Swimmers */}
+            <div style={{ display: "flex", ...CARD, borderRadius: "14px", padding: "3px", gap: "3px" }}>
+              {(["meets", "swimmers"] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setAllMode(m)}
+                  style={{
+                    flex: 1, padding: "8px 0", borderRadius: "11px", border: "none",
+                    background: allMode === m ? INK : "transparent",
+                    color: allMode === m ? "#fff" : MUTED,
+                    fontSize: "12px", fontWeight: allMode === m ? 700 : 500, cursor: "pointer",
+                  }}
+                >
+                  {m === "meets" ? "Meets" : "Swimmers"}
+                </button>
+              ))}
+            </div>
+
             <div style={{
               display: "flex", alignItems: "center", gap: "10px",
               ...CARD, borderRadius: "18px", padding: "4px 14px",
@@ -699,7 +813,7 @@ export default function MeetsPage() {
                 type="text"
                 value={allQuery}
                 onChange={(e) => setAllQuery(e.target.value)}
-                placeholder="Search meets by name…"
+                placeholder={allMode === "meets" ? "Search meets by name…" : "Search any swimmer by name…"}
                 style={{
                   flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none",
                   padding: "12px 0", fontSize: "15px", color: INK,
@@ -717,57 +831,101 @@ export default function MeetsPage() {
               )}
             </div>
 
-            {/* Year chips */}
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-              {[null, ...Array.from(
-                { length: Math.max(1, new Date().getFullYear() - 2026 + 1) },
-                (_, i) => new Date().getFullYear() - i
-              )].map((y) => {
-                const active = allYear === y;
-                return (
-                  <button
-                    key={y ?? "any"}
-                    type="button"
-                    onClick={() => setAllYear(y)}
-                    style={{
-                      padding: "7px 14px", borderRadius: "999px", cursor: "pointer",
-                      fontSize: "12px", fontWeight: 700,
-                      background: active ? ACCENT : "rgba(255,255,255,0.9)",
-                      color: active ? "#fff" : MUTED,
-                      border: active ? `1px solid ${ACCENT}` : "1px solid #E1EDF5",
-                    }}
-                  >
-                    {y ?? "All years"}
-                  </button>
-                );
-              })}
-            </div>
+            {/* ── Meets mode ── */}
+            {allMode === "meets" && (
+              <>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                  {[null, ...Array.from(
+                    { length: Math.max(1, new Date().getFullYear() - 2026 + 1) },
+                    (_, i) => new Date().getFullYear() - i
+                  )].map((y) => {
+                    const active = allYear === y;
+                    return (
+                      <button
+                        key={y ?? "any"}
+                        type="button"
+                        onClick={() => setAllYear(y)}
+                        style={{
+                          padding: "7px 14px", borderRadius: "999px", cursor: "pointer",
+                          fontSize: "12px", fontWeight: 700,
+                          background: active ? ACCENT : "rgba(255,255,255,0.9)",
+                          color: active ? "#fff" : MUTED,
+                          border: active ? `1px solid ${ACCENT}` : "1px solid #E1EDF5",
+                        }}
+                      >
+                        {y ?? "All years"}
+                      </button>
+                    );
+                  })}
+                </div>
 
-            {allError && (
-              <p style={{ fontSize: "13px", color: "#FCA5A5", padding: "4px" }}>{allError}</p>
+                {allError && (
+                  <p style={{ fontSize: "13px", color: "#FCA5A5", padding: "4px" }}>{allError}</p>
+                )}
+
+                {allLoading && allMeets.length === 0 ? (
+                  <><SkeletonCard /><SkeletonCard /><SkeletonCard /></>
+                ) : allMeets.length === 0 && !allError ? (
+                  <div className="rounded-[28px] p-8 text-center" style={CARD}>
+                    <div style={{ fontSize: "32px", marginBottom: "10px" }}>🔎</div>
+                    <p className="font-semibold" style={{ color: INK }}>No meets found</p>
+                    <p className="mt-1 text-sm" style={{ color: MUTED }}>
+                      Try fewer words, or pick a different year.
+                    </p>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px", opacity: allLoading ? 0.6 : 1 }}>
+                    {allMeets.map((meet) => (
+                      <AllMeetCard key={meet.meet_id} meet={meet} />
+                    ))}
+                    {allMeets.length >= 60 && (
+                      <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.5)", textAlign: "center", padding: "6px" }}>
+                        Showing the 60 most recent matches. Type more of the meet name to narrow it down.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </>
             )}
 
-            {allLoading && allMeets.length === 0 ? (
-              <><SkeletonCard /><SkeletonCard /><SkeletonCard /></>
-            ) : allMeets.length === 0 && !allError ? (
-              <div className="rounded-[28px] p-8 text-center" style={CARD}>
-                <div style={{ fontSize: "32px", marginBottom: "10px" }}>🔎</div>
-                <p className="font-semibold" style={{ color: INK }}>No meets found</p>
-                <p className="mt-1 text-sm" style={{ color: MUTED }}>
-                  Try fewer words, or pick a different year.
-                </p>
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px", opacity: allLoading ? 0.6 : 1 }}>
-                {allMeets.map((meet) => (
-                  <AllMeetCard key={meet.meet_id} meet={meet} />
-                ))}
-                {allMeets.length >= 60 && (
-                  <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.5)", textAlign: "center", padding: "6px" }}>
-                    Showing the 60 most recent matches. Type more of the meet name to narrow it down.
-                  </p>
+            {/* ── Swimmers mode: anyone in the saved meet data, no age limit ── */}
+            {allMode === "swimmers" && (
+              <>
+                {swimError && (
+                  <p style={{ fontSize: "13px", color: "#FCA5A5", padding: "4px" }}>{swimError}</p>
                 )}
-              </div>
+
+                {allQuery.trim().length < 2 ? (
+                  <div className="rounded-[28px] p-8 text-center" style={CARD}>
+                    <div style={{ fontSize: "32px", marginBottom: "10px" }}>🏊</div>
+                    <p className="font-semibold" style={{ color: INK }}>Find any swimmer</p>
+                    <p className="mt-1 text-sm" style={{ color: MUTED }}>
+                      Type a name to search every swimmer in the meets we&apos;ve saved. You don&apos;t have to follow them first.
+                    </p>
+                  </div>
+                ) : swimLoading && swimHits.length === 0 ? (
+                  <><SkeletonCard /><SkeletonCard /><SkeletonCard /></>
+                ) : swimHits.length === 0 && !swimError ? (
+                  <div className="rounded-[28px] p-8 text-center" style={CARD}>
+                    <div style={{ fontSize: "32px", marginBottom: "10px" }}>🔎</div>
+                    <p className="font-semibold" style={{ color: INK }}>No swimmers found</p>
+                    <p className="mt-1 text-sm" style={{ color: MUTED }}>
+                      Try just the first or last name, or check the spelling.
+                    </p>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px", opacity: swimLoading ? 0.6 : 1 }}>
+                    {swimHits.map((hit) => (
+                      <SwimmerHitCard key={`${hit.swimmer_name}|${hit.team_name ?? ""}`} hit={hit} />
+                    ))}
+                    {swimHits.length >= 40 && (
+                      <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.5)", textAlign: "center", padding: "6px" }}>
+                        Showing the first 40 matches. Add a first name to narrow it down.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
