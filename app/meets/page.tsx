@@ -53,6 +53,7 @@ type SwimmerHit = {
   latest_age: number | null;
   result_count: number;
   meet_count: number;
+  gender?: "F" | "M" | null;
 };
 
 type Tab = "upcoming" | "past" | "all";
@@ -426,7 +427,11 @@ function SwimmerHitCard({ hit }: { hit: SwimmerHit }) {
           {displayName(hit.swimmer_name)}
         </p>
         <p style={{ fontSize: "11px", color: MUTED, marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {[hit.team_name, hit.latest_age != null ? `Age ${hit.latest_age}` : null].filter(Boolean).join(" · ")}
+          {[
+            hit.team_name,
+            hit.latest_age != null ? `Age ${hit.latest_age}` : null,
+            hit.gender === "F" ? "Girl" : hit.gender === "M" ? "Boy" : null,
+          ].filter(Boolean).join(" · ")}
         </p>
       </div>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "5px", flexShrink: 0 }}>
@@ -492,6 +497,7 @@ export default function MeetsPage() {
   const [allQuery, setAllQuery] = useState("");
   const [swimClub, setSwimClub] = useState("");
   const [swimAge, setSwimAge] = useState("");
+  const [swimGender, setSwimGender] = useState<"" | "F" | "M">("");
   const [allYear, setAllYear] = useState<number | null>(null);
   const [allMeets, setAllMeets] = useState<AllMeet[]>([]);
   const [allLoading, setAllLoading] = useState(false);
@@ -546,7 +552,7 @@ export default function MeetsPage() {
     const q = allQuery.trim();
     const club = swimClub.trim();
     const age = swimAge ? Number(swimAge) : null;
-    if (q.length < 2 && club.length < 2 && age === null) {
+    if (q.length < 2 && club.length < 2 && age === null && !swimGender) {
       setSwimHits([]);
       setSwimError("");
       setSwimLoading(false);
@@ -559,6 +565,7 @@ export default function MeetsPage() {
         p_query: q.length >= 2 ? q : null,
         p_club: club.length >= 2 ? club : null,
         p_age: age,
+        p_gender: swimGender || null,
       });
       if (cancelled) return;
       if (error) {
@@ -571,7 +578,7 @@ export default function MeetsPage() {
       setSwimLoading(false);
     }, 300);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [tab, allMode, allQuery, swimClub, swimAge]);
+  }, [tab, allMode, allQuery, swimClub, swimAge, swimGender]);
 
   async function load() {
     const { data: { session } } = await supabase.auth.getSession();
@@ -926,16 +933,37 @@ export default function MeetsPage() {
                     ))}
                   </select>
                 </div>
-                {(swimClub || swimAge) && (
+                <div style={{ display: "flex", gap: "8px" }}>
+                  {([["", "Any gender"], ["F", "Girls"], ["M", "Boys"]] as const).map(([val, label]) => {
+                    const active = swimGender === val;
+                    return (
+                      <button
+                        key={label}
+                        type="button"
+                        onClick={() => setSwimGender(val)}
+                        style={{
+                          flex: 1, padding: "8px 0", borderRadius: "999px", cursor: "pointer",
+                          fontSize: "12px", fontWeight: 700,
+                          background: active ? ACCENT : "rgba(255,255,255,0.9)",
+                          color: active ? "#fff" : MUTED,
+                          border: active ? `1px solid ${ACCENT}` : "1px solid #E1EDF5",
+                        }}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {(swimClub || swimAge || swimGender) && (
                   <button
                     type="button"
-                    onClick={() => { setSwimClub(""); setSwimAge(""); }}
+                    onClick={() => { setSwimClub(""); setSwimAge(""); setSwimGender(""); }}
                     style={{
                       alignSelf: "flex-start", background: "none", border: "none", padding: "2px 4px",
                       color: "rgba(255,255,255,0.7)", fontSize: "12px", fontWeight: 600, cursor: "pointer",
                     }}
                   >
-                    Clear club and age
+                    Clear filters
                   </button>
                 )}
 
@@ -943,12 +971,12 @@ export default function MeetsPage() {
                   <p style={{ fontSize: "13px", color: "#FCA5A5", padding: "4px" }}>{swimError}</p>
                 )}
 
-                {allQuery.trim().length < 2 && swimClub.trim().length < 2 && !swimAge ? (
+                {allQuery.trim().length < 2 && swimClub.trim().length < 2 && !swimAge && !swimGender ? (
                   <div className="rounded-[28px] p-8 text-center" style={CARD}>
                     <div style={{ fontSize: "32px", marginBottom: "10px" }}>🏊</div>
                     <p className="font-semibold" style={{ color: INK }}>Find any swimmer</p>
                     <p className="mt-1 text-sm" style={{ color: MUTED }}>
-                      Search by name, club, age, or any mix. It covers every swimmer in the meets we&apos;ve saved, and you don&apos;t have to follow them first.
+                      Search by name, club, age, gender, or any mix. It covers every swimmer in the meets we&apos;ve saved, and you don&apos;t have to follow them first.
                     </p>
                   </div>
                 ) : swimLoading && swimHits.length === 0 ? (
@@ -968,7 +996,7 @@ export default function MeetsPage() {
                     ))}
                     {swimHits.length >= 40 && (
                       <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.5)", textAlign: "center", padding: "6px" }}>
-                        Showing the first 40 matches. Add a name, club or age to narrow it down.
+                        Showing the first 40 matches. Add a name, club, age or gender to narrow it down.
                       </p>
                     )}
                   </div>
