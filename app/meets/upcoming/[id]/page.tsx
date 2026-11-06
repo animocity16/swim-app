@@ -546,11 +546,12 @@ function buildDayPlan(events: PlanInputEvent[]): PlanItem[] {
   const sorted = withTimes
     .filter((e) => e.s !== null)
     .sort((a, b) => (a.s as number) - (b.s as number))
-    .map((e) => ({ ...e, wEstimated: false })) as {
+    .map((e) => ({ ...e, wEstimated: false, wFlipped: false })) as {
     name: string;
     w: number | null;
     s: number;
     wEstimated: boolean;
+    wFlipped: boolean;
   }[];
 
   if (sorted.length === 0) return [];
@@ -562,6 +563,21 @@ function buildDayPlan(events: PlanInputEvent[]): PlanItem[] {
   //      3 hours, it's the same session - share that warm-up.
   //   2. Otherwise guess a warm-up 60 minutes before the race and mark it
   //      as estimated so the plan can say so.
+  // A warm-up can't happen AFTER its own race. That almost always means
+  // AM/PM got typed the wrong way round (e.g. 8:25 PM for a 9:55 AM race), so
+  // try flipping it by 12 hours. If that doesn't make sense either, throw it
+  // away and let it be estimated below.
+  sorted.forEach((ev) => {
+    if (ev.w === null || ev.w < ev.s - 5) return;
+    const flipped = ev.w - 720;
+    if (flipped >= 0 && flipped < ev.s - 5 && ev.s - flipped <= 240) {
+      ev.w = flipped;
+      ev.wFlipped = true;
+    } else {
+      ev.w = null;
+    }
+  });
+
   sorted.forEach((ev, i) => {
     if (ev.w !== null) return;
     const prev = i > 0 ? sorted[i - 1] : null;
@@ -630,9 +646,11 @@ function buildDayPlan(events: PlanInputEvent[]): PlanItem[] {
         label: "Warm-up",
         detail:
           "Water only from here — sip, don't gulp." +
-          (ev.wEstimated
-            ? " (Warm-up time is a guess — add the real one on the event card to fine-tune this plan.)"
-            : ""),
+          (ev.wFlipped
+            ? " (The saved warm-up time was after the race, so we read it as AM instead of PM — check it on the event card.)"
+            : ev.wEstimated
+              ? " (Warm-up time is a guess — add the real one on the event card to fine-tune this plan.)"
+              : ""),
       });
       lastWarmup = ev.w;
 
