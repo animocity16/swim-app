@@ -545,13 +545,38 @@ function buildDayPlan(events: PlanInputEvent[]): PlanItem[] {
 
   const sorted = withTimes
     .filter((e) => e.s !== null)
-    .sort((a, b) => (a.s as number) - (b.s as number)) as {
+    .sort((a, b) => (a.s as number) - (b.s as number))
+    .map((e) => ({ ...e, wEstimated: false })) as {
     name: string;
     w: number | null;
     s: number;
+    wEstimated: boolean;
   }[];
 
   if (sorted.length === 0) return [];
+
+  // Fill in any missing warm-up times BEFORE building the plan. Without this,
+  // an event with no warm-up saved skipped its whole lead-up (breakfast,
+  // fluids, warm-up) and the day just started with "Race".
+  //   1. If an earlier event has a warm-up and this race follows within
+  //      3 hours, it's the same session - share that warm-up.
+  //   2. Otherwise guess a warm-up 60 minutes before the race and mark it
+  //      as estimated so the plan can say so.
+  sorted.forEach((ev, i) => {
+    if (ev.w !== null) return;
+    const prev = i > 0 ? sorted[i - 1] : null;
+    if (prev && prev.w !== null && ev.s - prev.w <= 180) {
+      ev.w = prev.w;
+      return;
+    }
+    const guess = ev.s - 60;
+    if (!prev || guess > prev.s + 20) {
+      ev.w = guess;
+      ev.wEstimated = true;
+    } else if (prev.w !== null) {
+      ev.w = prev.w;
+    }
+  });
 
   const out: PlanItem[] = [];
   let lastWarmup: number | null = null;
@@ -600,7 +625,15 @@ function buildDayPlan(events: PlanInputEvent[]): PlanItem[] {
         cursor = ev.w - 20;
       }
 
-      out.push({ t: ev.w, label: "Warm-up", detail: "Water only from here — sip, don't gulp." });
+      out.push({
+        t: ev.w,
+        label: "Warm-up",
+        detail:
+          "Water only from here — sip, don't gulp." +
+          (ev.wEstimated
+            ? " (Warm-up time is a guess — add the real one on the event card to fine-tune this plan.)"
+            : ""),
+      });
       lastWarmup = ev.w;
 
       // The stretch between warm-up finishing and the FIRST race of this
