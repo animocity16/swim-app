@@ -1,5 +1,5 @@
 // Server-only: sends a push notification to one saved phone/browser.
-import webpush from "web-push";
+import * as webpush from "web-push";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 let configured = false;
