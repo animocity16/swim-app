@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo, type CSSProperties } from "r
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { createWorker } from "tesseract.js";
+import { printedNameMatchesSwimmer } from "@/lib/startListParser";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -216,6 +217,121 @@ function parsePDF(text: string, swimmerNames: string[]): ParsedEvent[] {
   }
 
   return results;
+}
+
+// ─── Central start list (uploaded once by the admin) ─────────────────────────
+// The admin uploads each day's start list PDF in /admin/meets, which saves every
+// swimmer into the shared table meet_start_list_entries. Each time a parent opens
+// a meet, we look for THEIR OWN swimmers (My Swimmers only, not the Following
+// list) in that table and copy the matching races into their meet_events - the
+// exact same rows, and the exact same table, the parent's own PDF upload creates.
+// So the rest of this page (day plan, fuel plan, warm-up, edit) works unchanged.
+//
+// Rules:
+//  - events a parent already has (from their own upload or an earlier sync) are
+//    never overwritten, so their warm-up times and edits are safe
+//  - an event a parent deletes is remembered on that device and not re-added
+
+type CentralEntry = {
+  event_date: string;
+  event_number: number;
+  event_name: string;
+  distance: number | null;
+  stroke: string | null;
+  heat: number;
+  lane: number;
+  seed_time: string | null;
+  start_time: string | null;
+  swimmer_name: string;
+};
+
+function dismissedKey(meetId: string) {
+  return `natrix:dismissed-start-list:${meetId}`;
+}
+
+function readDismissed(meetId: string): Set<string> {
+  try {
+    const raw = window.localStorage.getItem(dismissedKey(meetId));
+    return new Set(raw ? (JSON.parse(raw) as string[]) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function rememberDismissed(meetId: string, swimmerName: string, eventNumber: number) {
+  try {
+    const set = readDismissed(meetId);
+    set.add(`${swimmerName}|${eventNumber}`);
+    window.localStorage.setItem(dismissedKey(meetId), JSON.stringify([...set]));
+  } catch {
+    // private window / blocked storage: the event may reappear, nothing breaks
+  }
+}
+
+// Returns how many races were added for this parent.
+async function syncCentralStartList(
+  meetId: string,
+  ownSwimmerNames: string[],
+  existing: { swimmer_name: string; event_number: number }[]
+): Promise<number> {
+  if (ownSwimmerNames.length === 0) return 0;
+
+  const entries: CentralEntry[] = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await supabase
+      .from("meet_start_list_entries")
+      .select("event_date, event_number, event_name, distance, stroke, heat, lane, seed_time, start_time, swimmer_name")
+      .eq("meet_id", meetId)
+      .order("event_number", { ascending: true })
+      .range(from, from + 999);
+    if (error || !data) return 0;
+    entries.push(...(data as CentralEntry[]));
+    if (data.length < 1000) break;
+    from += 1000;
+  }
+  if (entries.length === 0) return 0;
+
+  const have = new Set(existing.map((e) => `${e.swimmer_name}|${e.event_number}`));
+  const dismissed = readDismissed(meetId);
+  const wordCount = (n: string) => n.trim().split(/\s+/).length;
+
+  const rows: Record<string, unknown>[] = [];
+  for (const en of entries) {
+    // If two of the parent's swimmers both match (e.g. "Lee Wei" and "Lee Wei Jie"),
+    // the one with the longer, more specific name wins.
+    let best: string | null = null;
+    for (const name of ownSwimmerNames) {
+      if (!printedNameMatchesSwimmer(en.swimmer_name, name)) continue;
+      if (best === null || wordCount(name) > wordCount(best)) best = name;
+    }
+    if (best === null) continue;
+
+    const key = `${best}|${en.event_number}`;
+    if (have.has(key) || dismissed.has(key)) continue;
+    have.add(key);
+
+    rows.push({
+      meet_id: meetId,
+      swimmer_name: best,
+      event_number: en.event_number,
+      event_name: en.event_name,
+      distance: en.distance ?? 0,
+      stroke: en.stroke ?? "",
+      heat: en.heat,
+      lane: en.lane,
+      seed_time: en.seed_time,
+      start_time: en.start_time,
+      event_date: en.event_date,
+    });
+  }
+  if (rows.length === 0) return 0;
+
+  // ignoreDuplicates: only ADD missing races, never overwrite one that exists.
+  const { error } = await supabase
+    .from("meet_events")
+    .upsert(rows, { onConflict: "meet_id,swimmer_name,event_number", ignoreDuplicates: true });
+  return error ? 0 : rows.length;
 }
 
 // ─── PDF text-layer extraction (fast path, runs in the browser) ─────────────
@@ -1866,6 +1982,8 @@ export default function UpcomingMeetDetailPage() {
   const [lastExtractedText, setLastExtractedText] = useState<string | null>(null);
   const [lastExtractedMeta, setLastExtractedMeta] = useState<{ usedOcr: boolean; textLayerError: string | null; textLayerChars: number } | null>(null);
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
+  // How many races were just added from the official (central) start list.
+  const [centralAdded, setCentralAdded] = useState(0);
 
   const load = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -1902,7 +2020,30 @@ export default function UpcomingMeetDetailPage() {
       .eq("meet_id", meetId)
       .order("event_number", { ascending: true });
 
-    setEvents((eventsData ?? []) as MeetEvent[]);
+    let loadedEvents = (eventsData ?? []) as MeetEvent[];
+
+    // Pull in this parent's own swimmers from the official start list, if the
+    // admin has uploaded one. Never allowed to break the page if it fails.
+    try {
+      const added = await syncCentralStartList(
+        meetId,
+        swimmerList.filter((s) => s.group_type === "primary").map((s) => s.name),
+        loadedEvents
+      );
+      if (added > 0) {
+        const { data: refreshed } = await supabase
+          .from("meet_events")
+          .select("*")
+          .eq("meet_id", meetId)
+          .order("event_number", { ascending: true });
+        if (refreshed) loadedEvents = refreshed as MeetEvent[];
+        setCentralAdded((prev) => prev + added);
+      }
+    } catch (err) {
+      console.error("Central start list sync failed:", err);
+    }
+
+    setEvents(loadedEvents);
     setLoading(false);
   }, [meetId, router]);
 
@@ -1929,6 +2070,8 @@ export default function UpcomingMeetDetailPage() {
   }
 
   function handleEventDeleted(eventId: string) {
+    const gone = events.find((e) => e.id === eventId);
+    if (gone) rememberDismissed(meetId, gone.swimmer_name, gone.event_number);
     setEvents((prev) => prev.filter((e) => e.id !== eventId));
   }
 
@@ -2112,6 +2255,20 @@ export default function UpcomingMeetDetailPage() {
             onToggle={toggleSwimmer}
             onBulkToggle={bulkToggleSwimmers}
           />
+        )}
+
+        {centralAdded > 0 && (
+          <div style={{
+            background: "rgba(22,138,232,0.12)", border: "1px solid rgba(22,138,232,0.35)",
+            borderRadius: "14px", padding: "10px 14px",
+          }}>
+            <p style={{ fontSize: "12.5px", fontWeight: 700, color: ACCENT, margin: 0 }}>
+              {centralAdded} race{centralAdded === 1 ? "" : "s"} added from the official start list
+            </p>
+            <p style={{ fontSize: "10.5px", color: MUTED, margin: "2px 0 0" }}>
+              Natrix found your swimmers in the start list, so there is nothing to upload.
+            </p>
+          </div>
         )}
 
         {/* PDF Upload */}
