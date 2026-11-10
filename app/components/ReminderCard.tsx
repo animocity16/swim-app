@@ -104,7 +104,12 @@ export default function ReminderCard() {
         deviceLabel: navigator.userAgent.includes("iPhone") ? "iPhone" : "This device",
       }),
     });
-    if (!res.ok) throw new Error("Couldn't save your reminder settings.");
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(
+        `Couldn't save your reminder settings (error ${res.status}: ${data.error || "no details"}).`
+      );
+    }
   }
 
   async function turnOn() {
