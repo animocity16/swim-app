@@ -9,6 +9,7 @@ import { applyTheme, applyFontSize, FONT_SIZES, type FontSizeId } from "@/app/co
 import { LANGUAGES, applyLanguage, type LanguageId } from "@/lib/i18n";
 import Link from "next/link";
 import MyDevicesCard from "@/app/components/MyDevicesCard";
+import ReminderCard from "@/app/components/ReminderCard";
 import { appFetch } from "@/lib/demo/demoFetch";
 import { isDemoActive } from "@/lib/demo/demoMode";
 import { clearRegistered, unregisterThisDevice } from "@/lib/devices";
@@ -384,6 +385,9 @@ export default function SettingsPage() {
 
         {/* ── My devices (family bundle: up to 3 devices) ─────────────────── */}
         {!inDemo&&<MyDevicesCard/>}
+
+        {/* ── Swim reminders (push notification before each swim) ─────────── */}
+        {!inDemo&&<ReminderCard/>}
 
         {/* ── Manage meets (admin gets the official calendar, everyone gets their own) ── */}
         <Link href={isAdmin ? "/admin/meets" : "/meets/manage"}
