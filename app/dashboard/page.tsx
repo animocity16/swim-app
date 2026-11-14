@@ -53,6 +53,7 @@ type StandardSetRow = {
   name: string;
   user_id: string | null;
   type: "UPGRADING" | "IMPORTANT_MEET" | null;
+  is_club_preset?: boolean | null;
 };
 
 type StandardItemRow = {
@@ -552,7 +553,7 @@ export default function DashboardPage() {
         .order("created_at", { ascending: false }),
       supabase
         .from("standard_sets")
-        .select("id, name, user_id, type")
+        .select("id, name, user_id, type, is_club_preset")
         .or(`user_id.eq.${userId},user_id.is.null`)
         .order("created_at", { ascending: true }),
     ]);
@@ -621,6 +622,22 @@ export default function DashboardPage() {
         if (!ex || t.time_ms < ex) pbMapForStd.set(key, t.time_ms);
       }
 
+      // Club squad standards (e.g. SSC) reset every 1 January: only this
+      // year's swims count for them. Same rule as the Standards tab.
+      const thisYear = String(new Date().getFullYear());
+      const yearPbForStd = new Map<string, number>();
+      for (const t of swimmerTimes) {
+        if (!t.swam_at || String(t.swam_at).slice(0, 4) !== thisYear) continue;
+        const key = `${canonicalEventName(t.event)}|${t.course}`;
+        const ex = yearPbForStd.get(key);
+        if (!ex || t.time_ms < ex) yearPbForStd.set(key, t.time_ms);
+      }
+      const presetSetIds = new Set(setsData.filter((s) => s.is_club_preset).map((s) => s.id));
+      function pbOf(item: StandardItemRow): number | undefined {
+        const key = `${canonicalEventName(item.event)}|${item.course}`;
+        return presetSetIds.has(item.standard_set_id) ? yearPbForStd.get(key) : pbMapForStd.get(key);
+      }
+
       // Only items that actually apply to this swimmer (age/gender match) —
       // same filter the Standards tab uses.
       function relevantItems(setId: number): StandardItemRow[] {
@@ -640,7 +657,7 @@ export default function DashboardPage() {
         const displayItems = relevant.length > 0 ? relevant : allForSet;
         let qualified = 0, inProgress = 0;
         for (const item of displayItems) {
-          const pb = pbMapForStd.get(`${canonicalEventName(item.event)}|${item.course}`);
+          const pb = pbOf(item);
           if (pb === undefined) continue;
           if (pb <= item.qualifying_time_ms) qualified++;
           else inProgress++;
@@ -703,7 +720,7 @@ export default function DashboardPage() {
       const candidates: ClosestStandard[] = [];
       for (const set of visibleSets) {
         for (const item of relevantItems(set.id)) {
-          const pb = pbMapForStd.get(`${canonicalEventName(item.event)}|${item.course}`);
+          const pb = pbOf(item);
           if (pb === undefined) continue;              // hasn't swum this event yet
           if (pb <= item.qualifying_time_ms) continue;  // already qualified
 

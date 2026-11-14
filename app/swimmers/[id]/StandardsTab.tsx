@@ -4,11 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import { canonicalEventName } from "@/lib/events";
+import { calcFinaPoints } from "@/lib/finaPoints";
 
 type StandardSet = {
   id: number;
   name: string;
   type: "UPGRADING" | "IMPORTANT_MEET";
+  // Club squad standards (e.g. SSC). These reset every 1 January.
+  is_club_preset?: boolean | null;
 };
 
 type StandardItem = {
@@ -20,12 +23,15 @@ type StandardItem = {
   gender: string | null;
   min_age: number | null;
   max_age: number | null;
+  // World Aquatics points this standard is worth (club presets only).
+  wa_points?: number | null;
 };
 
 type SwimTime = {
   event: string;
   course: string;
   time_ms: number;
+  swam_at?: string | null;
 };
 
 type Props = {
@@ -83,6 +89,15 @@ function eventDistance(event: string): number {
   return Number(event.match(/\d+/)?.[0] ?? 0);
 }
 
+// Points for the swimmer's own time, on the same table the standard uses.
+// A standard with no gender is one table for everyone, built on the girls'
+// points table, so the swimmer's time is scored on that table too.
+function pointsForPb(item: StandardItem, pbMs: number): number | null {
+  if (item.wa_points == null) return null;
+  const table = item.gender === "Male" ? "Male" : "Female";
+  return calcFinaPoints(pbMs, canonicalEventName(item.event), item.course, table);
+}
+
 function QualProgressRing({ qualified, total }: { qualified: number; total: number }) {
   const r = 18;
   const circ = 2 * Math.PI * r;
@@ -113,6 +128,9 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
   const [sets, setSets] = useState<StandardSet[]>([]);
   const [items, setItems] = useState<StandardItem[]>([]);
   const [pbMap, setPbMap] = useState<Map<string, number>>(new Map());
+  // Best times from this calendar year only. Club squad standards reset every
+  // 1 January, so last year's swims (and swims with no date) do not count.
+  const [yearPbMap, setYearPbMap] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
   const [expandedSet, setExpandedSet] = useState<number | null>(null);
   const [expandedStroke, setExpandedStroke] = useState<Record<string, boolean>>({});
@@ -127,12 +145,12 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
     const [setsResult, timesResult] = await Promise.all([
       supabase
         .from("standard_sets")
-        .select("id, name, type")
+        .select("id, name, type, is_club_preset")
         .or(`user_id.eq.${user.id},user_id.is.null`)
         .order("created_at", { ascending: true }),
       supabase
         .from("swim_times")
-        .select("event, course, time_ms")
+        .select("event, course, time_ms, swam_at")
         .eq("swimmer_id", swimmerId),
     ]);
 
@@ -141,23 +159,39 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
 
     const times = (timesResult.data ?? []) as SwimTime[];
     const map = new Map<string, number>();
+    const yearMap = new Map<string, number>();
+    const thisYear = String(new Date().getFullYear());
     for (const t of times) {
       const key = `${canonicalEventName(t.event)}|${t.course}`;
       const existing = map.get(key);
       if (!existing || t.time_ms < existing) map.set(key, t.time_ms);
+      if (t.swam_at && String(t.swam_at).slice(0, 4) === thisYear) {
+        const yearBest = yearMap.get(key);
+        if (!yearBest || t.time_ms < yearBest) yearMap.set(key, t.time_ms);
+      }
     }
     setPbMap(map);
+    setYearPbMap(yearMap);
 
     if (loadedSets.length > 0) {
       const setIds = loadedSets.map((s) => s.id);
       const { data: itemsData } = await supabase
         .from("standard_items")
-        .select("id, standard_set_id, event, course, qualifying_time_ms, gender, min_age, max_age")
+        .select("id, standard_set_id, event, course, qualifying_time_ms, gender, min_age, max_age, wa_points")
         .in("standard_set_id", setIds);
       setItems((itemsData ?? []) as StandardItem[]);
     }
 
     setLoading(false);
+  }
+
+  // Club squad standards only count this year's swims. Everything else
+  // (meet standards, sets a parent typed in) uses the best time ever.
+  const presetSetIds = new Set(sets.filter((s) => s.is_club_preset).map((s) => s.id));
+  const currentYear = new Date().getFullYear();
+  function pbOf(item: StandardItem): number | undefined {
+    const key = `${canonicalEventName(item.event)}|${item.course}`;
+    return presetSetIds.has(item.standard_set_id) ? yearPbMap.get(key) : pbMap.get(key);
   }
 
   function relevantItems(setId: number): StandardItem[] {
@@ -176,7 +210,7 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
     const displayItems = relevant.length > 0 ? relevant : allItems;
     let qualified = 0, attempted = 0;
     for (const item of displayItems) {
-      const pb = pbMap.get(`${canonicalEventName(item.event)}|${item.course}`);
+      const pb = pbOf(item);
       if (pb !== undefined) {
         attempted++;
         if (pb <= item.qualifying_time_ms) qualified++;
@@ -266,6 +300,10 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
         const { displayItems, qualified, attempted, total } = computeStats(set.id);
         const isExpanded = expandedSet === set.id;
         const isComplete = qualified === total && total > 0;
+        // One points figure for the whole set (e.g. 385), when every row shares it.
+        const setPoints = displayItems.length > 0 && displayItems.every((i) => i.wa_points != null && i.wa_points === displayItems[0].wa_points)
+          ? displayItems[0].wa_points
+          : null;
 
         const grouped = (Object.keys(STROKES) as StrokeKey[])
           .map((key) => {
@@ -273,8 +311,8 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
               .filter((item) => getStrokeKey(item.event) === key)
               .slice()
               .sort((a, b) => {
-                const aPb = pbMap.get(`${canonicalEventName(a.event)}|${a.course}`);
-                const bPb = pbMap.get(`${canonicalEventName(b.event)}|${b.course}`);
+                const aPb = pbOf(a);
+                const bPb = pbOf(b);
 
                 if (aPb !== undefined && bPb === undefined) return -1;
                 if (aPb === undefined && bPb !== undefined) return 1;
@@ -294,12 +332,12 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
               });
 
             const strokeQualified = strokeItems.filter((item) => {
-              const pb = pbMap.get(`${canonicalEventName(item.event)}|${item.course}`);
+              const pb = pbOf(item);
               return pb !== undefined && pb <= item.qualifying_time_ms;
             }).length;
 
             const strokeAttempted = strokeItems.filter((item) =>
-              pbMap.get(`${canonicalEventName(item.event)}|${item.course}`) !== undefined
+              pbOf(item) !== undefined
             ).length;
 
             return {
@@ -334,6 +372,7 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
                 <div className="min-w-0 flex-1">
                   <p className="mb-0.5 truncate text-[0.625rem] font-medium uppercase tracking-widest text-white/35">
                     {set.type === "UPGRADING" ? "Upgrading" : "Meet Standard"}
+                    {setPoints != null ? ` · ${setPoints} WA pts` : ""}
                   </p>
                   <p className="truncate text-base font-bold text-white">{set.name}</p>
 
@@ -442,11 +481,15 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
                           }}
                         >
                           {group.items.map((item, idx) => {
-                            const pb = pbMap.get(`${canonicalEventName(item.event)}|${item.course}`);
+                            const pb = pbOf(item);
                             const hasTime = pb !== undefined;
+                            const yearOnly = presetSetIds.has(item.standard_set_id);
                             const hasQual = hasTime && pb <= item.qualifying_time_ms;
                             const gapMs = hasTime && !hasQual ? pb - item.qualifying_time_ms : null;
                             const strokeColor = getStrokeColor(item.event);
+                            let pbPts = hasTime && pb !== undefined ? pointsForPb(item, pb) : null;
+                            // A swim on or under the standard never shows fewer points than the standard.
+                            if (pbPts !== null && hasQual && item.wa_points != null) pbPts = Math.max(pbPts, item.wa_points);
 
                             return (
                               <div
@@ -479,6 +522,9 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
                                   <p className="text-sm font-semibold text-white/55">
                                     {formatMs(item.qualifying_time_ms)}
                                   </p>
+                                  {item.wa_points != null && (
+                                    <p className="mt-0.5 text-[0.625rem] text-white/28">{item.wa_points} pts</p>
+                                  )}
                                 </div>
 
                                 <div className="w-20 flex-shrink-0 text-right">
@@ -490,11 +536,17 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
                                       <p className="text-sm font-bold" style={{ color: "#6EE7B7" }}>
                                         {formatMs(pb)}
                                       </p>
+                                      {pbPts !== null && (
+                                        <p className="mt-0.5 text-[0.625rem]" style={{ color: "#6EE7B7" }}>{pbPts} pts</p>
+                                      )}
                                     </>
                                   ) : hasTime && pb !== undefined ? (
                                     <>
-                                      <p className="mb-0.5 text-[0.625rem] text-white/28">PB</p>
+                                      <p className="mb-0.5 text-[0.625rem] text-white/28">{yearOnly ? `${currentYear} best` : "PB"}</p>
                                       <p className="text-sm font-bold text-white">{formatMs(pb)}</p>
+                                      {pbPts !== null && (
+                                        <p className="mt-0.5 text-[0.625rem] text-white/45">{pbPts} pts</p>
+                                      )}
                                       {gapMs !== null && (
                                         <p className="mt-0.5 text-[0.625rem]" style={{ color: "#D97706" }}>
                                           {formatGapSeconds(gapMs)}s away
@@ -502,7 +554,7 @@ export default function StandardsTab({ swimmerId, swimmerAge, swimmerGender, swi
                                       )}
                                     </>
                                   ) : (
-                                    <p className="text-[0.625rem] text-white/25">Not swum</p>
+                                    <p className="text-[0.625rem] text-white/25">{yearOnly ? `No ${currentYear} swim` : "Not swum"}</p>
                                   )}
                                 </div>
                               </div>

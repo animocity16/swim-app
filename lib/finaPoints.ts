@@ -1,5 +1,6 @@
 // ─── World Aquatics (FINA) Points Calculator ──────────────────────────────────
-// Base times: LCM 2025/2026 (validity 01.01.2026–31.12.2026)
+// Base times: LCM 2026 (validity 01.01.2026–31.12.2026), from the official
+//             "Points Base times SCM and LCM 2026" table (Jan 2026).
 //             SCM 2025      (validity 01.09.2025–31.08.2026)
 // Source: resources.fina.org — Points Base Times tables.
 // Points = 1000 × (BaseTime / SwimTime)^3, truncated to integer.
@@ -15,8 +16,8 @@ const LCM_BASE_TIMES: BaseTimeTable = {
   "50 Free":   { Male: 20.91,  Female: 23.61 },
   "100 Free":  { Male: 46.40,  Female: 51.71 },
   "200 Free":  { Male: 102.00, Female: 112.23 },
-  "400 Free":  { Male: 220.07, Female: 235.38 },
-  "800 Free":  { Male: 452.12, Female: 484.79 },
+  "400 Free":  { Male: 219.96, Female: 234.18 },
+  "800 Free":  { Male: 452.12, Female: 484.12 },
   "1500 Free": { Male: 870.67, Female: 920.48 },
   "50 Back":   { Male: 23.55,  Female: 26.86 },
   "100 Back":  { Male: 51.60,  Female: 57.13 },
@@ -25,10 +26,10 @@ const LCM_BASE_TIMES: BaseTimeTable = {
   "100 Breast":{ Male: 56.88,  Female: 64.13 },
   "200 Breast":{ Male: 125.48, Female: 137.55 },
   "50 Fly":    { Male: 22.27,  Female: 24.43 },
-  "100 Fly":   { Male: 49.45,  Female: 55.18 },
+  "100 Fly":   { Male: 49.45,  Female: 54.60 },
   "200 Fly":   { Male: 110.34, Female: 121.81 },
-  "200 IM":    { Male: 114.00, Female: 126.12 },
-  "400 IM":    { Male: 242.50, Female: 264.38 },
+  "200 IM":    { Male: 112.69, Female: 125.70 },
+  "400 IM":    { Male: 242.50, Female: 263.65 },
 };
 
 const SCM_BASE_TIMES: BaseTimeTable = {
