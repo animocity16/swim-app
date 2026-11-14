@@ -164,7 +164,23 @@ export default function AdminMeetsPage() {
         if (insErr) throw new Error(insErr.message);
       }
 
-      setSlDone(`Saved ${rows.length} swimmer entries. Parents will see their swimmers' events next time they open this meet.`);
+      // Copy the races into every matching parent's Meets right now (and so
+      // reminders work without the parent opening the meet first).
+      let syncNote = "";
+      try {
+        const res = await fetch("/api/sync-start-list", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ meetId: slMeetId, eventDate: slDate, eventNumbers }),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error ?? "Sync failed");
+        syncNote = ` Sent ${json.added} race${json.added === 1 ? "" : "s"} to ${json.accounts} account${json.accounts === 1 ? "" : "s"} (${json.swimmers} swimmer${json.swimmers === 1 ? "" : "s"}).`;
+      } catch (syncErr) {
+        syncNote = ` Saved, but the instant copy to parents failed (${syncErr instanceof Error ? syncErr.message : String(syncErr)}). They will still get their races when they open the meet.`;
+      }
+
+      setSlDone(`Saved ${rows.length} swimmer entries.${syncNote}`);
       setSlResult(null);
       void loadSavedStartLists(slMeetId);
     } catch (err) {
