@@ -1432,8 +1432,8 @@ export default function ScanPage() {
                       <div className="space-y-1">
                         <label className="text-xs text-white/40">Date swum</label>
                         <input type="date" value={manualMeetDate} onChange={(e) => setManualMeetDate(e.target.value)}
-                          className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white outline-none focus:border-amber-400/50"
-                          style={{ colorScheme: "dark" }} />
+                          className="block w-full min-w-0 max-w-full appearance-none rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white outline-none focus:border-amber-400/50"
+                          style={{ colorScheme: "dark", WebkitAppearance: "none", appearance: "none", minWidth: 0, maxWidth: "100%", boxSizing: "border-box", minHeight: "2.75rem" }} />
                       </div>
                     </div>
 
@@ -1681,8 +1681,8 @@ export default function ScanPage() {
                           <div className="space-y-1">
                             <label className="text-xs text-white/40">Date swum</label>
                             <input type="date" value={eventMeetDate} onChange={(e) => setEventMeetDate(e.target.value)}
-                              className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white outline-none focus:border-amber-400/50"
-                              style={{ colorScheme: "dark" }} />
+                              className="block w-full min-w-0 max-w-full appearance-none rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white outline-none focus:border-amber-400/50"
+                              style={{ colorScheme: "dark", WebkitAppearance: "none", appearance: "none", minWidth: 0, maxWidth: "100%", boxSizing: "border-box", minHeight: "2.75rem" }} />
                           </div>
                         </div>
                         <button type="button" onClick={() => void handleSaveSelected()}

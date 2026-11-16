@@ -199,6 +199,21 @@ function extractMeetDate(rawText: string): string | null {
 // A real name fragment is Title Case ("Jiahui", "Too") — it has at least one
 // lowercase letter. Interface chrome near the name header (POINTS, SWIMMER,
 // stat labels) reads as ALL CAPS and must not be swept up into the name.
+// Cleans a raw OCR line down to just the name-shaped text: drops leading junk
+// (status icons, "<", "NEI " prefixes) AND trailing junk — Meet Mobile's new
+// "MEET PERFORMANCE" header prints the swimmer name followed by a ">" chevron
+// ("Xin En Shanice Tan >"), which OCR reads as ">", "»", "5", etc. A stray
+// chevron used to make the last "word" fail the capital-letter check, so the
+// whole name was rejected and the scan said it couldn't read a swimmer.
+function cleanNameLine(line: string): string {
+  return line
+    .trim()
+    .replace(/^[^A-Z]+/, "")
+    .replace(/[\s>»›)\]|:;,.\-_=*~]+$/g, "")
+    .replace(/\s+[^A-Za-z\s]{1,2}$/g, "") // lone trailing symbol/digit glyph
+    .trim();
+}
+
 function isNameFragment(cleaned: string): boolean {
   if (cleaned.length === 0 || /\d/.test(cleaned)) return false;
   if (!/^[A-Z]/.test(cleaned)) return false;
@@ -231,7 +246,7 @@ function collectNameAbove(lines: string[], anchorIdx: number, maxLinesUp = 6): s
     const line = lines[i].trim();
     if (UI_LABEL_LINE.test(line)) continue; // skip tab-bar chrome, keep climbing
     checked++;
-    const cleaned = line.replace(/^[^A-Z]+/, "").trim();
+    const cleaned = cleanNameLine(line);
     if (!isNameFragment(cleaned)) break;
     fragments.unshift(cleaned);
     const combined = fragments.join(" ");
@@ -257,7 +272,7 @@ function collectNameBelow(lines: string[], anchorIdx: number, maxLinesDown = 6):
     const line = lines[i].trim();
     if (UI_LABEL_LINE.test(line) || isPunctuationNoise(line)) continue; // skip chrome/noise, keep going
     checked++;
-    const cleaned = line.replace(/^[^A-Z]+/, "").trim();
+    const cleaned = cleanNameLine(line);
     if (!isNameFragment(cleaned)) break;
     fragments.push(cleaned);
     const combined = fragments.join(" ");
@@ -281,10 +296,48 @@ function extractSwimmerHeader(lines: string[]): {
     if (name) return { name, club: null, age: null };
   }
 
+  // NEW LAYOUT ("MEET PERFORMANCE" screen): the header reads
+  //   POINTS / 0.0
+  //   Xin En Shanice Tan >
+  //   CSC | Female | 10
+  //   Full schedule
+  // The "CLUB | Gender | age" line has digits, so the old walk-upward from
+  // "Full schedule" stopped on it and never reached the name. Anchor on that
+  // line first (club + age come along for free), then read the name above it.
+  const clubGenderAgeIdx = lines.findIndex((l) =>
+    /^[A-Za-z]{2,8}\s*[|lI1\]]\s*(female|male|f|m|girl|boy|mixed)\s*[|lI1\]]\s*\d{1,2}$/i.test(l.trim())
+  );
+  if (clubGenderAgeIdx >= 1) {
+    const m = lines[clubGenderAgeIdx].trim().match(/^([A-Za-z]{2,8})\s*[|lI1\]]\s*\w+\s*[|lI1\]]\s*(\d{1,2})$/);
+    const name = collectNameAbove(lines, clubGenderAgeIdx);
+    if (name) {
+      return {
+        name,
+        club: m?.[1]?.toUpperCase() ?? null,
+        age: m?.[2] ? Number(m[2]) : null,
+      };
+    }
+  }
+
   const scheduleIdx = lines.findIndex((l) => /full.?schedule/i.test(l));
   if (scheduleIdx >= 1) {
     const name = collectNameAbove(lines, scheduleIdx);
     if (name) return { name, club: null, age: null };
+  }
+
+  // Last resort for the new layout when the screenshot is scrolled so the
+  // club/age line is gone: look for a name-shaped line that sits right after
+  // the "MEET PERFORMANCE" title bar (and any POINTS / score chrome).
+  const meetPerfIdx = lines.findIndex((l) => /meet\s*performance/i.test(l));
+  if (meetPerfIdx >= 0) {
+    for (let i = meetPerfIdx + 1; i < Math.min(meetPerfIdx + 6, lines.length); i++) {
+      const line = lines[i].trim();
+      if (/^points$/i.test(line) || !/[A-Za-z]/.test(line) || /^\d+(\.\d+)?$/.test(line)) continue;
+      if (/full.?schedule/i.test(line)) break;
+      const cleaned = cleanNameLine(line);
+      if (isNameFragment(cleaned) && looksLikeFullName(cleaned)) return { name: cleaned, club: null, age: null };
+      break;
+    }
   }
 
   // Fallback: find a "CLUB | age" style line (club code, pipe, 1-2 digit age)
