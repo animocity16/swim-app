@@ -304,17 +304,23 @@ function extractSwimmerHeader(lines: string[]): {
   // The "CLUB | Gender | age" line has digits, so the old walk-upward from
   // "Full schedule" stopped on it and never reached the name. Anchor on that
   // line first (club + age come along for free), then read the name above it.
+  // The line only has to END in "Female | 10" / "Male | 9". Whatever sits in
+  // front of it (score "0.0", a club code, or a one-letter OCR scrap like "X|")
+  // is optional noise — a one-letter club used to make this whole line get
+  // skipped, and the digits on it then blocked the walk up to the name.
   const clubGenderAgeIdx = lines.findIndex((l) =>
-    /^[A-Za-z]{2,8}\s*[|lI1\]]\s*(female|male|f|m|girl|boy|mixed)\s*[|lI1\]]\s*\d{1,2}$/i.test(l.trim())
+    /\b(female|male|girl|boy|mixed)\b\s*[|lI1\]]\s*\d{1,2}\s*$/i.test(l.trim())
   );
   if (clubGenderAgeIdx >= 1) {
-    const m = lines[clubGenderAgeIdx].trim().match(/^([A-Za-z]{2,8})\s*[|lI1\]]\s*\w+\s*[|lI1\]]\s*(\d{1,2})$/);
+    const line = lines[clubGenderAgeIdx].trim();
+    const clubM = line.match(/(?:^|\s)([A-Za-z]{2,8})\s*[|lI1\]]\s*(?:female|male|girl|boy|mixed)\b/i);
+    const ageM = line.match(/(\d{1,2})\s*$/);
     const name = collectNameAbove(lines, clubGenderAgeIdx);
     if (name) {
       return {
         name,
-        club: m?.[1]?.toUpperCase() ?? null,
-        age: m?.[2] ? Number(m[2]) : null,
+        club: clubM?.[1] && !/^(female|male|girl|boy|mixed)$/i.test(clubM[1]) ? clubM[1].toUpperCase() : null,
+        age: ageM?.[1] ? Number(ageM[1]) : null,
       };
     }
   }
@@ -332,7 +338,7 @@ function extractSwimmerHeader(lines: string[]): {
   if (meetPerfIdx >= 0) {
     for (let i = meetPerfIdx + 1; i < Math.min(meetPerfIdx + 6, lines.length); i++) {
       const line = lines[i].trim();
-      if (/^points$/i.test(line) || !/[A-Za-z]/.test(line) || /^\d+(\.\d+)?$/.test(line)) continue;
+      if (/^points$/i.test(line) || (line.match(/[A-Za-z]/g) ?? []).length < 3 || /^\d+(\.\d+)?$/.test(line)) continue;
       if (/full.?schedule/i.test(line)) break;
       const cleaned = cleanNameLine(line);
       if (isNameFragment(cleaned) && looksLikeFullName(cleaned)) return { name: cleaned, club: null, age: null };
