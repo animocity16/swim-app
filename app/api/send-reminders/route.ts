@@ -17,6 +17,7 @@ type SubRow = {
   auth: string;
   tz: string;
   lead_minutes: number;
+  warmup_enabled: boolean;
 };
 
 type EventRow = {
@@ -28,6 +29,7 @@ type EventRow = {
   heat: number | null;
   lane: number | null;
   start_time: string | null;
+  warmup_time: string | null;
   event_date: string | null;
 };
 
@@ -49,7 +51,7 @@ async function handle(req: NextRequest) {
   // 1) Who has reminders turned on?
   const { data: subsData } = await supabaseAdmin
     .from("push_subscriptions")
-    .select("id, user_id, endpoint, p256dh, auth, tz, lead_minutes");
+    .select("id, user_id, endpoint, p256dh, auth, tz, lead_minutes, warmup_enabled");
   const subs = (subsData ?? []) as SubRow[];
   if (subs.length === 0) return NextResponse.json({ checked: 0, sent: 0 });
 
@@ -71,7 +73,7 @@ async function handle(req: NextRequest) {
   const from = ymd(nowMs - 24 * 3600 * 1000);
   const to = ymd(nowMs + 36 * 3600 * 1000);
   const eventCols =
-    "id, meet_id, swimmer_name, event_number, event_name, heat, lane, start_time, event_date";
+    "id, meet_id, swimmer_name, event_number, event_name, heat, lane, start_time, warmup_time, event_date";
 
   const { data: datedData } = await supabaseAdmin
     .from("meet_events")
@@ -107,7 +109,34 @@ async function handle(req: NextRequest) {
     ...undated.map((e) => ({ ...e, day: singleDayMeetDates.get(e.meet_id) as string })),
   ];
 
-  // 4) Match, time-check, claim, send.
+  // 4) Match, time-check, claim, send - one reminder per parent per swim,
+  //    for each of the two moments below, even if this route runs twice.
+  async function claimAndSend(
+    sub: SubRow,
+    reminderKey: string,
+    notification: { title: string; body: string; url: string; tag: string }
+  ): Promise<boolean> {
+    const { data: claimed } = await supabaseAdmin
+      .from("reminder_log")
+      .upsert(
+        { user_id: sub.user_id, event_id: reminderKey },
+        { onConflict: "user_id,event_id", ignoreDuplicates: true }
+      )
+      .select("event_id");
+    if (!claimed || claimed.length === 0) return false;
+
+    const ok = await sendPush(sub, notification);
+    if (!ok) {
+      // Didn't go through — free the slot so the next minute tries again.
+      await supabaseAdmin
+        .from("reminder_log")
+        .delete()
+        .eq("user_id", sub.user_id)
+        .eq("event_id", reminderKey);
+    }
+    return ok;
+  }
+
   let sent = 0;
   for (const sub of subs) {
     const myNames = namesByUser.get(sub.user_id) ?? [];
@@ -116,50 +145,52 @@ async function handle(req: NextRequest) {
     for (const ev of events) {
       if (!myNames.some((n) => namesMatch(n, ev.swimmer_name))) continue;
 
+      // ── Report-to-call-room reminder, N minutes before the swim ──
       const mins = parseClockToMinutes(ev.start_time);
-      if (mins === null) continue;
-      const swimMs = zonedToUtcMs(ev.day, mins, sub.tz);
-      if (swimMs === null) continue;
+      const swimMs = mins === null ? null : zonedToUtcMs(ev.day, mins, sub.tz);
+      if (swimMs !== null) {
+        const remindAtMs = swimMs - sub.lead_minutes * 60000;
+        if (nowMs >= remindAtMs && nowMs < swimMs) {
+          const detail = [
+            `Event ${ev.event_number}`,
+            ev.event_name,
+            ev.heat && ev.lane ? `Heat ${ev.heat}, Lane ${ev.lane}` : null,
+            `swims ~${ev.start_time!.replace("~", "").trim()}`,
+          ]
+            .filter(Boolean)
+            .join(" · ");
 
-      const remindAtMs = swimMs - sub.lead_minutes * 60000;
-      if (nowMs < remindAtMs || nowMs >= swimMs) continue;
+          const ok = await claimAndSend(sub, String(ev.id), {
+            title: "Time to report to call room",
+            body: `${ev.swimmer_name}: ${detail}`,
+            url: `/meets/upcoming/${ev.meet_id}`,
+            tag: `swim-${ev.id}`,
+          });
+          if (ok) sent++;
+        }
+      }
 
-      // One reminder per parent per swim, even if this runs twice.
-      const eventKey = String(ev.id);
-      const { data: claimed } = await supabaseAdmin
-        .from("reminder_log")
-        .upsert(
-          { user_id: sub.user_id, event_id: eventKey },
-          { onConflict: "user_id,event_id", ignoreDuplicates: true }
-        )
-        .select("event_id");
-      if (!claimed || claimed.length === 0) continue;
+      // ── Warm-up reminder, right at the warm-up time the parent entered ──
+      if (sub.warmup_enabled) {
+        const warmupMins = parseClockToMinutes(ev.warmup_time);
+        const warmupMs = warmupMins === null ? null : zonedToUtcMs(ev.day, warmupMins, sub.tz);
+        if (warmupMs !== null && nowMs >= warmupMs && nowMs < warmupMs + 60000) {
+          const detail = [
+            `Event ${ev.event_number}`,
+            ev.event_name,
+            ev.heat && ev.lane ? `Heat ${ev.heat}, Lane ${ev.lane}` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ");
 
-      const detail = [
-        `Event ${ev.event_number}`,
-        ev.event_name,
-        ev.heat && ev.lane ? `Heat ${ev.heat}, Lane ${ev.lane}` : null,
-        `swims ~${ev.start_time!.replace("~", "").trim()}`,
-      ]
-        .filter(Boolean)
-        .join(" · ");
-
-      const ok = await sendPush(sub, {
-        title: "Time to report to call room",
-        body: `${ev.swimmer_name}: ${detail}`,
-        url: `/meets/upcoming/${ev.meet_id}`,
-        tag: `swim-${eventKey}`,
-      });
-
-      if (ok) {
-        sent++;
-      } else {
-        // Didn't go through — free the slot so the next minute tries again.
-        await supabaseAdmin
-          .from("reminder_log")
-          .delete()
-          .eq("user_id", sub.user_id)
-          .eq("event_id", eventKey);
+          const ok = await claimAndSend(sub, `${ev.id}:warmup`, {
+            title: "Time to start warming up",
+            body: `${ev.swimmer_name}: ${detail}`,
+            url: `/meets/upcoming/${ev.meet_id}`,
+            tag: `warmup-${ev.id}`,
+          });
+          if (ok) sent++;
+        }
       }
     }
   }

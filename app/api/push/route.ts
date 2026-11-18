@@ -21,6 +21,8 @@ export async function POST(req: NextRequest) {
   const tz = typeof body?.tz === "string" && body.tz ? body.tz : "Asia/Singapore";
   const lead = Math.min(180, Math.max(5, Number(body?.leadMinutes) || 30));
   const label = typeof body?.deviceLabel === "string" ? body.deviceLabel.slice(0, 80) : null;
+  // Defaults to on - most parents want both reminders once they turn this on.
+  const warmupEnabled = body?.warmupEnabled !== false;
 
   const { error } = await supabaseAdmin.from("push_subscriptions").upsert(
     {
@@ -30,6 +32,7 @@ export async function POST(req: NextRequest) {
       auth,
       tz,
       lead_minutes: lead,
+      warmup_enabled: warmupEnabled,
       device_label: label,
       updated_at: new Date().toISOString(),
     },

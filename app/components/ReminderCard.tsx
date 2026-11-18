@@ -52,6 +52,7 @@ function isInstalledApp(): boolean {
 export default function ReminderCard() {
   const [status, setStatus] = useState<Status>("loading");
   const [lead, setLead] = useState(30);
+  const [warmupEnabled, setWarmupEnabled] = useState(true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -76,11 +77,14 @@ export default function ReminderCard() {
         // Make sure the server still knows this phone, and read its lead time.
         const { data } = await supabase
           .from("push_subscriptions")
-          .select("lead_minutes")
+          .select("lead_minutes, warmup_enabled")
           .eq("endpoint", sub.endpoint)
           .maybeSingle();
         if (!data) return set("off");
-        if (!cancelled) setLead(data.lead_minutes);
+        if (!cancelled) {
+          setLead(data.lead_minutes);
+          setWarmupEnabled(data.warmup_enabled !== false);
+        }
         set("on");
       } catch {
         set("off");
@@ -91,7 +95,7 @@ export default function ReminderCard() {
     };
   }, []);
 
-  async function saveSubscription(sub: PushSubscription, leadMinutes: number) {
+  async function saveSubscription(sub: PushSubscription, leadMinutes: number, warmup: boolean) {
     const json = sub.toJSON();
     const res = await fetch("/api/push", {
       method: "POST",
@@ -101,6 +105,7 @@ export default function ReminderCard() {
         keys: json.keys,
         tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
         leadMinutes,
+        warmupEnabled: warmup,
         deviceLabel: navigator.userAgent.includes("iPhone") ? "iPhone" : "This device",
       }),
     });
@@ -136,7 +141,7 @@ export default function ReminderCard() {
           applicationServerKey: urlBase64ToUint8Array(publicKey),
         }));
 
-      await saveSubscription(sub, lead);
+      await saveSubscription(sub, lead, warmupEnabled);
       setStatus("on");
       setMessage("✓ Reminders are on.");
     } catch (err) {
@@ -175,7 +180,22 @@ export default function ReminderCard() {
       const reg = await navigator.serviceWorker.getRegistration("/sw.js");
       const sub = reg ? await reg.pushManager.getSubscription() : null;
       if (sub) {
-        await saveSubscription(sub, value);
+        await saveSubscription(sub, value, warmupEnabled);
+        setMessage("✓ Saved.");
+      }
+    } catch {
+      setMessage("Couldn't save that. Try again.");
+    }
+  }
+
+  async function changeWarmup(value: boolean) {
+    setWarmupEnabled(value);
+    setMessage("");
+    try {
+      const reg = await navigator.serviceWorker.getRegistration("/sw.js");
+      const sub = reg ? await reg.pushManager.getSubscription() : null;
+      if (sub) {
+        await saveSubscription(sub, lead, value);
         setMessage("✓ Saved.");
       }
     } catch {
@@ -222,8 +242,8 @@ export default function ReminderCard() {
 
       <p className="text-xs leading-relaxed" style={{ color: MUTED }}>
         Get a heads-up before each of your swimmers races: &quot;Time to report to call room&quot;,
-        with the event, heat and lane. Works for swimmers under My Swimmers once their start list
-        is on the Meets page.
+        with the event, heat and lane. Also pings you right at warm-up time if you&apos;ve set one
+        on an event. Works for swimmers under My Swimmers once their start list is on the Meets page.
       </p>
 
       {status === "loading" && (
@@ -283,6 +303,25 @@ export default function ReminderCard() {
                 </option>
               ))}
             </select>
+          </label>
+
+          <label
+            className="flex items-center justify-between rounded-2xl px-4 py-3"
+            style={{ background: "#F7FAFC", border: "1px solid #E1EDF5" }}
+          >
+            <span className="pr-3 text-xs font-semibold leading-snug" style={{ color: INK }}>
+              Also remind me right at warm-up time
+              <span className="block font-normal" style={{ color: MUTED }}>
+                For events where you&apos;ve set a warm-up time
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              checked={warmupEnabled}
+              onChange={(e) => changeWarmup(e.target.checked)}
+              className="h-5 w-5 flex-shrink-0 accent-current"
+              style={{ color: "var(--natrix-font-colour, #168AE8)" }}
+            />
           </label>
 
           <div className="flex gap-2">
