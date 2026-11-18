@@ -10,6 +10,8 @@ export type UsageRow = {
   email: string;
   signedUpAt: string;
   lastSignInAt: string | null;
+  lastOpenedAt: string | null; // last time the app was actually open on a device (user_devices), not just a fresh login
+  lastActiveAt: string | null; // the most recent of lastSignInAt / lastOpenedAt / lastTimeLoggedAt - the real "last used" signal
   swimmersAdded: number;
   timesLogged: number;
   lastTimeLoggedAt: string | null;
@@ -57,17 +59,34 @@ export async function GET(_req: NextRequest) {
 
     // ── Pull every swimmer + swim_time once, then group in memory ─────────
     // (cheap at this scale — a handful of users — and avoids N+1 queries)
-    const [{ data: swimmers, error: swimmersError }, { data: notifications, error: notifError }] =
-      await Promise.all([
-        supabaseAdmin
-          .from("swimmers")
-          .select("id, user_id, group_type"),
-        supabaseAdmin
-          .from("notifications")
-          .select("user_id"),
-      ]);
+    const [
+      { data: swimmers, error: swimmersError },
+      { data: notifications, error: notifError },
+      { data: deviceRows, error: devicesError },
+    ] = await Promise.all([
+      supabaseAdmin
+        .from("swimmers")
+        .select("id, user_id, group_type"),
+      supabaseAdmin
+        .from("notifications")
+        .select("user_id"),
+      // Bumped on every real app open (see lib/devices.ts checkDevice()), not
+      // just on a fresh sign-in - this is what actually tells us someone used
+      // the app without logging a new time, which auth alone can't show.
+      supabaseAdmin
+        .from("user_devices")
+        .select("user_id, last_seen_at"),
+    ]);
     if (swimmersError) throw new Error(`Fetch swimmers: ${swimmersError.message}`);
     if (notifError) throw new Error(`Fetch notifications: ${notifError.message}`);
+    if (devicesError) throw new Error(`Fetch user_devices: ${devicesError.message}`);
+
+    const lastOpenedByUser = new Map<string, string>();
+    for (const d of (deviceRows ?? []) as { user_id: string; last_seen_at: string }[]) {
+      if (!d.user_id || !d.last_seen_at) continue;
+      const prev = lastOpenedByUser.get(d.user_id);
+      if (!prev || d.last_seen_at > prev) lastOpenedByUser.set(d.user_id, d.last_seen_at);
+    }
 
     const primarySwimmerIdsByUser = new Map<string, number[]>();
     for (const s of swimmers ?? []) {
@@ -109,16 +128,29 @@ export async function GET(_req: NextRequest) {
       .map((u) => {
         const signedUpAt = u.created_at;
         const lastSignInAt = u.last_sign_in_at ?? null;
+        const lastOpenedAt = lastOpenedByUser.get(u.id) ?? null;
+        const lastTimeLoggedAt = lastTimeLoggedByUser.get(u.id) ?? null;
         const signedUpDay = signedUpAt?.slice(0, 10);
         const lastSignInDay = lastSignInAt?.slice(0, 10);
+
+        // The real "last used" signal is whichever of these three is most
+        // recent - a quiet reopen (device heartbeat) counts just as much as
+        // a fresh login or logging a time.
+        const lastActiveAt = [lastSignInAt, lastOpenedAt, lastTimeLoggedAt]
+          .filter((d): d is string => Boolean(d))
+          .sort()
+          .pop() ?? null;
+
         return {
           userId: u.id,
           email: u.email ?? "(no email)",
           signedUpAt,
           lastSignInAt,
+          lastOpenedAt,
+          lastActiveAt,
           swimmersAdded: primarySwimmerIdsByUser.get(u.id)?.length ?? 0,
           timesLogged: timesLoggedByUser.get(u.id) ?? 0,
-          lastTimeLoggedAt: lastTimeLoggedByUser.get(u.id) ?? null,
+          lastTimeLoggedAt,
           notificationsReceived: notificationCountByUser.get(u.id) ?? 0,
           isAdmin: u.id === ADMIN_USER_ID,
           isSeed: (u.email ?? "").endsWith("@swimnatrix.app"),
@@ -134,7 +166,7 @@ export async function GET(_req: NextRequest) {
       activated: realUsers.filter((r) => r.timesLogged > 0).length,
       returned: realUsers.filter((r) => r.returned).length,
       activeLast30Days: realUsers.filter(
-        (r) => r.lastTimeLoggedAt && Date.now() - new Date(r.lastTimeLoggedAt).getTime() < 30 * 86400000
+        (r) => r.lastActiveAt && Date.now() - new Date(r.lastActiveAt).getTime() < 30 * 86400000
       ).length,
     };
 

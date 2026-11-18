@@ -29,15 +29,17 @@ function daysAgo(dateStr: string | null) {
 }
 
 function statusFor(row: UsageRow): { label: string; className: string } {
-  if (row.timesLogged === 0 && row.swimmersAdded === 0) {
+  const activeAgo = daysAgo(row.lastActiveAt);
+  const isActive = activeAgo !== null && activeAgo <= 30;
+
+  if (row.lastActiveAt === null) {
     return { label: "Never used it", className: "danger-text" };
   }
-  if (row.timesLogged === 0) {
-    return { label: "Added a swimmer, no times logged", className: "warning-text" };
+  if (isActive && row.timesLogged === 0) {
+    return { label: "Opened the app, no times logged yet", className: "warning-text" };
   }
-  const ago = daysAgo(row.lastTimeLoggedAt);
-  if (ago !== null && ago <= 30) {
-    return { label: "Active — logged a time in the last 30 days", className: "success-text" };
+  if (isActive) {
+    return { label: "Active — used the app in the last 30 days", className: "success-text" };
   }
   return { label: "Went quiet", className: "warning-text" };
 }
@@ -131,7 +133,7 @@ export default function AdminUsagePage() {
               <div className="card-soft">
                 <p className="label">Active now</p>
                 <p className="stat-number">{summary.activeLast30Days}</p>
-                <p className="text-xs muted mt-1">logged a time in the last 30 days</p>
+                <p className="text-xs muted mt-1">opened the app or logged a time in the last 30 days</p>
               </div>
               <div className="card-soft">
                 <p className="label">Came back</p>
@@ -159,7 +161,7 @@ export default function AdminUsagePage() {
                           {row.isSeed && <span className="muted font-normal"> · seed/test</span>}
                         </p>
                         <p className="text-xs muted mt-0.5">
-                          Signed up {fmtDate(row.signedUpAt)} · last seen {fmtDate(row.lastSignInAt)}
+                          Signed up {fmtDate(row.signedUpAt)} · last opened {fmtDate(row.lastActiveAt)}
                         </p>
                       </div>
                     </div>
