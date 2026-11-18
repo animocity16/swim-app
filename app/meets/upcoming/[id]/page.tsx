@@ -2043,7 +2043,15 @@ export default function UpcomingMeetDetailPage() {
       console.error("Central start list sync failed:", err);
     }
 
-    setEvents(loadedEvents);
+    // Only show events for swimmers that belong to THIS account (My Swimmers
+    // + Following) - meet_events is a shared table written to by the central
+    // admin sync for every matching family nationwide, so without this filter
+    // this page would show every other family's kids who happen to be racing
+    // at the same meet.
+    const ownNames = new Set(names);
+    const ownEvents = loadedEvents.filter((e) => ownNames.has(e.swimmer_name));
+
+    setEvents(ownEvents);
     setLoading(false);
   }, [meetId, router]);
 
