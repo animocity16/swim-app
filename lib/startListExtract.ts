@@ -70,18 +70,31 @@ async function extractTextFromTextLayer(file: File): Promise<string> {
     // the same y-coordinate; if most do, this isn't two columns, it's one
     // table, and splitting it would tear every row in half and scramble
     // the reading order.
+    //
+    // BUT some real start lists print two DIFFERENT events side by side
+    // whose heats happen to start on the same rows (lane 0 begins the row
+    // for both), which looks exactly like the wide-table pattern above and
+    // used to be wrongly merged back into one column - silently dropping
+    // every swimmer in whichever event ended up glued onto the wrong line.
+    // Each side printing its own "Event N" header is unambiguous proof
+    // they are two independent events, not one wide table, so that check
+    // overrides the row-overlap guard.
     if (splitX !== null) {
-      const leftYs = new Set(
-        items.filter((it) => it.x < (splitX as number)).map((it) => Math.round(it.y / 3) * 3)
-      );
-      const rightYs = new Set(
-        items.filter((it) => it.x >= (splitX as number)).map((it) => Math.round(it.y / 3) * 3)
-      );
-      let sharedY = 0;
-      for (const y of leftYs) if (rightYs.has(y)) sharedY++;
-      const overlapRatio = leftYs.size > 0 ? sharedY / leftYs.size : 0;
-      if (overlapRatio > 0.4) {
-        splitX = null; // false alarm - single wide table, not two columns
+      const hasOwnEventHeader = (side: Item[]) =>
+        side.some((it) => /^event\s*\d+/i.test(it.str.trim()));
+      const leftSide = items.filter((it) => it.x < (splitX as number));
+      const rightSide = items.filter((it) => it.x >= (splitX as number));
+      const bothHaveOwnEventHeader = hasOwnEventHeader(leftSide) && hasOwnEventHeader(rightSide);
+
+      if (!bothHaveOwnEventHeader) {
+        const leftYs = new Set(leftSide.map((it) => Math.round(it.y / 3) * 3));
+        const rightYs = new Set(rightSide.map((it) => Math.round(it.y / 3) * 3));
+        let sharedY = 0;
+        for (const y of leftYs) if (rightYs.has(y)) sharedY++;
+        const overlapRatio = leftYs.size > 0 ? sharedY / leftYs.size : 0;
+        if (overlapRatio > 0.4) {
+          splitX = null; // false alarm - single wide table, not two columns
+        }
       }
     }
 
