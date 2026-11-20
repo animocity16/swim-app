@@ -71,6 +71,15 @@ button, input, select, textarea {
   font: inherit;
 }
 
+/* iPhone Safari zooms the whole page in when you tap a text box with text
+   smaller than 16px, and stays zoomed afterwards - that shifts the page and
+   leaves the bottom nav floating. Keeping form fields at 16px on phones stops it. */
+@media (max-width: 768px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}
+
 /* ============================================================
    WATER BACKGROUND — CSS animated pool caustics
    Uses CSS variables so ThemeProvider can change colours.
