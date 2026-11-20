@@ -1330,7 +1330,7 @@ function EventCard({
               </p>
             )}
             {event.start_time && (
-              <p style={{ fontSize: "11px", color: "#B7C9D8", marginTop: "2px" }}>
+              <p style={{ fontSize: "11px", color: "#0369A1", fontWeight: 600, marginTop: "2px" }}>
                 ~{event.start_time}
               </p>
             )}
